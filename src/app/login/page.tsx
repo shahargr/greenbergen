@@ -4,12 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Wordmark } from "@/components/SiteHeader";
 
 // Login = email -> emailed 6-digit code (valid 5 minutes, Supabase email OTP).
 // The emailed magic link also still works (handled by /auth/confirm).
 function nextPath() {
   const n = new URLSearchParams(window.location.search).get("next");
-  return n && n.startsWith("/") && !n.startsWith("//") ? n : "/";
+  return n && n.startsWith("/") && !n.startsWith("//") ? n : "/my";
 }
 
 const MailIcon = () => (
@@ -113,7 +114,7 @@ export default function LoginPage() {
   return (
     <main className="center-page">
       <div className="card auth-card">
-        <span className="kicker">Green Bergen</span>
+        <Wordmark small />
         <h1 className="auth-title">Sign in</h1>
 
         {step === "email" ? (

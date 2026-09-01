@@ -1,15 +1,23 @@
-import Link from "next/link";
+import { SiteHeader } from "@/components/SiteHeader";
+import { JoinForm } from "./JoinForm";
 
-export default function JoinPage() {
+export default async function JoinPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ invite?: string }>;
+}) {
+  const { invite } = await searchParams;
+
   return (
-    <main className="wrap" style={{ paddingTop: 64, paddingBottom: 96, maxWidth: 640 }}>
-      <h1>Join</h1>
-      <p className="muted">
-        Homeowners join by invitation today — ask us for one. Vendors and
-        partners: reach out and we&apos;ll set you up. Self-serve signup is
-        coming soon.
-      </p>
-      <Link href="/login">Sign in</Link> · <Link href="/">Back home</Link>
-    </main>
+    <div className="page">
+      <SiteHeader />
+      <main className="wrap" style={{ flex: 1, width: "100%", maxWidth: 680, paddingBottom: 64 }}>
+        <h1 style={{ fontSize: 28, margin: "12px 0 4px" }}>Join Green Bergen</h1>
+        <p className="muted" style={{ marginTop: 0 }}>
+          What would you like to do? Pick one — or both.
+        </p>
+        <JoinForm inviteToken={invite ?? null} />
+      </main>
+    </div>
   );
 }

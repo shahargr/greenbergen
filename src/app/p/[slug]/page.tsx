@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { SiteHeader } from "@/components/SiteHeader";
+import { BackButton } from "./BackButton";
+import { InquiryForm } from "./InquiryForm";
+import { Gallery } from "./Gallery";
 
 type About = {
   project: string;
@@ -12,11 +16,44 @@ type About = {
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  total_sqft: number | null;
+  garage_note: string | null;
+  scope_note: string | null;
+  built_year: number | null;
+  sold_year: number | null;
 };
 
-// Public project page: everything comes from public_showcase(slug) - the
-// anon-safe view (about page or the Master Template fallback, plus a
-// space-type summary). These are the pages printed QR codes point at.
+// Extras only appear when the home actually has them.
+const EXTRAS = ["patio", "pool", "jacuzzi", "steam shower", "recreational", "media room", "gym"];
+
+function computeScope(spaces: Record<string, number>) {
+  let bedrooms = 0;
+  let baths = 0;
+  let garages = 0;
+  const extras: string[] = [];
+  for (const [rawType, n] of Object.entries(spaces)) {
+    const type = rawType.replace(/_/g, " ").toLowerCase();
+    if (type.includes("bedroom")) bedrooms += n;
+    else if (type.includes("powder")) baths += 0.5 * n;
+    else if (type.includes("bath")) baths += n;
+    else if (type.includes("garage")) garages += n;
+    for (const extra of EXTRAS) {
+      if (type.includes(extra) && !extras.includes(extra)) extras.push(extra);
+    }
+  }
+  return { bedrooms, baths, garages, extras };
+}
+
+function galleryLabel(name: string): string {
+  const base = name.toLowerCase();
+  if (base.startsWith("elevation")) return "Elevation";
+  if (base.startsWith("floorplan") || base.startsWith("floor-plan")) return "Floor plan";
+  return "";
+}
+
+// Public project page, fed by public_showcase(slug): about text (per-project
+// or the Master Template fallback), a computed scope of delivery, an optional
+// photo gallery from public-media/gallery/<slug>/, and an inquiry form.
 export default async function ProjectPage({
   params,
 }: {
@@ -30,77 +67,113 @@ export default async function ProjectPage({
   if (!about) notFound();
 
   const spaces: Record<string, number> = data?.spaces ?? {};
-  const spaceEntries = Object.entries(spaces).sort((a, b) => b[1] - a[1]);
+  const scope = computeScope(spaces);
+  const garageText =
+    about.garage_note ?? (scope.garages > 0 ? `${scope.garages} garage${scope.garages > 1 ? "s" : ""}` : null);
+
+  const { data: galleryFiles } = await supabase.storage
+    .from("public-media")
+    .list(`gallery/${slug}`, { limit: 24 });
+  const gallery = (galleryFiles ?? [])
+    .filter((f) => f.name && !f.name.startsWith("."))
+    .map((f) => ({
+      name: f.name,
+      label: galleryLabel(f.name),
+      url: supabase.storage.from("public-media").getPublicUrl(`gallery/${slug}/${f.name}`).data.publicUrl,
+    }));
+
+  const hasScope =
+    scope.bedrooms > 0 || scope.baths > 0 || garageText || about.total_sqft ||
+    about.scope_note || scope.extras.length > 0 || about.built_year || about.sold_year;
 
   return (
     <div className="page">
-      <header className="topbar wrap">
-        <Link href="/" className="brand" style={{ color: "inherit" }}>Green Bergen</Link>
-        <Link href="/" className="iconlink" title="Home" aria-label="Home">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 10.5 12 3l9 7.5" />
-            <path d="M5 9.5V21h14V9.5" />
-          </svg>
-        </Link>
-      </header>
+      <SiteHeader
+        right={
+          <>
+            <BackButton />
+            <Link href="/" className="iconlink" title="Home" aria-label="Home">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 9.5V21h14V9.5" />
+              </svg>
+            </Link>
+          </>
+        }
+      />
 
-      <main className="wrap" style={{ flex: 1, width: "100%", maxWidth: 760, paddingBottom: 64 }}>
+      <main className="wrap" style={{ flex: 1, width: "100%", maxWidth: 760, paddingBottom: 48 }}>
         {about.hero_photo_url && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={about.hero_photo_url}
             alt={about.project}
-            style={{ width: "100%", borderRadius: 12, marginBottom: 24 }}
+            style={{ width: "100%", borderRadius: 12, marginBottom: 16 }}
           />
         )}
 
-        <span className="kicker">{about.status}</span>
-        <h1 style={{ fontSize: "clamp(24px, 4vw, 34px)", margin: "6px 0 4px" }}>
+        {/* Internal project status is deliberately NOT shown publicly - it
+            still gates the inquiry form below. */}
+        <h1 style={{ fontSize: "clamp(24px, 4vw, 32px)", margin: "8px 0 2px" }}>
           {about.project}
         </h1>
-        {about.address && <p className="muted" style={{ marginTop: 0 }}>{about.address}</p>}
+        {about.address && <p className="muted" style={{ margin: "0 0 14px" }}>{about.address}</p>}
 
-        <div className="card" style={{ marginTop: 20 }}>
-          <h2 style={{ fontSize: 18, marginTop: 0 }}>{about.headline}</h2>
-          <p style={{ whiteSpace: "pre-line", marginBottom: 0 }}>{about.body}</p>
-        </div>
-
-        {spaceEntries.length > 0 && (
-          <div className="card" style={{ marginTop: 16 }}>
-            <h2 style={{ fontSize: 15, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", marginTop: 0 }}>
-              Inside this home
-            </h2>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              {spaceEntries.map(([type, n]) => (
-                <span key={type} className="muted small" style={{ border: "1px solid var(--line)", borderRadius: 999, padding: "4px 12px", background: "#fff" }}>
-                  {n} {type.replace(/_/g, " ")}
-                </span>
-              ))}
+        {hasScope && (
+          <div className="card" style={{ marginBottom: 14, padding: "16px 20px" }}>
+            <h2 className="section-title">Scope of delivery</h2>
+            <div className="scope-row">
+              {scope.bedrooms > 0 && (
+                <span className="scope-fact"><strong>{scope.bedrooms}</strong> bedrooms</span>
+              )}
+              {scope.baths > 0 && (
+                <span className="scope-fact"><strong>{scope.baths}</strong> bathrooms</span>
+              )}
+              {garageText && <span className="scope-fact"><strong>{garageText}</strong></span>}
+              {about.total_sqft && (
+                <span className="scope-fact"><strong>{about.total_sqft.toLocaleString()}</strong> sq ft built</span>
+              )}
+              {about.built_year && (
+                <span className="scope-fact">Built <strong>{about.built_year}</strong></span>
+              )}
+              {about.sold_year && (
+                <span className="scope-fact">Sold <strong>{about.sold_year}</strong></span>
+              )}
             </div>
+            {about.scope_note && (
+              <p style={{ margin: "10px 0 0", fontSize: 15 }}>{about.scope_note}</p>
+            )}
+            {scope.extras.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+                {scope.extras.map((e) => (
+                  <span key={e} className="extra-chip">{e}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {(about.contact_name || about.contact_phone || about.contact_email) && (
-          <div className="card" style={{ marginTop: 16 }}>
-            <h2 style={{ fontSize: 15, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", marginTop: 0 }}>
-              Get in touch
-            </h2>
-            <p style={{ margin: 0 }}>
-              {about.contact_name}
-              {about.contact_phone && <> · <a href={`tel:${about.contact_phone}`}>{about.contact_phone}</a></>}
-              {about.contact_email && <> · <a href={`mailto:${about.contact_email}`}>{about.contact_email}</a></>}
-            </p>
+        <div className="card" style={{ marginBottom: 14, padding: "16px 20px" }}>
+          <h2 style={{ fontSize: 17, marginTop: 0, marginBottom: 8 }}>{about.headline}</h2>
+          <p style={{ whiteSpace: "pre-line", margin: 0, fontSize: 15 }}>{about.body}</p>
+        </div>
+
+        {/* A closed project takes no inquiries - the form is for live work.
+            It keeps this position; photos always come after it. */}
+        {!about.status.startsWith("Closed") && (
+          <div className="card" style={{ marginBottom: 14, padding: "16px 20px" }}>
+            <h2 className="section-title">Get in touch</h2>
+            <InquiryForm projectId={data.project_id} />
+          </div>
+        )}
+
+        {gallery.length > 0 && (
+          <div className="card" style={{ padding: "16px 20px" }}>
+            <h2 className="section-title">Plans &amp; photos</h2>
+            <Gallery items={gallery} />
           </div>
         )}
       </main>
-
-      <footer className="footbar">
-        <nav className="wrap footnav">
-          <Link href="/vision">Vision</Link>
-          <Link href="/help">Help</Link>
-          <Link href="/join">Join</Link>
-        </nav>
-      </footer>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { SiteHeader } from "@/components/SiteHeader";
 
 type PublicProject = {
   project_name: string;
@@ -56,6 +58,9 @@ export default async function Home() {
     supabase.rpc("public_company"),
   ]);
 
+  // A signed-in user's home is their dashboard, not the marketing page.
+  if (user) redirect("/my");
+
   const open: PublicProject[] = company?.projects ?? [];
   const closed: PublicProject[] = company?.completed ?? [];
 
@@ -106,24 +111,25 @@ export default async function Home() {
         </svg>
       </div>
 
-      <header className="topbar wrap">
-        <span className="brand">Green Bergen</span>
-        {user ? (
-          <Link href="/my" className="iconlink" title="Your home" aria-label="Your home">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 10.5 12 3l9 7.5" />
-              <path d="M5 9.5V21h14V9.5" />
-            </svg>
-          </Link>
-        ) : (
-          <Link href="/login" className="iconlink" title="Sign in" aria-label="Sign in">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
-            </svg>
-          </Link>
-        )}
-      </header>
+      <SiteHeader
+        right={
+          user ? (
+            <Link href="/my" className="iconlink" title="Your home" aria-label="Your home">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 9.5V21h14V9.5" />
+              </svg>
+            </Link>
+          ) : (
+            <Link href="/login" className="iconlink" title="Sign in" aria-label="Sign in">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
+              </svg>
+            </Link>
+          )
+        }
+      />
 
       <main className="wrap hero-wrap">
         <section className="hero">
@@ -138,27 +144,24 @@ export default async function Home() {
           <div className="panel">
             <h2>Open projects</h2>
             {open.length === 0 && <p className="muted">Nothing public right now.</p>}
-            {open.map((p) => (
-              <ProjectRow key={p.project_name} p={p} />
-            ))}
+            <div className="panel-list">
+              {open.map((p) => (
+                <ProjectRow key={p.project_name} p={p} />
+              ))}
+            </div>
           </div>
           <div className="panel">
-            <h2>Closed projects</h2>
+            <h2>Completed projects</h2>
             {closed.length === 0 && <p className="muted">Nothing public right now.</p>}
-            {closed.map((p) => (
-              <ProjectRow key={p.project_name} p={p} />
-            ))}
+            <div className="panel-list">
+              {closed.map((p) => (
+                <ProjectRow key={p.project_name} p={p} />
+              ))}
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="footbar">
-        <nav className="wrap footnav">
-          <Link href="/vision">Vision</Link>
-          <Link href="/help">Help</Link>
-          <Link href="/join">Join</Link>
-        </nav>
-      </footer>
     </div>
   );
 }
