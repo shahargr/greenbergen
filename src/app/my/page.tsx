@@ -183,10 +183,15 @@ export default async function MyPage({
         <h2 className="section-title">{town ? `Local support · ${town}` : "Local support"}</h2>
         {trades.length === 0 && <p className="muted">No local providers listed for your town yet.</p>}
         {trades.map((trade) => (
-          <div key={trade} style={{ marginBottom: 14 }}>
-            <strong style={{ fontSize: 15 }}>{trade}</strong>
-            <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-              {services[trade].slice(0, 5).map((v) => (
+          <details key={trade} className="tradefold">
+            <summary>
+              {trade}
+              <span className="muted small" style={{ fontWeight: 400 }}>
+                {services[trade].length} provider{services[trade].length > 1 ? "s" : ""}
+              </span>
+            </summary>
+            <div style={{ display: "grid", gap: 6, padding: "2px 0 12px 18px" }}>
+              {services[trade].slice(0, 8).map((v) => (
                 <div key={v.id} className="card" style={{ padding: "8px 12px", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <span>
                     {v.name}
@@ -202,7 +207,7 @@ export default async function MyPage({
                 </div>
               ))}
             </div>
-          </div>
+          </details>
         ))}
       </>
     );
