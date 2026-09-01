@@ -1,5 +1,5 @@
 import { TopNav } from "@/components/TopNav";
-import { AdminTabs } from "@/components/AdminTabs";
+import { AdminNav } from "@/components/AdminNav";
 
 export default function AdminLayout({
   children,
@@ -7,8 +7,10 @@ export default function AdminLayout({
   return (
     <>
       <TopNav role="Admin" />
-      <AdminTabs />
-      {children}
+      <div className="admin-shell wrap">
+        <AdminNav />
+        <div className="admin-main">{children}</div>
+      </div>
     </>
   );
 }

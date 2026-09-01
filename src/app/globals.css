@@ -414,28 +414,49 @@ a.panel-link:hover strong { color: var(--brand); }
   padding: 4px 0 12px 18px;
 }
 
-/* Admin tabs and tiles */
-.admintabs {
+/* Admin shell: sidebar on desktop, section dropdown on narrow screens. */
+.admin-shell {
   width: 100%;
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--line);
-  overflow-x: auto;
+  align-items: flex-start;
+  gap: 28px;
+  padding-top: 18px;
 }
-.admintab {
-  padding: 10px 14px;
+.admin-side {
+  flex: none;
+  width: 185px;
+  display: grid;
+  gap: 2px;
+  position: sticky;
+  top: 14px;
+}
+.admin-side-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
   font-size: 14px;
   color: var(--muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  white-space: nowrap;
+  border-left: 2px solid transparent;
 }
-.admintab:hover { color: var(--brand); text-decoration: none; }
-.admintab.active {
+.admin-side-item:hover { color: var(--brand); text-decoration: none; }
+.admin-side-item.active {
   color: var(--ink);
   font-weight: 600;
-  border-bottom-color: var(--brand);
+  background: #fff;
+  border-left-color: var(--brand);
+  box-shadow: 0 1px 4px rgba(27, 31, 28, 0.06);
 }
+.admin-main { flex: 1; min-width: 0; }
+.admin-main .wrap { margin-left: 0; padding-left: 0; padding-right: 0; }
+.admin-sectionmenu { display: none; }
+@media (max-width: 860px) {
+  .admin-shell { display: block; }
+  .admin-side { display: none; }
+  .admin-sectionmenu { display: block; margin-bottom: 4px; }
+}
+
 .admin-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
