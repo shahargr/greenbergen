@@ -16,6 +16,7 @@ export type RecentPayment = {
   payment_method_id: string | null;
   method: string | null;
   project: string | null;
+  attachments?: { url: string; kind: string; name: string }[];
 };
 
 // Recent payments with in-place editing - fix a field, or attach the
@@ -83,7 +84,23 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
               <span><span className="muted">From account:</span> {p.paid_from_account ?? "—"}</span>
               <span><span className="muted">Project:</span> {p.project ?? "—"}</span>
               {p.notes && <span style={{ whiteSpace: "pre-line" }}><span className="muted">Notes:</span> {p.notes}</span>}
-              <span className="muted">Receipts live on the project&apos;s Files card.</span>
+              {(p.attachments ?? []).length > 0 ? (
+                <span style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                  {p.attachments!.map((a) => a.kind === "photo" ? (
+                    <a key={a.url} href={a.url} target="_blank" rel="noreferrer" title={a.name}>
+                      {/* signed URLs expire; next/image caching fights that */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={a.url} alt={a.name} style={{ width: 84, height: 84, objectFit: "cover", borderRadius: 8, display: "block" }} />
+                    </a>
+                  ) : a.kind === "video" ? (
+                    <video key={a.url} src={a.url} controls preload="metadata" style={{ width: 160, borderRadius: 8 }} />
+                  ) : (
+                    <audio key={a.url} controls src={a.url} style={{ maxWidth: 240 }} />
+                  ))}
+                </span>
+              ) : (
+                <span className="muted">No receipts attached.</span>
+              )}
             </div>
           )}
 

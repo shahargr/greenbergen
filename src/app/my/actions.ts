@@ -166,7 +166,7 @@ export async function logPayment(formData: FormData) {
   const extraNotes = String(formData.get("notes") ?? "").trim();
   const paidOn = String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10);
 
-  const { error } = await supabase.from("transactions").insert({
+  const { data: txRow, error } = await supabase.from("transactions").insert({
     description: `Payment to ${paidTo}${requesterName ? ` — requested by ${requesterName}` : ""}`,
     amount,
     direction: "out",
@@ -182,13 +182,14 @@ export async function logPayment(formData: FormData) {
     notes: [paidBy ? `Paid by: ${paidBy}.` : null, extraNotes || null].filter(Boolean).join(" ") || null,
     created_by: "portal:payment",
     last_modified_by: "portal:payment",
-  });
-  if (error) {
-    const msg = error.message.includes("row-level security")
+  }).select("id").maybeSingle();
+  if (error || !txRow) {
+    const msg = error?.message.includes("row-level security")
       ? "Logging payments on this project is not yours to do."
-      : error.message;
+      : error?.message ?? "Could not log the payment.";
     redirect(`${back}error=${encodeURIComponent(msg)}`);
   }
+  const txId = txRow.id as string;
 
   // Receipts: photos and voice into the project file store, captioned with
   // the payment - AFTER the response is sent, so the button never waits on
@@ -201,7 +202,7 @@ export async function logPayment(formData: FormData) {
     const isImage = file.type.startsWith("image/");
     const isVideo = file.type.startsWith("video/");
     const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : isVideo ? ".mp4" : ".m4a")).toLowerCase();
-    const path = `${projectId}/payments/${Date.now()}-${i}${ext}`;
+    const path = `${projectId}/payments/${txId}/${Date.now()}-${i}${ext}`;
     const bytes = await file.arrayBuffer();
     const { error: upErr } = await supabase.storage
       .from("project-media")
@@ -274,7 +275,7 @@ export async function editPayment(formData: FormData) {
   for (const [i, file] of [...photos, ...files].entries()) {
     const isImage = file.type.startsWith("image/");
     const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
-    const path = `${tx.project_id}/payments/${Date.now()}-${i}${ext}`;
+    const path = `${tx.project_id}/payments/${txId}/${Date.now()}-${i}${ext}`;
     const bytes = await file.arrayBuffer();
     const { error: upErr } = await supabase.storage
       .from("project-media")

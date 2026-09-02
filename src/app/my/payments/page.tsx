@@ -17,6 +17,7 @@ type PayRow = {
 };
 type ProjectOverview = { id: string; last_activity: string };
 type CompanyMemberRow = { project_id: string; companies: { company_name: string | null } | null };
+type PayFileRow = { id: string; bucket: string; path: string; file_name: string; mime_type: string | null; kind: string | null };
 type Membership = {
   role: string;
   projects: { id: string; project_name: string; is_template: boolean } | null;
@@ -105,6 +106,30 @@ export default async function PaymentsPage({
   const payContracts = (((contractRows ?? []) as { id: string; title: string; project_id: string }[]))
     .map((c) => ({ id: c.id, title: c.title, projectId: c.project_id }));
   const recent = ((recentRows ?? []) as unknown as PayRow[]);
+
+  // Attachments are keyed by transaction id in their storage path:
+  // <project>/payments/<txId>/<file>. Signed so they render inline.
+  const { data: payFileRows } = await supabase
+    .from("files")
+    .select("id, bucket, path, file_name, mime_type, kind")
+    .in("project_id", pmIds)
+    .like("path", "%/payments/%")
+    .order("created_at", { ascending: false })
+    .limit(120);
+  const attachmentsByTx = new Map<string, { url: string; kind: string; name: string }[]>();
+  await Promise.all(
+    (((payFileRows ?? []) as PayFileRow[])).map(async (f) => {
+      const m = f.path.match(/\/payments\/([0-9a-f-]{36})\//);
+      if (!m) return;
+      const { data } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
+      if (!data?.signedUrl) return;
+      const kind = f.kind === "photo" || (f.mime_type ?? "").startsWith("image/") ? "photo"
+        : f.kind === "video" || (f.mime_type ?? "").startsWith("video/") ? "video" : "audio";
+      const list = attachmentsByTx.get(m[1]) ?? [];
+      list.push({ url: data.signedUrl, kind, name: f.file_name });
+      attachmentsByTx.set(m[1], list);
+    })
+  );
   const payPayees = [
     ...payMembers.map((m) => ({ projectId: m.projectId, name: m.name })),
     ...(((companyRows ?? []) as unknown as CompanyMemberRow[]))
@@ -145,6 +170,7 @@ export default async function PaymentsPage({
           payment_method_id: r.payment_method_id,
           method: r.payment_methods?.name ?? null,
           project: r.projects?.project_name ?? null,
+          attachments: attachmentsByTx.get(r.id) ?? [],
         }))}
       />
     </main>
