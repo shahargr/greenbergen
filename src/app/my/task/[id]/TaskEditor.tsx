@@ -104,8 +104,9 @@ export function TaskEditor({
   // anywhere; a plain assignee can only take it to Completed.
   const OPEN = ["Not Started", "In Progress", "Pending on Others", "Parked"];
   const statusChoices = perms.status
-    ? [...new Set([...OPEN, task.status, "Completed"])].sort((a, b) => {
-        const rank = (st: string) => (st === "Completed" ? OPEN.length : Math.max(OPEN.indexOf(st), 0));
+    ? [...new Set([...OPEN, task.status, "Completed", "Cancelled"])].sort((a, b) => {
+        const rank = (st: string) =>
+          st === "Completed" ? OPEN.length : st === "Cancelled" ? OPEN.length + 1 : Math.max(OPEN.indexOf(st), 0);
         return rank(a) - rank(b);
       })
     : [...new Set([task.status, "Completed"])];
@@ -134,9 +135,23 @@ export function TaskEditor({
 
         <Row label="Status">
           {unlocked && perms.status ? (
-            <select name="status" className="input" value={status} onChange={(e) => setStatus(e.target.value)} style={{ maxWidth: 220 }}>
-              {OPEN_STATUSES.map((s) => <option key={s}>{s}</option>)}
-            </select>
+            <span style={{ display: "grid", gap: 4 }}>
+              <select name="status" className="input" value={status} onChange={(e) => setStatus(e.target.value)} style={{ maxWidth: 220 }}>
+                {[...OPEN_STATUSES, "Completed", "Cancelled"].map((s) => <option key={s}>{s}</option>)}
+              </select>
+              {status === "Completed" && (
+                <span className="muted small">
+                  Saving will close this task — it needs attached evidence
+                  (or use the completion card below to close with a reason).
+                </span>
+              )}
+              {status === "Cancelled" && (
+                <span className="muted small">
+                  Saving will cancel this task for good. Open subtasks must be
+                  closed first; no evidence needed.
+                </span>
+              )}
+            </span>
           ) : (
             task.status
           )}
@@ -290,6 +305,12 @@ export function TaskEditor({
                   </button>
                 </div>
               </div>
+              {moveTo === "Cancelled" && (
+                <p className="muted small" style={{ margin: 0 }}>
+                  Cancelling closes this task for good — open subtasks must be
+                  closed first. No evidence needed.
+                </p>
+              )}
               {moveTo === "Completed" && (
                 <div style={{ display: "grid", gap: 8 }}>
                   <p className="muted small" style={{ margin: 0 }}>

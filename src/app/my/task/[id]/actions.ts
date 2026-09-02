@@ -72,9 +72,10 @@ export async function saveTask(taskId: string, formData: FormData) {
     const v = String(formData.get("title") ?? "").trim();
     if (v) updates.action = v;
   }
+  const chosenStatus = String(formData.get("status") ?? "");
+  const closing = p.status && ["Completed", "Cancelled"].includes(chosenStatus);
   if (p.status) {
-    const st = String(formData.get("status") ?? "");
-    if (OPEN_STATUSES.includes(st)) updates.status = st;
+    if (OPEN_STATUSES.includes(chosenStatus)) updates.status = chosenStatus;
     const pr = String(formData.get("priority") ?? "");
     if (PRIORITIES.includes(pr)) updates.priority = pr;
     const date = String(formData.get("target_date") ?? "").trim();
@@ -116,17 +117,53 @@ export async function saveTask(taskId: string, formData: FormData) {
     }
   }
 
-  if (Object.keys(updates).length === 0) {
+  if (Object.keys(updates).length === 0 && !closing) {
     redirect(`/my/task/${taskId}?error=${encodeURIComponent("Nothing you may edit was changed.")}`);
   }
-  updates.last_modified_by = "portal:task";
+  if (Object.keys(updates).length > 0) {
+    updates.last_modified_by = "portal:task";
+    const { error } = await supabase.from("actions").update(updates).eq("id", taskId);
+    if (error) {
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent(error.message)}`);
+    }
+  }
 
-  const { error } = await supabase.from("actions").update(updates).eq("id", taskId);
+  // Completed and Cancelled are proper closings, never a bare status write.
+  // Completed keeps its evidence gate; Cancelled skips it by design.
+  if (closing) {
+    if (chosenStatus === "Completed") {
+      const { count: evidenceCount } = await supabase
+        .from("file_links")
+        .select("id", { count: "exact", head: true })
+        .eq("action_id", taskId)
+        .in("role", ["after", "evidence", "before", "progress"]);
+      if (!evidenceCount) {
+        redirect(`/my/task/${taskId}?error=${encodeURIComponent("Completing needs evidence or a reason — use the Evidence & completion card below.")}`);
+      }
+    }
+    const { data: me } = await supabase.rpc("me");
+    const { error: closeErr } = await supabase.rpc("close_action", {
+      p_action_id: taskId,
+      p_force: false,
+      p_actor: me?.full_name ?? me?.email ?? "portal user",
+      p_final_status: chosenStatus,
+      p_is_final_occurrence: false,
+    });
+    if (closeErr) {
+      const msg = closeErr.message.includes("OPEN_CHILDREN")
+        ? "This task has open subtasks - close them first."
+        : closeErr.message.includes("MISSING_PHOTO_EVIDENCE")
+          ? "This task requires BEFORE and AFTER photos on record before completing."
+          : closeErr.message;
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent(msg)}`);
+    }
+    revalidatePath("/my");
+    redirect("/my?panel=tasks");
+  }
+
   revalidatePath(`/my/task/${taskId}`);
   revalidatePath("/my");
-  redirect(error
-    ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}`
-    : `/my/task/${taskId}?saved=1`);
+  redirect(`/my/task/${taskId}?saved=1`);
 }
 
 // Status moves from the completion card. Completion itself never comes
@@ -146,6 +183,24 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
   const st = String(formData.get("status") ?? "");
   if (!p.status) {
     redirect(`/my/task/${taskId}?error=${encodeURIComponent("Changing status is not yours to do — you can complete the task, with evidence.")}`);
+  }
+  if (st === "Cancelled") {
+    const { data: me } = await supabase.rpc("me");
+    const { error: closeErr } = await supabase.rpc("close_action", {
+      p_action_id: taskId,
+      p_force: false,
+      p_actor: me?.full_name ?? me?.email ?? "portal user",
+      p_final_status: "Cancelled",
+      p_is_final_occurrence: false,
+    });
+    if (closeErr) {
+      const msg = closeErr.message.includes("OPEN_CHILDREN")
+        ? "This task has open subtasks - close them first."
+        : closeErr.message;
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent(msg)}`);
+    }
+    revalidatePath("/my");
+    redirect("/my?panel=tasks");
   }
   if (!OPEN_STATUSES.includes(st)) {
     redirect(`/my/task/${taskId}?error=${encodeURIComponent("That is not a status this task can move to.")}`);
