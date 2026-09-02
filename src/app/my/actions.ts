@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { transcribeAudio } from "@/lib/transcribe";
 
 // Adds a home: create_home_asset() writes the real-estate asset and its
 // container project together, governed by the customer agreement (v103+).
@@ -78,7 +80,7 @@ export async function createJob(formData: FormData) {
       .from("project-media")
       .upload(path, bytes, { contentType: audio.type || undefined, upsert: true });
     if (!upErr) {
-      await supabase.rpc("record_project_file", {
+      const { data: fileId } = await supabase.rpc("record_project_file", {
         p_project_id: data.project_id,
         p_path: path,
         p_file_name: `project-description${ext}`,
@@ -86,6 +88,27 @@ export async function createJob(formData: FormData) {
         p_size: audio.size,
         p_caption: "Project description (voice note)",
         p_kind: "audio",
+      });
+      // Transcription runs after the response is sent; if it works, the
+      // text lands on the file's ai_metadata and in the project notes.
+      const projectId = data.project_id as string;
+      after(async () => {
+        const t = await transcribeAudio(bytes, `project-description${ext}`, audio.type || null);
+        if (!t.ok) return;
+        if (fileId) {
+          await supabase
+            .from("files")
+            .update({ ai_metadata: { transcript: t.text, transcribed_by: t.provider } })
+            .eq("id", fileId);
+        }
+        const { data: proj } = await supabase.from("projects").select("notes").eq("id", projectId).maybeSingle();
+        await supabase
+          .from("projects")
+          .update({
+            notes: `${proj?.notes ? proj.notes + "\n\n" : ""}Voice note transcription:\n${t.text}`,
+            last_modified_by: "portal:transcribe",
+          })
+          .eq("id", projectId);
       });
     }
     // A failed voice upload never blocks the project itself.

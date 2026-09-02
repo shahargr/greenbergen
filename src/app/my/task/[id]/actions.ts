@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { transcribeAudio } from "@/lib/transcribe";
 
 // Server-side permission matrix (Shahar, 2026-09-01). The UI hides what you
 // cannot edit, but THIS is the enforcement - every save recomputes rank and
@@ -270,6 +272,27 @@ export async function uploadEvidence(taskId: string, formData: FormData) {
       p_contract_id: null,
       p_role: isImage ? "after" : "evidence",
     });
+    if (!isImage) {
+      // Voice evidence gets transcribed after the response is sent; the
+      // text lands on the file's ai_metadata and as a task comment.
+      const audioName = file.name || `evidence${ext}`;
+      const audioMime = file.type || null;
+      after(async () => {
+        const t = await transcribeAudio(bytes, audioName, audioMime);
+        if (!t.ok) return;
+        await supabase
+          .from("files")
+          .update({ ai_metadata: { transcript: t.text, transcribed_by: t.provider } })
+          .eq("id", fileId);
+        const { data: me } = await supabase.rpc("me");
+        await supabase.from("task_comments").insert({
+          action_id: taskId,
+          author_contact_id: me?.contact_id ?? null,
+          author_name: me?.full_name ?? me?.email ?? "Someone",
+          body: `🎙 Voice note transcription:\n${t.text}`,
+        });
+      });
+    }
     stored += 1;
   }
 
