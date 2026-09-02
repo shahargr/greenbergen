@@ -171,6 +171,57 @@ export function TaskEditor({
               </div>
             </form>
           )}
+
+          {perms.complete && (
+            <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--line, #e5e7eb)", paddingTop: 10 }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="te-move">Move this task to</label>
+                <div className="btn-row">
+                  <select
+                    id="te-move"
+                    className="input"
+                    value={moveTo}
+                    onChange={(e) => setMoveTo(e.target.value)}
+                    style={{ maxWidth: 230 }}
+                  >
+                    {statusChoices.map((st) => <option key={st}>{st}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={moveTo === task.status || busyEvidence}
+                    onClick={applyMove}
+                  >
+                    {busyEvidence ? "Applying..." : "Apply"}
+                  </button>
+                </div>
+              </div>
+              {moveTo === "Cancelled" && (
+                <p className="muted small" style={{ margin: 0 }}>
+                  Cancelling closes this task for good — open subtasks must be
+                  closed first. No evidence needed.
+                </p>
+              )}
+              {moveTo === "Completed" && (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <p className="muted small" style={{ margin: 0 }}>
+                    {task.requires_photo_evidence
+                      ? "This task requires an AFTER photo attached as evidence before it can close."
+                      : evidenceCount > 0
+                        ? "Evidence is attached — Apply closes the task; add a note if you like."
+                        : "No evidence attached: add photos or audio above, or write a short reason for closing without it."}
+                  </p>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={closeReason}
+                    onChange={(e) => setCloseReason(e.target.value)}
+                    placeholder={evidenceCount > 0 ? "Closing note (optional)" : "Reason for closing without evidence"}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -361,66 +412,6 @@ export function TaskEditor({
         )}
       </form>
 
-      {isOpen && perms.complete && (
-        <div className="card" style={{ display: "grid", gap: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <h2 className="section-title" style={{ margin: 0 }}>Evidence &amp; completion</h2>
-            <span className="muted small">
-              {evidenceCount > 0 ? `${evidenceCount} file${evidenceCount > 1 ? "s" : ""} attached` : "No evidence yet"}
-            </span>
-          </div>
-
-          <div style={{ display: "grid", gap: 10 }}>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="te-move">Move this task to</label>
-                <div className="btn-row">
-                  <select
-                    id="te-move"
-                    className="input"
-                    value={moveTo}
-                    onChange={(e) => setMoveTo(e.target.value)}
-                    style={{ maxWidth: 230 }}
-                  >
-                    {statusChoices.map((st) => <option key={st}>{st}</option>)}
-                  </select>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={moveTo === task.status || busyEvidence}
-                    onClick={applyMove}
-                  >
-                    {busyEvidence ? "Applying..." : "Apply"}
-                  </button>
-                </div>
-              </div>
-              {moveTo === "Cancelled" && (
-                <p className="muted small" style={{ margin: 0 }}>
-                  Cancelling closes this task for good — open subtasks must be
-                  closed first. No evidence needed.
-                </p>
-              )}
-              {moveTo === "Completed" && (
-                <div style={{ display: "grid", gap: 8 }}>
-                  <p className="muted small" style={{ margin: 0 }}>
-                    {task.requires_photo_evidence
-                      ? "This task requires an AFTER photo attached as evidence before it can close."
-                      : evidenceCount > 0
-                        ? "Evidence is attached — Apply closes the task; add a note if you like."
-                        : "No evidence attached: add photos or audio up top, or write a short reason for closing without it."}
-                  </p>
-                  <textarea
-                    className="input"
-                    rows={2}
-                    value={closeReason}
-                    onChange={(e) => setCloseReason(e.target.value)}
-                    placeholder={evidenceCount > 0 ? "Closing note (optional)" : "Reason for closing without evidence"}
-                  />
-                </div>
-              )}
-            </div>
-
-        </div>
-      )}
     </div>
   );
 }
