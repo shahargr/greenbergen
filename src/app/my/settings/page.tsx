@@ -74,7 +74,7 @@ export default async function SettingsPage({
             </div>
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="st-address">Full address</label>
+            <label htmlFor="st-address">Home address</label>
             <input id="st-address" name="address" className="input" defaultValue={contact?.address ?? ""} />
           </div>
           <p className="muted small" style={{ margin: 0 }}>Signed in as {me?.email}.</p>
