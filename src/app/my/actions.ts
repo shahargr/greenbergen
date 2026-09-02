@@ -178,6 +178,7 @@ export async function logPayment(formData: FormData) {
     project_id: projectId,
     contract_id: String(formData.get("contract") ?? "").trim() || null,
     contractor_id: requesterRow?.id ?? null,
+    payment_reference: String(formData.get("payment_ref") ?? "").trim() || null,
     notes: [paidBy ? `Paid by: ${paidBy}.` : null, extraNotes || null].filter(Boolean).join(" ") || null,
     created_by: "portal:payment",
     last_modified_by: "portal:payment",
@@ -193,9 +194,11 @@ export async function logPayment(formData: FormData) {
   // the payment. A failed upload never unwinds the ledger row.
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
-  for (const [i, file] of [...photos, ...files].entries()) {
+  const videos = formData.getAll("videos").filter((f): f is File => f instanceof File && f.size > 0);
+  for (const [i, file] of [...photos, ...videos, ...files].entries()) {
     const isImage = file.type.startsWith("image/");
-    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
+    const isVideo = file.type.startsWith("video/");
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : isVideo ? ".mp4" : ".m4a")).toLowerCase();
     const path = `${projectId}/payments/${Date.now()}-${i}${ext}`;
     const bytes = await file.arrayBuffer();
     const { error: upErr } = await supabase.storage
@@ -209,7 +212,7 @@ export async function logPayment(formData: FormData) {
         p_mime: file.type || null,
         p_size: file.size,
         p_caption: `Payment: $${amount.toLocaleString()} to ${paidTo} (${paidOn})`,
-        p_kind: isImage ? "photo" : "audio",
+        p_kind: isImage ? "photo" : isVideo ? "video" : "audio",
       });
     }
   }

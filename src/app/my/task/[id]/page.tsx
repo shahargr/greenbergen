@@ -45,7 +45,7 @@ export default async function TaskPage({
   if (!rawTask) notFound();
   const t = rawTask as unknown as TaskFull;
 
-  const [perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }] =
+  const [perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }, { data: tradeRows }] =
     await Promise.all([
       taskPerms(t.project_id, t.assigned_to_contact_id),
       supabase
@@ -73,8 +73,22 @@ export default async function TaskPage({
             .eq("status", "active")
             .not("contact_id", "is", null)
         : Promise.resolve({ data: [] }),
+      supabase.from("trades").select("trade, is_construction, is_worker_trade").order("sort_order"),
     ]);
   const comments = (commentRows ?? []) as CommentView[];
+
+  const allTrades = ((tradeRows ?? []) as { trade: string; is_construction: boolean | null; is_worker_trade: boolean | null }[]);
+  const tradeNames = allTrades.filter((t) => t.is_construction || t.is_worker_trade).map((t) => t.trade);
+
+  const memberIds = ((memberRows ?? []) as unknown as { contact_id: string }[]).map((m) => m.contact_id);
+  const { data: memberTradeRows } = memberIds.length
+    ? await supabase.from("contact_trade_roles").select("contact_id, trade").in("contact_id", memberIds)
+    : { data: [] };
+  const okTrade = new Set(tradeNames);
+  const tradeOf = new Map<string, string>();
+  for (const r of (memberTradeRows ?? []) as { contact_id: string; trade: string }[]) {
+    if (!tradeOf.has(r.contact_id) && okTrade.has(r.trade)) tradeOf.set(r.contact_id, r.trade);
+  }
 
   const members: MemberOption[] = ((memberRows ?? []) as unknown as {
     contact_id: string;
@@ -83,6 +97,7 @@ export default async function TaskPage({
     .map((m) => ({
       contactId: m.contact_id,
       name: m.contacts?.person_name ?? m.contacts?.name ?? "Unnamed",
+      trade: tradeOf.get(m.contact_id) ?? null,
     }))
     .filter((m, i, arr) => arr.findIndex((x) => x.contactId === m.contactId) === i)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -125,7 +140,7 @@ export default async function TaskPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
-      <TaskEditor task={view} perms={perms} members={members} comments={comments} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
+      <TaskEditor task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
     </main>
   );
 }

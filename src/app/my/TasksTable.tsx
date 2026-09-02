@@ -14,6 +14,7 @@ export type TableTask = {
   notes: string | null;
   project: string | null;
   who: "you" | "others";
+  domain: string | null;
   state: "open" | "closed";
   trade: string | null;
   assignee: string | null;
@@ -32,7 +33,7 @@ export function TasksTable({ tasks, initialProject, showTradeTiles = true, today
   todayIso: string;
 }) {
   const [state, setState] = useState<"open" | "closed" | "all">("open");
-  const [scope, setScope] = useState<"all" | "you" | "others">("all");
+  const [domain, setDomain] = useState("construction");
   const [project, setProject] = useState(initialProject ?? "all");
   const [trade, setTrade] = useState("all");
   const [person, setPerson] = useState("all");
@@ -42,6 +43,10 @@ export function TasksTable({ tasks, initialProject, showTradeTiles = true, today
 
   const projects = useMemo(
     () => [...new Set(tasks.map((t) => t.project ?? "No project"))].sort(),
+    [tasks]
+  );
+  const domains = useMemo(
+    () => [...new Set(tasks.map((t) => t.domain).filter((x): x is string => !!x))].sort(),
     [tasks]
   );
   const people = useMemo(
@@ -70,7 +75,7 @@ export function TasksTable({ tasks, initialProject, showTradeTiles = true, today
     .filter(
       (t) =>
         (state === "all" || t.state === state) &&
-        (scope === "all" || t.who === scope) &&
+        (domain === "all" || t.domain === domain) &&
         (project === "all" || (t.project ?? "No project") === project) &&
         (trade === "all" || t.trade === trade) &&
         (person === "all" || t.assignee === person) &&
@@ -94,15 +99,14 @@ export function TasksTable({ tasks, initialProject, showTradeTiles = true, today
           <option value="all">All projects</option>
           {projects.map((p) => <option key={p}>{p}</option>)}
         </select>
+        <select className="input" value={domain} onChange={pick(setDomain)} style={{ maxWidth: 140 }}>
+          <option value="all">All domains</option>
+          {domains.map((d) => <option key={d}>{d}</option>)}
+        </select>
         <select className="input" value={state} onChange={pick(setState)} style={{ maxWidth: 110 }}>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
           <option value="all">All</option>
-        </select>
-        <select className="input" value={scope} onChange={pick(setScope)} style={{ maxWidth: 125 }}>
-          <option value="all">Everyone</option>
-          <option value="you">On you</option>
-          <option value="others">On others</option>
         </select>
         <select className="input" value={person} onChange={pick(setPerson)} style={{ maxWidth: 170 }}>
           <option value="all">Anyone</option>

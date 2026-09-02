@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { FilePick } from "@/components/FilePick";
 import { logPayment } from "./actions";
 
 export type PayProject = { id: string; name: string };
@@ -37,6 +38,7 @@ export function LogPaymentForm({
   meName: string;
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
+  const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -107,11 +109,32 @@ export function LogPaymentForm({
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pay-method">Payment type</label>
-          <select id="pay-method" name="method" className="input" required>
+          <select id="pay-method" name="method" className="input" required
+            value={methodId} onChange={(e) => setMethodId(e.target.value)}>
             {methods.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
       </div>
+      {(() => {
+        const mName = methods.find((m) => m.id === methodId)?.name ?? "";
+        if (mName === "Check" || mName === "Money order") {
+          return (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-ref">Check number</label>
+              <input id="pay-ref" name="payment_ref" className="input" inputMode="numeric" placeholder="e.g. 1042" style={{ maxWidth: 200 }} />
+            </div>
+          );
+        }
+        if (mName.includes("Credit card") || mName.includes("Card")) {
+          return (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-ref">Card — last four digits</label>
+              <input id="pay-ref" name="payment_ref" className="input" inputMode="numeric" maxLength={4} placeholder="1234" style={{ maxWidth: 140 }} />
+            </div>
+          );
+        }
+        return null;
+      })()}
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pay-req">Requested by (optional)</label>
@@ -132,13 +155,12 @@ export function LogPaymentForm({
         <label htmlFor="pay-notes">Notes (optional)</label>
         <input id="pay-notes" name="notes" className="input" placeholder="What was this for?" />
       </div>
-      <div className="form-2col">
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label>Receipt photos (optional)</label>
-          <input type="file" name="photos" accept="image/*" capture="environment" multiple className="small" />
-        </div>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label>Voice note (optional)</label>
+      <div className="field" style={{ marginBottom: 0 }}>
+        <label>Attachments (optional)</label>
+        <div className="btn-row" style={{ alignItems: "flex-start" }}>
+          <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
+          <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
+          <FilePick name="videos" label="🎬 Video" accept="video/*" capture="environment" multiple={false} />
           <VoiceRecorder onReady={setVoiceBlob} />
         </div>
       </div>

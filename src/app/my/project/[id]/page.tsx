@@ -105,7 +105,7 @@ export default async function ProjectPage({
   type PortalTask = {
     id: string; action: string; status: string; priority: string | null;
     target_date: string | null; last_updated: string | null; notes: string | null;
-    project: string | null; state: "open" | "closed";
+    project: string | null; domain: string | null; state: "open" | "closed";
     assignee_id: string | null; assignee: string | null; trade: string | null;
   };
   const { data: meRow } = await supabase.rpc("me");
@@ -115,6 +115,7 @@ export default async function ProjectPage({
     target_date: t.target_date, last_updated: t.last_updated, notes: t.notes,
     project: t.project,
     who: (myContactId && t.assignee_id === myContactId ? "you" : "others") as "you" | "others",
+    domain: t.domain,
     state: t.state, trade: t.trade, assignee: t.assignee,
   }));
   const openCount = projectTasks.filter((t) => t.state === "open").length;

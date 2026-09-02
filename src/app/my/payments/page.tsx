@@ -101,8 +101,7 @@ export default async function PaymentsPage({
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 96, maxWidth: 640 }}>
       <p className="small" style={{ margin: "0 0 6px" }}><Link href="/my">← Home</Link></p>
-      <span className="kicker">Payments</span>
-      <h1 style={{ fontSize: 26, margin: "6px 0 12px" }}>Log &amp; manage payments</h1>
+      <h1 style={{ fontSize: 26, margin: "0 0 12px" }}>Payments</h1>
 
       {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}

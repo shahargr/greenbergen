@@ -28,7 +28,7 @@ export type TaskView = {
   assignedToContactId: string | null;
 };
 
-export type MemberOption = { contactId: string; name: string };
+export type MemberOption = { contactId: string; name: string; trade?: string | null };
 export type CommentView = { id: string; author_name: string; body: string; created_at: string };
 
 const OPEN_STATUSES = ["Not Started", "In Progress", "Pending on Others", "Parked"];
@@ -52,6 +52,7 @@ export function TaskEditor({
   perms,
   members,
   comments,
+  trades = [],
   isOpen,
   evidenceCount,
 }: {
@@ -59,11 +60,11 @@ export function TaskEditor({
   perms: TaskPerms;
   members: MemberOption[];
   comments: CommentView[];
+  trades?: string[];
   isOpen: boolean;
   evidenceCount: number;
 }) {
   const [unlocked, setUnlocked] = useState(false);
-  const [status, setStatus] = useState(task.status);
   const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
   const [moveTo, setMoveTo] = useState(task.status);
   const [closeReason, setCloseReason] = useState("");
@@ -105,7 +106,7 @@ export function TaskEditor({
     perms.title || perms.status || perms.outcome || perms.notes ||
     perms.dependencies || perms.learnings || perms.assign;
 
-  const pendingSelected = status.includes("Pending");
+  const pendingSelected = task.status.includes("Pending");
 
   // The dropdown offers what the matrix allows: PM and above move a task
   // anywhere; a plain assignee can only take it to Completed.
@@ -122,9 +123,21 @@ export function TaskEditor({
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
+      <div>
+        <h1 style={{ fontSize: 22, margin: "0 0 6px", lineHeight: 1.25 }}>{task.action}</h1>
+        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+          <span className="extra-chip">{task.status}</span>
+          {task.priority && task.priority !== "Missing" && <span className="extra-chip">{task.priority}</span>}
+          {task.target_date && <span className="extra-chip">due {task.target_date}</span>}
+        </span>
+      </div>
+
       {isOpen && (
         <div className="card" style={{ display: "grid", gap: 10 }}>
           <div className="btn-row">
+            <button type="button" className={quick === "comment" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "comment" ? "none" : "comment")}>
+              💬 Add comment
+            </button>
             {canAttach && (
               <button type="button" className={quick === "photo" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "photo" ? "none" : "photo")}>
                 📷 Add photo
@@ -135,9 +148,6 @@ export function TaskEditor({
                 🎙 Record audio
               </button>
             )}
-            <button type="button" className={quick === "comment" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "comment" ? "none" : "comment")}>
-              💬 Add comment
-            </button>
             <span className="muted small" style={{ alignSelf: "center" }}>
               {evidenceCount > 0 ? `${evidenceCount} file${evidenceCount > 1 ? "s" : ""} attached` : ""}
             </span>
@@ -253,37 +263,11 @@ export function TaskEditor({
           {unlocked && <span className="small" style={{ color: "var(--brand)" }}>Unlocked — editing</span>}
         </div>
 
-        <Row label="Title">
-          {unlocked && perms.title ? (
+        {unlocked && perms.title && (
+          <Row label="Title">
             <input name="title" className="input" defaultValue={task.action} required />
-          ) : (
-            <strong>{task.action}</strong>
-          )}
-        </Row>
-
-        <Row label="Status">
-          {unlocked && perms.status ? (
-            <span style={{ display: "grid", gap: 4 }}>
-              <select name="status" className="input" value={status} onChange={(e) => setStatus(e.target.value)} style={{ maxWidth: 220 }}>
-                {[...OPEN_STATUSES, "Completed", "Cancelled"].map((s) => <option key={s}>{s}</option>)}
-              </select>
-              {status === "Completed" && (
-                <span className="muted small">
-                  Saving will close this task — it needs attached evidence
-                  (or close it from the card up top, with a written reason).
-                </span>
-              )}
-              {status === "Cancelled" && (
-                <span className="muted small">
-                  Saving will cancel this task for good. Open subtasks must be
-                  closed first; no evidence needed.
-                </span>
-              )}
-            </span>
-          ) : (
-            task.status
-          )}
-        </Row>
+          </Row>
+        )}
 
         {pendingSelected && (
           <>
@@ -364,7 +348,9 @@ export function TaskEditor({
               <select name="assigned_to" className="input" defaultValue={task.assignedToContactId ?? ""} style={{ maxWidth: 260 }}>
                 <option value="">Unassigned</option>
                 {members.map((m) => (
-                  <option key={m.contactId} value={m.contactId}>{m.name}</option>
+                  <option key={m.contactId} value={m.contactId}>
+                    {m.trade ? `${m.trade}: ${m.name}` : m.name}
+                  </option>
                 ))}
               </select>
               <details>
@@ -375,6 +361,10 @@ export function TaskEditor({
                   <input name="nc_name" className="input" placeholder="Name (required)" />
                   <input name="nc_email" type="email" className="input" placeholder="Email (optional)" />
                   <input name="nc_phone" type="tel" className="input" placeholder="Phone (optional)" />
+                  <select name="nc_trade" className="input" defaultValue="">
+                    <option value="">Trade (optional)</option>
+                    {trades.map((t) => <option key={t}>{t}</option>)}
+                  </select>
                   <span>
                     <button className="btn ghost" formAction={addContractor.bind(null, task.id)} formNoValidate>
                       ＋ Add to project &amp; assign

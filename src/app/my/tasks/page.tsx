@@ -12,7 +12,7 @@ type Lead = {
 type PortalTask = {
   id: string; action: string; status: string; priority: string | null;
   target_date: string | null; last_updated: string | null; notes: string | null;
-  project: string | null; state: "open" | "closed";
+  project: string | null; domain: string | null; state: "open" | "closed";
   assignee_id: string | null; assignee: string | null; trade: string | null;
 };
 type Membership = {
@@ -60,6 +60,7 @@ export default async function TasksPage({
     target_date: t.target_date, last_updated: t.last_updated, notes: t.notes,
     project: t.project,
     who: (myContact && t.assignee_id === myContact ? "you" : "others") as "you" | "others",
+    domain: t.domain,
     state: t.state, trade: t.trade, assignee: t.assignee,
   }));
 
@@ -111,8 +112,7 @@ export default async function TasksPage({
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 96, maxWidth: 720 }}>
       <p className="small" style={{ margin: "0 0 6px" }}><Link href="/my">← Home</Link></p>
-      <span className="kicker">Tasks</span>
-      <h1 style={{ fontSize: 26, margin: "6px 0 12px" }}>Tasks</h1>
+      <h1 style={{ fontSize: 26, margin: "0 0 12px" }}>Tasks</h1>
 
       {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
