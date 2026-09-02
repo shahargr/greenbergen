@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { InviteBuilder } from "./InviteBuilder";
+import { cancelInvitation } from "./actions";
 
 type Acceptor = {
   name: string;
@@ -30,9 +31,9 @@ type SentInvitation = {
 export default async function InvitePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; error?: string }>;
 }) {
-  const { status: statusFilter } = await searchParams;
+  const { status: statusFilter, error } = await searchParams;
   const supabase = await createClient();
   const [{ data: me }, { data: sentData }] = await Promise.all([
     supabase.rpc("me"),
@@ -53,6 +54,7 @@ export default async function InvitePage({
       <p className="muted" style={{ marginTop: 0 }}>
         Create an invitation link and send it however you like.
       </p>
+      {error && <p className="error small">{error}</p>}
       <InviteBuilder
         isSuperadmin={me?.is_superadmin ?? false}
         senderName={me?.full_name ?? "Someone"}
@@ -116,7 +118,13 @@ export default async function InvitePage({
                 </div>
               ))}
               {i.acceptors.length === 0 && i.status === "pending" && (
-                <span className="muted small">Waiting — not accepted yet.</span>
+                <span style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="muted small">Waiting — not accepted yet.</span>
+                  <form action={cancelInvitation}>
+                    <input type="hidden" name="id" value={i.id} />
+                    <button className="btn ghost small">Cancel invitation</button>
+                  </form>
+                </span>
               )}
             </div>
           ))}

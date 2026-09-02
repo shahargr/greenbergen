@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendMail } from "@/lib/mailer";
 
@@ -20,4 +22,20 @@ export async function emailInvitation(to: string, messageText: string) {
     messageText,
   );
   return res.ok ? { ok: true } : { error: res.error };
+}
+
+// Revoke a pending invitation of your own - the link stops working
+// immediately (redeem checks status). RLS already scopes updates to the
+// inviter (or an admin).
+export async function cancelInvitation(formData: FormData) {
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  if (!id) redirect("/my/invite");
+  const { error } = await supabase
+    .from("app_invitations")
+    .update({ status: "revoked" })
+    .eq("id", id)
+    .eq("status", "pending");
+  revalidatePath("/my/invite");
+  redirect(error ? `/my/invite?error=${encodeURIComponent(error.message)}` : "/my/invite");
 }
