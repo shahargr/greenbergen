@@ -407,18 +407,6 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "projects") {
-    const selected = ownerProjects.find((p) => p.id === tileKey);
-    let projectTasks: TaskRow[] = [];
-    if (selected) {
-      const { data } = await supabase
-        .from("actions")
-        .select("id, action, status, priority, target_date, projects(project_name)")
-        .eq("project_id", selected.id)
-        .not("status", "in", openFilter)
-        .order("target_date", { ascending: true, nullsFirst: false })
-        .limit(50);
-      projectTasks = (data ?? []) as unknown as TaskRow[];
-    }
     detail = (
       <>
         <h2 className="section-title">Your projects — as owner</h2>
@@ -427,9 +415,7 @@ export default async function MyPage({
         </p>
         <div style={{ display: "grid", gap: 8 }}>
           {ownerProjects.map((p) => (
-            <Link key={p.id} href={`/my?panel=projects&t=${p.id}`}
-              className={p.id === selected?.id ? "card statlink selected" : "card statlink"}
-              style={{ padding: "10px 14px", display: "block" }}>
+            <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
               <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
               <div className="muted small">
                 {p.parent_project_id ? "Job" : "Home"}
@@ -439,24 +425,6 @@ export default async function MyPage({
           ))}
           {ownerProjects.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
         </div>
-        {selected && (
-          <div style={{ marginTop: 14 }}>
-            <h3 style={{ fontSize: 15, margin: "0 0 8px" }}>Open tasks on {selected.project_name} · {projectTasks.length}</h3>
-            {projectTasks.length === 0 && <p className="muted small">Nothing open here.</p>}
-            <div style={{ display: "grid", gap: 8 }}>
-              {projectTasks.map((t) => (
-                <Link key={t.id} href={`/my/task/${t.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
-                  <strong style={{ fontSize: 15 }}>{t.action}</strong>
-                  <div className="muted small">
-                    {t.status}
-                    {t.priority && t.priority !== "Missing" && <> · {t.priority}</>}
-                    {t.target_date && <> · due {t.target_date}</>}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
       </>
     );
   } else if (panel === "addproject" && hasHome) {
