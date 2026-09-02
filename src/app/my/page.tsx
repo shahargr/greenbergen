@@ -22,6 +22,19 @@ type Vendor = {
   provisional: boolean | null;
 };
 
+type Lead = {
+  id: string;
+  action: string;
+  project_name: string | null;
+  created_at: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  kind: string;
+  message: string | null;
+  preferred_date: string | null;
+};
+
 function dayName(date: string, i: number) {
   if (i === 0) return "Today";
   return new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
@@ -61,7 +74,7 @@ export default async function MyPage({
 }) {
   const { panel } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: home }, { data: banners }] = await Promise.all([
+  const [{ data: me }, { data: home }, { data: banners }, { data: leadData }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("consumer_home"),
     supabase
@@ -69,7 +82,9 @@ export default async function MyPage({
       .select("text, url")
       .order("created_at", { ascending: false })
       .limit(1),
+    supabase.rpc("my_lead_actions"),
   ]);
+  const leads: Lead[] = (leadData as Lead[]) ?? [];
 
   const town: string | null = home?.town_name ?? null;
   const townServices = home?.town ?? null;
@@ -94,7 +109,10 @@ export default async function MyPage({
       .not("status", "in", openFilter)
       .then((r) => r.count ?? 0),
   ]);
-  const onOthers = Math.max(0, total - onMe);
+  // Leads pending my review count as work sitting ON ME (unassigned inquiry
+  // tasks surfaced to rank >= 50), so they never hide in "others".
+  const onOthers = Math.max(0, total - onMe - leads.length);
+  const pendingOnMe = onMe + leads.length;
 
   // Detail for the selected panel; no selection = no window at all.
   let detail: React.ReactNode = null;
@@ -129,6 +147,27 @@ export default async function MyPage({
     );
     detail = (
       <>
+        {leads.length > 0 && (
+          <>
+            <h2 className="section-title">Leads pending your review · {leads.length}</h2>
+            <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+              {leads.map((l) => (
+                <div key={l.id} className="card" style={{ padding: "12px 14px", borderLeft: "3px solid var(--brand)" }}>
+                  <strong style={{ fontSize: 15 }}>{l.action}</strong>
+                  <div className="small" style={{ marginTop: 4, display: "grid", gap: 2 }}>
+                    <span>
+                      {l.name}
+                      {l.phone && <> · <a href={`tel:${l.phone}`}>{l.phone}</a></>}
+                      {l.email && <> · <a href={`mailto:${l.email}`}>{l.email}</a></>}
+                    </span>
+                    {l.preferred_date && <span className="muted">Preferred date: {l.preferred_date}</span>}
+                    {l.message && <span className="muted">&ldquo;{l.message}&rdquo;</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
         <h2 className="section-title">On you · {mine.length}</h2>
         {mine.length === 0 ? <p className="muted small">Nothing open on you.</p> : renderList(mine)}
         <h2 className="section-title" style={{ marginTop: 18 }}>On others · {onOthers}</h2>
@@ -251,8 +290,10 @@ export default async function MyPage({
         <Link href="/my?panel=tasks" className={sel("tasks")}>
           <span className="stat-kicker">Tasks</span>
           <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-            <span className="stat-big">{onMe}</span>
-            <span className="muted small">on you · {onOthers} on others</span>
+            <span className="stat-big">{pendingOnMe}</span>
+            <span className="muted small">
+              on you{leads.length > 0 ? ` (${leads.length} lead${leads.length > 1 ? "s" : ""})` : ""} · {onOthers} on others
+            </span>
           </span>
         </Link>
 
