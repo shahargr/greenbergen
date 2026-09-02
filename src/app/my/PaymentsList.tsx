@@ -21,7 +21,7 @@ export type RecentPayment = {
 // Recent payments with in-place editing - fix a field, or attach the
 // receipt photos and voice note that arrived after the fact.
 export function PaymentsList({ payments, methods }: { payments: RecentPayment[]; methods: PayMethod[] }) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<{ id: string; mode: "view" | "edit" } | null>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState("");
@@ -56,16 +56,38 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
               <span className="muted"> · {p.project} · {p.method}</span>
               <span className="muted"> · {p.paid_on}</span>
             </span>
-            <button
-              type="button"
-              className="btn ghost small"
-              onClick={() => { setOpen(open === p.id ? null : p.id); setVoiceBlob(null); }}
-            >
-              {open === p.id ? "Close" : "Edit"}
-            </button>
+            <span className="btn-row" style={{ gap: 6 }}>
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={() => { setOpen(open?.id === p.id && open.mode === "view" ? null : { id: p.id, mode: "view" }); setVoiceBlob(null); }}
+              >
+                {open?.id === p.id && open.mode === "view" ? "Close" : "View"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost small"
+                onClick={() => { setOpen(open?.id === p.id && open.mode === "edit" ? null : { id: p.id, mode: "edit" }); setVoiceBlob(null); }}
+              >
+                {open?.id === p.id && open.mode === "edit" ? "Close" : "Edit"}
+              </button>
+            </span>
           </div>
 
-          {open === p.id && (
+          {open?.id === p.id && open.mode === "view" && (
+            <div className="small" style={{ display: "grid", gap: 4 }}>
+              <span><span className="muted">Amount:</span> <strong>${Number(p.amount).toLocaleString()}</strong></span>
+              <span><span className="muted">Paid on:</span> {p.paid_on ?? "—"}</span>
+              <span><span className="muted">Detail:</span> {p.description ?? "—"}</span>
+              <span><span className="muted">Type:</span> {p.method ?? "—"}</span>
+              <span><span className="muted">From account:</span> {p.paid_from_account ?? "—"}</span>
+              <span><span className="muted">Project:</span> {p.project ?? "—"}</span>
+              {p.notes && <span style={{ whiteSpace: "pre-line" }}><span className="muted">Notes:</span> {p.notes}</span>}
+              <span className="muted">Receipts live on the project&apos;s Files card.</span>
+            </div>
+          )}
+
+          {open?.id === p.id && open.mode === "edit" && (
             <form onSubmit={submit} style={{ display: "grid", gap: 10 }}>
               <input type="hidden" name="tx" value={p.id} />
               <div className="form-2col">
