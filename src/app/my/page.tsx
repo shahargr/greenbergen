@@ -123,8 +123,14 @@ export default async function MyPage({
     project_role: string | null;
     projects: { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean } | null;
   };
+  type ProjectOverviewRow = {
+    id: string; project_name: string; address: string | null; status: string;
+    parent_project_id: string | null; is_template: boolean;
+    open_count: number; last_activity: string;
+  };
+
   const openFilter = `(${CLOSED_STATUSES.join(",")})`;
-  const [{ data: membershipRows }, weather, onMe, total] = await Promise.all([
+  const [{ data: membershipRows }, weather, { data: bandOverviewData }, onMe, total] = await Promise.all([
     me?.app_user_id
       ? supabase
           .from("project_members")
@@ -133,6 +139,7 @@ export default async function MyPage({
           .eq("status", "active")
       : Promise.resolve({ data: [] }),
     hasHome ? Promise.resolve(null) : getWeather(town),
+    hasHome ? supabase.rpc("portal_projects_overview") : Promise.resolve({ data: [] }),
     myContact
       ? supabase
           .from("actions")
@@ -166,6 +173,49 @@ export default async function MyPage({
 
   const onOthers = Math.max(0, total - onMe - leads.length);
   const pendingOnMe = onMe + leads.length;
+
+  const ownerIdSet = new Set(ownerProjects.map((p) => p.id));
+  const bandOverview = (((bandOverviewData ?? []) as ProjectOverviewRow[])).filter((p) => ownerIdSet.has(p.id));
+  const bandHomes = bandOverview.filter((p) => !p.parent_project_id);
+  const bandJobs = new Map<string, ProjectOverviewRow[]>();
+  const bandOrphans: ProjectOverviewRow[] = [];
+  for (const p of bandOverview.filter((x) => x.parent_project_id)) {
+    if (bandHomes.some((h) => h.id === p.parent_project_id)) {
+      const list = bandJobs.get(p.parent_project_id!) ?? [];
+      list.push(p);
+      bandJobs.set(p.parent_project_id!, list);
+    } else {
+      bandOrphans.push(p);
+    }
+  }
+  const homeGlyph = (
+    <span className="tile-icon" style={{ width: 34, height: 34, flex: "none" }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
+    </span>
+  );
+  const jobGlyph = (
+    <span className="tile-icon" style={{ width: 34, height: 34, flex: "none", background: "#fdf4e3", color: "#a8842c" }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg>
+    </span>
+  );
+  const overviewCard = (p: ProjectOverviewRow, isHome: boolean, indent: boolean) => (
+    <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink"
+      style={{
+        padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
+        marginLeft: indent ? 26 : 0,
+        borderLeft: isHome ? "3px solid var(--brand)" : "3px solid #a8842c",
+      }}>
+      {isHome ? homeGlyph : jobGlyph}
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
+        <div className="muted small">
+          {isHome ? "Your home" : "Project"}
+          {p.address && !indent && <> · {p.address}</>} · {p.status}
+        </div>
+      </span>
+      <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>{p.open_count} open</span>
+    </Link>
+  );
 
   // ---- Panel detail ----
   let detail: React.ReactNode = null;
@@ -352,54 +402,6 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "projects") {
-    type ProjectOverview = {
-      id: string; project_name: string; address: string | null; status: string;
-      parent_project_id: string | null; is_template: boolean;
-      open_count: number; last_activity: string;
-    };
-    const { data: overviewData } = await supabase.rpc("portal_projects_overview");
-    const ownerIds = new Set(ownerProjects.map((p) => p.id));
-    const overview = (((overviewData ?? []) as ProjectOverview[])).filter((p) => ownerIds.has(p.id));
-    const homes2 = overview.filter((p) => !p.parent_project_id);
-    const jobsByHome = new Map<string, ProjectOverview[]>();
-    const orphanJobs: ProjectOverview[] = [];
-    for (const p of overview.filter((x) => x.parent_project_id)) {
-      if (homes2.some((h) => h.id === p.parent_project_id)) {
-        const list = jobsByHome.get(p.parent_project_id!) ?? [];
-        list.push(p);
-        jobsByHome.set(p.parent_project_id!, list);
-      } else {
-        orphanJobs.push(p);
-      }
-    }
-    const HomeGlyph = (
-      <span className="tile-icon" style={{ width: 34, height: 34, flex: "none" }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
-      </span>
-    );
-    const JobGlyph = (
-      <span className="tile-icon" style={{ width: 34, height: 34, flex: "none", background: "#fdf4e3", color: "#a8842c" }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg>
-      </span>
-    );
-    const projectCard = (p: ProjectOverview, isHome: boolean, indent: boolean) => (
-      <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink"
-        style={{
-          padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
-          marginLeft: indent ? 26 : 0,
-          borderLeft: isHome ? "3px solid var(--brand)" : "3px solid #a8842c",
-        }}>
-        {isHome ? HomeGlyph : JobGlyph}
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
-          <div className="muted small">
-            {isHome ? "Your home" : "Project"}
-            {p.address && !indent && <> · {p.address}</>} · {p.status}
-          </div>
-        </span>
-        <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>{p.open_count} open</span>
-      </Link>
-    );
     detail = (
       <>
         <h2 className="section-title">Your projects — as owner</h2>
@@ -407,14 +409,14 @@ export default async function MyPage({
           <Link href="/my?panel=addproject">＋ Start a new project</Link>
         </p>
         <div style={{ display: "grid", gap: 8 }}>
-          {homes2.map((h) => (
+          {bandHomes.map((h) => (
             <div key={h.id} style={{ display: "grid", gap: 8 }}>
-              {projectCard(h, true, false)}
-              {(jobsByHome.get(h.id) ?? []).map((j) => projectCard(j, false, true))}
+              {overviewCard(h, true, false)}
+              {(bandJobs.get(h.id) ?? []).map((j) => overviewCard(j, false, true))}
             </div>
           ))}
-          {orphanJobs.map((j) => projectCard(j, false, false))}
-          {overview.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
+          {bandOrphans.map((j) => overviewCard(j, false, false))}
+          {bandOverview.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
         </div>
       </>
     );
@@ -502,15 +504,20 @@ export default async function MyPage({
         </section>
       )}
 
-      <section className="youband" style={{ marginTop: hasHome ? 0 : 14 }}>
+      {hasHome && bandOverview.length > 0 && (
+        <section style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+          {bandHomes.map((h) => (
+            <div key={h.id} style={{ display: "grid", gap: 8 }}>
+              {overviewCard(h, true, false)}
+              {(bandJobs.get(h.id) ?? []).map((j) => overviewCard(j, false, true))}
+            </div>
+          ))}
+          {bandOrphans.map((j) => overviewCard(j, false, false))}
+        </section>
+      )}
+
+      <section className={hasHome ? "youband square" : "youband"} style={{ marginTop: hasHome ? 0 : 14 }}>
         {(hasHome ? [
-          ...(ownerProjects.length > 0 ? [{
-            href: "/my?panel=projects",
-            key: "projects",
-            label: "My projects",
-            sub: `${ownerProjects.length} as owner`,
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>,
-          }] : []),
           {
             href: "/my/tasks",
             key: "tasks",
@@ -518,12 +525,19 @@ export default async function MyPage({
             sub: `${pendingOnMe} on you · ${onOthers} on others`,
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>,
           },
+          {
+            href: "/my?panel=projects",
+            key: "projects",
+            label: "My projects",
+            sub: `${ownerProjects.length} as owner`,
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>,
+          },
           ...(pmProjects.length > 0 ? [{
             href: "/my/payments",
             key: "payments",
-            label: "Payments",
-            sub: "Log & edit who was paid",
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M14.8 8.8c-.5-1-1.5-1.5-2.8-1.5-1.7 0-2.9.9-2.9 2.2 0 3 6 1.6 6 4.7 0 1.4-1.3 2.3-3.1 2.3-1.5 0-2.6-.6-3.1-1.7" /><path d="M12 5.5v13" /></svg>,
+            label: "Financials",
+            sub: "Payments, budget & balances",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>,
           }] : []),
           {
             href: "/my?panel=addproject",
