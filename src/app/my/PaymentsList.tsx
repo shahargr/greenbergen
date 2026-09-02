@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { editPayment } from "./actions";
-import type { PayMethod } from "./LogPaymentForm";
+import { PAID_FROM_OPTIONS, type PayMethod } from "./LogPaymentForm";
 
 export type RecentPayment = {
   id: string;
@@ -82,7 +82,13 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Paid from (account)</label>
-                <input name="paid_from" className="input" defaultValue={p.paid_from_account ?? ""} />
+                <select name="paid_from" className="input" defaultValue={p.paid_from_account ?? ""}>
+                  <option value="">—</option>
+                  {p.paid_from_account && !PAID_FROM_OPTIONS.includes(p.paid_from_account) && (
+                    <option value={p.paid_from_account}>{p.paid_from_account}</option>
+                  )}
+                  {PAID_FROM_OPTIONS.map((a) => <option key={a}>{a}</option>)}
+                </select>
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Notes</label>

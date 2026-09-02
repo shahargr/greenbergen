@@ -3,10 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, setTown, toggleDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
-import { TasksTable } from "./TasksTable";
-import { LogPaymentForm } from "./LogPaymentForm";
-import { PaymentsList } from "./PaymentsList";
-import { AddTaskForm } from "./AddTaskForm";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
@@ -179,56 +175,6 @@ export default async function MyPage({
           <input name="town" className="input" placeholder="e.g. Tenafly" style={{ maxWidth: 240 }} required />
           <button className="btn">Set my town</button>
         </form>
-      </>
-    );
-  } else if (panel === "tasks") {
-    type PortalTask = {
-      id: string; action: string; status: string; priority: string | null;
-      target_date: string | null; last_updated: string | null; notes: string | null;
-      project: string | null; state: "open" | "closed";
-      assignee_id: string | null; assignee: string | null; trade: string | null;
-    };
-    const { data: portalData } = await supabase.rpc("portal_tasks");
-    const tableTasks = (((portalData ?? []) as PortalTask[])).map((t) => ({
-      id: t.id,
-      action: t.action,
-      status: t.status,
-      priority: t.priority,
-      target_date: t.target_date,
-      last_updated: t.last_updated,
-      notes: t.notes,
-      project: t.project,
-      who: (myContact && t.assignee_id === myContact ? "you" : "others") as "you" | "others",
-      state: t.state,
-      trade: t.trade,
-      assignee: t.assignee,
-    }));
-
-    detail = (
-      <>
-        {leads.length > 0 && (
-          <>
-            <h2 className="section-title">Leads pending your review · {leads.length}</h2>
-            <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
-              {leads.map((l) => (
-                <Link key={l.id} href={`/my/task/${l.id}`} className="card statlink" style={{ padding: "12px 14px", borderLeft: "3px solid var(--brand)", display: "block" }}>
-                  <strong style={{ fontSize: 15 }}>{l.action}</strong>
-                  <div className="small" style={{ marginTop: 4, display: "grid", gap: 2 }}>
-                    <span>
-                      {l.name}
-                      {l.phone && <> · <a href={`tel:${l.phone}`}>{l.phone}</a></>}
-                      {l.email && <> · <a href={`mailto:${l.email}`}>{l.email}</a></>}
-                    </span>
-                    {l.preferred_date && <span className="muted">Preferred date: {l.preferred_date}</span>}
-                    {l.message && <span className="muted">&ldquo;{l.message}&rdquo;</span>}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </>
-        )}
-        <h2 className="section-title">Tasks</h2>
-        <TasksTable tasks={tableTasks} todayIso={new Date().toISOString().slice(0, 10)} />
       </>
     );
   } else if (panel === "weather") {
@@ -433,134 +379,6 @@ export default async function MyPage({
         </div>
       </>
     );
-  } else if (panel === "payment" && pmProjects.length > 0) {
-    type MethodRow = { id: string; name: string };
-    type ContractRow = { id: string; title: string; project_id: string };
-    type MemberPayRow = { project_id: string; role: string; contact_id: string | null; contacts: { name: string | null; person_name: string | null } | null };
-    type PayRow = {
-      id: string; amount: number; paid_on: string | null; description: string | null; notes: string | null;
-      paid_from_account: string | null; payment_method_id: string | null;
-      payment_methods: { name: string } | null; projects: { project_name: string } | null;
-    };
-    type ProjectOverview = { id: string; last_activity: string };
-    const pmIds = pmProjects.map((p) => p.id);
-    const [{ data: methodRows }, { data: contractRows }, { data: memberPayRows }, { data: recentRows }, { data: overviewRows }] = await Promise.all([
-      supabase.from("payment_methods").select("id, name").eq("is_active", true).order("display_order", { ascending: true, nullsFirst: false }),
-      supabase.from("contracts").select("id, title, project_id").in("project_id", pmIds).order("title"),
-      supabase
-        .from("project_members")
-        .select("project_id, role, contact_id, contacts(name, person_name)")
-        .in("project_id", pmIds)
-        .eq("status", "active")
-        .not("contact_id", "is", null),
-      supabase
-        .from("transactions")
-        .select("id, amount, paid_on, description, notes, paid_from_account, payment_method_id, payment_methods(name), projects(project_name)")
-        .eq("direction", "out")
-        .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"])
-        .order("paid_on", { ascending: false, nullsFirst: false })
-        .limit(10),
-      supabase.rpc("portal_projects_overview"),
-    ]);
-    const methods = (methodRows ?? []) as MethodRow[];
-    const preferred = ["Cash", "Check", "ACH", "Credit card"];
-    methods.sort((a, b) =>
-      (preferred.includes(a.name) ? preferred.indexOf(a.name) : 99) -
-      (preferred.includes(b.name) ? preferred.indexOf(b.name) : 99));
-    // Projects ordered by last logged activity, per portal_projects_overview.
-    const activityRank = new Map(((overviewRows ?? []) as ProjectOverview[]).map((p, i) => [p.id, i]));
-    const payProjects = [...pmProjects]
-      .sort((a, b) => (activityRank.get(a.id) ?? 999) - (activityRank.get(b.id) ?? 999))
-      .map((p) => ({ id: p.id, name: p.project_name }));
-    const payMembers = (((memberPayRows ?? []) as unknown as MemberPayRow[]))
-      .filter((m) => m.contact_id && m.contacts)
-      .map((m) => ({
-        projectId: m.project_id,
-        contactId: m.contact_id as string,
-        name: m.contacts!.person_name ?? m.contacts!.name ?? "Unnamed",
-        canPay: m.role === "owner" || m.role === "manager",
-      }))
-      .filter((m, i, arr) => arr.findIndex((x) => x.projectId === m.projectId && x.contactId === m.contactId) === i);
-    const payContracts = (((contractRows ?? []) as ContractRow[])).map((c) => ({
-      id: c.id, title: c.title, projectId: c.project_id,
-    }));
-    const recent = ((recentRows ?? []) as unknown as PayRow[]);
-    detail = (
-      <>
-        <h2 className="section-title">Payments</h2>
-        <LogPaymentForm
-          projects={payProjects}
-          members={payMembers}
-          contracts={payContracts}
-          methods={methods}
-          meName={me?.full_name ?? me?.email ?? ""}
-        />
-        <h3 style={{ fontSize: 15, margin: "18px 0 8px" }}>Recent payments</h3>
-        <PaymentsList
-          methods={methods}
-          payments={recent.map((r) => ({
-            id: r.id,
-            amount: r.amount,
-            paid_on: r.paid_on,
-            description: r.description,
-            notes: r.notes,
-            paid_from_account: r.paid_from_account,
-            payment_method_id: r.payment_method_id,
-            method: r.payment_methods?.name ?? null,
-            project: r.projects?.project_name ?? null,
-          }))}
-        />
-      </>
-    );
-  } else if (panel === "addtask" && pmProjects.length > 0) {
-    type MemberPayRow = { project_id: string; role: string; contact_id: string | null; contacts: { name: string | null; person_name: string | null } | null };
-    type ProjectOverview = { id: string; last_activity: string };
-    const pmIds2 = pmProjects.map((p) => p.id);
-    const [{ data: memberRows2 }, { data: overviewRows2 }, { data: recentAssign }] = await Promise.all([
-      supabase
-        .from("project_members")
-        .select("project_id, role, contact_id, contacts(name, person_name)")
-        .in("project_id", pmIds2)
-        .eq("status", "active")
-        .not("contact_id", "is", null),
-      supabase.rpc("portal_projects_overview"),
-      supabase
-        .from("actions")
-        .select("project_id, assigned_to_contact_id, last_updated")
-        .in("project_id", pmIds2)
-        .not("assigned_to_contact_id", "is", null)
-        .order("last_updated", { ascending: false })
-        .limit(500),
-    ]);
-    // Most recently worked-with people first, per project.
-    const lastWith = new Map<string, string>();
-    for (const r of (recentAssign ?? []) as { project_id: string; assigned_to_contact_id: string; last_updated: string | null }[]) {
-      const k = `${r.project_id}:${r.assigned_to_contact_id}`;
-      if (!lastWith.has(k)) lastWith.set(k, r.last_updated ?? "");
-    }
-    const rank2 = new Map(((overviewRows2 ?? []) as ProjectOverview[]).map((p, i) => [p.id, i]));
-    const taskProjects = [...pmProjects]
-      .sort((a, b) => (rank2.get(a.id) ?? 999) - (rank2.get(b.id) ?? 999))
-      .map((p) => ({ id: p.id, name: p.project_name }));
-    const taskMembers = (((memberRows2 ?? []) as unknown as MemberPayRow[]))
-      .filter((m) => m.contact_id && m.contacts)
-      .map((m) => ({
-        projectId: m.project_id,
-        contactId: m.contact_id as string,
-        name: m.contacts!.person_name ?? m.contacts!.name ?? "Unnamed",
-        canPay: m.role === "owner" || m.role === "manager",
-      }))
-      .filter((m, i, arr) => arr.findIndex((x) => x.projectId === m.projectId && x.contactId === m.contactId) === i)
-      .sort((a, b) =>
-        (lastWith.get(`${b.projectId}:${b.contactId}`) ?? "").localeCompare(
-          lastWith.get(`${a.projectId}:${a.contactId}`) ?? "") ||
-        a.name.localeCompare(b.name));
-    detail = (
-      <>
-        <h2 className="section-title">Add a task</h2>
-        <AddTaskForm projects={taskProjects} members={taskMembers} />
-      </>
-    );
   } else if (panel === "addproject" && hasHome) {
     // Candidate parents: your open homes. Default: the home whose tree you
     // touched last (latest task activity anywhere under it).
@@ -667,8 +485,11 @@ export default async function MyPage({
           )}
         </Link>
 
-        <Link href="/my?panel=tasks" className={sel("tasks")}>
-          <span className="stat-kicker">Tasks</span>
+        <Link href="/my/tasks" className="card stat statlink">
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>
+            Tasks
+          </span>
           <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
             <span className="stat-big">{pendingOnMe}</span>
             <span className="muted small">
@@ -678,7 +499,10 @@ export default async function MyPage({
         </Link>
 
         <Link href="/my?panel=local" className={sel("local")}>
-          <span className="stat-kicker">Hire a pro</span>
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15a8 8 0 0 1 16 0v2H4z" /><path d="M10 7.5V5a2 2 0 0 1 4 0v2.5" /><path d="M2 20h20" /></svg>
+            Hire a pro
+          </span>
           <span className="small" style={{ lineHeight: 1.4 }}>
             {Object.keys(services).length > 0
               ? `${Object.keys(services).length} trades near you`
@@ -687,7 +511,10 @@ export default async function MyPage({
         </Link>
 
         <Link href="/my?panel=deals" className={sel("deals")}>
-          <span className="stat-kicker">Local deals</span>
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8Z" /><circle cx="7" cy="7" r="1.4" /></svg>
+            Local deals
+          </span>
           {deals.length > 0 ? (
             <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
               <span className="stat-big">{deals.length}</span>
@@ -699,13 +526,19 @@ export default async function MyPage({
         </Link>
 
         <Link href="/my?panel=hourly" className={sel("hourly")}>
-          <span className="stat-kicker">Hire by the hour</span>
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+            Hire by the hour
+          </span>
           <span className="muted small">Idle pros, small jobs — soon.</span>
         </Link>
 
         {hasHome || ownerProjects.length > 0 ? (
           <Link href="/my?panel=projects" className={sel("projects")}>
-            <span className="stat-kicker">Your projects</span>
+            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
+              Your projects
+            </span>
             <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
               <span className="stat-big">{ownerProjects.length}</span>
               <span className="muted small">as owner · start a new one</span>
@@ -713,27 +546,29 @@ export default async function MyPage({
           </Link>
         ) : (
           <span className="card stat" style={{ opacity: 0.65 }}>
-            <span className="stat-kicker">Your projects</span>
+            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
+              Your projects
+            </span>
             <span className="muted small">Claim your address first.</span>
           </span>
         )}
 
         <Link href="/my/invite" className="card stat statlink">
-          <span className="stat-kicker">Invite friends</span>
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>
+            Invite friends
+          </span>
           <span className="muted small">Neighbors make the deals happen.</span>
         </Link>
 
         {pmProjects.length > 0 && (
-          <Link href="/my?panel=payment" className={sel("payment")}>
-            <span className="stat-kicker">Payments</span>
+          <Link href="/my/payments" className="card stat statlink">
+            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M14.8 8.8c-.5-1-1.5-1.5-2.8-1.5-1.7 0-2.9.9-2.9 2.2 0 3 6 1.6 6 4.7 0 1.4-1.3 2.3-3.1 2.3-1.5 0-2.6-.6-3.1-1.7" /><path d="M12 5.5v13" /></svg>
+              Payments
+            </span>
             <span className="muted small">Log and edit who was paid.</span>
-          </Link>
-        )}
-
-        {pmProjects.length > 0 && (
-          <Link href="/my?panel=addtask" className={sel("addtask")}>
-            <span className="stat-kicker">Add task</span>
-            <span className="muted small">Create, assign, attach instructions.</span>
           </Link>
         )}
       </section>

@@ -143,16 +143,16 @@ export async function logPayment(formData: FormData) {
   const projectId = String(formData.get("project") ?? "");
   const amountRaw = String(formData.get("amount") ?? "").replace(/[$,\s]/g, "");
   const amount = Number(amountRaw);
-  const back = "/my?panel=payment";
+  const back = "/my/payments?";
 
-  if (!projectId) redirect(`${back}&error=${encodeURIComponent("Pick the project.")}`);
+  if (!projectId) redirect(`${back}error=${encodeURIComponent("Pick the project.")}`);
   if (!Number.isFinite(amount) || amount <= 0) {
-    redirect(`${back}&error=${encodeURIComponent("Enter the amount paid.")}`);
+    redirect(`${back}error=${encodeURIComponent("Enter the amount paid.")}`);
   }
   const paidTo = String(formData.get("paid_to") ?? "").trim();
-  if (!paidTo) redirect(`${back}&error=${encodeURIComponent("Who was paid?")}`);
+  if (!paidTo) redirect(`${back}error=${encodeURIComponent("Who was paid?")}`);
   const method = String(formData.get("method") ?? "");
-  if (!method) redirect(`${back}&error=${encodeURIComponent("Pick the payment type.")}`);
+  if (!method) redirect(`${back}error=${encodeURIComponent("Pick the payment type.")}`);
 
   const requestedBy = String(formData.get("requested_by") ?? "").trim() || null;
   const [{ data: methodRow }, { data: requesterRow }] = await Promise.all([
@@ -186,7 +186,7 @@ export async function logPayment(formData: FormData) {
     const msg = error.message.includes("row-level security")
       ? "Logging payments on this project is not yours to do."
       : error.message;
-    redirect(`${back}&error=${encodeURIComponent(msg)}`);
+    redirect(`${back}error=${encodeURIComponent(msg)}`);
   }
 
   // Receipts: photos and voice into the project file store, captioned with
@@ -215,7 +215,7 @@ export async function logPayment(formData: FormData) {
   }
 
   revalidatePath("/my");
-  redirect(`${back}&ok=${encodeURIComponent("Payment logged ✓")}`);
+  redirect(`${back}ok=${encodeURIComponent("Payment logged ✓")}`);
 }
 
 // Edit a logged payment - fields plus late-arriving receipts. The ledger
@@ -223,22 +223,22 @@ export async function logPayment(formData: FormData) {
 export async function editPayment(formData: FormData) {
   const supabase = await createClient();
   const txId = String(formData.get("tx") ?? "");
-  const back = "/my?panel=payment";
-  if (!txId) redirect(`${back}&error=${encodeURIComponent("Missing payment id.")}`);
+  const back = "/my/payments?";
+  if (!txId) redirect(`${back}error=${encodeURIComponent("Missing payment id.")}`);
 
   const { data: tx } = await supabase
     .from("transactions")
     .select("id, project_id, description")
     .eq("id", txId)
     .maybeSingle();
-  if (!tx) redirect(`${back}&error=${encodeURIComponent("That payment is not yours to edit.")}`);
+  if (!tx) redirect(`${back}error=${encodeURIComponent("That payment is not yours to edit.")}`);
 
   const updates: Record<string, unknown> = { last_modified_by: "portal:payment" };
   const amountRaw = String(formData.get("amount") ?? "").replace(/[$,\s]/g, "");
   if (amountRaw) {
     const amount = Number(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) {
-      redirect(`${back}&error=${encodeURIComponent("Bad amount.")}`);
+      redirect(`${back}error=${encodeURIComponent("Bad amount.")}`);
     }
     updates.amount = amount;
   }
@@ -260,7 +260,7 @@ export async function editPayment(formData: FormData) {
   if (formData.has("notes")) updates.notes = String(formData.get("notes") ?? "").trim() || null;
 
   const { error } = await supabase.from("transactions").update(updates).eq("id", txId);
-  if (error) redirect(`${back}&error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`${back}error=${encodeURIComponent(error.message)}`);
 
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
@@ -285,7 +285,7 @@ export async function editPayment(formData: FormData) {
     }
   }
   revalidatePath("/my");
-  redirect(`${back}&ok=${encodeURIComponent("Payment updated ✓")}`);
+  redirect(`${back}ok=${encodeURIComponent("Payment updated ✓")}`);
 }
 
 // Create and assign a task, with photos and a voice note attached as
@@ -295,9 +295,9 @@ export async function createTask(formData: FormData) {
   const supabase = await createClient();
   const projectId = String(formData.get("project") ?? "");
   const title = String(formData.get("title") ?? "").trim();
-  const back = "/my?panel=addtask";
+  const back = "/my/tasks?";
   if (!projectId || !title) {
-    redirect(`${back}&error=${encodeURIComponent("Project and task title are both needed.")}`);
+    redirect(`${back}error=${encodeURIComponent("Project and task title are both needed.")}`);
   }
   const assignee = String(formData.get("assigned_to") ?? "").trim() || null;
   const priority = String(formData.get("priority") ?? "Medium");
@@ -327,7 +327,7 @@ export async function createTask(formData: FormData) {
     const msg = error?.message.includes("row-level security")
       ? "Creating tasks on this project is not yours to do."
       : error?.message ?? "Could not create the task.";
-    redirect(`${back}&error=${encodeURIComponent(msg)}`);
+    redirect(`${back}error=${encodeURIComponent(msg)}`);
   }
 
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);

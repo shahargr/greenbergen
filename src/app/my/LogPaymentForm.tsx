@@ -9,6 +9,17 @@ export type PayMember = { projectId: string; contactId: string; name: string; ca
 export type PayContract = { id: string; title: string; projectId: string };
 export type PayMethod = { id: string; name: string };
 
+// The accounts money leaves from (Shahar, 2026-09-02).
+export const PAID_FROM_OPTIONS = [
+  "NP 55 Walnut CC",
+  "NP 55 Walnut ACH",
+  "NP 55 Walnut Check",
+  "Net Positive",
+  "Personal check",
+  "Personal card",
+  "Personal cash",
+];
+
 // The payment screen: everything below the project select follows it -
 // payers and requested-by come from that project's members, contracts from
 // that project only. Receipts (photos) and a voice note ride along.
@@ -89,7 +100,10 @@ export function LogPaymentForm({
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pay-from">Paid from (account)</label>
-          <input id="pay-from" name="paid_from" className="input" placeholder="e.g. Chase LLC checking" />
+          <select id="pay-from" name="paid_from" className="input" defaultValue="">
+            <option value="">—</option>
+            {PAID_FROM_OPTIONS.map((a) => <option key={a}>{a}</option>)}
+          </select>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pay-method">Payment type</label>
