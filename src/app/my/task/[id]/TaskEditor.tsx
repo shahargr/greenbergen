@@ -31,7 +31,6 @@ export type TaskView = {
 export type MemberOption = { contactId: string; name: string; trade?: string | null };
 export type CommentView = { id: string; author_name: string; body: string; created_at: string };
 
-const OPEN_STATUSES = ["Not Started", "In Progress", "Pending on Others", "Parked"];
 const PRIORITIES = ["No Priority", "Low", "Medium", "High"];
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
