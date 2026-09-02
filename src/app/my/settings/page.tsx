@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { saveProfile, saveAskingPrice } from "./actions";
+import { createHome } from "../actions";
 
 type HomeAsset = {
   projectName: string;
@@ -134,6 +135,18 @@ export default async function SettingsPage({
             </p>
           </div>
         )}
+
+        <div className="card" style={{ display: "grid", gap: 10 }}>
+          <h2 className="section-title">Claim another address</h2>
+          <p className="muted small" style={{ margin: 0 }}>
+            Another property you own gets its own home page, projects and paperwork.
+          </p>
+          <form action={createHome} style={{ display: "grid", gap: 8, maxWidth: 380 }}>
+            <input name="name" className="input" required autoComplete="off" placeholder="What should we call it?" />
+            <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
+            <div><button className="btn">Claim it</button></div>
+          </form>
+        </div>
 
         <div className="card">
           <h2 className="section-title">Images</h2>

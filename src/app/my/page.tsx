@@ -360,38 +360,60 @@ export default async function MyPage({
     const { data: overviewData } = await supabase.rpc("portal_projects_overview");
     const ownerIds = new Set(ownerProjects.map((p) => p.id));
     const overview = (((overviewData ?? []) as ProjectOverview[])).filter((p) => ownerIds.has(p.id));
+    const homes2 = overview.filter((p) => !p.parent_project_id);
+    const jobsByHome = new Map<string, ProjectOverview[]>();
+    const orphanJobs: ProjectOverview[] = [];
+    for (const p of overview.filter((x) => x.parent_project_id)) {
+      if (homes2.some((h) => h.id === p.parent_project_id)) {
+        const list = jobsByHome.get(p.parent_project_id!) ?? [];
+        list.push(p);
+        jobsByHome.set(p.parent_project_id!, list);
+      } else {
+        orphanJobs.push(p);
+      }
+    }
+    const HomeGlyph = (
+      <span className="tile-icon" style={{ width: 34, height: 34, flex: "none" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
+      </span>
+    );
+    const JobGlyph = (
+      <span className="tile-icon" style={{ width: 34, height: 34, flex: "none", background: "#fdf4e3", color: "#a8842c" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg>
+      </span>
+    );
+    const projectCard = (p: ProjectOverview, isHome: boolean, indent: boolean) => (
+      <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink"
+        style={{
+          padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
+          marginLeft: indent ? 26 : 0,
+          borderLeft: isHome ? "3px solid var(--brand)" : "3px solid #a8842c",
+        }}>
+        {isHome ? HomeGlyph : JobGlyph}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
+          <div className="muted small">
+            {isHome ? "Your home" : "Project"}
+            {p.address && !indent && <> · {p.address}</>} · {p.status}
+          </div>
+        </span>
+        <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>{p.open_count} open</span>
+      </Link>
+    );
     detail = (
       <>
         <h2 className="section-title">Your projects — as owner</h2>
         <p className="small" style={{ marginTop: 0 }}>
           <Link href="/my?panel=addproject">＋ Start a new project</Link>
         </p>
-        {canCreate && (
-          <details className="card" style={{ marginBottom: 10, padding: "10px 14px" }}>
-            <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
-              ＋ Claim another address
-            </summary>
-            <form action={createHome} style={{ display: "grid", gap: 8, marginTop: 10, maxWidth: 380 }}>
-              <input name="name" className="input" required autoComplete="off" placeholder="What should we call it?" />
-              <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
-              <button className="btn">Claim it</button>
-            </form>
-          </details>
-        )}
         <div style={{ display: "grid", gap: 8 }}>
-          {overview.map((p) => (
-            <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <span>
-                <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
-                <div className="muted small">
-                  {p.parent_project_id ? "Job" : "Home"}
-                  {p.address && <> · {p.address}</>} · {p.status}
-                  <> · active {new Date(p.last_activity).toLocaleDateString()}</>
-                </div>
-              </span>
-              <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>{p.open_count} open</span>
-            </Link>
+          {homes2.map((h) => (
+            <div key={h.id} style={{ display: "grid", gap: 8 }}>
+              {projectCard(h, true, false)}
+              {(jobsByHome.get(h.id) ?? []).map((j) => projectCard(j, false, true))}
+            </div>
           ))}
+          {orphanJobs.map((j) => projectCard(j, false, false))}
           {overview.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
         </div>
       </>
