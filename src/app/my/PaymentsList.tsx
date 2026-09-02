@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { FilePick } from "@/components/FilePick";
 import { editPayment } from "./actions";
 import { PAID_FROM_OPTIONS, type PayMethod } from "./LogPaymentForm";
 
@@ -23,6 +24,7 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
   const [open, setOpen] = useState<string | null>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,7 +34,16 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
       fd.append("files", new File([voiceBlob], `payment-note.${ext}`, { type: voiceBlob.type }));
     }
     setBusy(true);
-    await editPayment(fd);
+    setFailed("");
+    try {
+      await editPayment(fd);
+    } catch (err) {
+      // redirect() exits via throw and never lands here; anything that
+      // does is a real failure (e.g. an oversized upload).
+      if (err && typeof err === "object" && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) throw err;
+      setBusy(false);
+      setFailed(err instanceof Error ? err.message : "Save failed — try smaller files.");
+    }
   }
 
   return (
@@ -94,16 +105,15 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
                 <label>Notes</label>
                 <input name="notes" className="input" defaultValue={p.notes ?? ""} />
               </div>
-              <div className="form-2col">
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label>Add receipt photos</label>
-                  <input type="file" name="photos" accept="image/*" capture="environment" multiple className="small" />
-                </div>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label>Add voice note</label>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Attachments</label>
+                <div className="btn-row" style={{ alignItems: "flex-start" }}>
+                  <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
+                  <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
                   <VoiceRecorder onReady={setVoiceBlob} />
                 </div>
               </div>
+              {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
               <div>
                 <button className="btn" disabled={busy}>{busy ? "Saving..." : "Save changes"}</button>
               </div>

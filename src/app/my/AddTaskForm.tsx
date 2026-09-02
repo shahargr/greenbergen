@@ -18,6 +18,7 @@ export function AddTaskForm({
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
 
   const people = useMemo(
     () => members.filter((m) => m.projectId === projectId),
@@ -32,7 +33,14 @@ export function AddTaskForm({
       fd.append("files", new File([voiceBlob], `instructions.${ext}`, { type: voiceBlob.type }));
     }
     setBusy(true);
-    await createTask(fd);
+    setFailed("");
+    try {
+      await createTask(fd);
+    } catch (err) {
+      if (err && typeof err === "object" && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) throw err;
+      setBusy(false);
+      setFailed(err instanceof Error ? err.message : "Failed — try smaller files.");
+    }
   }
 
   return (
@@ -82,6 +90,7 @@ export function AddTaskForm({
           <VoiceRecorder onReady={setVoiceBlob} />
         </div>
       </div>
+      {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
       <div>
         <button className="btn" disabled={busy}>{busy ? "Creating..." : "Create task"}</button>
       </div>

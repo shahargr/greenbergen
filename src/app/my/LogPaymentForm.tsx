@@ -41,6 +41,7 @@ export function LogPaymentForm({
   const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
 
   const payers = useMemo(() => {
     const list = members.filter((m) => m.projectId === projectId && m.canPay).map((m) => m.name);
@@ -65,7 +66,14 @@ export function LogPaymentForm({
       fd.append("files", new File([voiceBlob], `payment-note.${ext}`, { type: voiceBlob.type }));
     }
     setBusy(true);
-    await logPayment(fd);
+    setFailed("");
+    try {
+      await logPayment(fd);
+    } catch (err) {
+      if (err && typeof err === "object" && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) throw err;
+      setBusy(false);
+      setFailed(err instanceof Error ? err.message : "Failed — try smaller files.");
+    }
   }
 
   return (
@@ -164,6 +172,7 @@ export function LogPaymentForm({
           <VoiceRecorder onReady={setVoiceBlob} />
         </div>
       </div>
+      {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
       <div>
         <button className="btn" disabled={busy}>{busy ? "Logging..." : "Log payment"}</button>
       </div>

@@ -74,7 +74,7 @@ export function VoiceRecorder({ onReady }: { onReady: (blob: Blob | null) => voi
     <div style={{ display: "grid", gap: 8 }}>
       {state === "idle" && (
         <div>
-          <button type="button" className="btn" onClick={start}>● Start recording</button>
+          <button type="button" className="btn ghost" onClick={start}>🎙 Record voice</button>
         </div>
       )}
       {state === "recording" && (
