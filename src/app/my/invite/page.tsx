@@ -10,7 +10,7 @@ export default async function InvitePage() {
       <span className="kicker">Invite</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 4px" }}>Invite someone</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        Create an invitation link and send it by email, text or WhatsApp.
+        Create an invitation link and send it however you like.
       </p>
       <InviteBuilder
         isSuperadmin={me?.is_superadmin ?? false}

@@ -356,6 +356,17 @@ a.panel-link:hover strong { color: var(--brand); }
 .typecard input { accent-color: var(--brand); justify-self: start; margin: 0 0 4px; width: 16px; height: 16px; }
 .typecard.on { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
 
+/* Illustrated variant: square-ish panels with an icon on top. */
+.typecard.art {
+  aspect-ratio: 1.15 / 1;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.typecard-art { color: var(--brand); opacity: 0.55; }
+.typecard.art.on .typecard-art { opacity: 1; }
+
 /* Headline trades: icon tiles, exactly 3 per row. */
 .tradetiles {
   display: grid;
