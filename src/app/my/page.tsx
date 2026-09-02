@@ -127,6 +127,26 @@ export default async function MyPage({
   const banner = banners?.[0] ?? null;
   const canCreate: boolean = home?.can_create ?? false;
 
+  // Projects this user holds a seat on, with the seat itself.
+  type Membership = {
+    role: string;
+    project_role: string | null;
+    projects: { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null } | null;
+  };
+  const { data: membershipRows } = me?.app_user_id
+    ? await supabase
+        .from("project_members")
+        .select("role, project_role, projects(id, project_name, address, status, parent_project_id)")
+        .eq("app_user_id", me.app_user_id)
+        .eq("status", "active")
+    : { data: [] };
+  const myMemberships = ((membershipRows ?? []) as unknown as Membership[]).filter((m) => m.projects);
+  const ownerProjects = myMemberships
+    .filter((m) => m.role === "owner")
+    .map((m) => m.projects!)
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .sort((a, b) => a.project_name.localeCompare(b.project_name));
+
   const openFilter = `(${CLOSED_STATUSES.join(",")})`;
   const [weather, onMe, total] = await Promise.all([
     getWeather(town),
@@ -386,6 +406,59 @@ export default async function MyPage({
         </p>
       </>
     );
+  } else if (panel === "projects") {
+    const selected = ownerProjects.find((p) => p.id === tileKey);
+    let projectTasks: TaskRow[] = [];
+    if (selected) {
+      const { data } = await supabase
+        .from("actions")
+        .select("id, action, status, priority, target_date, projects(project_name)")
+        .eq("project_id", selected.id)
+        .not("status", "in", openFilter)
+        .order("target_date", { ascending: true, nullsFirst: false })
+        .limit(50);
+      projectTasks = (data ?? []) as unknown as TaskRow[];
+    }
+    detail = (
+      <>
+        <h2 className="section-title">Your projects — as owner</h2>
+        <p className="small" style={{ marginTop: 0 }}>
+          <Link href="/my?panel=addproject">＋ Start a new project</Link>
+        </p>
+        <div style={{ display: "grid", gap: 8 }}>
+          {ownerProjects.map((p) => (
+            <Link key={p.id} href={`/my?panel=projects&t=${p.id}`}
+              className={p.id === selected?.id ? "card statlink selected" : "card statlink"}
+              style={{ padding: "10px 14px", display: "block" }}>
+              <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
+              <div className="muted small">
+                {p.parent_project_id ? "Job" : "Home"}
+                {p.address && <> · {p.address}</>} · {p.status}
+              </div>
+            </Link>
+          ))}
+          {ownerProjects.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
+        </div>
+        {selected && (
+          <div style={{ marginTop: 14 }}>
+            <h3 style={{ fontSize: 15, margin: "0 0 8px" }}>Open tasks on {selected.project_name} · {projectTasks.length}</h3>
+            {projectTasks.length === 0 && <p className="muted small">Nothing open here.</p>}
+            <div style={{ display: "grid", gap: 8 }}>
+              {projectTasks.map((t) => (
+                <Link key={t.id} href={`/my/task/${t.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
+                  <strong style={{ fontSize: 15 }}>{t.action}</strong>
+                  <div className="muted small">
+                    {t.status}
+                    {t.priority && t.priority !== "Missing" && <> · {t.priority}</>}
+                    {t.target_date && <> · due {t.target_date}</>}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
+    );
   } else if (panel === "addproject" && hasHome) {
     detail = (
       <>
@@ -493,14 +566,17 @@ export default async function MyPage({
           <span className="muted small">Idle pros, small jobs — soon.</span>
         </Link>
 
-        {hasHome ? (
-          <Link href="/my?panel=addproject" className={sel("addproject")}>
-            <span className="stat-kicker">Start a project</span>
-            <span className="muted small">A job under {projects[0].name}.</span>
+        {hasHome || ownerProjects.length > 0 ? (
+          <Link href="/my?panel=projects" className={sel("projects")}>
+            <span className="stat-kicker">Your projects</span>
+            <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+              <span className="stat-big">{ownerProjects.length}</span>
+              <span className="muted small">as owner · start a new one</span>
+            </span>
           </Link>
         ) : (
           <span className="card stat" style={{ opacity: 0.65 }}>
-            <span className="stat-kicker">Start a project</span>
+            <span className="stat-kicker">Your projects</span>
             <span className="muted small">Claim your address first.</span>
           </span>
         )}
