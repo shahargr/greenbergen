@@ -11,7 +11,7 @@ type MemberPayRow = {
   contacts: { name: string | null; person_name: string | null } | null;
 };
 type PayRow = {
-  id: string; amount: number; paid_on: string | null; description: string | null; notes: string | null;
+  id: string; amount: number; paid_on: string | null; status: string; description: string | null; notes: string | null;
   paid_from_account: string | null; payment_method_id: string | null;
   payment_methods: { name: string } | null; projects: { project_name: string } | null;
 };
@@ -28,9 +28,10 @@ type Membership = {
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; q?: string; all?: string }>;
 }) {
-  const { error, ok } = await searchParams;
+  const { error, ok, q, all } = await searchParams;
+  const showAll = all === "1";
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
 
@@ -66,13 +67,14 @@ export default async function PaymentsPage({
       .in("project_id", pmIds)
       .eq("status", "active")
       .not("contact_id", "is", null),
-    supabase
-      .from("transactions")
-      .select("id, amount, paid_on, description, notes, paid_from_account, payment_method_id, payment_methods(name), projects(project_name)")
-      .eq("direction", "out")
-      .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"])
-      .order("paid_on", { ascending: false, nullsFirst: false })
-      .limit(15),
+    (() => {
+      let qy = supabase
+        .from("transactions")
+        .select("id, amount, paid_on, status, description, notes, paid_from_account, payment_method_id, payment_methods(name), projects(project_name)")
+        .eq("direction", "out");
+      if (q) qy = qy.or(`description.ilike.%${q}%,notes.ilike.%${q}%,paid_from_account.ilike.%${q}%`);
+      return qy.order("paid_on", { ascending: false, nullsFirst: false }).limit(q || showAll ? 100 : 5);
+    })(),
     supabase.rpc("portal_projects_overview"),
     supabase
       .from("project_members")
@@ -81,6 +83,19 @@ export default async function PaymentsPage({
       .eq("status", "active")
       .not("company_id", "is", null),
   ]);
+
+  const PAID_SET = ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"];
+  const [{ data: paidAgg }, { data: openAgg }, { data: statusRows }] = await Promise.all([
+    supabase.from("transactions").select("amount").eq("direction", "out").in("status", PAID_SET),
+    supabase.from("transactions").select("amount").eq("direction", "out")
+      .in("status", ["forecast", "scheduled", "invoice received", "approved", "disputed"]),
+    supabase.from("transaction_statuses").select("status"),
+  ]);
+  const paidRows2 = (paidAgg ?? []) as { amount: number | null }[];
+  const openRows2 = (openAgg ?? []) as { amount: number | null }[];
+  const paidTotal = paidRows2.reduce((t, r) => t + Number(r.amount ?? 0), 0);
+  const openTotal = openRows2.reduce((t, r) => t + Number(r.amount ?? 0), 0);
+  const statuses = ((statusRows ?? []) as { status: string }[]).map((r) => r.status);
 
   const methods = ((methodRows ?? []) as { id: string; name: string }[]);
   const preferred = ["Cash", "Check", "ACH", "Credit card"];
@@ -159,25 +174,58 @@ export default async function PaymentsPage({
       {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 className="section-title">Log a payment</h2>
-        <LogPaymentForm
-          projects={payProjects}
-          members={payMembers}
-          contracts={payContracts}
-          methods={methods}
-          payees={payPayees}
-          meName={me?.full_name ?? me?.email ?? ""}
-        />
+      <div className="youband" style={{ marginBottom: 14 }}>
+        <div className="tile" style={{ cursor: "default" }}>
+          <span className="tile-label">Logged</span>
+          <span style={{ fontSize: 20, fontWeight: 800 }}>${Math.round(paidTotal).toLocaleString()}</span>
+          <span className="tile-sub">{paidRows2.length} payment{paidRows2.length === 1 ? "" : "s"} paid</span>
+        </div>
+        <div className="tile" style={{ cursor: "default" }}>
+          <span className="tile-label">Outstanding</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: "#a8842c" }}>${Math.round(openTotal).toLocaleString()}</span>
+          <span className="tile-sub">{openRows2.length} awaiting payment</span>
+        </div>
+        <Link className="tile" href="/my/financials">
+          <span className="tile-label">Financials</span>
+          <span className="tile-sub" style={{ marginTop: 6 }}>Contracted vs. paid, per project</span>
+        </Link>
       </div>
 
-      <h2 className="section-title">Recent payments</h2>
+      <details className="card" style={{ marginBottom: 14 }} open={!!error}>
+        <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Log a payment</summary>
+        <div style={{ marginTop: 12 }}>
+          <LogPaymentForm
+            projects={payProjects}
+            members={payMembers}
+            contracts={payContracts}
+            methods={methods}
+            payees={payPayees}
+            meName={me?.full_name ?? me?.email ?? ""}
+          />
+        </div>
+      </details>
+
+      <form action="/my/payments" method="get" className="btn-row" style={{ marginBottom: 12 }}>
+        <input name="q" className="input" defaultValue={q ?? ""} placeholder="Search payments — payee, notes, account"
+          style={{ maxWidth: 320 }} />
+        <button className="btn ghost">Search</button>
+        {(q || showAll) && <Link className="btn ghost" href="/my/payments">Clear</Link>}
+      </form>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <h2 className="section-title">
+          {q ? `Matches for "${q}"` : showAll ? "All transactions" : "Last 5 transactions"}
+        </h2>
+        {!q && !showAll && <Link className="small" href="/my/payments?all=1">View all →</Link>}
+      </div>
       <PaymentsList
         methods={methods}
+        statuses={statuses}
         payments={recent.map((r) => ({
           id: r.id,
           amount: r.amount,
           paid_on: r.paid_on,
+          status: r.status,
           description: r.description,
           notes: r.notes,
           paid_from_account: r.paid_from_account,

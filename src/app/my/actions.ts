@@ -265,6 +265,11 @@ export async function editPayment(formData: FormData) {
     updates.paid_via = methodRow?.name ?? null;
   }
   if (formData.has("notes")) updates.notes = String(formData.get("notes") ?? "").trim() || null;
+  const status = String(formData.get("status") ?? "").trim();
+  if (status) {
+    const { data: ok } = await supabase.from("transaction_statuses").select("status").eq("status", status).maybeSingle();
+    if (ok) updates.status = status;
+  }
 
   const { error } = await supabase.from("transactions").update(updates).eq("id", txId);
   if (error) redirect(`${back}error=${encodeURIComponent(error.message)}`);
@@ -374,4 +379,32 @@ export async function createTask(formData: FormData) {
   });
   revalidatePath("/my");
   redirect(`/my/task/${taskId}?saved=1`);
+}
+
+
+// Append a timestamped comment to a payment's notes.
+export async function commentPayment(formData: FormData) {
+  const supabase = await createClient();
+  const txId = String(formData.get("tx") ?? "");
+  const text = String(formData.get("text") ?? "").trim();
+  const back = "/my/payments?";
+  if (!txId || !text) redirect(`${back}error=${encodeURIComponent("Write the comment first.")}`);
+
+  const [{ data: tx }, { data: me }] = await Promise.all([
+    supabase.from("transactions").select("id, notes").eq("id", txId).maybeSingle(),
+    supabase.rpc("me"),
+  ]);
+  if (!tx) redirect(`${back}error=${encodeURIComponent("That payment is not yours to comment on.")}`);
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  const who = me?.full_name ?? me?.email ?? "someone";
+  const { error } = await supabase
+    .from("transactions")
+    .update({
+      notes: `${tx.notes ? tx.notes + "\n" : ""}[${stamp} ${who}] ${text}`,
+      last_modified_by: "portal:payment",
+    })
+    .eq("id", txId);
+  revalidatePath("/my/payments");
+  redirect(error ? `${back}error=${encodeURIComponent(error.message)}` : `${back}ok=${encodeURIComponent("Comment added ✓")}`);
 }

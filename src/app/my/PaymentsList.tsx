@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { FilePick } from "@/components/FilePick";
-import { editPayment } from "./actions";
+import { editPayment, commentPayment } from "./actions";
 import { PAID_FROM_OPTIONS, type PayMethod } from "./LogPaymentForm";
 
 export type RecentPayment = {
@@ -14,6 +14,7 @@ export type RecentPayment = {
   notes: string | null;
   paid_from_account: string | null;
   payment_method_id: string | null;
+  status?: string;
   method: string | null;
   project: string | null;
   attachments?: { url: string; kind: string; name: string }[];
@@ -21,7 +22,7 @@ export type RecentPayment = {
 
 // Recent payments with in-place editing - fix a field, or attach the
 // receipt photos and voice note that arrived after the fact.
-export function PaymentsList({ payments, methods }: { payments: RecentPayment[]; methods: PayMethod[] }) {
+export function PaymentsList({ payments, methods, statuses = [] }: { payments: RecentPayment[]; methods: PayMethod[]; statuses?: string[] }) {
   const [open, setOpen] = useState<{ id: string; mode: "view" | "edit" } | null>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,6 +56,9 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
             <span className="small">
               <strong>${Number(p.amount).toLocaleString()}</strong> {p.description ?? ""}
               <span className="muted"> · {p.project} · {p.method}</span>
+              {p.status && !p.status.startsWith("paid") && p.status !== "settled" && (
+                <span className="extra-chip" style={{ marginLeft: 6 }}>{p.status}</span>
+              )}
               <span className="muted"> · {p.paid_on}</span>
             </span>
             <span className="btn-row" style={{ gap: 6 }}>
@@ -101,6 +105,11 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
               ) : (
                 <span className="muted">No receipts attached.</span>
               )}
+              <form action={commentPayment} className="btn-row" style={{ marginTop: 6 }}>
+                <input type="hidden" name="tx" value={p.id} />
+                <input name="text" className="input" required placeholder="Add a comment" style={{ maxWidth: 280 }} />
+                <button className="btn ghost small">Comment</button>
+              </form>
             </div>
           )}
 
@@ -127,6 +136,12 @@ export function PaymentsList({ payments, methods }: { payments: RecentPayment[];
                   <label>Payment type</label>
                   <select name="method" className="input" defaultValue={p.payment_method_id ?? ""}>
                     {methods.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label>Status</label>
+                  <select name="status" className="input" defaultValue={p.status ?? "paid"}>
+                    {[...new Set([p.status ?? "paid", ...statuses])].map((st) => <option key={st}>{st}</option>)}
                   </select>
                 </div>
               </div>
