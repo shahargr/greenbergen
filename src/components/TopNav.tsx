@@ -73,13 +73,13 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </span>
         </div>
         <div className="topnav-right">
-          {isAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined} />}
           <Link href={ROLE_HOME[role]} className="iconlink" title="Home" aria-label="Home"><HomeIcon /></Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
           <form action={signOut} style={{ display: "inline-flex" }}>
             <button className="iconlink" title="Sign out" aria-label="Sign out"><SignOutIcon /></button>
           </form>
+          {isAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined} />}
         </div>
       </nav>
     </header>
