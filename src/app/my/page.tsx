@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, setTown, toggleDeal, logPayment } from "./actions";
+import { createHome, setTown, toggleDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { TasksTable } from "./TasksTable";
+import { LogPaymentForm } from "./LogPaymentForm";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
@@ -433,14 +434,22 @@ export default async function MyPage({
   } else if (panel === "payment" && pmProjects.length > 0) {
     type MethodRow = { id: string; name: string };
     type ContractRow = { id: string; title: string; project_id: string };
+    type MemberPayRow = { project_id: string; role: string; contact_id: string | null; contacts: { name: string | null; person_name: string | null } | null };
     type PayRow = {
       id: string; amount: number; paid_on: string | null; description: string | null; notes: string | null;
       payment_methods: { name: string } | null; projects: { project_name: string } | null;
     };
-    const [{ data: methodRows }, { data: tradeRows2 }, { data: contractRows }, { data: recentRows }] = await Promise.all([
+    type ProjectOverview = { id: string; last_activity: string };
+    const pmIds = pmProjects.map((p) => p.id);
+    const [{ data: methodRows }, { data: contractRows }, { data: memberPayRows }, { data: recentRows }, { data: overviewRows }] = await Promise.all([
       supabase.from("payment_methods").select("id, name").eq("is_active", true).order("display_order", { ascending: true, nullsFirst: false }),
-      supabase.from("trades").select("trade").order("sort_order"),
-      supabase.from("contracts").select("id, title, project_id").in("project_id", pmProjects.map((p) => p.id)).order("title"),
+      supabase.from("contracts").select("id, title, project_id").in("project_id", pmIds).order("title"),
+      supabase
+        .from("project_members")
+        .select("project_id, role, contact_id, contacts(name, person_name)")
+        .in("project_id", pmIds)
+        .eq("status", "active")
+        .not("contact_id", "is", null),
       supabase
         .from("transactions")
         .select("id, amount, paid_on, description, notes, payment_methods(name), projects(project_name)")
@@ -448,84 +457,41 @@ export default async function MyPage({
         .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"])
         .order("paid_on", { ascending: false, nullsFirst: false })
         .limit(6),
+      supabase.rpc("portal_projects_overview"),
     ]);
     const methods = (methodRows ?? []) as MethodRow[];
     const preferred = ["Cash", "Check", "ACH", "Credit card"];
     methods.sort((a, b) =>
       (preferred.includes(a.name) ? preferred.indexOf(a.name) : 99) -
       (preferred.includes(b.name) ? preferred.indexOf(b.name) : 99));
-    const payContracts = (contractRows ?? []) as ContractRow[];
+    // Projects ordered by last logged activity, per portal_projects_overview.
+    const activityRank = new Map(((overviewRows ?? []) as ProjectOverview[]).map((p, i) => [p.id, i]));
+    const payProjects = [...pmProjects]
+      .sort((a, b) => (activityRank.get(a.id) ?? 999) - (activityRank.get(b.id) ?? 999))
+      .map((p) => ({ id: p.id, name: p.project_name }));
+    const payMembers = (((memberPayRows ?? []) as unknown as MemberPayRow[]))
+      .filter((m) => m.contact_id && m.contacts)
+      .map((m) => ({
+        projectId: m.project_id,
+        contactId: m.contact_id as string,
+        name: m.contacts!.person_name ?? m.contacts!.name ?? "Unnamed",
+        canPay: m.role === "owner" || m.role === "manager",
+      }))
+      .filter((m, i, arr) => arr.findIndex((x) => x.projectId === m.projectId && x.contactId === m.contactId) === i);
+    const payContracts = (((contractRows ?? []) as ContractRow[])).map((c) => ({
+      id: c.id, title: c.title, projectId: c.project_id,
+    }));
     const recent = ((recentRows ?? []) as unknown as PayRow[]);
     detail = (
       <>
         <h2 className="section-title">Log a payment</h2>
-        <form action={logPayment} style={{ display: "grid", gap: 10, maxWidth: 480 }}>
-          <div className="form-2col">
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-project">Project</label>
-              <select id="pay-project" name="project" className="input" required defaultValue={pmProjects[0].id}>
-                {pmProjects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
-              </select>
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-amount">Amount ($)</label>
-              <input id="pay-amount" name="amount" className="input" inputMode="decimal" required placeholder="2,500" />
-            </div>
-          </div>
-          <div className="form-2col">
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-by">Paid by</label>
-              <input id="pay-by" name="paid_by" className="input" defaultValue={me?.full_name ?? ""} />
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-on">Paid on</label>
-              <input id="pay-on" name="paid_on" type="date" className="input" defaultValue={new Date().toISOString().slice(0, 10)} />
-            </div>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="pay-to">Paid to</label>
-            <input id="pay-to" name="paid_to" className="input" required placeholder="Who received the money" />
-          </div>
-          <div className="form-2col">
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-from">Paid from (account)</label>
-              <input id="pay-from" name="paid_from" className="input" placeholder="e.g. Chase LLC checking" />
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-method">Payment type</label>
-              <select id="pay-method" name="method" className="input" required>
-                {methods.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-2col">
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-trade">Requested by trade (optional)</label>
-              <select id="pay-trade" name="trade" className="input" defaultValue="">
-                <option value="">—</option>
-                {((tradeRows2 ?? []) as { trade: string }[]).map((t) => <option key={t.trade}>{t.trade}</option>)}
-              </select>
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pay-contract">Contract (optional)</label>
-              <select id="pay-contract" name="contract" className="input" defaultValue="">
-                <option value="">—</option>
-                {payContracts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {(pmProjects.find((p) => p.id === c.project_id)?.project_name ?? "")} · {c.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="pay-notes">Notes (optional)</label>
-            <input id="pay-notes" name="notes" className="input" placeholder="What was this for?" />
-          </div>
-          <div>
-            <button className="btn">Log payment</button>
-          </div>
-        </form>
+        <LogPaymentForm
+          projects={payProjects}
+          members={payMembers}
+          contracts={payContracts}
+          methods={methods}
+          meName={me?.full_name ?? me?.email ?? ""}
+        />
         {recent.length > 0 && (
           <>
             <h3 style={{ fontSize: 15, margin: "18px 0 8px" }}>Recently logged</h3>

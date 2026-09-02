@@ -135,8 +135,9 @@ export async function toggleDeal(promotionId: string, join: boolean) {
 
 // Log an actual payment into the ONE finance ledger - transactions.
 // RLS (can_see_money_on) is the boundary; the row lands as a paid,
-// outgoing transaction. Trade attribution rides in the description,
-// the payer in the notes.
+// outgoing transaction. Requested-by becomes the ledger's contractor
+// attribution; receipt photos and a voice note are stored in the file
+// store, captioned with the payment.
 export async function logPayment(formData: FormData) {
   const supabase = await createClient();
   const projectId = String(formData.get("project") ?? "");
@@ -153,23 +154,30 @@ export async function logPayment(formData: FormData) {
   const method = String(formData.get("method") ?? "");
   if (!method) redirect(`${back}&error=${encodeURIComponent("Pick the payment type.")}`);
 
-  const { data: methodRow } = await supabase
-    .from("payment_methods").select("name").eq("id", method).maybeSingle();
+  const requestedBy = String(formData.get("requested_by") ?? "").trim() || null;
+  const [{ data: methodRow }, { data: requesterRow }] = await Promise.all([
+    supabase.from("payment_methods").select("name").eq("id", method).maybeSingle(),
+    requestedBy
+      ? supabase.from("contacts").select("id, name, person_name").eq("id", requestedBy).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const requesterName = requesterRow ? (requesterRow.person_name ?? requesterRow.name) : null;
   const paidBy = String(formData.get("paid_by") ?? "").trim();
-  const trade = String(formData.get("trade") ?? "").trim();
   const extraNotes = String(formData.get("notes") ?? "").trim();
+  const paidOn = String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10);
 
   const { error } = await supabase.from("transactions").insert({
-    description: `Payment to ${paidTo}${trade ? ` — requested by ${trade}` : ""}`,
+    description: `Payment to ${paidTo}${requesterName ? ` — requested by ${requesterName}` : ""}`,
     amount,
     direction: "out",
     status: "paid",
-    paid_on: String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10),
+    paid_on: paidOn,
     paid_via: methodRow?.name ?? null,
     payment_method_id: method,
     paid_from_account: String(formData.get("paid_from") ?? "").trim() || null,
     project_id: projectId,
     contract_id: String(formData.get("contract") ?? "").trim() || null,
+    contractor_id: requesterRow?.id ?? null,
     notes: [paidBy ? `Paid by: ${paidBy}.` : null, extraNotes || null].filter(Boolean).join(" ") || null,
     created_by: "portal:payment",
     last_modified_by: "portal:payment",
@@ -180,6 +188,32 @@ export async function logPayment(formData: FormData) {
       : error.message;
     redirect(`${back}&error=${encodeURIComponent(msg)}`);
   }
+
+  // Receipts: photos and voice into the project file store, captioned with
+  // the payment. A failed upload never unwinds the ledger row.
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  for (const [i, file] of [...photos, ...files].entries()) {
+    const isImage = file.type.startsWith("image/");
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
+    const path = `${projectId}/payments/${Date.now()}-${i}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { error: upErr } = await supabase.storage
+      .from("project-media")
+      .upload(path, bytes, { contentType: file.type || undefined, upsert: true });
+    if (!upErr) {
+      await supabase.rpc("record_project_file", {
+        p_project_id: projectId,
+        p_path: path,
+        p_file_name: file.name || `payment${ext}`,
+        p_mime: file.type || null,
+        p_size: file.size,
+        p_caption: `Payment: $${amount.toLocaleString()} to ${paidTo} (${paidOn})`,
+        p_kind: isImage ? "photo" : "audio",
+      });
+    }
+  }
+
   revalidatePath("/my");
   redirect(`${back}&ok=${encodeURIComponent("Payment logged ✓")}`);
 }
