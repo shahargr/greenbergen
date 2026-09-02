@@ -132,3 +132,44 @@ export async function toggleDeal(promotionId: string, join: boolean) {
   revalidatePath("/my");
   redirect("/my?panel=deals");
 }
+
+// Log an actual payment (PM and above; RLS on payment_log is the law -
+// my_authority_rank(project) >= 50 gates both read and write).
+export async function logPayment(formData: FormData) {
+  const supabase = await createClient();
+  const projectId = String(formData.get("project") ?? "");
+  const amountRaw = String(formData.get("amount") ?? "").replace(/[$,\s]/g, "");
+  const amount = Number(amountRaw);
+  const back = "/my?panel=payment";
+
+  if (!projectId) redirect(`${back}&error=${encodeURIComponent("Pick the project.")}`);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    redirect(`${back}&error=${encodeURIComponent("Enter the amount paid.")}`);
+  }
+  const paidTo = String(formData.get("paid_to") ?? "").trim();
+  if (!paidTo) redirect(`${back}&error=${encodeURIComponent("Who was paid?")}`);
+  const method = String(formData.get("method") ?? "");
+  if (!method) redirect(`${back}&error=${encodeURIComponent("Pick the payment type.")}`);
+
+  const { error } = await supabase.from("payment_log").insert({
+    project_id: projectId,
+    amount,
+    paid_on: String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10),
+    paid_by: String(formData.get("paid_by") ?? "").trim() || "—",
+    paid_to: paidTo,
+    paid_from_account: String(formData.get("paid_from") ?? "").trim() || null,
+    payment_method_id: method,
+    requested_by_trade: String(formData.get("trade") ?? "").trim() || null,
+    contract_id: String(formData.get("contract") ?? "").trim() || null,
+    notes: String(formData.get("notes") ?? "").trim() || null,
+    last_modified_by: "portal:payment",
+  });
+  if (error) {
+    const msg = error.message.includes("row-level security")
+      ? "Logging payments on this project is not yours to do."
+      : error.message;
+    redirect(`${back}&error=${encodeURIComponent(msg)}`);
+  }
+  revalidatePath("/my");
+  redirect(`${back}&ok=${encodeURIComponent("Payment logged ✓")}`);
+}

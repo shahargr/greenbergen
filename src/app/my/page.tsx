@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, setTown, toggleDeal } from "./actions";
+import { createHome, setTown, toggleDeal, logPayment } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { TasksTable } from "./TasksTable";
 import { tradeInSeason } from "@/lib/seasons";
@@ -98,9 +98,9 @@ function WxIcon({ icon, size = 26 }: { icon: WeatherIcon; size?: number }) {
 export default async function MyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ panel?: string; error?: string; t?: string; all?: string }>;
+  searchParams: Promise<{ panel?: string; error?: string; ok?: string; t?: string; all?: string }>;
 }) {
-  const { panel, error: flashError, t: tileKey, all: showAll } = await searchParams;
+  const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
   const [{ data: me }, { data: home }, { data: banners }, { data: leadData }] = await Promise.all([
     supabase.rpc("me"),
@@ -157,6 +157,14 @@ export default async function MyPage({
   const myMemberships = ((membershipRows ?? []) as unknown as Membership[]).filter((m) => m.projects);
   const ownerProjects = myMemberships
     .filter((m) => m.role === "owner")
+    .map((m) => m.projects!)
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .sort((a, b) => a.project_name.localeCompare(b.project_name));
+
+  // Seats that carry authority rank >= 50 (owner or site-PM manager) - the
+  // audience for payment logging. RLS re-checks on every write.
+  const pmProjects = myMemberships
+    .filter((m) => (m.role === "owner" || m.role === "manager") && !m.projects!.is_template)
     .map((m) => m.projects!)
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
     .sort((a, b) => a.project_name.localeCompare(b.project_name));
@@ -422,6 +430,118 @@ export default async function MyPage({
         </div>
       </>
     );
+  } else if (panel === "payment" && pmProjects.length > 0) {
+    type MethodRow = { id: string; name: string };
+    type ContractRow = { id: string; title: string; project_id: string };
+    type PayRow = {
+      id: string; amount: number; paid_on: string; paid_to: string; paid_by: string;
+      payment_methods: { name: string } | null; projects: { project_name: string } | null;
+    };
+    const [{ data: methodRows }, { data: tradeRows2 }, { data: contractRows }, { data: recentRows }] = await Promise.all([
+      supabase.from("payment_methods").select("id, name").eq("is_active", true).order("display_order", { ascending: true, nullsFirst: false }),
+      supabase.from("trades").select("trade").order("sort_order"),
+      supabase.from("contracts").select("id, title, project_id").in("project_id", pmProjects.map((p) => p.id)).order("title"),
+      supabase
+        .from("payment_log")
+        .select("id, amount, paid_on, paid_to, paid_by, payment_methods(name), projects(project_name)")
+        .order("paid_on", { ascending: false })
+        .limit(6),
+    ]);
+    const methods = (methodRows ?? []) as MethodRow[];
+    const preferred = ["Cash", "Check", "ACH", "Credit card"];
+    methods.sort((a, b) =>
+      (preferred.includes(a.name) ? preferred.indexOf(a.name) : 99) -
+      (preferred.includes(b.name) ? preferred.indexOf(b.name) : 99));
+    const payContracts = (contractRows ?? []) as ContractRow[];
+    const recent = ((recentRows ?? []) as unknown as PayRow[]);
+    detail = (
+      <>
+        <h2 className="section-title">Log a payment</h2>
+        <form action={logPayment} style={{ display: "grid", gap: 10, maxWidth: 480 }}>
+          <div className="form-2col">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-project">Project</label>
+              <select id="pay-project" name="project" className="input" required defaultValue={pmProjects[0].id}>
+                {pmProjects.map((p) => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+              </select>
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-amount">Amount ($)</label>
+              <input id="pay-amount" name="amount" className="input" inputMode="decimal" required placeholder="2,500" />
+            </div>
+          </div>
+          <div className="form-2col">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-by">Paid by</label>
+              <input id="pay-by" name="paid_by" className="input" defaultValue={me?.full_name ?? ""} />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-on">Paid on</label>
+              <input id="pay-on" name="paid_on" type="date" className="input" defaultValue={new Date().toISOString().slice(0, 10)} />
+            </div>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="pay-to">Paid to</label>
+            <input id="pay-to" name="paid_to" className="input" required placeholder="Who received the money" />
+          </div>
+          <div className="form-2col">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-from">Paid from (account)</label>
+              <input id="pay-from" name="paid_from" className="input" placeholder="e.g. Chase LLC checking" />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-method">Payment type</label>
+              <select id="pay-method" name="method" className="input" required>
+                {methods.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-2col">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-trade">Requested by trade (optional)</label>
+              <select id="pay-trade" name="trade" className="input" defaultValue="">
+                <option value="">—</option>
+                {((tradeRows2 ?? []) as { trade: string }[]).map((t) => <option key={t.trade}>{t.trade}</option>)}
+              </select>
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pay-contract">Contract (optional)</label>
+              <select id="pay-contract" name="contract" className="input" defaultValue="">
+                <option value="">—</option>
+                {payContracts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {(pmProjects.find((p) => p.id === c.project_id)?.project_name ?? "")} · {c.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="pay-notes">Notes (optional)</label>
+            <input id="pay-notes" name="notes" className="input" placeholder="What was this for?" />
+          </div>
+          <div>
+            <button className="btn">Log payment</button>
+          </div>
+        </form>
+        {recent.length > 0 && (
+          <>
+            <h3 style={{ fontSize: 15, margin: "18px 0 8px" }}>Recently logged</h3>
+            <div style={{ display: "grid", gap: 6 }}>
+              {recent.map((r) => (
+                <div key={r.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <span>
+                    <strong>${Number(r.amount).toLocaleString()}</strong> to {r.paid_to}
+                    <span className="muted"> · {r.projects?.project_name} · {r.payment_methods?.name}</span>
+                  </span>
+                  <span className="muted">{r.paid_on} · by {r.paid_by}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </>
+    );
   } else if (panel === "addproject" && hasHome) {
     // Candidate parents: your open homes. Default: the home whose tree you
     // touched last (latest task activity anywhere under it).
@@ -464,6 +584,7 @@ export default async function MyPage({
   return (
     <main className="wrap" style={{ paddingTop: 16, paddingBottom: 64 }}>
       {flashError && <p className="error small" style={{ marginTop: 0 }}>{flashError}</p>}
+      {flashOk && <p className="banner" style={{ background: "#2f6b4f", marginTop: 0 }}>{flashOk}</p>}
       {banner?.text &&
         (banner.url ? (
           <a href={banner.url} className="banner" target="_blank" rel="noreferrer">{banner.text}</a>
@@ -582,6 +703,13 @@ export default async function MyPage({
           <span className="stat-kicker">Invite friends</span>
           <span className="muted small">Neighbors make the deals happen.</span>
         </Link>
+
+        {pmProjects.length > 0 && (
+          <Link href="/my?panel=payment" className={sel("payment")}>
+            <span className="stat-kicker">Log payment</span>
+            <span className="muted small">Record who was paid, from where.</span>
+          </Link>
+        )}
       </section>
 
       {detail && (
