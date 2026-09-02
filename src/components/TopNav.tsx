@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { Wordmark } from "@/components/SiteHeader";
 import { signOut } from "@/app/my/actions";
-import { setView } from "@/components/viewas";
 import { VIEW_HOME } from "@/components/viewmap";
+import { MaskMenu } from "@/components/MaskMenu";
 
 const HomeIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -34,15 +34,6 @@ const SignOutIcon = () => (
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
     <path d="m16 17 5-5-5-5" />
     <path d="M21 12H9" />
-  </svg>
-);
-
-const MaskIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 6.5C5.6 5.1 8.7 4.4 12 4.4s6.4.7 9 2.1v4.6c0 5.3-4 9.5-9 9.5s-9-4.2-9-9.5z" />
-    <path d="M7 10.6c1-.9 2.4-.9 3.4 0" />
-    <path d="M13.6 10.6c1-.9 2.4-.9 3.4 0" />
-    <path d="M9 15.4c1.8 1.4 4.2 1.4 6 0" />
   </svg>
 );
 
@@ -82,24 +73,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </span>
         </div>
         <div className="topnav-right">
-          {isAdmin && (
-          <details className="rolemenu rolemenu-right">
-            <summary className="iconlink" title="View as" aria-label="View as"><MaskIcon /></summary>
-            <div className="rolemenu-list">
-              {views.map((v) =>
-                v === viewLabel ? (
-                  <span key={v} className="rolemenu-item current">{v} ✓</span>
-                ) : VIEW_HOME[v] ? (
-                  <form key={v} action={setView.bind(null, v)} style={{ display: "contents" }}>
-                    <button className="rolemenu-item" style={{ width: "100%", textAlign: "left" }}>{v}</button>
-                  </form>
-                ) : (
-                  <span key={v} className="rolemenu-item current">{v} · soon</span>
-                )
-              )}
-            </div>
-          </details>
-          )}
+          {isAdmin && <MaskMenu views={views} current={viewLabel} />}
           <Link href={ROLE_HOME[role]} className="iconlink" title="Home" aria-label="Home"><HomeIcon /></Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
