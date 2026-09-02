@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { Wordmark } from "@/components/SiteHeader";
 import { signOut } from "@/app/my/actions";
-import { setView, VIEW_HOME } from "@/components/viewas";
+import { setView } from "@/components/viewas";
+import { VIEW_HOME } from "@/components/viewmap";
 
 const HomeIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -66,11 +67,10 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
 
   // The label under the logo: the picked hat, as long as it lives on this
   // surface; otherwise the surface's own name.
-  const picked = jar.get("gb_view")?.value;
-  const viewLabel = picked && VIEW_HOME[picked] === ROLE_HOME[role] ? picked : role;
-
   const isAdmin: boolean = me?.is_superadmin ?? false;
-  const views = ALL_VIEWS.filter((v) => v !== "Admin" || isAdmin);
+  const picked = isAdmin ? jar.get("gb_view")?.value : undefined;
+  const viewLabel = picked && VIEW_HOME[picked] === ROLE_HOME[role] ? picked : role;
+  const views = [...ALL_VIEWS];
 
   return (
     <header className="topnav">
@@ -82,6 +82,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </span>
         </div>
         <div className="topnav-right">
+          {isAdmin && (
           <details className="rolemenu rolemenu-right">
             <summary className="iconlink" title="View as" aria-label="View as"><MaskIcon /></summary>
             <div className="rolemenu-list">
@@ -98,6 +99,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
               )}
             </div>
           </details>
+          )}
           <Link href={ROLE_HOME[role]} className="iconlink" title="Home" aria-label="Home"><HomeIcon /></Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
