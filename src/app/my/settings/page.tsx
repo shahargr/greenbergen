@@ -103,8 +103,11 @@ export default async function SettingsPage({
         </form>
 
         {homes.map((h) => (
-          <form key={h.assetId} action={saveAskingPrice} className="card" style={{ display: "grid", gap: 10 }}>
-            <h2 className="section-title">Sell your home — {h.projectName}</h2>
+          <details key={h.assetId} className="card">
+            <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>
+              Sell your home — {h.projectName}
+            </summary>
+            <form action={saveAskingPrice} style={{ display: "grid", gap: 10, marginTop: 10 }}>
             <p className="muted small" style={{ margin: 0 }}>
               Name your price and sell direct — no realtors, no commission.
               {h.askingPrice
@@ -124,7 +127,8 @@ export default async function SettingsPage({
               <button className="btn">{h.askingPrice ? "Update price" : "List it"}</button>
             </div>
             {h.address && <p className="muted small" style={{ margin: 0 }}>{h.address}</p>}
-          </form>
+            </form>
+          </details>
         ))}
         {homes.length === 0 && (
           <div className="card">
@@ -136,9 +140,11 @@ export default async function SettingsPage({
           </div>
         )}
 
-        <div className="card" style={{ display: "grid", gap: 10 }}>
-          <h2 className="section-title">Claim another address</h2>
-          <p className="muted small" style={{ margin: 0 }}>
+        <details className="card">
+          <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>
+            Claim another address
+          </summary>
+          <p className="muted small" style={{ margin: "10px 0 8px" }}>
             Another property you own gets its own home page, projects and paperwork.
           </p>
           <form action={createHome} style={{ display: "grid", gap: 8, maxWidth: 380 }}>
@@ -146,7 +152,7 @@ export default async function SettingsPage({
             <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
             <div><button className="btn">Claim it</button></div>
           </form>
-        </div>
+        </details>
 
         <div className="card">
           <h2 className="section-title">Images</h2>
