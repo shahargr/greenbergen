@@ -45,39 +45,36 @@ export default async function TaskPage({
   if (!rawTask) notFound();
   const t = rawTask as unknown as TaskFull;
 
-  const perms = await taskPerms(t.project_id, t.assigned_to_contact_id);
-
-  const { data: commentRows } = await supabase
-    .from("task_comments")
-    .select("id, author_name, body, created_at")
-    .eq("action_id", t.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const [perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }] =
+    await Promise.all([
+      taskPerms(t.project_id, t.assigned_to_contact_id),
+      supabase
+        .from("task_comments")
+        .select("id, author_name, body, created_at")
+        .eq("action_id", t.id)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("file_links")
+        .select("id", { count: "exact", head: true })
+        .eq("action_id", t.id)
+        .in("role", ["after", "evidence", "before", "progress"]),
+      t.assigned_to_contact_id
+        ? supabase.from("contacts").select("name, person_name").eq("id", t.assigned_to_contact_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      t.assigned_to_persona_id
+        ? supabase.from("personas").select("name").eq("id", t.assigned_to_persona_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      t.project_id
+        ? supabase
+            .from("project_members")
+            .select("contact_id, contacts(name, person_name)")
+            .eq("project_id", t.project_id)
+            .eq("status", "active")
+            .not("contact_id", "is", null)
+        : Promise.resolve({ data: [] }),
+    ]);
   const comments = (commentRows ?? []) as CommentView[];
-
-  const { count: evidenceCount } = await supabase
-    .from("file_links")
-    .select("id", { count: "exact", head: true })
-    .eq("action_id", t.id)
-    .in("role", ["after", "evidence", "before", "progress"]);
-
-  // Names for display + the assignment picker (project member contacts).
-  const [{ data: assigneeContact }, { data: assigneePersona }, { data: memberRows }] = await Promise.all([
-    t.assigned_to_contact_id
-      ? supabase.from("contacts").select("name, person_name").eq("id", t.assigned_to_contact_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    t.assigned_to_persona_id
-      ? supabase.from("personas").select("name").eq("id", t.assigned_to_persona_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    t.project_id && perms.assign
-      ? supabase
-          .from("project_members")
-          .select("contact_id, contacts(name, person_name)")
-          .eq("project_id", t.project_id)
-          .eq("status", "active")
-          .not("contact_id", "is", null)
-      : Promise.resolve({ data: [] }),
-  ]);
 
   const members: MemberOption[] = ((memberRows ?? []) as unknown as {
     contact_id: string;

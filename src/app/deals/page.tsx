@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { FootBar } from "@/components/FootBar";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { bookDeal, cancelBooking } from "./actions";
 
@@ -52,9 +53,13 @@ export default async function DealsPage({
   const signedIn = !!auth.user;
   const banner = (bannerData ?? null) as { text: string; url: string | null } | null;
 
-  // Every render of the landing counts one view per listed deal.
+  // Every render counts one view per listed deal - after the response is
+  // sent, so tracking never delays the page.
   if (deals.length) {
-    await supabase.rpc("deal_track", { p_kind: "view", p_ids: deals.map((d) => d.id) });
+    const ids = deals.map((d) => d.id);
+    after(async () => {
+      await supabase.rpc("deal_track", { p_kind: "view", p_ids: ids });
+    });
   }
 
   let mine = new Map<string, MyBooking>();

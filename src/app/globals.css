@@ -718,3 +718,14 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 @media (max-width: 560px) {
   .task-row { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* Task table (dashboard tasks panel) */
+.tasktable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tasktable th {
+  text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted, #6b7280); font-weight: 600; padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--line, #e5e7eb);
+}
+.tasktable td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--line, #e5e7eb); vertical-align: top; }
+.tasktable tbody tr:not(.tasktable-expand):hover td { background: #f4f8f5; }
+.tasktable-expand td { background: #fafcf9; border-bottom: 1px solid var(--line, #e5e7eb); }

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, setTown, toggleDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
+import { TasksTable } from "./TasksTable";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
 const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
@@ -100,7 +101,7 @@ export default async function MyPage({
 }) {
   const { panel, error: flashError, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: home }, { data: banners }, { data: leadData }, { data: tipRow }] = await Promise.all([
+  const [{ data: me }, { data: home }, { data: banners }, { data: leadData }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("consumer_home"),
     supabase
@@ -109,11 +110,6 @@ export default async function MyPage({
       .order("created_at", { ascending: false })
       .limit(1),
     supabase.rpc("my_lead_actions"),
-    supabase
-      .from("seasonal_tips")
-      .select("tip")
-      .eq("month", new Date().getMonth() + 1)
-      .maybeSingle(),
   ]);
   const leads: Lead[] = (leadData as Lead[]) ?? [];
 
@@ -133,22 +129,15 @@ export default async function MyPage({
     project_role: string | null;
     projects: { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean } | null;
   };
-  const { data: membershipRows } = me?.app_user_id
-    ? await supabase
-        .from("project_members")
-        .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template)")
-        .eq("app_user_id", me.app_user_id)
-        .eq("status", "active")
-    : { data: [] };
-  const myMemberships = ((membershipRows ?? []) as unknown as Membership[]).filter((m) => m.projects);
-  const ownerProjects = myMemberships
-    .filter((m) => m.role === "owner")
-    .map((m) => m.projects!)
-    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
-    .sort((a, b) => a.project_name.localeCompare(b.project_name));
-
   const openFilter = `(${CLOSED_STATUSES.join(",")})`;
-  const [weather, onMe, total] = await Promise.all([
+  const [{ data: membershipRows }, weather, onMe, total] = await Promise.all([
+    me?.app_user_id
+      ? supabase
+          .from("project_members")
+          .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template)")
+          .eq("app_user_id", me.app_user_id)
+          .eq("status", "active")
+      : Promise.resolve({ data: [] }),
     getWeather(town),
     myContact
       ? supabase
@@ -164,6 +153,13 @@ export default async function MyPage({
       .not("status", "in", openFilter)
       .then((r) => r.count ?? 0),
   ]);
+  const myMemberships = ((membershipRows ?? []) as unknown as Membership[]).filter((m) => m.projects);
+  const ownerProjects = myMemberships
+    .filter((m) => m.role === "owner")
+    .map((m) => m.projects!)
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i)
+    .sort((a, b) => a.project_name.localeCompare(b.project_name));
+
   const onOthers = Math.max(0, total - onMe - leads.length);
   const pendingOnMe = onMe + leads.length;
 
@@ -186,31 +182,28 @@ export default async function MyPage({
     const base = () =>
       supabase
         .from("actions")
-        .select("id, action, status, priority, target_date, projects(project_name)")
+        .select("id, action, status, priority, target_date, notes, projects(project_name)")
         .not("status", "in", openFilter)
         .order("target_date", { ascending: true, nullsFirst: false });
     const [mineRes, othersRes] = await Promise.all([
-      myContact ? base().eq("assigned_to_contact_id", myContact).limit(50) : Promise.resolve({ data: [] }),
+      myContact ? base().eq("assigned_to_contact_id", myContact).limit(100) : Promise.resolve({ data: [] }),
       myContact
-        ? base().or(`assigned_to_contact_id.is.null,assigned_to_contact_id.neq.${myContact}`).limit(50)
-        : base().limit(50),
+        ? base().or(`assigned_to_contact_id.is.null,assigned_to_contact_id.neq.${myContact}`).limit(100)
+        : base().limit(100),
     ]);
-    const mine = (mineRes.data ?? []) as unknown as TaskRow[];
-    const others = (othersRes.data ?? []) as unknown as TaskRow[];
-    const renderList = (tasks: TaskRow[]) => (
-      <div style={{ display: "grid", gap: 8 }}>
-        {tasks.map((t) => (
-          <Link key={t.id} href={`/my/task/${t.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
-            <strong style={{ fontSize: 15 }}>{t.action}</strong>
-            <div className="muted small">
-              {t.projects?.project_name ?? "No project"} · {t.status}
-              {t.priority && t.priority !== "Missing" && <> · {t.priority}</>}
-              {t.target_date && <> · due {t.target_date}</>}
-            </div>
-          </Link>
-        ))}
-      </div>
-    );
+    type PanelTaskRow = TaskRow & { notes: string | null };
+    const toTable = (rows: unknown, who: "you" | "others") =>
+      ((rows ?? []) as PanelTaskRow[]).map((t) => ({
+        id: t.id,
+        action: t.action ?? "(untitled)",
+        status: t.status,
+        priority: t.priority,
+        target_date: t.target_date,
+        notes: t.notes,
+        project: t.projects?.project_name ?? null,
+        who,
+      }));
+    const tableTasks = [...toTable(mineRes.data, "you"), ...toTable(othersRes.data, "others")];
     detail = (
       <>
         {leads.length > 0 && (
@@ -234,10 +227,8 @@ export default async function MyPage({
             </div>
           </>
         )}
-        <h2 className="section-title">On you · {mine.length}</h2>
-        {mine.length === 0 ? <p className="muted small">Nothing open on you.</p> : renderList(mine)}
-        <h2 className="section-title" style={{ marginTop: 18 }}>On others · {onOthers}</h2>
-        {others.length === 0 ? <p className="muted small">Nothing open on others.</p> : renderList(others)}
+        <h2 className="section-title">Open tasks</h2>
+        <TasksTable tasks={tableTasks} />
       </>
     );
   } else if (panel === "weather") {
@@ -585,12 +576,6 @@ export default async function MyPage({
           <span className="muted small">Neighbors make the deals happen.</span>
         </Link>
       </section>
-
-      {tipRow?.tip && (
-        <p className="tipstrip">
-          <span className="tip-label">This month</span> {tipRow.tip}
-        </p>
-      )}
 
       {detail && (
         <section className="card" style={{ marginTop: 12, padding: "16px 20px" }}>
