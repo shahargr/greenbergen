@@ -129,9 +129,69 @@ export async function saveTask(taskId: string, formData: FormData) {
     : `/my/task/${taskId}?saved=1`);
 }
 
-// Completing requires EVIDENCE: a photo, a voice note, or a written reason.
-// Photo-evidence-flagged tasks accept only a photo (rulebook 11f) - the
-// PM force-bypass is deliberately not offered here.
+// Evidence uploads: any number of photos plus an optional voice note, at
+// any point in the task's life. Bytes go to project-media Storage; the
+// database records each via record_project_file + file_attach (photos as
+// the AFTER image, audio as evidence) - rulebook 11f machinery.
+export async function uploadEvidence(taskId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data: task } = await supabase
+    .from("actions")
+    .select("id, project_id, assigned_to_contact_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!task || !task.project_id) redirect("/my?panel=tasks");
+
+  const p = await taskPerms(task.project_id, task.assigned_to_contact_id);
+  if (!p.notes && !p.complete) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Uploading evidence here is not yours to do.")}`);
+  }
+
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Pick at least one photo or record audio first.")}`);
+  }
+
+  let stored = 0;
+  for (const file of files) {
+    const isImage = file.type.startsWith("image/");
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
+    const path = `${task.project_id}/actions/${taskId}/evidence-${Date.now()}-${stored}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { error: upErr } = await supabase.storage
+      .from("project-media")
+      .upload(path, bytes, { contentType: file.type || undefined, upsert: true });
+    if (upErr) {
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent(`Upload failed on ${file.name}: ${upErr.message}`)}`);
+    }
+    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
+      p_project_id: task.project_id,
+      p_path: path,
+      p_file_name: file.name || `evidence${ext}`,
+      p_mime: file.type || null,
+      p_size: file.size,
+      p_caption: "Task evidence",
+      p_kind: isImage ? "photo" : "audio",
+    });
+    if (recErr || !fileId) {
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent("Uploaded, but could not record a file — try again.")}`);
+    }
+    await supabase.rpc("file_attach", {
+      p_file_id: fileId,
+      p_action_id: taskId,
+      p_contract_id: null,
+      p_role: isImage ? "after" : "evidence",
+    });
+    stored += 1;
+  }
+
+  revalidatePath(`/my/task/${taskId}`);
+  redirect(`/my/task/${taskId}?saved=1`);
+}
+
+// Flag complete: closes on the strength of ALREADY-ATTACHED evidence, or a
+// written reason. Photo-flagged tasks insist on an attached AFTER photo
+// (rulebook 11f) - no force-bypass offered.
 export async function completeTask(taskId: string, formData: FormData) {
   const supabase = await createClient();
   const { data: task } = await supabase
@@ -146,46 +206,24 @@ export async function completeTask(taskId: string, formData: FormData) {
     redirect(`/my/task/${taskId}?error=${encodeURIComponent("Completing this task is not yours to do.")}`);
   }
 
-  const file = formData.get("evidence_file") as File | null;
-  const reason = String(formData.get("evidence_reason") ?? "").trim();
-  const hasFile = file && file.size > 0;
+  const reason = String(formData.get("reason") ?? "").trim();
+  const { count: evidenceCount } = await supabase
+    .from("file_links")
+    .select("id", { count: "exact", head: true })
+    .eq("action_id", taskId)
+    .in("role", ["after", "evidence", "before", "progress"]);
 
-  if (!hasFile && !reason) {
-    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Completion needs evidence: a photo, a voice note, or a written reason.")}`);
-  }
-  if (task.requires_photo_evidence && (!hasFile || !file!.type.startsWith("image/"))) {
-    redirect(`/my/task/${taskId}?error=${encodeURIComponent("This task requires an AFTER photo - a voice note or text is not enough here.")}`);
-  }
-
-  if (hasFile && task.project_id) {
-    const isImage = file!.type.startsWith("image/");
-    const ext = (file!.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
-    const path = `${task.project_id}/actions/${taskId}/close-${Date.now()}${ext}`;
-    const bytes = await file!.arrayBuffer();
-    const { error: upErr } = await supabase.storage
-      .from("project-media")
-      .upload(path, bytes, { contentType: file!.type || undefined, upsert: true });
-    if (upErr) {
-      redirect(`/my/task/${taskId}?error=${encodeURIComponent(`Upload failed: ${upErr.message}`)}`);
+  if (task.requires_photo_evidence) {
+    const { count: afterCount } = await supabase
+      .from("file_links")
+      .select("id", { count: "exact", head: true })
+      .eq("action_id", taskId)
+      .eq("role", "after");
+    if (!afterCount) {
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent("This task requires an AFTER photo — upload it as evidence first.")}`);
     }
-    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
-      p_project_id: task.project_id,
-      p_path: path,
-      p_file_name: file!.name || `close-evidence${ext}`,
-      p_mime: file!.type || null,
-      p_size: file!.size,
-      p_caption: "Close evidence",
-      p_kind: isImage ? "photo" : "audio",
-    });
-    if (recErr || !fileId) {
-      redirect(`/my/task/${taskId}?error=${encodeURIComponent("Uploaded, but could not record the file — try again.")}`);
-    }
-    await supabase.rpc("file_attach", {
-      p_file_id: fileId,
-      p_action_id: taskId,
-      p_contract_id: null,
-      p_role: isImage ? "after" : "evidence",
-    });
+  } else if (!evidenceCount && !reason) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Upload evidence first, or write a short reason for closing without it.")}`);
   }
 
   if (reason) {

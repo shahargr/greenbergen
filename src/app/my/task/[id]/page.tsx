@@ -47,6 +47,12 @@ export default async function TaskPage({
 
   const perms = await taskPerms(t.project_id, t.assigned_to_contact_id);
 
+  const { count: evidenceCount } = await supabase
+    .from("file_links")
+    .select("id", { count: "exact", head: true })
+    .eq("action_id", t.id)
+    .in("role", ["after", "evidence", "before", "progress"]);
+
   // Names for display + the assignment picker (project member contacts).
   const [{ data: assigneeContact }, { data: assigneePersona }, { data: memberRows }] = await Promise.all([
     t.assigned_to_contact_id
@@ -114,7 +120,7 @@ export default async function TaskPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
-      <TaskEditor task={view} perms={perms} members={members} isOpen={isOpen} />
+      <TaskEditor task={view} perms={perms} members={members} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
     </main>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { saveTask, completeTask, type TaskPerms } from "./actions";
+import { saveTask, completeTask, uploadEvidence, type TaskPerms } from "./actions";
 import { VoiceRecorder } from "./VoiceRecorder";
 
 export type TaskView = {
@@ -44,45 +44,49 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 // Locked by default: every field visible, nothing editable until Unlock.
 // What unlocks is decided server-side (perms) and enforced again on save.
+// Evidence (multiple photos + a voice note) uploads separately from the act
+// of flagging complete.
 export function TaskEditor({
   task,
   perms,
   members,
   isOpen,
+  evidenceCount,
 }: {
   task: TaskView;
   perms: TaskPerms;
   members: MemberOption[];
   isOpen: boolean;
+  evidenceCount: number;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [status, setStatus] = useState(task.status);
-  const [completing, setCompleting] = useState(false);
+  const [mode, setMode] = useState<"none" | "upload" | "complete">("none");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
-  const [finishing, setFinishing] = useState(false);
-  const [evidenceKind, setEvidenceKind] = useState<"photo" | "voice" | "text">(
-    task.requires_photo_evidence ? "photo" : "text",
-  );
+  const [busyEvidence, setBusyEvidence] = useState(false);
+
+  async function submitEvidence(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData();
+    const input = form.querySelector<HTMLInputElement>('input[name="photos"]');
+    for (const f of Array.from(input?.files ?? [])) fd.append("files", f);
+    if (voiceBlob) {
+      const ext = voiceBlob.type.includes("mp4") ? "m4a" : "webm";
+      fd.append("files", new File([voiceBlob], `voice-note.${ext}`, { type: voiceBlob.type }));
+    }
+    if (![...fd.keys()].length) return;
+    setBusyEvidence(true);
+    await uploadEvidence(task.id, fd);
+  }
 
   async function submitCompletion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData();
-    if (evidenceKind === "voice") {
-      if (!voiceBlob) return;
-      const ext = voiceBlob.type.includes("mp4") ? "m4a" : "webm";
-      fd.append("evidence_file", new File([voiceBlob], `voice-note.${ext}`, { type: voiceBlob.type }));
-    } else if (evidenceKind === "photo") {
-      const input = form.querySelector<HTMLInputElement>('input[name="evidence_file"]');
-      const f = input?.files?.[0];
-      if (!f) return;
-      fd.append("evidence_file", f);
-    } else {
-      const ta = form.querySelector<HTMLTextAreaElement>('textarea[name="evidence_reason"]');
-      if (!ta?.value.trim()) return;
-      fd.append("evidence_reason", ta.value.trim());
-    }
-    setFinishing(true);
+    const ta = form.querySelector<HTMLTextAreaElement>('textarea[name="reason"]');
+    if (ta?.value.trim()) fd.append("reason", ta.value.trim());
+    setBusyEvidence(true);
     await completeTask(task.id, fd);
   }
 
@@ -236,46 +240,59 @@ export function TaskEditor({
 
       {isOpen && perms.complete && (
         <div className="card" style={{ display: "grid", gap: 10 }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Mark it done</h2>
-          {!completing ? (
-            <div>
-              <button type="button" className="btn" onClick={() => setCompleting(true)}>✓ Done — add evidence</button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Evidence &amp; completion</h2>
+            <span className="muted small">
+              {evidenceCount > 0 ? `${evidenceCount} file${evidenceCount > 1 ? "s" : ""} attached` : "No evidence yet"}
+            </span>
+          </div>
+
+          {mode === "none" && (
+            <div className="btn-row">
+              <button type="button" className="btn ghost" onClick={() => setMode("upload")}>
+                ⬆ Upload evidence
+              </button>
+              <button type="button" className="btn" onClick={() => setMode("complete")}>
+                ✓ Flag complete
+              </button>
             </div>
-          ) : (
+          )}
+
+          {mode === "upload" && (
+            <form onSubmit={submitEvidence} style={{ display: "grid", gap: 10 }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Photos — pick as many as you need</label>
+                <input type="file" name="photos" accept="image/*" capture="environment" multiple className="small" />
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>Voice note (optional)</label>
+                <VoiceRecorder onReady={setVoiceBlob} />
+              </div>
+              <div className="btn-row">
+                <button className="btn" disabled={busyEvidence}>
+                  {busyEvidence ? "Uploading..." : "Upload"}
+                </button>
+                <button type="button" className="btn ghost" onClick={() => setMode("none")}>Cancel</button>
+              </div>
+            </form>
+          )}
+
+          {mode === "complete" && (
             <form onSubmit={submitCompletion} style={{ display: "grid", gap: 10 }}>
               <p className="muted small" style={{ margin: 0 }}>
                 {task.requires_photo_evidence
-                  ? "This task requires an AFTER photo."
-                  : "Completion needs one of: a photo, a voice note, or a written reason."}
+                  ? "This task requires an AFTER photo attached as evidence before it can close."
+                  : evidenceCount > 0
+                    ? "Evidence is attached — you can close, and add a note if you like."
+                    : "No evidence attached: either upload some first, or write a short reason for closing without it."}
               </p>
-              <div className="radio-row" style={{ minHeight: 0 }}>
-                <label className="radio-opt">
-                  <input type="radio" name="ek" checked={evidenceKind === "photo"} onChange={() => setEvidenceKind("photo")} /> Photo
-                </label>
-                {!task.requires_photo_evidence && (
-                  <>
-                    <label className="radio-opt">
-                      <input type="radio" name="ek" checked={evidenceKind === "voice"} onChange={() => setEvidenceKind("voice")} /> Voice note
-                    </label>
-                    <label className="radio-opt">
-                      <input type="radio" name="ek" checked={evidenceKind === "text"} onChange={() => setEvidenceKind("text")} /> Written reason
-                    </label>
-                  </>
-                )}
-              </div>
-              {evidenceKind === "photo" && (
-                <input type="file" name="evidence_file" accept="image/*" capture="environment" className="small" required />
-              )}
-              {evidenceKind === "voice" && <VoiceRecorder onReady={setVoiceBlob} />}
-              {evidenceKind === "text" && (
-                <textarea name="evidence_reason" className="input" rows={2} required
-                  placeholder="What was done / why this is complete" />
-              )}
+              <textarea name="reason" className="input" rows={2}
+                placeholder={evidenceCount > 0 ? "Closing note (optional)" : "Reason for closing without evidence"} />
               <div className="btn-row">
-                <button className="btn" disabled={finishing || (evidenceKind === "voice" && !voiceBlob)}>
-                  {finishing ? "Completing..." : "Complete task"}
+                <button className="btn" disabled={busyEvidence}>
+                  {busyEvidence ? "Completing..." : "Complete task"}
                 </button>
-                <button type="button" className="btn ghost" onClick={() => setCompleting(false)}>Cancel</button>
+                <button type="button" className="btn ghost" onClick={() => setMode("none")}>Cancel</button>
               </div>
             </form>
           )}
