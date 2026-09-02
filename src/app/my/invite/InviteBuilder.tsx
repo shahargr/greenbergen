@@ -4,9 +4,10 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { emailInvitation } from "./actions";
 
-// Builds an invitation and hands it to whatever channel the sender prefers.
-// No email provider is wired server-side, so sending happens through the
-// sender's own apps: mail client, Messages, WhatsApp - or plain copy.
+// Builds an invitation and hands it to the sender's channel of choice:
+// "Send by email" goes through the app's mailer; "Share..." opens the phone's
+// native share sheet (Messages, WhatsApp, anything installed - falls back to
+// copy on desktop); "Copy" copies the message with the link.
 export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: boolean; senderName: string }) {
   const [kind, setKind] = useState<"homeowner" | "contractor">("homeowner");
   const [name, setName] = useState("");
@@ -15,7 +16,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState("");
   const [sendState, setSendState] = useState("");
 
   async function create(e: React.FormEvent) {
@@ -48,8 +49,11 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
       return;
     }
     setLink(`${window.location.origin}/join?invite=${data.token}`);
-    setCopied(false);
+    setCopyState("");
+    setSendState("");
   }
+
+  const isEmailValid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
 
   const messageText =
     `${senderName} invited you to Green Bergen` +
@@ -59,10 +63,35 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
   async function copy() {
     try {
       await navigator.clipboard.writeText(messageText);
-      setCopied(true);
+      setCopyState("copied");
+      return;
+    } catch {}
+    // Fallback for browsers that block the clipboard API.
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = messageText;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopyState(ok ? "copied" : "failed");
     } catch {
-      setError("Could not copy — select the link and copy it by hand.");
+      setCopyState("failed");
     }
+  }
+
+  async function share() {
+    // The OS share sheet (Messages, WhatsApp, anything installed). Desktop
+    // browsers mostly lack it - fall back to copying.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Green Bergen", text: messageText });
+        return;
+      } catch {}
+    }
+    await copy();
   }
 
   return (
@@ -109,7 +138,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
             {link}
           </code>
           <div className="btn-row">
-            {email.trim() && (
+            {isEmailValid && (
               <button
                 type="button"
                 className="btn"
@@ -117,32 +146,34 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
                 onClick={async () => {
                   setSendState("Sending...");
                   const res = await emailInvitation(email.trim(), messageText);
-                  setSendState(res?.error ?? "Sent ✓");
+                  setSendState(res?.error ? `Email failed: ${res.error}` : `Sent to ${email.trim()} \u2713`);
                 }}
               >
-                {sendState === "Sent ✓" ? "Sent ✓" : "Send by email"}
+                {sendState === "Sending..." ? "Sending..." : "Send by email"}
               </button>
             )}
-            <a
-              className="btn ghost"
-              href={`mailto:${encodeURIComponent(email.trim())}?subject=${encodeURIComponent("An invitation to Green Bergen")}&body=${encodeURIComponent(messageText)}`}
-            >
-              Email app
-            </a>
-            <a className="btn ghost" href={`sms:?&body=${encodeURIComponent(messageText)}`}>Text</a>
-            <a className="btn ghost" href={`https://wa.me/?text=${encodeURIComponent(messageText)}`} target="_blank" rel="noreferrer">
-              WhatsApp
-            </a>
-            <button type="button" className="btn ghost" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</button>
+            <button type="button" className="btn ghost share-btn" onClick={share}>
+              Share&hellip;
+            </button>
+            <button type="button" className="btn ghost" onClick={copy}>
+              {copyState === "copied" ? "Copied \u2713" : "Copy"}
+            </button>
           </div>
-          {sendState && sendState !== "Sent ✓" && sendState !== "Sending..." && (
-            <p className="error small" style={{ margin: 0 }}>{sendState}</p>
+          {sendState && sendState !== "Sending..." && (
+            <p className={`small ${sendState.startsWith("Email failed") ? "error" : "muted"}`} style={{ margin: 0 }}>
+              {sendState}
+            </p>
           )}
-          <p className="muted small" style={{ margin: 0 }}>
-            The link works for whoever opens it{email.trim() ? "" : " — no email is attached"}.
-            &ldquo;Send by email&rdquo; goes through the app; the other buttons
-            use your own mail or messaging apps.
-          </p>
+          {copyState === "failed" && (
+            <p className="error small" style={{ margin: 0 }}>
+              Copy was blocked by the browser &mdash; select the link above and copy it by hand.
+            </p>
+          )}
+          {!isEmailValid && (
+            <p className="muted small" style={{ margin: 0 }}>
+              Add their email above to send it from the app directly.
+            </p>
+          )}
         </div>
       )}
     </div>
