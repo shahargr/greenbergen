@@ -4,6 +4,7 @@ import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, setTown, toggleDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { TasksTable } from "./TasksTable";
+import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
 const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
@@ -273,7 +274,7 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "local") {
-    const trades = Object.keys(services).sort();
+    const trades = Object.keys(services).filter((t) => tradeInSeason(t)).sort();
     const tile = HIRE_TILES.find((h) => h.key === tileKey);
     const tileVendors = tile
       ? tile.trades
@@ -462,6 +463,7 @@ export default async function MyPage({
 
   return (
     <main className="wrap" style={{ paddingTop: 16, paddingBottom: 64 }}>
+      {flashError && <p className="error small" style={{ marginTop: 0 }}>{flashError}</p>}
       {banner?.text &&
         (banner.url ? (
           <a href={banner.url} className="banner" target="_blank" rel="noreferrer">{banner.text}</a>
@@ -478,7 +480,6 @@ export default async function MyPage({
               Your home gets a page of its own — projects, people, paperwork
               and money, all in one place.
             </p>
-            {flashError && <p className="error small" style={{ margin: "6px 0 0" }}>{flashError}</p>}
             {!canCreate && (
               <p className="muted small" style={{ margin: "6px 0 0" }}>
                 Your account has no active agreement yet — ask us for an invitation.
@@ -497,7 +498,10 @@ export default async function MyPage({
 
       <section className="youband" style={{ marginTop: hasHome ? 0 : 14 }}>
         <Link href={town ? "/my?panel=weather" : "/my?panel=town"} className={sel(town ? "weather" : "town")}>
-          <span className="stat-kicker">{town ? `Weather · ${town}` : "Weather"}</span>
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="3.5" /><path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M5 5l1 1M14 14l1 1M15 5l-1 1" /><path d="M14 19a4 4 0 0 1 3.5-6 4.5 4.5 0 0 1 4.4 3.6A2.7 2.7 0 0 1 21 21h-7z" fill="none" /></svg>
+            {town ? `Weather · ${town}` : "Weather"}
+          </span>
           {weather ? (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span style={{ color: "var(--brand)" }}><WxIcon icon={weather.icon} /></span>
@@ -510,7 +514,10 @@ export default async function MyPage({
         </Link>
 
         <Link href={town ? "/my?panel=trash" : "/my?panel=town"} className={sel("trash")}>
-          <span className="stat-kicker">Trash days</span>
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2" /><path d="M6 7l1 13a2 2 0 0 0 2 1.8h6A2 2 0 0 0 17 20l1-13" /><path d="M10 11v6M14 11v6" /></svg>
+            Trash days
+          </span>
           {townServices?.garbage_note ? (
             <span className="small" style={{ lineHeight: 1.4 }}>{townServices.garbage_note}</span>
           ) : town ? (

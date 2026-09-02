@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { tileInSeason } from "@/lib/seasons";
 
 // The hire-a-pro headline tiles: image on the panel, small text at the
 // bottom. Each maps to one or more REAL trades in the directory; merged and
@@ -64,7 +65,7 @@ export function HireTilesGrid({ active }: { active?: string }) {
   return (
     <>
       <div className="tradetiles hire">
-        {HIRE_TILES.map((t) => (
+        {HIRE_TILES.filter((t) => tileInSeason(t.trades)).map((t) => (
           <Link
             key={t.key}
             href={`/my?panel=local&t=${t.key}`}

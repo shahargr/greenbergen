@@ -45,7 +45,10 @@ export async function setTown(formData: FormData) {
   const town = String(formData.get("town") ?? "").trim();
   if (!town) redirect("/my?panel=town");
   const supabase = await createClient();
-  await supabase.rpc("set_home_town", { p_town: town });
+  const { error } = await supabase.rpc("set_home_town", { p_town: town });
+  if (error) {
+    redirect(`/my?panel=town&error=${encodeURIComponent(error.message)}`);
+  }
   revalidatePath("/my");
   redirect("/my");
 }
