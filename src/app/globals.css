@@ -689,3 +689,7 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
   color: var(--brand);
   margin-right: 8px;
 }
+
+/* Hire-a-pro tiles: 5 across where there is room, 3 on phones. */
+.tradetiles.hire { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 640px) { .tradetiles.hire { grid-template-columns: repeat(3, 1fr); } }

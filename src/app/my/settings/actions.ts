@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { verifyUsAddress } from "@/lib/geocode";
 
 // Profile: full name on the account, phone and full address on the contact.
 // RLS decides - own_profile_update / own_contacts_update.
@@ -20,19 +21,31 @@ export async function saveProfile(formData: FormData) {
     .update({ full_name: fullName || null })
     .eq("id", me.app_user_id);
 
+  // Verify the address against the Census geocoder; a match saves the
+  // standardized form, a miss saves as typed with an honest note.
+  let verified: boolean | null = null;
+  let finalAddress = address || null;
+  if (address) {
+    const standardized = await verifyUsAddress(address);
+    verified = standardized !== null;
+    if (standardized) finalAddress = standardized;
+  }
+
   if (me.contact_id) {
     await supabase
       .from("contacts")
       .update({
         phone: phone || null,
-        address: address || null,
+        address: finalAddress,
         last_modified_by: "portal:settings",
       })
       .eq("id", me.contact_id);
   }
 
   revalidatePath("/my/settings");
-  redirect("/my/settings?saved=profile");
+  redirect(
+    `/my/settings?saved=profile${verified === null ? "" : verified ? "&verified=1" : "&verified=0"}`,
+  );
 }
 
 // Direct-sale listing: the owner names a price on their home asset.

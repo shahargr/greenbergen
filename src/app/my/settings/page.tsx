@@ -13,9 +13,9 @@ type HomeAsset = {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; verified?: string }>;
 }) {
-  const { saved, error } = await searchParams;
+  const { saved, error, verified } = await searchParams;
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
 
@@ -51,7 +51,13 @@ export default async function SettingsPage({
       <span className="kicker">Settings</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 14px" }}>Your account</h1>
 
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
+      {saved && (
+        <p className="banner" style={{ background: "#2f6b4f" }}>
+          Saved ✓
+          {verified === "1" && " — address verified and standardized"}
+          {verified === "0" && " — we couldn't verify that address, saved as typed"}
+        </p>
+      )}
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14 }}>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, createJob, setTown, toggleDeal } from "./actions";
+import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
 const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
 
@@ -111,9 +112,9 @@ function WxIcon({ icon, size = 26 }: { icon: WeatherIcon; size?: number }) {
 export default async function MyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ panel?: string; error?: string }>;
+  searchParams: Promise<{ panel?: string; error?: string; t?: string; all?: string }>;
 }) {
-  const { panel, error: flashError } = await searchParams;
+  const { panel, error: flashError, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
   const [{ data: me }, { data: home }, { data: banners }, { data: leadData }] = await Promise.all([
     supabase.rpc("me"),
@@ -273,20 +274,27 @@ export default async function MyPage({
     );
   } else if (panel === "local") {
     const trades = Object.keys(services).sort();
+    const tile = HIRE_TILES.find((h) => h.key === tileKey);
+    const tileVendors = tile
+      ? tile.trades
+          .flatMap((tr) => services[tr] ?? [])
+          .filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i)
+      : [];
     detail = (
       <>
-        <h2 className="section-title">{town ? `Local support · ${town}` : "Local support"}</h2>
-        {trades.length === 0 && <p className="muted">No local providers listed for your town yet.</p>}
-        {trades.map((trade) => (
-          <details key={trade} className="tradefold">
-            <summary>
-              {trade}
-              <span className="muted small" style={{ fontWeight: 400 }}>
-                {services[trade].length} provider{services[trade].length > 1 ? "s" : ""}
-              </span>
-            </summary>
-            <div style={{ display: "grid", gap: 6, padding: "2px 0 12px 18px" }}>
-              {services[trade].slice(0, 8).map((v) => (
+        <h2 className="section-title">{town ? `Hire a pro · ${town}` : "Hire a pro"}</h2>
+        <HireTilesGrid active={tile?.key} />
+        {tile && (
+          <div style={{ marginTop: 14 }}>
+            <h3 style={{ fontSize: 15, margin: "0 0 8px" }}>{tile.label}</h3>
+            {tileVendors.length === 0 && (
+              <p className="muted small" style={{ margin: 0 }}>
+                No {tile.label.toLowerCase()} providers listed near you yet — check{" "}
+                <Link href="/my?panel=local&all=1">every trade</Link> or ask us.
+              </p>
+            )}
+            <div style={{ display: "grid", gap: 6 }}>
+              {tileVendors.slice(0, 8).map((v) => (
                 <div key={v.id} className="card" style={{ padding: "8px 12px", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <span>
                     {v.name}
@@ -302,8 +310,40 @@ export default async function MyPage({
                 </div>
               ))}
             </div>
-          </details>
-        ))}
+          </div>
+        )}
+        {showAll && (
+          <div style={{ marginTop: 14 }}>
+            {trades.length === 0 && <p className="muted">No local providers listed for your town yet.</p>}
+            {trades.map((trade) => (
+              <details key={trade} className="tradefold">
+                <summary>
+                  {trade}
+                  <span className="muted small" style={{ fontWeight: 400 }}>
+                    {services[trade].length} provider{services[trade].length > 1 ? "s" : ""}
+                  </span>
+                </summary>
+                <div style={{ display: "grid", gap: 6, padding: "2px 0 12px 18px" }}>
+                  {services[trade].slice(0, 8).map((v) => (
+                    <div key={v.id} className="card" style={{ padding: "8px 12px", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                      <span>
+                        {v.name}
+                        {v.rating != null && (
+                          <span className="muted small"> · {Number(v.rating).toFixed(1)}★{v.provisional ? " (new)" : ""}</span>
+                        )}
+                      </span>
+                      <span className="small">
+                        {v.phone && <a href={`tel:${v.phone}`}>{v.phone}</a>}
+                        {v.phone && v.website && " · "}
+                        {v.website && <a href={v.website} target="_blank" rel="noreferrer">site</a>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        )}
       </>
     );
   } else if (panel === "deals") {
