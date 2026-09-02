@@ -516,7 +516,7 @@ export default async function MyPage({
     type MemberPayRow = { project_id: string; role: string; contact_id: string | null; contacts: { name: string | null; person_name: string | null } | null };
     type ProjectOverview = { id: string; last_activity: string };
     const pmIds2 = pmProjects.map((p) => p.id);
-    const [{ data: memberRows2 }, { data: overviewRows2 }] = await Promise.all([
+    const [{ data: memberRows2 }, { data: overviewRows2 }, { data: recentAssign }] = await Promise.all([
       supabase
         .from("project_members")
         .select("project_id, role, contact_id, contacts(name, person_name)")
@@ -524,7 +524,20 @@ export default async function MyPage({
         .eq("status", "active")
         .not("contact_id", "is", null),
       supabase.rpc("portal_projects_overview"),
+      supabase
+        .from("actions")
+        .select("project_id, assigned_to_contact_id, last_updated")
+        .in("project_id", pmIds2)
+        .not("assigned_to_contact_id", "is", null)
+        .order("last_updated", { ascending: false })
+        .limit(500),
     ]);
+    // Most recently worked-with people first, per project.
+    const lastWith = new Map<string, string>();
+    for (const r of (recentAssign ?? []) as { project_id: string; assigned_to_contact_id: string; last_updated: string | null }[]) {
+      const k = `${r.project_id}:${r.assigned_to_contact_id}`;
+      if (!lastWith.has(k)) lastWith.set(k, r.last_updated ?? "");
+    }
     const rank2 = new Map(((overviewRows2 ?? []) as ProjectOverview[]).map((p, i) => [p.id, i]));
     const taskProjects = [...pmProjects]
       .sort((a, b) => (rank2.get(a.id) ?? 999) - (rank2.get(b.id) ?? 999))
@@ -537,7 +550,11 @@ export default async function MyPage({
         name: m.contacts!.person_name ?? m.contacts!.name ?? "Unnamed",
         canPay: m.role === "owner" || m.role === "manager",
       }))
-      .filter((m, i, arr) => arr.findIndex((x) => x.projectId === m.projectId && x.contactId === m.contactId) === i);
+      .filter((m, i, arr) => arr.findIndex((x) => x.projectId === m.projectId && x.contactId === m.contactId) === i)
+      .sort((a, b) =>
+        (lastWith.get(`${b.projectId}:${b.contactId}`) ?? "").localeCompare(
+          lastWith.get(`${a.projectId}:${a.contactId}`) ?? "") ||
+        a.name.localeCompare(b.name));
     detail = (
       <>
         <h2 className="section-title">Add a task</h2>

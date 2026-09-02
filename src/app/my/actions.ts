@@ -300,14 +300,11 @@ export async function createTask(formData: FormData) {
     redirect(`${back}&error=${encodeURIComponent("Project and task title are both needed.")}`);
   }
   const assignee = String(formData.get("assigned_to") ?? "").trim() || null;
-  let assigneeName: string | null = null;
-  if (assignee) {
-    const { data: c } = await supabase.from("contacts").select("name, person_name").eq("id", assignee).maybeSingle();
-    assigneeName = c ? (c.person_name ?? c.name) : null;
-  }
   const priority = String(formData.get("priority") ?? "Medium");
   const { data: me } = await supabase.rpc("me");
 
+  // Since v104 the assigned_to / assigned_by NAME columns hold personas
+  // only - real people are recorded through the *_contact_id columns.
   const { data: created, error } = await supabase
     .from("actions")
     .insert({
@@ -318,8 +315,7 @@ export async function createTask(formData: FormData) {
       target_date: String(formData.get("target_date") ?? "").trim() || null,
       project_id: projectId,
       assigned_to_contact_id: assignee,
-      assigned_to: assigneeName,
-      assigned_by: me?.full_name ?? me?.email ?? null,
+      assigned_by_contact_id: me?.contact_id ?? null,
       notes: String(formData.get("notes") ?? "").trim() || null,
       source: "side_interface",
       created_by: "portal:addtask",
