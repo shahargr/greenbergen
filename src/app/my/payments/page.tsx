@@ -17,7 +17,7 @@ type PayRow = {
 };
 type ProjectOverview = { id: string; last_activity: string };
 type CompanyMemberRow = { project_id: string; companies: { company_name: string | null } | null };
-type PayFileRow = { id: string; bucket: string; path: string; file_name: string; mime_type: string | null; kind: string | null };
+type PayFileRow = { id: string; bucket: string; path: string; file_name: string; mime_type: string | null; kind: string | null; caption: string | null };
 type Membership = {
   role: string;
   projects: { id: string; project_name: string; is_template: boolean } | null;
@@ -111,23 +111,37 @@ export default async function PaymentsPage({
   // <project>/payments/<txId>/<file>. Signed so they render inline.
   const { data: payFileRows } = await supabase
     .from("files")
-    .select("id, bucket, path, file_name, mime_type, kind")
+    .select("id, bucket, path, file_name, mime_type, kind, caption")
     .in("project_id", pmIds)
     .like("path", "%/payments/%")
     .order("created_at", { ascending: false })
     .limit(120);
   const attachmentsByTx = new Map<string, { url: string; kind: string; name: string }[]>();
+  // Legacy receipts (uploaded before paths carried the transaction id)
+  // match by caption: either "Receipt for: <description>" or the
+  // "Payment: $X to <payee>" caption against the description's payee.
+  const legacyTxFor = (caption: string | null): string | null => {
+    if (!caption) return null;
+    for (const r of recent) {
+      const desc = r.description ?? "";
+      if (desc && caption.endsWith(desc)) return r.id;
+      const payee = desc.replace(/^Payment to /, "").split(" — ")[0];
+      if (payee && caption.includes(` to ${payee} (`)) return r.id;
+    }
+    return null;
+  };
   await Promise.all(
     (((payFileRows ?? []) as PayFileRow[])).map(async (f) => {
       const m = f.path.match(/\/payments\/([0-9a-f-]{36})\//);
-      if (!m) return;
+      const txId = m ? m[1] : legacyTxFor(f.caption);
+      if (!txId) return;
       const { data } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
       if (!data?.signedUrl) return;
       const kind = f.kind === "photo" || (f.mime_type ?? "").startsWith("image/") ? "photo"
         : f.kind === "video" || (f.mime_type ?? "").startsWith("video/") ? "video" : "audio";
-      const list = attachmentsByTx.get(m[1]) ?? [];
+      const list = attachmentsByTx.get(txId) ?? [];
       list.push({ url: data.signedUrl, kind, name: f.file_name });
-      attachmentsByTx.set(m[1], list);
+      attachmentsByTx.set(txId, list);
     })
   );
   const payPayees = [
