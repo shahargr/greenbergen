@@ -8,18 +8,11 @@ import { logPayment } from "./actions";
 export type PayProject = { id: string; name: string };
 export type PayMember = { projectId: string; contactId: string; name: string; canPay: boolean };
 export type PayContract = { id: string; title: string; projectId: string };
+export type PayPayee = { projectId: string; name: string };
 export type PayMethod = { id: string; name: string };
 
-// The accounts money leaves from (Shahar, 2026-09-02).
-export const PAID_FROM_OPTIONS = [
-  "NP 55 Walnut CC",
-  "NP 55 Walnut ACH",
-  "NP 55 Walnut Check",
-  "Net Positive",
-  "Personal check",
-  "Personal card",
-  "Personal cash",
-];
+// The accounts money leaves from (Shahar, 2026-09-02, simplified same day).
+export const PAID_FROM_OPTIONS = ["55 Walnut", "Net Positive LLC", "Personal"];
 
 // The payment screen: everything below the project select follows it -
 // payers and requested-by come from that project's members, contracts from
@@ -29,12 +22,14 @@ export function LogPaymentForm({
   members,
   contracts,
   methods,
+  payees = [],
   meName,
 }: {
   projects: PayProject[];
   members: PayMember[];
   contracts: PayContract[];
   methods: PayMethod[];
+  payees?: PayPayee[];
   meName: string;
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
@@ -56,6 +51,10 @@ export function LogPaymentForm({
   const projectContracts = useMemo(
     () => contracts.filter((c) => c.projectId === projectId),
     [contracts, projectId]
+  );
+  const projectPayees = useMemo(
+    () => [...new Set(payees.filter((p) => p.projectId === projectId).map((p) => p.name))].sort(),
+    [payees, projectId]
   );
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -105,7 +104,11 @@ export function LogPaymentForm({
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
         <label htmlFor="pay-to">Paid to</label>
-        <input id="pay-to" name="paid_to" className="input" required placeholder="Who received the money" />
+        <input id="pay-to" name="paid_to" className="input" required list="payee-options"
+          autoComplete="off" placeholder="Pick from the project, or type anyone" />
+        <datalist id="payee-options">
+          {projectPayees.map((p) => <option key={p} value={p} />)}
+        </datalist>
       </div>
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>

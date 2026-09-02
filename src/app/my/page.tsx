@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, setTown, toggleDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
@@ -93,8 +94,8 @@ export default async function MyPage({
   const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
   const [{ data: me, error: meErr }, { data: home, error: homeErr }, { data: banners }, { data: leadData }] = await Promise.all([
-    supabase.rpc("me"),
-    supabase.rpc("consumer_home"),
+    rpcRetry(supabase, "me"),
+    rpcRetry(supabase, "consumer_home"),
     supabase
       .from("community_banners")
       .select("text, url")

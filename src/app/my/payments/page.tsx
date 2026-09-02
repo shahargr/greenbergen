@@ -15,6 +15,7 @@ type PayRow = {
   payment_methods: { name: string } | null; projects: { project_name: string } | null;
 };
 type ProjectOverview = { id: string; last_activity: string };
+type CompanyMemberRow = { project_id: string; companies: { company_name: string | null } | null };
 type Membership = {
   role: string;
   projects: { id: string; project_name: string; is_template: boolean } | null;
@@ -54,7 +55,7 @@ export default async function PaymentsPage({
   }
 
   const pmIds = pmProjects.map((p) => p.id);
-  const [{ data: methodRows }, { data: contractRows }, { data: memberPayRows }, { data: recentRows }, { data: overviewRows }] = await Promise.all([
+  const [{ data: methodRows }, { data: contractRows }, { data: memberPayRows }, { data: recentRows }, { data: overviewRows }, { data: companyRows }] = await Promise.all([
     supabase.from("payment_methods").select("id, name").eq("is_active", true).order("display_order", { ascending: true, nullsFirst: false }),
     supabase.from("contracts").select("id, title, project_id").in("project_id", pmIds).order("title"),
     supabase
@@ -71,6 +72,12 @@ export default async function PaymentsPage({
       .order("paid_on", { ascending: false, nullsFirst: false })
       .limit(15),
     supabase.rpc("portal_projects_overview"),
+    supabase
+      .from("project_members")
+      .select("project_id, companies(company_name)")
+      .in("project_id", pmIds)
+      .eq("status", "active")
+      .not("company_id", "is", null),
   ]);
 
   const methods = ((methodRows ?? []) as { id: string; name: string }[]);
@@ -97,6 +104,12 @@ export default async function PaymentsPage({
   const payContracts = (((contractRows ?? []) as { id: string; title: string; project_id: string }[]))
     .map((c) => ({ id: c.id, title: c.title, projectId: c.project_id }));
   const recent = ((recentRows ?? []) as unknown as PayRow[]);
+  const payPayees = [
+    ...payMembers.map((m) => ({ projectId: m.projectId, name: m.name })),
+    ...(((companyRows ?? []) as unknown as CompanyMemberRow[]))
+      .filter((c) => c.companies?.company_name)
+      .map((c) => ({ projectId: c.project_id, name: c.companies!.company_name as string })),
+  ];
 
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 96, maxWidth: 640 }}>
@@ -113,6 +126,7 @@ export default async function PaymentsPage({
           members={payMembers}
           contracts={payContracts}
           methods={methods}
+          payees={payPayees}
           meName={me?.full_name ?? me?.email ?? ""}
         />
       </div>
