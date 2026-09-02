@@ -131,12 +131,12 @@ export default async function MyPage({
   type Membership = {
     role: string;
     project_role: string | null;
-    projects: { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null } | null;
+    projects: { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean } | null;
   };
   const { data: membershipRows } = me?.app_user_id
     ? await supabase
         .from("project_members")
-        .select("role, project_role, projects(id, project_name, address, status, parent_project_id)")
+        .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template)")
         .eq("app_user_id", me.app_user_id)
         .eq("status", "active")
     : { data: [] };
@@ -428,10 +428,38 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "addproject" && hasHome) {
+    // Candidate parents: your open homes. Default: the home whose tree you
+    // touched last (latest task activity anywhere under it).
+    const parentHomes = ownerProjects.filter(
+      (p) => !p.parent_project_id && !p.is_template && p.status === "In Progress"
+    );
+    const rootOf = (id: string): string => {
+      const proj = ownerProjects.find((p) => p.id === id);
+      return proj?.parent_project_id ? rootOf(proj.parent_project_id) : id;
+    };
+    let defaultParent = parentHomes[0]?.id ?? projects[0].id;
+    const treeIds = ownerProjects.filter((p) => !p.is_template).map((p) => p.id);
+    if (treeIds.length > 0) {
+      const { data: lastTouched } = await supabase
+        .from("actions")
+        .select("project_id")
+        .in("project_id", treeIds)
+        .order("last_modified_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastTouched?.project_id) {
+        const root = rootOf(lastTouched.project_id as string);
+        if (parentHomes.some((p) => p.id === root)) defaultParent = root;
+      }
+    }
     detail = (
       <>
         <h2 className="section-title">Start a project</h2>
-        <StartProjectForm parentId={projects[0].id} error={flashError} />
+        <StartProjectForm
+          homes={parentHomes.map((p) => ({ id: p.id, name: p.project_name, address: p.address }))}
+          defaultParent={defaultParent}
+          error={flashError}
+        />
       </>
     );
   }

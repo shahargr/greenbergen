@@ -5,8 +5,17 @@ import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { createJob } from "./actions";
 
 // Start-a-project with three ways to describe the work: a name, optional
-// text, and an optional voice note recorded in place.
-export function StartProjectForm({ parentId, error }: { parentId: string; error?: string }) {
+// text, and an optional voice note recorded in place. The property it
+// belongs to is always an explicit choice, pre-set to the last one worked on.
+export function StartProjectForm({
+  homes,
+  defaultParent,
+  error,
+}: {
+  homes: { id: string; name: string; address: string | null }[];
+  defaultParent: string;
+  error?: string;
+}) {
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -26,10 +35,19 @@ export function StartProjectForm({ parentId, error }: { parentId: string; error?
     <>
       {error && <p className="error small">{error}</p>}
       <form onSubmit={submit} style={{ display: "grid", gap: 10, maxWidth: 440 }}>
-        <input type="hidden" name="parent" value={parentId} />
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="pj-parent">Which property is this for?</label>
+          <select id="pj-parent" name="parent" className="input" defaultValue={defaultParent} required>
+            {homes.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}{h.address && h.address !== h.name ? ` — ${h.address}` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-name">What are we doing?</label>
-          <input id="pj-name" name="name" className="input" required placeholder="e.g. Kitchen remodel, new pool, generator" />
+          <input id="pj-name" name="name" className="input" required autoComplete="off" placeholder="e.g. Kitchen remodel, new pool, generator" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-desc">Tell us more (optional)</label>
