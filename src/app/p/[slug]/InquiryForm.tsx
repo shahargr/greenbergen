@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { submitInquiry } from "./actions";
 
-// Public inquiry form - writes through the anon-safe about_inquire() RPC into
-// project_inquiries, where the follow-up task machinery picks it up.
+// Public inquiry form - submits through a server action that writes the lead
+// (about_inquire -> project_inquiries -> lead task) and emails the admin.
 export function InquiryForm({ projectId }: { projectId: string }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -24,24 +24,18 @@ export function InquiryForm({ projectId }: { projectId: string }) {
       return;
     }
     setBusy(true);
-    const supabase = createClient();
-    // about_inquire returns the STRING 'ok' on success, 'ERROR: ...' otherwise.
-    const { data, error: err } = await supabase.rpc("about_inquire", {
-      p_project_id: projectId,
-      p_name: name.trim(),
-      p_phone: phone.trim() || null,
-      p_email: email.trim() || null,
-      p_kind: kind,
-      p_message: message.trim() || null,
-      p_preferred_date: kind === "site_visit" && date ? date : null,
+    const res = await submitInquiry({
+      projectId,
+      name: name.trim(),
+      phone: phone.trim() || null,
+      email: email.trim() || null,
+      kind,
+      message: message.trim() || null,
+      preferredDate: kind === "site_visit" && date ? date : null,
     });
     setBusy(false);
-    if (err || data !== "ok") {
-      setError(
-        typeof data === "string" && data.startsWith("ERROR: ")
-          ? data.slice(7)
-          : "Could not send — please try again.",
-      );
+    if (res?.error) {
+      setError(res.error);
       return;
     }
     setDone(true);

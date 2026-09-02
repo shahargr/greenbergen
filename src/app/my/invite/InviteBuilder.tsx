@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { emailInvitation } from "./actions";
 
 // Builds an invitation and hands it to whatever channel the sender prefers.
 // No email provider is wired server-side, so sending happens through the
@@ -15,6 +16,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [sendState, setSendState] = useState("");
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -107,11 +109,25 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
             {link}
           </code>
           <div className="btn-row">
+            {email.trim() && (
+              <button
+                type="button"
+                className="btn"
+                disabled={sendState === "Sending..."}
+                onClick={async () => {
+                  setSendState("Sending...");
+                  const res = await emailInvitation(email.trim(), messageText);
+                  setSendState(res?.error ?? "Sent ✓");
+                }}
+              >
+                {sendState === "Sent ✓" ? "Sent ✓" : "Send by email"}
+              </button>
+            )}
             <a
-              className="btn"
+              className="btn ghost"
               href={`mailto:${encodeURIComponent(email.trim())}?subject=${encodeURIComponent("An invitation to Green Bergen")}&body=${encodeURIComponent(messageText)}`}
             >
-              Email
+              Email app
             </a>
             <a className="btn ghost" href={`sms:?&body=${encodeURIComponent(messageText)}`}>Text</a>
             <a className="btn ghost" href={`https://wa.me/?text=${encodeURIComponent(messageText)}`} target="_blank" rel="noreferrer">
@@ -119,9 +135,13 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
             </a>
             <button type="button" className="btn ghost" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</button>
           </div>
+          {sendState && sendState !== "Sent ✓" && sendState !== "Sending..." && (
+            <p className="error small" style={{ margin: 0 }}>{sendState}</p>
+          )}
           <p className="muted small" style={{ margin: 0 }}>
             The link works for whoever opens it{email.trim() ? "" : " — no email is attached"}.
-            Sending happens from your own mail or messaging app.
+            &ldquo;Send by email&rdquo; goes through the app; the other buttons
+            use your own mail or messaging apps.
           </p>
         </div>
       )}

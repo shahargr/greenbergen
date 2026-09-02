@@ -1,0 +1,23 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { sendMail } from "@/lib/mailer";
+
+// Sends an invitation email through the app (Mailtrap). Only a signed-in
+// user can call this, and the message carries their name - never a spoofed
+// sender.
+export async function emailInvitation(to: string, messageText: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Please sign in first." };
+  if (!to.trim()) return { error: "No recipient email on this invitation." };
+
+  const res = await sendMail(
+    to.trim(),
+    "An invitation to Green Bergen",
+    messageText,
+  );
+  return res.ok ? { ok: true } : { error: res.error };
+}
