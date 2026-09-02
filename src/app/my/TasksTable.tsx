@@ -2,6 +2,7 @@
 
 import { useMemo, useState, Fragment } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TradeIcon } from "@/components/TradeIcon";
 
 export type TableTask = {
@@ -26,14 +27,18 @@ const PRIORITY_ORDER = ["High", "Medium", "Low", "No Priority"];
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, showTradeTiles = true, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
+  initialDomain?: string;
+  initialState?: "open" | "closed" | "all";
+  syncUrl?: boolean;
   showTradeTiles?: boolean;
   todayIso: string;
 }) {
-  const [state, setState] = useState<"open" | "closed" | "all">("open");
-  const [domain, setDomain] = useState("construction");
+  const router = useRouter();
+  const [state, setState] = useState<"open" | "closed" | "all">(initialState ?? "open");
+  const [domain, setDomain] = useState(initialDomain ?? "construction");
   const [project, setProject] = useState(initialProject ?? "all");
   const [trade, setTrade] = useState("all");
   const [person, setPerson] = useState("all");
@@ -46,7 +51,8 @@ export function TasksTable({ tasks, initialProject, showTradeTiles = true, today
     [tasks]
   );
   const domains = useMemo(
-    () => [...new Set(tasks.map((t) => t.domain).filter((x): x is string => !!x))].sort(),
+    () => [...new Set(["construction", "system", "cloudhiro", "personal",
+      ...tasks.map((t) => t.domain).filter((x): x is string => !!x)])],
     [tasks]
   );
   const people = useMemo(
@@ -91,6 +97,16 @@ export function TasksTable({ tasks, initialProject, showTradeTiles = true, today
     (setter as (v: string) => void)(e.target.value);
     setOpen(null);
   };
+  const pickServer = (kind: "domain" | "state") => (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value;
+    if (kind === "domain") setDomain(v); else setState(v as "open" | "closed" | "all");
+    setOpen(null);
+    if (syncUrl) {
+      const d = kind === "domain" ? v : domain;
+      const st = kind === "state" ? v : state;
+      router.replace(`/my/tasks?domain=${encodeURIComponent(d)}&state=${st}`);
+    }
+  };
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
@@ -99,11 +115,11 @@ export function TasksTable({ tasks, initialProject, showTradeTiles = true, today
           <option value="all">All projects</option>
           {projects.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select className="input" value={domain} onChange={pick(setDomain)} style={{ maxWidth: 140 }}>
+        <select className="input" value={domain} onChange={pickServer("domain")} style={{ maxWidth: 140 }}>
           <option value="all">All domains</option>
           {domains.map((d) => <option key={d}>{d}</option>)}
         </select>
-        <select className="input" value={state} onChange={pick(setState)} style={{ maxWidth: 110 }}>
+        <select className="input" value={state} onChange={pickServer("state")} style={{ maxWidth: 110 }}>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
           <option value="all">All</option>

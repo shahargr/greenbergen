@@ -30,15 +30,21 @@ type ProjectOverview = { id: string; last_activity: string };
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; domain?: string; state?: string }>;
 }) {
-  const { error, ok } = await searchParams;
+  const { error, ok, domain: qDomain, state: qState } = await searchParams;
+  const domain = qDomain ?? "construction";
+  const state = (qState === "closed" || qState === "all" ? qState : "open") as "open" | "closed" | "all";
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
   const myContact: string | null = me?.contact_id ?? null;
 
   const [{ data: portalData }, { data: leadData }, { data: membershipRows }] = await Promise.all([
-    supabase.rpc("portal_tasks"),
+    supabase.rpc("portal_tasks", {
+      p_domain: domain === "all" ? null : domain,
+      p_open_limit: state === "closed" ? 0 : 250,
+      p_closed_limit: state === "open" ? 0 : 150,
+    }),
     supabase.rpc("my_lead_actions"),
     me?.app_user_id
       ? supabase
@@ -148,7 +154,13 @@ export default async function TasksPage({
         </>
       )}
 
-      <TasksTable tasks={tableTasks} todayIso={new Date().toISOString().slice(0, 10)} />
+      <TasksTable
+        tasks={tableTasks}
+        initialDomain={domain}
+        initialState={state}
+        syncUrl
+        todayIso={new Date().toISOString().slice(0, 10)}
+      />
     </main>
   );
 }

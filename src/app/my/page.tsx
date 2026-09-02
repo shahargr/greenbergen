@@ -92,7 +92,7 @@ export default async function MyPage({
 }) {
   const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: home }, { data: banners }, { data: leadData }] = await Promise.all([
+  const [{ data: me, error: meErr }, { data: home, error: homeErr }, { data: banners }, { data: leadData }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("consumer_home"),
     supabase
@@ -135,6 +135,7 @@ export default async function MyPage({
           .from("actions")
           .select("id", { count: "exact", head: true })
           .not("status", "in", openFilter)
+          .eq("domain", "construction")
           .eq("assigned_to_contact_id", myContact)
           .then((r) => r.count ?? 0)
       : Promise.resolve(0),
@@ -142,6 +143,7 @@ export default async function MyPage({
       .from("actions")
       .select("id", { count: "exact", head: true })
       .not("status", "in", openFilter)
+      .eq("domain", "construction")
       .then((r) => r.count ?? 0),
   ]);
   const myMemberships = ((membershipRows ?? []) as unknown as Membership[]).filter((m) => m.projects);
@@ -361,6 +363,18 @@ export default async function MyPage({
         <p className="small" style={{ marginTop: 0 }}>
           <Link href="/my?panel=addproject">＋ Start a new project</Link>
         </p>
+        {canCreate && (
+          <details className="card" style={{ marginBottom: 10, padding: "10px 14px" }}>
+            <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+              ＋ Claim another address
+            </summary>
+            <form action={createHome} style={{ display: "grid", gap: 8, marginTop: 10, maxWidth: 380 }}>
+              <input name="name" className="input" required autoComplete="off" placeholder="What should we call it?" />
+              <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
+              <button className="btn">Claim it</button>
+            </form>
+          </details>
+        )}
         <div style={{ display: "grid", gap: 8 }}>
           {overview.map((p) => (
             <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
@@ -416,11 +430,15 @@ export default async function MyPage({
     );
   }
 
-  const sel = (p: string) => (panel === p ? "card stat statlink selected" : "card stat statlink");
-
   return (
     <main className="wrap" style={{ paddingTop: 16, paddingBottom: 64 }}>
       {flashError && <p className="error small" style={{ marginTop: 0 }}>{flashError}</p>}
+      {(meErr || homeErr) && (
+        <p className="error small" style={{ marginTop: 0 }}>
+          Home data failed to load{meErr && <> — me(): {meErr.message}</>}
+          {homeErr && <> — consumer_home(): {homeErr.message}</>}
+        </p>
+      )}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f", marginTop: 0 }}>{flashOk}</p>}
       {banner?.text &&
         (banner.url ? (
@@ -455,126 +473,77 @@ export default async function MyPage({
       )}
 
       <section className="youband" style={{ marginTop: hasHome ? 0 : 14 }}>
-
-        <Link href={town ? "/my?panel=weather" : "/my?panel=town"} className={sel(town ? "weather" : "town")}>
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="3.5" /><path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M5 5l1 1M14 14l1 1M15 5l-1 1" /><path d="M14 19a4 4 0 0 1 3.5-6 4.5 4.5 0 0 1 4.4 3.6A2.7 2.7 0 0 1 21 21h-7z" fill="none" /></svg>
-            {town ? `Weather · ${town}` : "Weather"}
-          </span>
-          {weather ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <span style={{ color: "var(--brand)" }}><WxIcon icon={weather.icon} /></span>
-              <span className="stat-big">{weather.tempF}°</span>
-              <span className="muted small">{weather.label}</span>
-            </span>
-          ) : (
-            <span className="small" style={{ color: "var(--brand)", fontWeight: 600 }}>Set your town →</span>
-          )}
-        </Link>
-
-        <Link href={town ? "/my?panel=trash" : "/my?panel=town"} className={sel("trash")}>
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2" /><path d="M6 7l1 13a2 2 0 0 0 2 1.8h6A2 2 0 0 0 17 20l1-13" /><path d="M10 11v6M14 11v6" /></svg>
-            Trash days
-          </span>
-          {townServices?.garbage_note ? (
-            <span className="small" style={{ lineHeight: 1.4 }}>{townServices.garbage_note}</span>
-          ) : town ? (
-            <span className="muted small">Not on file for {town} yet.</span>
-          ) : (
-            <span className="small" style={{ color: "var(--brand)", fontWeight: 600 }}>Set your town →</span>
-          )}
-        </Link>
-
-        <Link href="/my?panel=deals" className={sel("deals")}>
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8Z" /><circle cx="7" cy="7" r="1.4" /></svg>
-            Local deals
-          </span>
-          {deals.length > 0 ? (
-            <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-              <span className="stat-big">{deals.length}</span>
-              <span className="muted small">open near you</span>
-            </span>
-          ) : (
-            <span className="muted small">Neighbors unlock group deals.</span>
-          )}
-        </Link>
-
-        {hasHome || ownerProjects.length > 0 ? (
-          <Link href="/my?panel=projects" className={sel("projects")}>
-            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
-              Your projects
-            </span>
-            <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-              <span className="stat-big">{ownerProjects.length}</span>
-              <span className="muted small">as owner · start a new one</span>
-            </span>
+        {([
+          {
+            href: town ? "/my?panel=weather" : "/my?panel=town",
+            key: town ? "weather" : "town",
+            label: "Weather",
+            sub: weather ? `${weather.tempF}° · ${weather.label}` : "Set your town →",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="3.5" /><path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M5 5l1 1M15 5l-1 1" /><path d="M14 19a4 4 0 0 1 3.5-6 4.5 4.5 0 0 1 4.4 3.6A2.7 2.7 0 0 1 21 21h-7z" /></svg>,
+          },
+          {
+            href: town ? "/my?panel=trash" : "/my?panel=town",
+            key: "trash",
+            label: "Trash days",
+            sub: townServices?.garbage_note ?? (town ? "Not on file yet" : "Set your town →"),
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2" /><path d="M6 7l1 13a2 2 0 0 0 2 1.8h6A2 2 0 0 0 17 20l1-13" /><path d="M10 11v6M14 11v6" /></svg>,
+          },
+          {
+            href: "/my?panel=deals",
+            key: "deals",
+            label: "Local deals",
+            sub: `${deals.length} open near you`,
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8Z" /><circle cx="7" cy="7" r="1.4" /></svg>,
+          },
+          {
+            href: "/my?panel=projects",
+            key: "projects",
+            label: "Projects",
+            sub: ownerProjects.length > 0 ? `${ownerProjects.length} as owner` : "Claim your address",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>,
+          },
+          {
+            href: "/my/tasks",
+            key: "tasks",
+            label: "Tasks",
+            sub: `${pendingOnMe} on you · ${onOthers} on others`,
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>,
+          },
+          ...(pmProjects.length > 0 ? [{
+            href: "/my/payments",
+            key: "payments",
+            label: "Payments",
+            sub: "Log & edit who was paid",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M14.8 8.8c-.5-1-1.5-1.5-2.8-1.5-1.7 0-2.9.9-2.9 2.2 0 3 6 1.6 6 4.7 0 1.4-1.3 2.3-3.1 2.3-1.5 0-2.6-.6-3.1-1.7" /><path d="M12 5.5v13" /></svg>,
+          }] : []),
+          {
+            href: "/my?panel=local",
+            key: "local",
+            label: "Hire a pro",
+            sub: "Plumbers, electricians, more",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15a8 8 0 0 1 16 0v2H4z" /><path d="M10 7.5V5a2 2 0 0 1 4 0v2.5" /><path d="M2 20h20" /></svg>,
+          },
+          {
+            href: "/my/invite",
+            key: "invite",
+            label: "Invite friends",
+            sub: "Neighbors make the deals",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>,
+          },
+          ...(pmProjects.length > 0 ? [{
+            href: "/my/financials",
+            key: "financials",
+            label: "Financials",
+            sub: "Contracted vs. paid",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>,
+          }] : []),
+        ]).map((t) => (
+          <Link key={t.key} href={t.href} className={panel === t.key ? "tile selected" : "tile"}>
+            <span className="tile-icon">{t.icon}</span>
+            <span className="tile-label">{t.label}</span>
+            <span className="tile-sub">{t.sub}</span>
           </Link>
-        ) : (
-          <span className="card stat" style={{ opacity: 0.65 }}>
-            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
-              Your projects
-            </span>
-            <span className="muted small">Claim your address first.</span>
-          </span>
-        )}
-
-        <Link href="/my/tasks" className="card stat statlink">
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>
-            Tasks
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-            <span className="stat-big">{pendingOnMe}</span>
-            <span className="muted small">
-              on you{leads.length > 0 ? ` (${leads.length} lead${leads.length > 1 ? "s" : ""})` : ""} · {onOthers} on others
-            </span>
-          </span>
-        </Link>
-
-        {pmProjects.length > 0 && (
-          <Link href="/my/payments" className="card stat statlink">
-            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M14.8 8.8c-.5-1-1.5-1.5-2.8-1.5-1.7 0-2.9.9-2.9 2.2 0 3 6 1.6 6 4.7 0 1.4-1.3 2.3-3.1 2.3-1.5 0-2.6-.6-3.1-1.7" /><path d="M12 5.5v13" /></svg>
-              Payments
-            </span>
-            <span className="muted small">Log and edit who was paid.</span>
-          </Link>
-        )}
-      
-
-        <Link href="/my?panel=local" className={sel("local")}>
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15a8 8 0 0 1 16 0v2H4z" /><path d="M10 7.5V5a2 2 0 0 1 4 0v2.5" /><path d="M2 20h20" /></svg>
-            Hire a pro
-          </span>
-          <span className="small" style={{ lineHeight: 1.4 }}>
-            {Object.keys(services).length > 0
-              ? `${Object.keys(services).length} trades near you`
-              : "Plumbers, electricians, more"}
-          </span>
-        </Link>
-
-        <Link href="/my/invite" className="card stat statlink">
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>
-            Invite friends
-          </span>
-          <span className="muted small">Neighbors make the deals happen.</span>
-        </Link>
-
-        {pmProjects.length > 0 && (
-          <Link href="/my/financials" className="card stat statlink">
-            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>
-              Financials
-            </span>
-            <span className="muted small">Contracted vs. paid, per project.</span>
-          </Link>
-        )}
+        ))}
       </section>
 
       {detail && (
