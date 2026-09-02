@@ -5,6 +5,8 @@ import { createHome, setTown, toggleDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { TasksTable } from "./TasksTable";
 import { LogPaymentForm } from "./LogPaymentForm";
+import { PaymentsList } from "./PaymentsList";
+import { AddTaskForm } from "./AddTaskForm";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
@@ -437,6 +439,7 @@ export default async function MyPage({
     type MemberPayRow = { project_id: string; role: string; contact_id: string | null; contacts: { name: string | null; person_name: string | null } | null };
     type PayRow = {
       id: string; amount: number; paid_on: string | null; description: string | null; notes: string | null;
+      paid_from_account: string | null; payment_method_id: string | null;
       payment_methods: { name: string } | null; projects: { project_name: string } | null;
     };
     type ProjectOverview = { id: string; last_activity: string };
@@ -452,11 +455,11 @@ export default async function MyPage({
         .not("contact_id", "is", null),
       supabase
         .from("transactions")
-        .select("id, amount, paid_on, description, notes, payment_methods(name), projects(project_name)")
+        .select("id, amount, paid_on, description, notes, paid_from_account, payment_method_id, payment_methods(name), projects(project_name)")
         .eq("direction", "out")
         .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"])
         .order("paid_on", { ascending: false, nullsFirst: false })
-        .limit(6),
+        .limit(10),
       supabase.rpc("portal_projects_overview"),
     ]);
     const methods = (methodRows ?? []) as MethodRow[];
@@ -484,7 +487,7 @@ export default async function MyPage({
     const recent = ((recentRows ?? []) as unknown as PayRow[]);
     detail = (
       <>
-        <h2 className="section-title">Log a payment</h2>
+        <h2 className="section-title">Payments</h2>
         <LogPaymentForm
           projects={payProjects}
           members={payMembers}
@@ -492,22 +495,53 @@ export default async function MyPage({
           methods={methods}
           meName={me?.full_name ?? me?.email ?? ""}
         />
-        {recent.length > 0 && (
-          <>
-            <h3 style={{ fontSize: 15, margin: "18px 0 8px" }}>Recently logged</h3>
-            <div style={{ display: "grid", gap: 6 }}>
-              {recent.map((r) => (
-                <div key={r.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                  <span>
-                    <strong>${Number(r.amount).toLocaleString()}</strong> {r.description ?? ""}
-                    <span className="muted"> · {r.projects?.project_name} · {r.payment_methods?.name}</span>
-                  </span>
-                  <span className="muted">{r.paid_on}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+        <h3 style={{ fontSize: 15, margin: "18px 0 8px" }}>Recent payments</h3>
+        <PaymentsList
+          methods={methods}
+          payments={recent.map((r) => ({
+            id: r.id,
+            amount: r.amount,
+            paid_on: r.paid_on,
+            description: r.description,
+            notes: r.notes,
+            paid_from_account: r.paid_from_account,
+            payment_method_id: r.payment_method_id,
+            method: r.payment_methods?.name ?? null,
+            project: r.projects?.project_name ?? null,
+          }))}
+        />
+      </>
+    );
+  } else if (panel === "addtask" && pmProjects.length > 0) {
+    type MemberPayRow = { project_id: string; role: string; contact_id: string | null; contacts: { name: string | null; person_name: string | null } | null };
+    type ProjectOverview = { id: string; last_activity: string };
+    const pmIds2 = pmProjects.map((p) => p.id);
+    const [{ data: memberRows2 }, { data: overviewRows2 }] = await Promise.all([
+      supabase
+        .from("project_members")
+        .select("project_id, role, contact_id, contacts(name, person_name)")
+        .in("project_id", pmIds2)
+        .eq("status", "active")
+        .not("contact_id", "is", null),
+      supabase.rpc("portal_projects_overview"),
+    ]);
+    const rank2 = new Map(((overviewRows2 ?? []) as ProjectOverview[]).map((p, i) => [p.id, i]));
+    const taskProjects = [...pmProjects]
+      .sort((a, b) => (rank2.get(a.id) ?? 999) - (rank2.get(b.id) ?? 999))
+      .map((p) => ({ id: p.id, name: p.project_name }));
+    const taskMembers = (((memberRows2 ?? []) as unknown as MemberPayRow[]))
+      .filter((m) => m.contact_id && m.contacts)
+      .map((m) => ({
+        projectId: m.project_id,
+        contactId: m.contact_id as string,
+        name: m.contacts!.person_name ?? m.contacts!.name ?? "Unnamed",
+        canPay: m.role === "owner" || m.role === "manager",
+      }))
+      .filter((m, i, arr) => arr.findIndex((x) => x.projectId === m.projectId && x.contactId === m.contactId) === i);
+    detail = (
+      <>
+        <h2 className="section-title">Add a task</h2>
+        <AddTaskForm projects={taskProjects} members={taskMembers} />
       </>
     );
   } else if (panel === "addproject" && hasHome) {
@@ -674,8 +708,15 @@ export default async function MyPage({
 
         {pmProjects.length > 0 && (
           <Link href="/my?panel=payment" className={sel("payment")}>
-            <span className="stat-kicker">Log payment</span>
-            <span className="muted small">Record who was paid, from where.</span>
+            <span className="stat-kicker">Payments</span>
+            <span className="muted small">Log and edit who was paid.</span>
+          </Link>
+        )}
+
+        {pmProjects.length > 0 && (
+          <Link href="/my?panel=addtask" className={sel("addtask")}>
+            <span className="stat-kicker">Add task</span>
+            <span className="muted small">Create, assign, attach instructions.</span>
           </Link>
         )}
       </section>

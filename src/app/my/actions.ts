@@ -217,3 +217,153 @@ export async function logPayment(formData: FormData) {
   revalidatePath("/my");
   redirect(`${back}&ok=${encodeURIComponent("Payment logged ✓")}`);
 }
+
+// Edit a logged payment - fields plus late-arriving receipts. The ledger
+// row's RLS (can_see_money_on) decides who may.
+export async function editPayment(formData: FormData) {
+  const supabase = await createClient();
+  const txId = String(formData.get("tx") ?? "");
+  const back = "/my?panel=payment";
+  if (!txId) redirect(`${back}&error=${encodeURIComponent("Missing payment id.")}`);
+
+  const { data: tx } = await supabase
+    .from("transactions")
+    .select("id, project_id, description")
+    .eq("id", txId)
+    .maybeSingle();
+  if (!tx) redirect(`${back}&error=${encodeURIComponent("That payment is not yours to edit.")}`);
+
+  const updates: Record<string, unknown> = { last_modified_by: "portal:payment" };
+  const amountRaw = String(formData.get("amount") ?? "").replace(/[$,\s]/g, "");
+  if (amountRaw) {
+    const amount = Number(amountRaw);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      redirect(`${back}&error=${encodeURIComponent("Bad amount.")}`);
+    }
+    updates.amount = amount;
+  }
+  const paidOn = String(formData.get("paid_on") ?? "").trim();
+  if (paidOn) updates.paid_on = paidOn;
+  const paidTo = String(formData.get("paid_to") ?? "").trim();
+  if (paidTo) {
+    const suffix = (tx.description ?? "").match(/ — requested by .*$/)?.[0] ?? "";
+    updates.description = `Payment to ${paidTo}${suffix}`;
+  }
+  const paidFrom = String(formData.get("paid_from") ?? "").trim();
+  if (formData.has("paid_from")) updates.paid_from_account = paidFrom || null;
+  const method = String(formData.get("method") ?? "").trim();
+  if (method) {
+    const { data: methodRow } = await supabase.from("payment_methods").select("name").eq("id", method).maybeSingle();
+    updates.payment_method_id = method;
+    updates.paid_via = methodRow?.name ?? null;
+  }
+  if (formData.has("notes")) updates.notes = String(formData.get("notes") ?? "").trim() || null;
+
+  const { error } = await supabase.from("transactions").update(updates).eq("id", txId);
+  if (error) redirect(`${back}&error=${encodeURIComponent(error.message)}`);
+
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  for (const [i, file] of [...photos, ...files].entries()) {
+    const isImage = file.type.startsWith("image/");
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
+    const path = `${tx.project_id}/payments/${Date.now()}-${i}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { error: upErr } = await supabase.storage
+      .from("project-media")
+      .upload(path, bytes, { contentType: file.type || undefined, upsert: true });
+    if (!upErr) {
+      await supabase.rpc("record_project_file", {
+        p_project_id: tx.project_id,
+        p_path: path,
+        p_file_name: file.name || `payment${ext}`,
+        p_mime: file.type || null,
+        p_size: file.size,
+        p_caption: `Receipt for: ${paidTo ? `Payment to ${paidTo}` : tx.description ?? "payment"}`,
+        p_kind: isImage ? "photo" : "audio",
+      });
+    }
+  }
+  revalidatePath("/my");
+  redirect(`${back}&ok=${encodeURIComponent("Payment updated ✓")}`);
+}
+
+// Create and assign a task, with photos and a voice note attached as
+// instructions (file_links role 'reference'). Members insert under the
+// actions RLS; attachments never block the task.
+export async function createTask(formData: FormData) {
+  const supabase = await createClient();
+  const projectId = String(formData.get("project") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const back = "/my?panel=addtask";
+  if (!projectId || !title) {
+    redirect(`${back}&error=${encodeURIComponent("Project and task title are both needed.")}`);
+  }
+  const assignee = String(formData.get("assigned_to") ?? "").trim() || null;
+  let assigneeName: string | null = null;
+  if (assignee) {
+    const { data: c } = await supabase.from("contacts").select("name, person_name").eq("id", assignee).maybeSingle();
+    assigneeName = c ? (c.person_name ?? c.name) : null;
+  }
+  const priority = String(formData.get("priority") ?? "Medium");
+  const { data: me } = await supabase.rpc("me");
+
+  const { data: created, error } = await supabase
+    .from("actions")
+    .insert({
+      action: title,
+      domain: "construction",
+      status: "Not Started",
+      priority: ["No Priority", "Low", "Medium", "High"].includes(priority) ? priority : "Medium",
+      target_date: String(formData.get("target_date") ?? "").trim() || null,
+      project_id: projectId,
+      assigned_to_contact_id: assignee,
+      assigned_to: assigneeName,
+      assigned_by: me?.full_name ?? me?.email ?? null,
+      notes: String(formData.get("notes") ?? "").trim() || null,
+      source: "side_interface",
+      created_by: "portal:addtask",
+      last_modified_by: "portal:addtask",
+    })
+    .select("id")
+    .maybeSingle();
+  if (error || !created) {
+    const msg = error?.message.includes("row-level security")
+      ? "Creating tasks on this project is not yours to do."
+      : error?.message ?? "Could not create the task.";
+    redirect(`${back}&error=${encodeURIComponent(msg)}`);
+  }
+
+  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  for (const [i, file] of [...photos, ...files].entries()) {
+    const isImage = file.type.startsWith("image/");
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
+    const path = `${projectId}/actions/${created.id}/instructions-${Date.now()}-${i}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { error: upErr } = await supabase.storage
+      .from("project-media")
+      .upload(path, bytes, { contentType: file.type || undefined, upsert: true });
+    if (!upErr) {
+      const { data: fileId } = await supabase.rpc("record_project_file", {
+        p_project_id: projectId,
+        p_path: path,
+        p_file_name: file.name || `instructions${ext}`,
+        p_mime: file.type || null,
+        p_size: file.size,
+        p_caption: `Task instructions: ${title}`,
+        p_kind: isImage ? "photo" : "audio",
+      });
+      if (fileId) {
+        await supabase.rpc("file_attach", {
+          p_file_id: fileId,
+          p_action_id: created.id,
+          p_contract_id: null,
+          p_role: "reference",
+        });
+      }
+    }
+  }
+  revalidatePath("/my");
+  redirect(`/my/task/${created.id}?saved=1`);
+}
