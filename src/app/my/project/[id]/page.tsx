@@ -140,7 +140,7 @@ export default async function ProjectPage({
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
       <p className="small" style={{ margin: "0 0 6px" }}>
-        <Link href="/my?panel=projects">← Your projects</Link>
+        <Link href="/my">← Your projects</Link>
       </p>
       <span className="kicker">{project.parent_project_id ? "Job" : "Home"}</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 2px" }}>{project.project_name}</h1>

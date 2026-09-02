@@ -525,13 +525,6 @@ export default async function MyPage({
             sub: `${pendingOnMe} on you · ${onOthers} on others`,
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>,
           },
-          {
-            href: "/my?panel=projects",
-            key: "projects",
-            label: "My projects",
-            sub: `${ownerProjects.length} as owner`,
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>,
-          },
           ...(pmProjects.length > 0 ? [{
             href: "/my/payments",
             key: "payments",
