@@ -3,8 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-// Contractor lens: every project where this user holds a working seat
-// (anything but the owner seat). The owner lens lives on /my.
+// Contractor lens: a project appears here only when you hold a working
+// (non-owner) seat on it AND it has open construction tasks assigned to
+// you. Admin work - system-domain tasks - never shows here, and neither
+// does a project you merely hold a seat on. The owner lens lives on /my.
 type Membership = {
   role: string;
   project_role: string | null;
@@ -37,26 +39,31 @@ export default async function ContractorHome() {
     const prev = byProject.get(m.projects!.id);
     if (!prev || seatWeight(m) > seatWeight(prev)) byProject.set(m.projects!.id, m);
   }
-  const seats = [...byProject.values()].sort((a, b) =>
-    a.projects!.project_name.localeCompare(b.projects!.project_name));
 
-  // Open tasks assigned to me across those projects.
-  const projectIds = seats.map((s) => s.projects!.id);
-  const { data: taskRows } = projectIds.length && me?.contact_id
+  // Open construction tasks assigned to me on those projects decide what
+  // qualifies as "your work".
+  const memberProjectIds = [...byProject.keys()];
+  const { data: taskRows } = memberProjectIds.length && me?.contact_id
     ? await supabase
         .from("actions")
-        .select("id, action, status, priority, target_date, projects(project_name)")
-        .in("project_id", projectIds)
+        .select("id, action, status, priority, target_date, project_id, projects(project_name)")
+        .in("project_id", memberProjectIds)
         .eq("assigned_to_contact_id", me.contact_id)
+        .eq("domain", "construction")
         .not("status", "in", "(Completed,Cancelled,Superseded)")
         .order("target_date", { ascending: true, nullsFirst: false })
         .limit(50)
     : { data: [] };
   type TaskRow = {
     id: string; action: string; status: string; priority: string | null;
-    target_date: string | null; projects: { project_name: string } | null;
+    target_date: string | null; project_id: string;
+    projects: { project_name: string } | null;
   };
   const tasks = ((taskRows ?? []) as unknown as TaskRow[]);
+  const workingProjectIds = new Set(tasks.map((t) => t.project_id));
+  const seats = [...byProject.values()]
+    .filter((m) => workingProjectIds.has(m.projects!.id))
+    .sort((a, b) => a.projects!.project_name.localeCompare(b.projects!.project_name));
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
@@ -66,8 +73,8 @@ export default async function ContractorHome() {
       <h2 className="section-title">Projects you work on · {seats.length}</h2>
       {seats.length === 0 && (
         <p className="muted small">
-          No projects yet — when an owner or project manager adds you to a
-          project, it shows up here.
+          Nothing on you right now — when a project assigns you work, it
+          shows up here.
         </p>
       )}
       <div style={{ display: "grid", gap: 8 }}>
