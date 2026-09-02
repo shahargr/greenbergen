@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { beginViewAs } from "@/components/viewas";
 import {
   vendorDecision,
   toggleAccount,
@@ -186,6 +187,11 @@ export default async function AdminUsersPage({
                   <strong>{u.full_name ?? u.email}</strong>
                   <span className="muted"> · {u.email}{u.is_superadmin ? " · admin" : ""}{u.is_active ? "" : " · SUSPENDED"}</span>
                 </span>
+                {u.is_active && !u.is_superadmin && (
+                  <form action={beginViewAs.bind(null, u.id)}>
+                    <button className="btn ghost" style={{ padding: "6px 12px" }}>👁 View as</button>
+                  </form>
+                )}
                 <form action={toggleAccount.bind(null, u.id, !u.is_active)}>
                   <button className={u.is_active ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>
                     {u.is_active ? "Suspend" : "Resume"}

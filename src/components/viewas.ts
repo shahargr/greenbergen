@@ -14,3 +14,23 @@ export async function setView(role: string) {
   jar.set("gb_view", role, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
   redirect(home);
 }
+
+// Admin-only impersonation (begin_view_as checks superadmin in the
+// database; sessions expire after an hour). Read-mostly by design:
+// write RPCs refuse while borrowing.
+export async function beginViewAs(userId: string) {
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("begin_view_as", { p_as_user_id: userId });
+  if (error || !data?.ok) {
+    redirect(`/admin/users?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not switch.")}`);
+  }
+  redirect("/my");
+}
+
+export async function endViewAs() {
+  const { createClient } = await import("@/lib/supabase/server");
+  const supabase = await createClient();
+  await supabase.rpc("end_view_as");
+  redirect("/admin/users");
+}

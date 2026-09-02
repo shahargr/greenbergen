@@ -6,6 +6,7 @@ import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
 import { MaskMenu } from "@/components/MaskMenu";
 import { BackNav } from "@/components/BackNav";
+import { endViewAs } from "@/components/viewas";
 
 const InviteIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -48,7 +49,11 @@ const ALL_VIEWS = ["Owner", "Contractor", "PM", "GC", "Buyer", "Developer", "Vie
 // put on a different hat.
 export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const supabase = await createClient();
-  const [{ data: me }, jar] = await Promise.all([supabase.rpc("me"), cookies()]);
+  const [{ data: me }, { data: borrowed }, jar] = await Promise.all([
+    supabase.rpc("me"),
+    supabase.rpc("borrowed_seat"),
+    cookies(),
+  ]);
 
   // The label under the logo: the picked hat, as long as it lives on this
   // surface; otherwise the surface's own name.
@@ -76,6 +81,14 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </form>
         </div>
       </nav>
+      {borrowed && (
+        <div style={{ background: "#c0262d", color: "#fff", fontSize: 13, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <span>👁 Viewing as <strong>{me?.email}</strong> — their eyes, read-mostly. Expires in an hour.</span>
+          <form action={endViewAs}>
+            <button className="btn small" style={{ background: "#fff", color: "#c0262d", border: 0 }}>Exit view</button>
+          </form>
+        </div>
+      )}
     </header>
   );
 }
