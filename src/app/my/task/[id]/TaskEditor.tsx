@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { saveTask, completeTask, uploadEvidence, type TaskPerms } from "./actions";
+import { saveTask, completeTask, setTaskStatus, uploadEvidence, type TaskPerms } from "./actions";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 
 export type TaskView = {
@@ -61,7 +61,9 @@ export function TaskEditor({
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [status, setStatus] = useState(task.status);
-  const [mode, setMode] = useState<"none" | "upload" | "complete">("none");
+  const [mode, setMode] = useState<"none" | "upload">("none");
+  const [moveTo, setMoveTo] = useState(task.status);
+  const [closeReason, setCloseReason] = useState("");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busyEvidence, setBusyEvidence] = useState(false);
 
@@ -80,14 +82,16 @@ export function TaskEditor({
     await uploadEvidence(task.id, fd);
   }
 
-  async function submitCompletion(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
+  async function applyMove() {
     const fd = new FormData();
-    const ta = form.querySelector<HTMLTextAreaElement>('textarea[name="reason"]');
-    if (ta?.value.trim()) fd.append("reason", ta.value.trim());
     setBusyEvidence(true);
-    await completeTask(task.id, fd);
+    if (moveTo === "Completed") {
+      if (closeReason.trim()) fd.append("reason", closeReason.trim());
+      await completeTask(task.id, fd);
+    } else {
+      fd.append("status", moveTo);
+      await setTaskStatus(task.id, fd);
+    }
   }
 
   const canEditAnything =
@@ -95,6 +99,16 @@ export function TaskEditor({
     perms.dependencies || perms.learnings || perms.assign;
 
   const pendingSelected = status.includes("Pending");
+
+  // The dropdown offers what the matrix allows: PM and above move a task
+  // anywhere; a plain assignee can only take it to Completed.
+  const OPEN = ["Not Started", "In Progress", "Pending on Others", "Parked"];
+  const statusChoices = perms.status
+    ? [...new Set([...OPEN, task.status, "Completed"])].sort((a, b) => {
+        const rank = (st: string) => (st === "Completed" ? OPEN.length : Math.max(OPEN.indexOf(st), 0));
+        return rank(a) - rank(b);
+      })
+    : [...new Set([task.status, "Completed"])];
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -248,13 +262,52 @@ export function TaskEditor({
           </div>
 
           {mode === "none" && (
-            <div className="btn-row">
-              <button type="button" className="btn ghost" onClick={() => setMode("upload")}>
-                ⬆ Upload evidence
-              </button>
-              <button type="button" className="btn" onClick={() => setMode("complete")}>
-                ✓ Flag complete
-              </button>
+            <div style={{ display: "grid", gap: 10 }}>
+              <div className="btn-row">
+                <button type="button" className="btn ghost" onClick={() => setMode("upload")}>
+                  ⬆ Upload evidence
+                </button>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="te-move">Move this task to</label>
+                <div className="btn-row">
+                  <select
+                    id="te-move"
+                    className="input"
+                    value={moveTo}
+                    onChange={(e) => setMoveTo(e.target.value)}
+                    style={{ maxWidth: 230 }}
+                  >
+                    {statusChoices.map((st) => <option key={st}>{st}</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={moveTo === task.status || busyEvidence}
+                    onClick={applyMove}
+                  >
+                    {busyEvidence ? "Applying..." : "Apply"}
+                  </button>
+                </div>
+              </div>
+              {moveTo === "Completed" && (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <p className="muted small" style={{ margin: 0 }}>
+                    {task.requires_photo_evidence
+                      ? "This task requires an AFTER photo attached as evidence before it can close."
+                      : evidenceCount > 0
+                        ? "Evidence is attached — Apply closes the task; add a note if you like."
+                        : "No evidence attached: upload some first, or write a short reason for closing without it."}
+                  </p>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={closeReason}
+                    onChange={(e) => setCloseReason(e.target.value)}
+                    placeholder={evidenceCount > 0 ? "Closing note (optional)" : "Reason for closing without evidence"}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -277,25 +330,6 @@ export function TaskEditor({
             </form>
           )}
 
-          {mode === "complete" && (
-            <form onSubmit={submitCompletion} style={{ display: "grid", gap: 10 }}>
-              <p className="muted small" style={{ margin: 0 }}>
-                {task.requires_photo_evidence
-                  ? "This task requires an AFTER photo attached as evidence before it can close."
-                  : evidenceCount > 0
-                    ? "Evidence is attached — you can close, and add a note if you like."
-                    : "No evidence attached: either upload some first, or write a short reason for closing without it."}
-              </p>
-              <textarea name="reason" className="input" rows={2}
-                placeholder={evidenceCount > 0 ? "Closing note (optional)" : "Reason for closing without evidence"} />
-              <div className="btn-row">
-                <button className="btn" disabled={busyEvidence}>
-                  {busyEvidence ? "Completing..." : "Complete task"}
-                </button>
-                <button type="button" className="btn ghost" onClick={() => setMode("none")}>Cancel</button>
-              </div>
-            </form>
-          )}
         </div>
       )}
     </div>

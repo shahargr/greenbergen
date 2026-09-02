@@ -129,6 +129,39 @@ export async function saveTask(taskId: string, formData: FormData) {
     : `/my/task/${taskId}?saved=1`);
 }
 
+// Status moves from the completion card. Completion itself never comes
+// through here - the UI routes "Completed" to completeTask and its
+// evidence gate; this handles only open-to-open moves, which stay a
+// PM-and-above right per the matrix.
+export async function setTaskStatus(taskId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data: task } = await supabase
+    .from("actions")
+    .select("id, project_id, assigned_to_contact_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!task) redirect("/my?panel=tasks");
+
+  const p = await taskPerms(task.project_id, task.assigned_to_contact_id);
+  const st = String(formData.get("status") ?? "");
+  if (!p.status) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Changing status is not yours to do — you can complete the task, with evidence.")}`);
+  }
+  if (!OPEN_STATUSES.includes(st)) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("That is not a status this task can move to.")}`);
+  }
+
+  const { error } = await supabase
+    .from("actions")
+    .update({ status: st, last_modified_by: "portal:task" })
+    .eq("id", taskId);
+  revalidatePath(`/my/task/${taskId}`);
+  revalidatePath("/my");
+  redirect(error
+    ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}`
+    : `/my/task/${taskId}?saved=1`);
+}
+
 // Evidence uploads: any number of photos plus an optional voice note, at
 // any point in the task's life. Bytes go to project-media Storage; the
 // database records each via record_project_file + file_attach (photos as
