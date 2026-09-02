@@ -661,3 +661,31 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 }
 .footnav a { color: var(--muted); font-size: 14px; }
 .footnav a:hover { color: var(--brand); }
+
+/* Owner landing: claim-your-address hero and the monthly tip strip. */
+.hero-claim {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px 22px;
+  margin-bottom: 14px;
+  border-left: 4px solid var(--brand);
+}
+.tipstrip {
+  margin: 12px 0 0;
+  padding: 10px 16px;
+  background: #f2f7f3;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 14px;
+}
+.tip-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  color: var(--brand);
+  margin-right: 8px;
+}

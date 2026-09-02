@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
+import { createHome, createJob, setTown, toggleDeal } from "./actions";
 
 const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
 
@@ -35,12 +36,51 @@ type Lead = {
   preferred_date: string | null;
 };
 
+type Deal = {
+  id: string;
+  title: string;
+  summary: string | null;
+  trade: string | null;
+  company: string | null;
+  offer_terms: string | null;
+  min_signups: number;
+  max_signups: number | null;
+  signups: number;
+  joined: boolean;
+  closing_soon: boolean;
+  ends_on: string | null;
+};
+
+type HomeProject = {
+  id: string;
+  name: string;
+  address: string | null;
+  status: string;
+  live: boolean;
+};
+
+// One home-maintenance nudge per month - the card that makes a quiet week
+// still worth a glance.
+const SEASONAL_TIPS: Record<number, string> = {
+  1: "January: check for ice dams on the roof edge after heavy snow.",
+  2: "February: test the sump pump before the spring melt.",
+  3: "March: service the AC before the first hot week books out every tech.",
+  4: "April: clean gutters - spring rain finds every clog.",
+  5: "May: seal decks and fences while the wood is dry.",
+  6: "June: check irrigation heads - one broken spray wastes a pool of water.",
+  7: "July: flush the water heater; sediment steals its capacity.",
+  8: "August: walk the roof line with binoculars - fix shingles before fall rain.",
+  9: "September: last good month to seal the driveway before frost.",
+  10: "October: furnace tune-up now beats an emergency call in January.",
+  11: "November: disconnect hoses and shut outdoor water before first freeze.",
+  12: "December: test smoke and CO detectors - heating season is their season.",
+};
+
 function dayName(date: string, i: number) {
   if (i === 0) return "Today";
   return new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
 }
 
-// Weather glyphs keyed by condition.
 function WxIcon({ icon, size = 26 }: { icon: WeatherIcon; size?: number }) {
   const p = {
     width: size, height: size, viewBox: "0 0 24 24", fill: "none",
@@ -65,14 +105,15 @@ function WxIcon({ icon, size = 26 }: { icon: WeatherIcon; size?: number }) {
   }
 }
 
-// The personalized landing: a community banner (admin-set), four compact
-// panels, and a detail window that exists only while a panel is selected.
+// The owner's landing. New owner with nothing: claim your address is the
+// hero; the magnet band (weather, trash, tasks, pros, deals, hourly, invite)
+// fills with honest ask-for-something empty states until the data exists.
 export default async function MyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ panel?: string }>;
+  searchParams: Promise<{ panel?: string; error?: string }>;
 }) {
-  const { panel } = await searchParams;
+  const { panel, error: flashError } = await searchParams;
   const supabase = await createClient();
   const [{ data: me }, { data: home }, { data: banners }, { data: leadData }] = await Promise.all([
     supabase.rpc("me"),
@@ -89,8 +130,12 @@ export default async function MyPage({
   const town: string | null = home?.town_name ?? null;
   const townServices = home?.town ?? null;
   const services: Record<string, Vendor[]> = home?.services ?? {};
+  const deals: Deal[] = (home?.promotions as Deal[]) ?? [];
+  const projects: HomeProject[] = (home?.projects as HomeProject[]) ?? [];
+  const hasHome = projects.length > 0;
   const myContact: string | null = me?.contact_id ?? null;
   const banner = banners?.[0] ?? null;
+  const canCreate: boolean = home?.can_create ?? false;
 
   const openFilter = `(${CLOSED_STATUSES.join(",")})`;
   const [weather, onMe, total] = await Promise.all([
@@ -109,14 +154,25 @@ export default async function MyPage({
       .not("status", "in", openFilter)
       .then((r) => r.count ?? 0),
   ]);
-  // Leads pending my review count as work sitting ON ME (unassigned inquiry
-  // tasks surfaced to rank >= 50), so they never hide in "others".
   const onOthers = Math.max(0, total - onMe - leads.length);
   const pendingOnMe = onMe + leads.length;
 
-  // Detail for the selected panel; no selection = no window at all.
+  // ---- Panel detail ----
   let detail: React.ReactNode = null;
-  if (panel === "tasks") {
+  if (panel === "town") {
+    detail = (
+      <>
+        <h2 className="section-title">Your town</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Weather, trash days, local pros and deals are all town-based.
+        </p>
+        <form action={setTown} className="btn-row">
+          <input name="town" className="input" placeholder="e.g. Tenafly" style={{ maxWidth: 240 }} required />
+          <button className="btn">Set my town</button>
+        </form>
+      </>
+    );
+  } else if (panel === "tasks") {
     const base = () =>
       supabase
         .from("actions")
@@ -250,13 +306,84 @@ export default async function MyPage({
         ))}
       </>
     );
+  } else if (panel === "deals") {
+    detail = (
+      <>
+        <h2 className="section-title">{town ? `Local deals · ${town}` : "Local deals"}</h2>
+        {deals.length === 0 && (
+          <p className="muted">
+            No deals in {town ?? "your town"} yet. Deals unlock when neighbors
+            band together — <Link href="/my/invite">invite a few</Link> and
+            we&apos;ll negotiate the first one.
+          </p>
+        )}
+        <div style={{ display: "grid", gap: 10 }}>
+          {deals.map((d) => (
+            <div key={d.id} className="card" style={{ padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <strong style={{ fontSize: 15 }}>{d.title}</strong>
+                {d.closing_soon && <span className="extra-chip">closing soon</span>}
+              </div>
+              <div className="muted small" style={{ margin: "2px 0 6px" }}>
+                {[d.company, d.trade].filter(Boolean).join(" · ")}
+              </div>
+              {d.summary && <p className="small" style={{ margin: "0 0 6px" }}>{d.summary}</p>}
+              {d.offer_terms && <p className="muted small" style={{ margin: "0 0 8px" }}>{d.offer_terms}</p>}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <span className="small">
+                  <strong>{d.signups}</strong> of {d.min_signups} neighbors in
+                  {d.max_signups ? ` · ${d.max_signups} spots total` : ""}
+                </span>
+                <form action={toggleDeal.bind(null, d.id, !d.joined)}>
+                  <button className={d.joined ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>
+                    {d.joined ? "Leave" : "Count me in"}
+                  </button>
+                </form>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
+    );
+  } else if (panel === "hourly") {
+    detail = (
+      <>
+        <h2 className="section-title">Hire by the hour</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Coming soon: when local contractors have idle time, they&apos;ll post
+          an hourly rate here — grab a pro for the small stuff without a full
+          project. Meanwhile, <Link href="/my?panel=local">local support</Link>{" "}
+          has the phone numbers.
+        </p>
+      </>
+    );
+  } else if (panel === "addproject" && hasHome) {
+    detail = (
+      <>
+        <h2 className="section-title">Start a project</h2>
+        {flashError && <p className="error small">{flashError}</p>}
+        <form action={createJob} style={{ display: "grid", gap: 10, maxWidth: 440 }}>
+          <input type="hidden" name="parent" value={projects[0].id} />
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="pj-name">What are we doing?</label>
+            <input id="pj-name" name="name" className="input" required placeholder="e.g. Kitchen remodel, new pool, generator" />
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="pj-desc">Tell us more (optional)</label>
+            <textarea id="pj-desc" name="description" className="input" rows={3} />
+          </div>
+          <div>
+            <button className="btn">Create project</button>
+          </div>
+        </form>
+      </>
+    );
   }
 
   const sel = (p: string) => (panel === p ? "card stat statlink selected" : "card stat statlink");
 
   return (
     <main className="wrap" style={{ paddingTop: 16, paddingBottom: 64 }}>
-      {/* Community banner - admin-set text with a link behind it. */}
       {banner?.text &&
         (banner.url ? (
           <a href={banner.url} className="banner" target="_blank" rel="noreferrer">{banner.text}</a>
@@ -264,8 +391,34 @@ export default async function MyPage({
           <p className="banner">{banner.text}</p>
         ))}
 
-      <section className="youband">
-        <Link href="/my?panel=weather" className={sel("weather")}>
+      {/* New owner: claiming the address is the whole point of the page. */}
+      {!hasHome && (
+        <section className="card hero-claim">
+          <div>
+            <h1 style={{ fontSize: 22, margin: "0 0 4px" }}>Claim your address</h1>
+            <p className="muted" style={{ margin: 0, fontSize: 15 }}>
+              Your home gets a page of its own — projects, people, paperwork
+              and money, all in one place.
+            </p>
+            {flashError && <p className="error small" style={{ margin: "6px 0 0" }}>{flashError}</p>}
+            {!canCreate && (
+              <p className="muted small" style={{ margin: "6px 0 0" }}>
+                Your account has no active agreement yet — ask us for an invitation.
+              </p>
+            )}
+          </div>
+          {canCreate && (
+            <form action={createHome} style={{ display: "grid", gap: 8, minWidth: "min(300px, 100%)" }}>
+              <input name="name" className="input" required placeholder="What should we call it? e.g. Our house" />
+              <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
+              <button className="btn">Claim it</button>
+            </form>
+          )}
+        </section>
+      )}
+
+      <section className="youband" style={{ marginTop: hasHome ? 0 : 14 }}>
+        <Link href={town ? "/my?panel=weather" : "/my?panel=town"} className={sel(town ? "weather" : "town")}>
           <span className="stat-kicker">{town ? `Weather · ${town}` : "Weather"}</span>
           {weather ? (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -274,16 +427,18 @@ export default async function MyPage({
               <span className="muted small">{weather.label}</span>
             </span>
           ) : (
-            <span className="stat-big muted">—</span>
+            <span className="small" style={{ color: "var(--brand)", fontWeight: 600 }}>Set your town →</span>
           )}
         </Link>
 
-        <Link href="/my?panel=trash" className={sel("trash")}>
+        <Link href={town ? "/my?panel=trash" : "/my?panel=town"} className={sel("trash")}>
           <span className="stat-kicker">Trash days</span>
           {townServices?.garbage_note ? (
             <span className="small" style={{ lineHeight: 1.4 }}>{townServices.garbage_note}</span>
+          ) : town ? (
+            <span className="muted small">Not on file for {town} yet.</span>
           ) : (
-            <span className="stat-big muted">—</span>
+            <span className="small" style={{ color: "var(--brand)", fontWeight: 600 }}>Set your town →</span>
           )}
         </Link>
 
@@ -298,20 +453,59 @@ export default async function MyPage({
         </Link>
 
         <Link href="/my?panel=local" className={sel("local")}>
-          <span className="stat-kicker">Hire local support</span>
+          <span className="stat-kicker">Hire a pro</span>
           <span className="small" style={{ lineHeight: 1.4 }}>
             {Object.keys(services).length > 0
               ? `${Object.keys(services).length} trades near you`
               : "Plumbers, electricians, more"}
           </span>
         </Link>
+
+        <Link href="/my?panel=deals" className={sel("deals")}>
+          <span className="stat-kicker">Local deals</span>
+          {deals.length > 0 ? (
+            <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+              <span className="stat-big">{deals.length}</span>
+              <span className="muted small">open near you</span>
+            </span>
+          ) : (
+            <span className="muted small">Neighbors unlock group deals.</span>
+          )}
+        </Link>
+
+        <Link href="/my?panel=hourly" className={sel("hourly")}>
+          <span className="stat-kicker">Hire by the hour</span>
+          <span className="muted small">Idle pros, small jobs — soon.</span>
+        </Link>
+
+        {hasHome ? (
+          <Link href="/my?panel=addproject" className={sel("addproject")}>
+            <span className="stat-kicker">Start a project</span>
+            <span className="muted small">A job under {projects[0].name}.</span>
+          </Link>
+        ) : (
+          <span className="card stat" style={{ opacity: 0.65 }}>
+            <span className="stat-kicker">Start a project</span>
+            <span className="muted small">Claim your address first.</span>
+          </span>
+        )}
+
+        <Link href="/my/invite" className="card stat statlink">
+          <span className="stat-kicker">Invite friends</span>
+          <span className="muted small">Neighbors make the deals happen.</span>
+        </Link>
       </section>
 
+      <p className="tipstrip">
+        <span className="tip-label">This month</span> {SEASONAL_TIPS[new Date().getMonth() + 1]}
+      </p>
+
       {detail && (
-        <section className="card" style={{ marginTop: 14, padding: "16px 20px" }}>
+        <section className="card" style={{ marginTop: 12, padding: "16px 20px" }}>
           {detail}
         </section>
       )}
     </main>
   );
 }
+
