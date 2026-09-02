@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -59,6 +61,7 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
   const [vendorCode, setVendorCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [offerLogin, setOfferLogin] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
@@ -88,6 +91,7 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setOfferLogin(false);
     if (!wantsProjects && !wantsServices) {
       setError("Pick at least one: manage your projects, or deliver services.");
       return;
@@ -129,6 +133,7 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
       if (err) {
         setBusy(false);
         setError(friendly(err.message));
+        setOfferLogin(err.message.startsWith("PHONE_EXISTS"));
         return;
       }
       setVendorCode(data?.vendor_code ?? "");
@@ -241,7 +246,14 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
               onChange={(e) => setCode(e.target.value)}
               style={{ letterSpacing: "0.4em", fontSize: 18, textAlign: "center" }} />
           </div>
-          {error && <p className="error small" style={{ margin: 0 }}>{error}</p>}
+          {error && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <p className="error small" style={{ margin: 0 }}>{error}</p>
+              {offerLogin && (
+                <span><Link className="btn" href="/login?next=/my">Log in instead</Link></span>
+              )}
+            </div>
+          )}
           <div>
             <button className="btn" disabled={busy || code.trim().length < 6}>
               {busy ? "Verifying..." : "Finish signing up"}
@@ -413,7 +425,14 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
         </>
       )}
 
-      {error && <p className="error small" style={{ margin: 0 }}>{error}</p>}
+      {error && (
+        <div style={{ display: "grid", gap: 8 }}>
+          <p className="error small" style={{ margin: 0 }}>{error}</p>
+          {offerLogin && (
+            <span><Link className="btn" href="/login?next=/my">Log in instead</Link></span>
+          )}
+        </div>
+      )}
       <div>
         <button className="btn" disabled={busy}>
           {busy ? "Working..." : wantsProjects ? "Continue — email me a code" : "Register my business"}
