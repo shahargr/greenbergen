@@ -359,6 +359,9 @@ export default async function MyPage({
     detail = (
       <>
         <h2 className="section-title">{town ? `Local deals · ${town}` : "Local deals"}</h2>
+        <p className="small" style={{ marginTop: 0 }}>
+          <Link href="/deals">See all bookable deals →</Link>
+        </p>
         {deals.length === 0 && (
           <p className="muted">
             No deals in {town ?? "your town"} yet. Deals unlock when neighbors
