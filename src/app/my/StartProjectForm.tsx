@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { createJob } from "./actions";
@@ -57,8 +59,9 @@ export function StartProjectForm({
           <label>Or just say it (optional)</label>
           <VoiceRecorder onReady={setVoiceBlob} />
         </div>
-        <div>
+        <div className="btn-row">
           <button className="btn" disabled={busy}>{busy ? "Creating..." : "Create project"}</button>
+          <Link className="btn ghost" href="/my">Cancel</Link>
         </div>
       </form>
     </>

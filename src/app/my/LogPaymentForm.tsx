@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useMemo, useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { FilePick } from "@/components/FilePick";
@@ -176,8 +178,9 @@ export function LogPaymentForm({
         </div>
       </div>
       {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
-      <div>
+      <div className="btn-row">
         <button className="btn" disabled={busy}>{busy ? "Logging..." : "Log payment"}</button>
+        <Link className="btn ghost" href="/my">Cancel</Link>
       </div>
     </form>
   );

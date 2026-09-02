@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useMemo, useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { createTask } from "./actions";
@@ -91,8 +93,9 @@ export function AddTaskForm({
         </div>
       </div>
       {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
-      <div>
+      <div className="btn-row">
         <button className="btn" disabled={busy}>{busy ? "Creating..." : "Create task"}</button>
+        <Link className="btn ghost" href="/my">Cancel</Link>
       </div>
     </form>
   );
