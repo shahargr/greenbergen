@@ -20,6 +20,7 @@ export function StartProjectForm({
   error?: string;
 }) {
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -49,8 +50,25 @@ export function StartProjectForm({
           </select>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
+          <label>Common jobs — tap one, or type your own below</label>
+          <div className="btn-row" style={{ gap: 6, flexWrap: "wrap" }}>
+            {["Install appliance", "Unclog toilet", "Water heater", "Emergency power", "Generator for emergency", "Water leak"].map((j) => (
+              <button
+                key={j}
+                type="button"
+                className={name === j ? "btn small" : "btn ghost small"}
+                onClick={() => setName(j)}
+              >
+                {j}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-name">What are we doing?</label>
-          <input id="pj-name" name="name" className="input" required autoComplete="off" placeholder="e.g. Kitchen remodel, new pool, generator" />
+          <input id="pj-name" name="name" className="input" required autoComplete="off"
+            value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Kitchen remodel, new pool, generator" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-desc">Tell us more (optional)</label>
