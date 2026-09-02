@@ -36,3 +36,18 @@ export async function saveBanner(formData: FormData) {
   revalidatePath("/my");
   revalidatePath("/admin");
 }
+
+// Saves all twelve monthly tips at once.
+export async function saveTips(formData: FormData) {
+  const supabase = await createClient();
+  const rows = [];
+  for (let m = 1; m <= 12; m++) {
+    const tip = String(formData.get(`tip_${m}`) ?? "").trim();
+    if (tip) rows.push({ month: m, tip, last_modified_by: "admin:overview", last_modified_at: new Date().toISOString() });
+  }
+  if (rows.length) {
+    await supabase.from("seasonal_tips").upsert(rows, { onConflict: "month" });
+  }
+  revalidatePath("/my");
+  revalidatePath("/admin");
+}

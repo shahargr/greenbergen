@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { saveBanner } from "./actions";
+import { saveBanner, saveTips } from "./actions";
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 // Admin landing: one tile per section. Sections grow as their screens get
 // built; the tiles say honestly which are live.
@@ -20,6 +22,10 @@ export default async function AdminHome() {
     .order("created_at", { ascending: false })
     .limit(1);
   const banner = bannerRows?.[0] ?? null;
+  const { data: tipRows } = await supabase
+    .from("seasonal_tips")
+    .select("month, tip")
+    .order("month");
 
   if (!me?.is_superadmin) {
     return (
@@ -70,6 +76,29 @@ export default async function AdminHome() {
           </div>
         </form>
       </div>
+
+      <details className="card tradefold" style={{ marginTop: 14, maxWidth: 560 }}>
+        <summary>Monthly home tips</summary>
+        <p className="muted small" style={{ margin: "6px 0 10px" }}>
+          The &ldquo;This month&rdquo; nudge on every dashboard — one per month.
+        </p>
+        <form action={saveTips} style={{ display: "grid", gap: 8 }}>
+          {MONTHS.map((name, i) => (
+            <div key={name} className="field" style={{ marginBottom: 0 }}>
+              <label>{name}</label>
+              <textarea
+                name={`tip_${i + 1}`}
+                className="input"
+                rows={2}
+                defaultValue={(tipRows ?? []).find((t) => t.month === i + 1)?.tip ?? ""}
+              />
+            </div>
+          ))}
+          <div>
+            <button className="btn">Save tips</button>
+          </div>
+        </form>
+      </details>
     </main>
   );
 }

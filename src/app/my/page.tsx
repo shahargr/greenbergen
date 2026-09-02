@@ -60,23 +60,6 @@ type HomeProject = {
   live: boolean;
 };
 
-// One home-maintenance nudge per month - the card that makes a quiet week
-// still worth a glance.
-const SEASONAL_TIPS: Record<number, string> = {
-  1: "January: check for ice dams on the roof edge after heavy snow.",
-  2: "February: test the sump pump before the spring melt.",
-  3: "March: service the AC before the first hot week books out every tech.",
-  4: "April: clean gutters - spring rain finds every clog.",
-  5: "May: seal decks and fences while the wood is dry.",
-  6: "June: check irrigation heads - one broken spray wastes a pool of water.",
-  7: "July: flush the water heater; sediment steals its capacity.",
-  8: "August: walk the roof line with binoculars - fix shingles before fall rain.",
-  9: "September: last good month to seal the driveway before frost.",
-  10: "October: furnace tune-up now beats an emergency call in January.",
-  11: "November: disconnect hoses and shut outdoor water before first freeze.",
-  12: "December: test smoke and CO detectors - heating season is their season.",
-};
-
 function dayName(date: string, i: number) {
   if (i === 0) return "Today";
   return new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
@@ -116,7 +99,7 @@ export default async function MyPage({
 }) {
   const { panel, error: flashError, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: home }, { data: banners }, { data: leadData }] = await Promise.all([
+  const [{ data: me }, { data: home }, { data: banners }, { data: leadData }, { data: tipRow }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("consumer_home"),
     supabase
@@ -125,6 +108,11 @@ export default async function MyPage({
       .order("created_at", { ascending: false })
       .limit(1),
     supabase.rpc("my_lead_actions"),
+    supabase
+      .from("seasonal_tips")
+      .select("tip")
+      .eq("month", new Date().getMonth() + 1)
+      .maybeSingle(),
   ]);
   const leads: Lead[] = (leadData as Lead[]) ?? [];
 
@@ -536,9 +524,11 @@ export default async function MyPage({
         </Link>
       </section>
 
-      <p className="tipstrip">
-        <span className="tip-label">This month</span> {SEASONAL_TIPS[new Date().getMonth() + 1]}
-      </p>
+      {tipRow?.tip && (
+        <p className="tipstrip">
+          <span className="tip-label">This month</span> {tipRow.tip}
+        </p>
+      )}
 
       {detail && (
         <section className="card" style={{ marginTop: 12, padding: "16px 20px" }}>
