@@ -191,10 +191,12 @@ export async function logPayment(formData: FormData) {
   }
 
   // Receipts: photos and voice into the project file store, captioned with
-  // the payment. A failed upload never unwinds the ledger row.
+  // the payment - AFTER the response is sent, so the button never waits on
+  // uploads. A failed upload never unwinds the ledger row.
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
   const videos = formData.getAll("videos").filter((f): f is File => f instanceof File && f.size > 0);
+  after(async () => {
   for (const [i, file] of [...photos, ...videos, ...files].entries()) {
     const isImage = file.type.startsWith("image/");
     const isVideo = file.type.startsWith("video/");
@@ -216,6 +218,7 @@ export async function logPayment(formData: FormData) {
       });
     }
   }
+  });
 
   revalidatePath("/my");
   redirect(`${back}ok=${encodeURIComponent("Payment logged ✓")}`);
@@ -267,6 +270,7 @@ export async function editPayment(formData: FormData) {
 
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  after(async () => {
   for (const [i, file] of [...photos, ...files].entries()) {
     const isImage = file.type.startsWith("image/");
     const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
@@ -287,6 +291,7 @@ export async function editPayment(formData: FormData) {
       });
     }
   }
+  });
   revalidatePath("/my");
   redirect(`${back}ok=${encodeURIComponent("Payment updated ✓")}`);
 }
@@ -335,10 +340,12 @@ export async function createTask(formData: FormData) {
 
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  const taskId = created.id;
+  after(async () => {
   for (const [i, file] of [...photos, ...files].entries()) {
     const isImage = file.type.startsWith("image/");
     const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
-    const path = `${projectId}/actions/${created.id}/instructions-${Date.now()}-${i}${ext}`;
+    const path = `${projectId}/actions/${taskId}/instructions-${Date.now()}-${i}${ext}`;
     const bytes = await file.arrayBuffer();
     const { error: upErr } = await supabase.storage
       .from("project-media")
@@ -356,13 +363,14 @@ export async function createTask(formData: FormData) {
       if (fileId) {
         await supabase.rpc("file_attach", {
           p_file_id: fileId,
-          p_action_id: created.id,
+          p_action_id: taskId,
           p_contract_id: null,
           p_role: "reference",
         });
       }
     }
   }
+  });
   revalidatePath("/my");
-  redirect(`/my/task/${created.id}?saved=1`);
+  redirect(`/my/task/${taskId}?saved=1`);
 }

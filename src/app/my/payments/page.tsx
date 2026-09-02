@@ -4,6 +4,7 @@ import { LogPaymentForm } from "../LogPaymentForm";
 import { PaymentsList } from "../PaymentsList";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type MemberPayRow = {
   project_id: string; role: string; contact_id: string | null;

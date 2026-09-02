@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { TaskEditor, type TaskView, type MemberOption, type CommentView } from "./TaskEditor";
 import { taskPerms } from "./actions";
 
+export const maxDuration = 60;
+
 const CLOSED = ["Completed", "Cancelled", "Force Cancelled"];
 
 type TaskFull = {

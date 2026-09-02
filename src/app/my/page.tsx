@@ -7,6 +7,8 @@ import { StartProjectForm } from "./StartProjectForm";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
+export const maxDuration = 60;
+
 const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
 
 type Vendor = {

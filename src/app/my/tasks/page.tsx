@@ -4,6 +4,7 @@ import { TasksTable, type TableTask } from "../TasksTable";
 import { AddTaskForm } from "../AddTaskForm";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Lead = {
   id: string; action: string; name: string; phone: string | null; email: string | null;
