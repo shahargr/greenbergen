@@ -51,7 +51,7 @@ export default async function ProjectPage({
     );
   }
 
-  const [{ data: parent }, perms, { data: memberRows }, { data: fileRows }, { data: taskData }, { data: contractAmountRows }, { data: paidRows }] =
+  const [{ data: parent }, perms, { data: memberRows }, { data: fileRows }, { data: taskData }, { data: configRows }, { data: contractAmountRows }, { data: paidRows }] =
     await Promise.all([
       project.parent_project_id
         ? supabase.from("projects").select("id, project_name").eq("id", project.parent_project_id).maybeSingle()
@@ -69,6 +69,12 @@ export default async function ProjectPage({
         .order("created_at", { ascending: false })
         .limit(24),
       supabase.rpc("portal_tasks", { p_project_id: id, p_open_limit: 200, p_closed_limit: 200 }),
+      supabase
+        .from("actions")
+        .select("id, action, status, requires_photo_evidence, notes")
+        .eq("project_id", id)
+        .eq("scope_milestone", "Configuration")
+        .order("created_at"),
       supabase
         .from("contracts")
         .select("amount")
@@ -127,6 +133,10 @@ export default async function ProjectPage({
     .reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
   const budgetPct = contracted > 0 ? Math.min(100, Math.round((paid / contracted) * 100)) : null;
 
+  type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };
+  const config = ((configRows ?? []) as ConfigRow[]);
+  const configDone = config.filter((c) => ["Completed"].includes(c.status)).length;
+
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
       <p className="small" style={{ margin: "0 0 6px" }}>
@@ -169,6 +179,32 @@ export default async function ProjectPage({
             </div>
           )}
         </div>
+
+        {config.length > 0 && (
+          <div className="card" style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <h2 className="section-title" style={{ margin: 0 }}>Configuration · {configDone} of {config.length} done</h2>
+              <span className="muted small">Complete these so the work can be priced and scheduled.</span>
+            </div>
+            <div className="progressbar">
+              <span style={{ width: `${config.length ? Math.round((configDone / config.length) * 100) : 0}%` }} />
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {config.map((c) => (
+                <Link key={c.id} href={`/my/task/${c.id}`} className="card statlink"
+                  style={{ padding: "9px 12px", display: "flex", gap: 10, alignItems: "center" }}>
+                  <span style={{ fontSize: 17, flex: "none" }}>{c.status === "Completed" ? "✅" : "⬜"}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ fontSize: 14 }}>{c.action.replace(/^Config: /, "")}</strong>
+                    <div className="muted small">
+                      {c.requires_photo_evidence ? "Photo required · " : ""}{c.status}
+                    </div>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
           <div className="card">
