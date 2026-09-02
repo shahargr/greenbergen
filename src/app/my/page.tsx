@@ -455,6 +455,7 @@ export default async function MyPage({
       )}
 
       <section className="youband" style={{ marginTop: hasHome ? 0 : 14 }}>
+
         <Link href={town ? "/my?panel=weather" : "/my?panel=town"} className={sel(town ? "weather" : "town")}>
           <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="3.5" /><path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M5 5l1 1M14 14l1 1M15 5l-1 1" /><path d="M14 19a4 4 0 0 1 3.5-6 4.5 4.5 0 0 1 4.4 3.6A2.7 2.7 0 0 1 21 21h-7z" fill="none" /></svg>
@@ -485,31 +486,6 @@ export default async function MyPage({
           )}
         </Link>
 
-        <Link href="/my/tasks" className="card stat statlink">
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>
-            Tasks
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-            <span className="stat-big">{pendingOnMe}</span>
-            <span className="muted small">
-              on you{leads.length > 0 ? ` (${leads.length} lead${leads.length > 1 ? "s" : ""})` : ""} · {onOthers} on others
-            </span>
-          </span>
-        </Link>
-
-        <Link href="/my?panel=local" className={sel("local")}>
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15a8 8 0 0 1 16 0v2H4z" /><path d="M10 7.5V5a2 2 0 0 1 4 0v2.5" /><path d="M2 20h20" /></svg>
-            Hire a pro
-          </span>
-          <span className="small" style={{ lineHeight: 1.4 }}>
-            {Object.keys(services).length > 0
-              ? `${Object.keys(services).length} trades near you`
-              : "Plumbers, electricians, more"}
-          </span>
-        </Link>
-
         <Link href="/my?panel=deals" className={sel("deals")}>
           <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8Z" /><circle cx="7" cy="7" r="1.4" /></svg>
@@ -523,14 +499,6 @@ export default async function MyPage({
           ) : (
             <span className="muted small">Neighbors unlock group deals.</span>
           )}
-        </Link>
-
-        <Link href="/my?panel=hourly" className={sel("hourly")}>
-          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
-            Hire by the hour
-          </span>
-          <span className="muted small">Idle pros, small jobs — soon.</span>
         </Link>
 
         {hasHome || ownerProjects.length > 0 ? (
@@ -554,12 +522,17 @@ export default async function MyPage({
           </span>
         )}
 
-        <Link href="/my/invite" className="card stat statlink">
+        <Link href="/my/tasks" className="card stat statlink">
           <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>
-            Invite friends
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>
+            Tasks
           </span>
-          <span className="muted small">Neighbors make the deals happen.</span>
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+            <span className="stat-big">{pendingOnMe}</span>
+            <span className="muted small">
+              on you{leads.length > 0 ? ` (${leads.length} lead${leads.length > 1 ? "s" : ""})` : ""} · {onOthers} on others
+            </span>
+          </span>
         </Link>
 
         {pmProjects.length > 0 && (
@@ -569,6 +542,37 @@ export default async function MyPage({
               Payments
             </span>
             <span className="muted small">Log and edit who was paid.</span>
+          </Link>
+        )}
+      
+
+        <Link href="/my?panel=local" className={sel("local")}>
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15a8 8 0 0 1 16 0v2H4z" /><path d="M10 7.5V5a2 2 0 0 1 4 0v2.5" /><path d="M2 20h20" /></svg>
+            Hire a pro
+          </span>
+          <span className="small" style={{ lineHeight: 1.4 }}>
+            {Object.keys(services).length > 0
+              ? `${Object.keys(services).length} trades near you`
+              : "Plumbers, electricians, more"}
+          </span>
+        </Link>
+
+        <Link href="/my/invite" className="card stat statlink">
+          <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>
+            Invite friends
+          </span>
+          <span className="muted small">Neighbors make the deals happen.</span>
+        </Link>
+
+        {pmProjects.length > 0 && (
+          <Link href="/my/financials" className="card stat statlink">
+            <span className="stat-kicker" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>
+              Financials
+            </span>
+            <span className="muted small">Contracted vs. paid, per project.</span>
           </Link>
         )}
       </section>

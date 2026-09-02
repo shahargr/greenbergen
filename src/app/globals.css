@@ -480,10 +480,11 @@ a.panel-link:hover strong { color: var(--brand); }
 /* The you-band on /my - compact on purpose. */
 .youband {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
-@media (max-width: 860px) { .youband { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 860px) { .youband { grid-template-columns: repeat(3, 1fr); gap: 8px; } }
+@media (max-width: 860px) { .youband .card.stat { padding: 10px 10px; } }
 .stat { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; }
 .stat-kicker {
   font-size: 11px;
