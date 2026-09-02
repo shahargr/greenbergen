@@ -191,14 +191,14 @@ export default async function MyPage({
     const renderList = (tasks: TaskRow[]) => (
       <div style={{ display: "grid", gap: 8 }}>
         {tasks.map((t) => (
-          <div key={t.id} className="card" style={{ padding: "10px 14px" }}>
+          <Link key={t.id} href={`/my/task/${t.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
             <strong style={{ fontSize: 15 }}>{t.action}</strong>
             <div className="muted small">
               {t.projects?.project_name ?? "No project"} · {t.status}
               {t.priority && t.priority !== "Missing" && <> · {t.priority}</>}
               {t.target_date && <> · due {t.target_date}</>}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     );
@@ -209,7 +209,7 @@ export default async function MyPage({
             <h2 className="section-title">Leads pending your review · {leads.length}</h2>
             <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
               {leads.map((l) => (
-                <div key={l.id} className="card" style={{ padding: "12px 14px", borderLeft: "3px solid var(--brand)" }}>
+                <Link key={l.id} href={`/my/task/${l.id}`} className="card statlink" style={{ padding: "12px 14px", borderLeft: "3px solid var(--brand)", display: "block" }}>
                   <strong style={{ fontSize: 15 }}>{l.action}</strong>
                   <div className="small" style={{ marginTop: 4, display: "grid", gap: 2 }}>
                     <span>
@@ -220,7 +220,7 @@ export default async function MyPage({
                     {l.preferred_date && <span className="muted">Preferred date: {l.preferred_date}</span>}
                     {l.message && <span className="muted">&ldquo;{l.message}&rdquo;</span>}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </>
