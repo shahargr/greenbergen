@@ -188,31 +188,69 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "tasks") {
-    const base = () =>
+    const FIELDS = "id, action, status, priority, target_date, last_updated, notes, contract_id, assigned_to_contact_id, projects(project_name)";
+    const [openRes, closedRes] = await Promise.all([
       supabase
         .from("actions")
-        .select("id, action, status, priority, target_date, notes, projects(project_name)")
+        .select(FIELDS)
         .not("status", "in", openFilter)
-        .order("target_date", { ascending: true, nullsFirst: false });
-    const [mineRes, othersRes] = await Promise.all([
-      myContact ? base().eq("assigned_to_contact_id", myContact).limit(100) : Promise.resolve({ data: [] }),
-      myContact
-        ? base().or(`assigned_to_contact_id.is.null,assigned_to_contact_id.neq.${myContact}`).limit(100)
-        : base().limit(100),
+        .order("target_date", { ascending: true, nullsFirst: false })
+        .limit(250),
+      supabase
+        .from("actions")
+        .select(FIELDS)
+        .in("status", CLOSED_STATUSES)
+        .order("last_updated", { ascending: false })
+        .limit(150),
     ]);
-    type PanelTaskRow = TaskRow & { notes: string | null };
-    const toTable = (rows: unknown, who: "you" | "others") =>
-      ((rows ?? []) as PanelTaskRow[]).map((t) => ({
+    type PanelTaskRow = TaskRow & {
+      notes: string | null; last_updated: string | null;
+      contract_id: string | null; assigned_to_contact_id: string | null;
+    };
+    const openRows = (openRes.data ?? []) as unknown as PanelTaskRow[];
+    const closedRows = (closedRes.data ?? []) as unknown as PanelTaskRow[];
+    const allRows = [...openRows, ...closedRows];
+
+    // Trade per task: the contract's trade first, else the assignee's
+    // registered trade. Assignee names ride along for the person filter.
+    const contractIds = [...new Set(allRows.map((r) => r.contract_id).filter(Boolean))] as string[];
+    const assigneeIds = [...new Set(allRows.map((r) => r.assigned_to_contact_id).filter(Boolean))] as string[];
+    const [{ data: contractTradeRows }, { data: roleRows }, { data: nameRows }] = await Promise.all([
+      contractIds.length
+        ? supabase.from("contracts").select("id, trade").in("id", contractIds)
+        : Promise.resolve({ data: [] }),
+      assigneeIds.length
+        ? supabase.from("contact_trade_roles").select("contact_id, trade").in("contact_id", assigneeIds)
+        : Promise.resolve({ data: [] }),
+      assigneeIds.length
+        ? supabase.from("contacts").select("id, name, person_name").in("id", assigneeIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const tradeByContract = new Map(((contractTradeRows ?? []) as { id: string; trade: string | null }[]).map((c) => [c.id, c.trade]));
+    const tradeByContact = new Map<string, string>();
+    for (const r of (roleRows ?? []) as { contact_id: string; trade: string }[]) {
+      if (!tradeByContact.has(r.contact_id)) tradeByContact.set(r.contact_id, r.trade);
+    }
+    const nameByContact = new Map(((nameRows ?? []) as { id: string; name: string | null; person_name: string | null }[])
+      .map((c) => [c.id, c.person_name ?? c.name ?? "Unnamed"]));
+
+    const toTable = (rows: PanelTaskRow[], state: "open" | "closed") =>
+      rows.map((t) => ({
         id: t.id,
         action: t.action ?? "(untitled)",
         status: t.status,
         priority: t.priority,
         target_date: t.target_date,
+        last_updated: t.last_updated,
         notes: t.notes,
         project: t.projects?.project_name ?? null,
-        who,
+        who: (myContact && t.assigned_to_contact_id === myContact ? "you" : "others") as "you" | "others",
+        state,
+        trade: (t.contract_id ? tradeByContract.get(t.contract_id) : null) ??
+               (t.assigned_to_contact_id ? tradeByContact.get(t.assigned_to_contact_id) : null) ?? null,
+        assignee: t.assigned_to_contact_id ? (nameByContact.get(t.assigned_to_contact_id) ?? null) : null,
       }));
-    const tableTasks = [...toTable(mineRes.data, "you"), ...toTable(othersRes.data, "others")];
+    const tableTasks = [...toTable(openRows, "open"), ...toTable(closedRows, "closed")];
     detail = (
       <>
         {leads.length > 0 && (
