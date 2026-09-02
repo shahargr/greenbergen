@@ -133,8 +133,10 @@ export async function toggleDeal(promotionId: string, join: boolean) {
   redirect("/my?panel=deals");
 }
 
-// Log an actual payment (PM and above; RLS on payment_log is the law -
-// my_authority_rank(project) >= 50 gates both read and write).
+// Log an actual payment into the ONE finance ledger - transactions.
+// RLS (can_see_money_on) is the boundary; the row lands as a paid,
+// outgoing transaction. Trade attribution rides in the description,
+// the payer in the notes.
 export async function logPayment(formData: FormData) {
   const supabase = await createClient();
   const projectId = String(formData.get("project") ?? "");
@@ -151,17 +153,25 @@ export async function logPayment(formData: FormData) {
   const method = String(formData.get("method") ?? "");
   if (!method) redirect(`${back}&error=${encodeURIComponent("Pick the payment type.")}`);
 
-  const { error } = await supabase.from("payment_log").insert({
-    project_id: projectId,
+  const { data: methodRow } = await supabase
+    .from("payment_methods").select("name").eq("id", method).maybeSingle();
+  const paidBy = String(formData.get("paid_by") ?? "").trim();
+  const trade = String(formData.get("trade") ?? "").trim();
+  const extraNotes = String(formData.get("notes") ?? "").trim();
+
+  const { error } = await supabase.from("transactions").insert({
+    description: `Payment to ${paidTo}${trade ? ` — requested by ${trade}` : ""}`,
     amount,
+    direction: "out",
+    status: "paid",
     paid_on: String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10),
-    paid_by: String(formData.get("paid_by") ?? "").trim() || "—",
-    paid_to: paidTo,
-    paid_from_account: String(formData.get("paid_from") ?? "").trim() || null,
+    paid_via: methodRow?.name ?? null,
     payment_method_id: method,
-    requested_by_trade: String(formData.get("trade") ?? "").trim() || null,
+    paid_from_account: String(formData.get("paid_from") ?? "").trim() || null,
+    project_id: projectId,
     contract_id: String(formData.get("contract") ?? "").trim() || null,
-    notes: String(formData.get("notes") ?? "").trim() || null,
+    notes: [paidBy ? `Paid by: ${paidBy}.` : null, extraNotes || null].filter(Boolean).join(" ") || null,
+    created_by: "portal:payment",
     last_modified_by: "portal:payment",
   });
   if (error) {

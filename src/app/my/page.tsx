@@ -434,7 +434,7 @@ export default async function MyPage({
     type MethodRow = { id: string; name: string };
     type ContractRow = { id: string; title: string; project_id: string };
     type PayRow = {
-      id: string; amount: number; paid_on: string; paid_to: string; paid_by: string;
+      id: string; amount: number; paid_on: string | null; description: string | null; notes: string | null;
       payment_methods: { name: string } | null; projects: { project_name: string } | null;
     };
     const [{ data: methodRows }, { data: tradeRows2 }, { data: contractRows }, { data: recentRows }] = await Promise.all([
@@ -442,9 +442,11 @@ export default async function MyPage({
       supabase.from("trades").select("trade").order("sort_order"),
       supabase.from("contracts").select("id, title, project_id").in("project_id", pmProjects.map((p) => p.id)).order("title"),
       supabase
-        .from("payment_log")
-        .select("id, amount, paid_on, paid_to, paid_by, payment_methods(name), projects(project_name)")
-        .order("paid_on", { ascending: false })
+        .from("transactions")
+        .select("id, amount, paid_on, description, notes, payment_methods(name), projects(project_name)")
+        .eq("direction", "out")
+        .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"])
+        .order("paid_on", { ascending: false, nullsFirst: false })
         .limit(6),
     ]);
     const methods = (methodRows ?? []) as MethodRow[];
@@ -531,10 +533,10 @@ export default async function MyPage({
               {recent.map((r) => (
                 <div key={r.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <span>
-                    <strong>${Number(r.amount).toLocaleString()}</strong> to {r.paid_to}
+                    <strong>${Number(r.amount).toLocaleString()}</strong> {r.description ?? ""}
                     <span className="muted"> · {r.projects?.project_name} · {r.payment_methods?.name}</span>
                   </span>
-                  <span className="muted">{r.paid_on} · by {r.paid_by}</span>
+                  <span className="muted">{r.paid_on}</span>
                 </div>
               ))}
             </div>
