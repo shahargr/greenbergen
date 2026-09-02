@@ -132,7 +132,7 @@ export default async function MyPage({
           .eq("app_user_id", me.app_user_id)
           .eq("status", "active")
       : Promise.resolve({ data: [] }),
-    getWeather(town),
+    hasHome ? Promise.resolve(null) : getWeather(town),
     myContact
       ? supabase
           .from("actions")
@@ -476,7 +476,43 @@ export default async function MyPage({
       )}
 
       <section className="youband" style={{ marginTop: hasHome ? 0 : 14 }}>
-        {([
+        {(hasHome ? [
+          ...(ownerProjects.length > 0 ? [{
+            href: "/my?panel=projects",
+            key: "projects",
+            label: "My projects",
+            sub: `${ownerProjects.length} as owner`,
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>,
+          }] : []),
+          {
+            href: "/my/tasks",
+            key: "tasks",
+            label: "Tasks",
+            sub: `${pendingOnMe} on you · ${onOthers} on others`,
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>,
+          },
+          ...(pmProjects.length > 0 ? [{
+            href: "/my/payments",
+            key: "payments",
+            label: "Payments",
+            sub: "Log & edit who was paid",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M14.8 8.8c-.5-1-1.5-1.5-2.8-1.5-1.7 0-2.9.9-2.9 2.2 0 3 6 1.6 6 4.7 0 1.4-1.3 2.3-3.1 2.3-1.5 0-2.6-.6-3.1-1.7" /><path d="M12 5.5v13" /></svg>,
+          }] : []),
+          {
+            href: "/my/invite",
+            key: "invite",
+            label: "Invite",
+            sub: "Bring residents & contractors",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>,
+          },
+          {
+            href: "/my?panel=addproject",
+            key: "addproject",
+            label: "Create a project",
+            sub: "A job under one of your homes",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M12 12v6M9 15h6" /></svg>,
+          },
+        ] : [
           {
             href: town ? "/my?panel=weather" : "/my?panel=town",
             key: town ? "weather" : "town",
@@ -499,11 +535,11 @@ export default async function MyPage({
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8Z" /><circle cx="7" cy="7" r="1.4" /></svg>,
           },
           {
-            href: "/my?panel=projects",
-            key: "projects",
-            label: "Projects",
-            sub: ownerProjects.length > 0 ? `${ownerProjects.length} as owner` : "Claim your address",
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>,
+            href: "/my?panel=local",
+            key: "local",
+            label: "Hire a pro",
+            sub: "Plumbers, electricians, more",
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15a8 8 0 0 1 16 0v2H4z" /><path d="M10 7.5V5a2 2 0 0 1 4 0v2.5" /><path d="M2 20h20" /></svg>,
           },
           {
             href: "/my/tasks",
@@ -512,34 +548,13 @@ export default async function MyPage({
             sub: `${pendingOnMe} on you · ${onOthers} on others`,
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>,
           },
-          ...(pmProjects.length > 0 ? [{
-            href: "/my/payments",
-            key: "payments",
-            label: "Payments",
-            sub: "Log & edit who was paid",
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M14.8 8.8c-.5-1-1.5-1.5-2.8-1.5-1.7 0-2.9.9-2.9 2.2 0 3 6 1.6 6 4.7 0 1.4-1.3 2.3-3.1 2.3-1.5 0-2.6-.6-3.1-1.7" /><path d="M12 5.5v13" /></svg>,
-          }] : []),
-          {
-            href: "/my?panel=local",
-            key: "local",
-            label: "Hire a pro",
-            sub: "Plumbers, electricians, more",
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15a8 8 0 0 1 16 0v2H4z" /><path d="M10 7.5V5a2 2 0 0 1 4 0v2.5" /><path d="M2 20h20" /></svg>,
-          },
           {
             href: "/my/invite",
             key: "invite",
-            label: "Invite friends",
+            label: "Invite",
             sub: "Neighbors make the deals",
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>,
           },
-          ...(pmProjects.length > 0 ? [{
-            href: "/my/financials",
-            key: "financials",
-            label: "Financials",
-            sub: "Contracted vs. paid",
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>,
-          }] : []),
         ]).map((t) => (
           <Link key={t.key} href={t.href} className={panel === t.key ? "tile selected" : "tile"}>
             <span className="tile-icon">{t.icon}</span>
