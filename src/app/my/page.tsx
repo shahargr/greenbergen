@@ -443,12 +443,17 @@ export default async function MyPage({
         </p>
       )}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f", marginTop: 0 }}>{flashOk}</p>}
-      {banner?.text &&
-        (banner.url ? (
-          <a href={banner.url} className="banner" target="_blank" rel="noreferrer">{banner.text}</a>
-        ) : (
-          <p className="banner">{banner.text}</p>
-        ))}
+      {banner?.text && (
+        <section className="hero-banner">
+          <p style={{ margin: 0, fontSize: 17, fontWeight: 700, lineHeight: 1.35 }}>{banner.text}</p>
+          {banner.url && (
+            <a className="btn" href={banner.url} target="_blank" rel="noreferrer"
+              style={{ background: "#fff", color: "var(--brand)", whiteSpace: "nowrap" }}>
+              Learn more →
+            </a>
+          )}
+        </section>
+      )}
 
       {/* New owner: claiming the address is the whole point of the page. */}
       {!hasHome && (
@@ -504,6 +509,13 @@ export default async function MyPage({
             label: "Invite",
             sub: "Bring residents & contractors",
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>,
+          },
+          {
+            href: "/my?panel=deals",
+            key: "deals",
+            label: "Local deals",
+            sub: `${deals.length} open near you`,
+            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8Z" /><circle cx="7" cy="7" r="1.4" /></svg>,
           },
           {
             href: "/my?panel=addproject",
