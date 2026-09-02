@@ -61,6 +61,19 @@ export default async function SettingsPage({
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14 }}>
+        <div className="card" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <span className="tile-icon" aria-hidden style={{ width: 42, height: 42 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
+          </span>
+          <span>
+            <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
+            <div className="muted small">
+              Signed in as <strong>{me?.email}</strong>
+              {me?.is_superadmin && <span className="extra-chip" style={{ marginLeft: 8 }}>admin</span>}
+            </div>
+          </span>
+        </div>
+
         <form action={saveProfile} className="card" style={{ display: "grid", gap: 10 }}>
           <h2 className="section-title">About you</h2>
           <div className="form-2col">
@@ -77,7 +90,6 @@ export default async function SettingsPage({
             <label htmlFor="st-address">Home address</label>
             <input id="st-address" name="address" className="input" defaultValue={contact?.address ?? ""} />
           </div>
-          <p className="muted small" style={{ margin: 0 }}>Signed in as {me?.email}.</p>
           <div>
             <button className="btn">Save</button>
           </div>

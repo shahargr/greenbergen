@@ -15,7 +15,7 @@ const MaskIcon = () => (
 
 // Admin-only view-as menu. A details element never closes on its own;
 // this one closes on selection, outside click, and Escape.
-export function MaskMenu({ views, current }: { views: string[]; current: string }) {
+export function MaskMenu({ views, current, email }: { views: string[]; current: string; email?: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -49,6 +49,11 @@ export function MaskMenu({ views, current }: { views: string[]; current: string 
       </button>
       {open && (
         <div className="rolemenu-list">
+          {email && (
+            <span className="rolemenu-item current" style={{ borderBottom: "1px solid #e5e7eb", fontSize: 12 }}>
+              {email}
+            </span>
+          )}
           {views.map((v) =>
             v === current ? (
               <span key={v} className="rolemenu-item current">{v} ✓</span>
