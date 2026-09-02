@@ -88,7 +88,13 @@ export default async function SettingsPage({
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="st-address">Home address</label>
-            <input id="st-address" name="address" className="input" defaultValue={contact?.address ?? ""} />
+            <input id="st-address" name="address" className="input"
+              defaultValue={contact?.address ?? homes[0]?.address ?? ""} />
+            {!contact?.address && homes[0]?.address && (
+              <p className="muted small" style={{ margin: "4px 0 0" }}>
+                Pre-filled from your claimed home — hit Save to keep it.
+              </p>
+            )}
           </div>
           <div>
             <button className="btn">Save</button>
