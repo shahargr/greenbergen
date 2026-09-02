@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { InviteBuilder } from "./InviteBuilder";
 
@@ -26,13 +27,24 @@ type SentInvitation = {
   acceptors: Acceptor[];
 };
 
-export default async function InvitePage() {
+export default async function InvitePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const { status: statusFilter } = await searchParams;
   const supabase = await createClient();
   const [{ data: me }, { data: sentData }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("my_invitation_results"),
   ]);
-  const sent: SentInvitation[] = (sentData as SentInvitation[]) ?? [];
+  const all: SentInvitation[] = (sentData as SentInvitation[]) ?? [];
+  // An invitation with acceptors counts as accepted whatever its row says.
+  const effective = (i: SentInvitation) => (i.acceptors.length > 0 ? "accepted" : i.status);
+  const counts = new Map<string, number>();
+  for (const i of all) counts.set(effective(i), (counts.get(effective(i)) ?? 0) + 1);
+  const filter = statusFilter && statusFilter !== "all" ? statusFilter : null;
+  const sent = filter ? all.filter((i) => effective(i) === filter) : all;
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
@@ -46,9 +58,26 @@ export default async function InvitePage() {
         senderName={me?.full_name ?? "Someone"}
       />
 
-      {sent.length > 0 && (
+      {all.length > 0 && (
         <div className="card" style={{ marginTop: 14, display: "grid", gap: 10 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Your invitations</h2>
+          <div className="btn-row" style={{ gap: 6 }}>
+            {["all", "pending", "accepted", "revoked", "expired"].map((st) => {
+              const n = st === "all" ? all.length : counts.get(st) ?? 0;
+              if (st !== "all" && n === 0) return null;
+              const active = (filter ?? "all") === st;
+              return (
+                <Link
+                  key={st}
+                  href={st === "all" ? "/my/invite" : `/my/invite?status=${st}`}
+                  className={active ? "btn small" : "btn ghost small"}
+                >
+                  {st} · {n}
+                </Link>
+              );
+            })}
+          </div>
+          {sent.length === 0 && <p className="muted small" style={{ margin: 0 }}>None with this status.</p>}
           {sent.map((i) => (
             <div key={i.id} className="card" style={{ padding: "12px 14px", display: "grid", gap: 6 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
