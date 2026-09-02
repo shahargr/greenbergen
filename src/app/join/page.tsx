@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
 import { createClient } from "@/lib/supabase/server";
 import { JoinForm, type InvitePrefill } from "./JoinForm";
@@ -19,7 +20,16 @@ export default async function JoinPage({
 
   return (
     <div className="page">
-      <SiteHeader />
+      <SiteHeader
+        right={
+          <Link href="/" className="iconlink" title="Home" aria-label="Home">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 10.5 12 3l9 7.5" />
+              <path d="M5 9.5V21h14V9.5" />
+            </svg>
+          </Link>
+        }
+      />
       <main className="wrap" style={{ flex: 1, width: "100%", maxWidth: 680, paddingBottom: 64 }}>
         <h1 style={{ fontSize: 28, margin: "12px 0 4px" }}>Join Green Bergen</h1>
         <p className="muted" style={{ marginTop: 0 }}>
