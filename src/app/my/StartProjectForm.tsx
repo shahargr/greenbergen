@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { FilePick } from "@/components/FilePick";
 import { createJob } from "./actions";
 
 // Start-a-project with three ways to describe the work: a name, optional
@@ -54,6 +55,14 @@ export function StartProjectForm({
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-desc">Tell us more (optional)</label>
           <textarea id="pj-desc" name="description" className="input" rows={3} />
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Photos, plans &amp; documents (optional)</label>
+          <div className="btn-row" style={{ alignItems: "flex-start" }}>
+            <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
+            <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
+            <FilePick name="docs" label="📄 PDF / plans" accept="application/pdf" />
+          </div>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Or just say it (optional)</label>

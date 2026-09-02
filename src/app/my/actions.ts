@@ -117,6 +117,37 @@ export async function createJob(formData: FormData) {
     // A failed voice upload never blocks the project itself.
   }
 
+  // Photos, plans and PDFs describing the project - uploaded after the
+  // response so creation never waits on them.
+  const jobPhotos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+  const jobDocs = formData.getAll("docs").filter((f): f is File => f instanceof File && f.size > 0);
+  if (data.project_id && (jobPhotos.length || jobDocs.length)) {
+    const newProjectId = data.project_id as string;
+    after(async () => {
+      for (const [i, file] of [...jobPhotos, ...jobDocs].entries()) {
+        const isImage = file.type.startsWith("image/");
+        const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+        const ext2 = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".pdf")).toLowerCase();
+        const fpath = `${newProjectId}/description-files/${Date.now()}-${i}${ext2}`;
+        const fbytes = await file.arrayBuffer();
+        const { error: fErr } = await supabase.storage
+          .from("project-media")
+          .upload(fpath, fbytes, { contentType: file.type || undefined, upsert: true });
+        if (!fErr) {
+          await supabase.rpc("record_project_file", {
+            p_project_id: newProjectId,
+            p_path: fpath,
+            p_file_name: file.name || `project-file${ext2}`,
+            p_mime: file.type || null,
+            p_size: file.size,
+            p_caption: `Project description (${isPdf ? "document" : "photo"})`,
+            p_kind: isImage ? "photo" : isPdf ? "document" : "other",
+          });
+        }
+      }
+    });
+  }
+
   revalidatePath("/my");
   redirect("/my");
 }
