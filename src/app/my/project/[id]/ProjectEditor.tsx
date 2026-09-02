@@ -33,7 +33,6 @@ export function ProjectEditor({ project, perms }: { project: ProjectView; perms:
         <div className="small" style={{ display: "grid", gap: 4 }}>
           <span><span className="muted">Status:</span> {project.status ?? "—"}</span>
           <span><span className="muted">Address:</span> {project.address ?? "—"}</span>
-          <span style={{ whiteSpace: "pre-wrap" }}><span className="muted">Notes:</span> {project.notes ?? "—"}</span>
         </div>
       </div>
     );

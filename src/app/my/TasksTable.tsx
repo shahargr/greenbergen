@@ -2,6 +2,7 @@
 
 import { useMemo, useState, Fragment } from "react";
 import Link from "next/link";
+import { TradeIcon } from "@/components/TradeIcon";
 
 export type TableTask = {
   id: string;
@@ -24,10 +25,15 @@ const PRIORITY_ORDER = ["High", "Medium", "Low", "No Priority"];
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks }: { tasks: TableTask[] }) {
+export function TasksTable({ tasks, initialProject, showTradeTiles = true, todayIso }: {
+  tasks: TableTask[];
+  initialProject?: string;
+  showTradeTiles?: boolean;
+  todayIso: string;
+}) {
   const [state, setState] = useState<"open" | "closed" | "all">("open");
-  const [scope, setScope] = useState<"all" | "you" | "others">("you");
-  const [project, setProject] = useState("all");
+  const [scope, setScope] = useState<"all" | "you" | "others">("all");
+  const [project, setProject] = useState(initialProject ?? "all");
   const [trade, setTrade] = useState("all");
   const [person, setPerson] = useState("all");
   const [priority, setPriority] = useState("all");
@@ -38,14 +44,27 @@ export function TasksTable({ tasks }: { tasks: TableTask[] }) {
     () => [...new Set(tasks.map((t) => t.project ?? "No project"))].sort(),
     [tasks]
   );
-  const trades = useMemo(
-    () => [...new Set(tasks.map((t) => t.trade).filter((x): x is string => !!x))].sort(),
-    [tasks]
-  );
   const people = useMemo(
     () => [...new Set(tasks.map((t) => t.assignee).filter((x): x is string => !!x))].sort(),
     [tasks]
   );
+
+  // Trade tiles: open/overdue/total per trade within the selected project.
+  const tradeStats = useMemo(() => {
+    const m = new Map<string, { open: number; overdue: number; total: number }>();
+    for (const t of tasks) {
+      if (project !== "all" && (t.project ?? "No project") !== project) continue;
+      if (!t.trade) continue;
+      const s0 = m.get(t.trade) ?? { open: 0, overdue: 0, total: 0 };
+      s0.total += 1;
+      if (t.state === "open") {
+        s0.open += 1;
+        if (t.target_date && t.target_date < todayIso) s0.overdue += 1;
+      }
+      m.set(t.trade, s0);
+    }
+    return [...m.entries()].sort((a, b) => b[1].open - a[1].open);
+  }, [tasks, project, todayIso]);
 
   const shown = tasks
     .filter(
@@ -71,23 +90,19 @@ export function TasksTable({ tasks }: { tasks: TableTask[] }) {
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <div className="btn-row" style={{ gap: 8 }}>
+        <select className="input" value={project} onChange={pick(setProject)} style={{ maxWidth: 190 }}>
+          <option value="all">All projects</option>
+          {projects.map((p) => <option key={p}>{p}</option>)}
+        </select>
         <select className="input" value={state} onChange={pick(setState)} style={{ maxWidth: 110 }}>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
           <option value="all">All</option>
         </select>
         <select className="input" value={scope} onChange={pick(setScope)} style={{ maxWidth: 125 }}>
+          <option value="all">Everyone</option>
           <option value="you">On you</option>
           <option value="others">On others</option>
-          <option value="all">Everyone</option>
-        </select>
-        <select className="input" value={project} onChange={pick(setProject)} style={{ maxWidth: 170 }}>
-          <option value="all">All projects</option>
-          {projects.map((p) => <option key={p}>{p}</option>)}
-        </select>
-        <select className="input" value={trade} onChange={pick(setTrade)} style={{ maxWidth: 150 }}>
-          <option value="all">All trades</option>
-          {trades.map((t) => <option key={t}>{t}</option>)}
         </select>
         <select className="input" value={person} onChange={pick(setPerson)} style={{ maxWidth: 170 }}>
           <option value="all">Anyone</option>
@@ -102,6 +117,27 @@ export function TasksTable({ tasks }: { tasks: TableTask[] }) {
           <option value="updated">By last update</option>
         </select>
       </div>
+
+      {showTradeTiles && tradeStats.length > 0 && (
+        <div className="tradestat-grid">
+          {tradeStats.map(([tr, st]) => (
+            <button
+              key={tr}
+              type="button"
+              className={trade === tr ? "tradestat on" : "tradestat"}
+              onClick={() => { setTrade(trade === tr ? "all" : tr); setOpen(null); }}
+            >
+              <span className="tradestat-icon"><TradeIcon trade={tr} /></span>
+              <span className="tradestat-name">{tr}</span>
+              <span className="tradestat-nums">
+                <strong>{st.open}</strong> open
+                {st.overdue > 0 && <span className="tradestat-late"> · {st.overdue} late</span>}
+                <span className="muted"> · {st.total}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {shown.length === 0 ? (
         <p className="muted small" style={{ margin: 0 }}>Nothing matches these filters.</p>

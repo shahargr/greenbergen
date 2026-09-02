@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectEditor } from "./ProjectEditor";
 import { projectPerms } from "./actions";
+import { TasksTable, type TableTask } from "../../TasksTable";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +21,6 @@ type FileRow = {
   kind: string | null;
   caption: string | null;
   created_at: string;
-};
-
-type TaskRow = {
-  id: string;
-  action: string;
-  status: string;
-  priority: string | null;
-  target_date: string | null;
 };
 
 // Project drill-down: details (unlock-to-edit per rank), the people on it,
@@ -58,7 +51,7 @@ export default async function ProjectPage({
     );
   }
 
-  const [{ data: parent }, perms, { data: memberRows }, { data: fileRows }, { data: openRows }, { count: closedCount }] =
+  const [{ data: parent }, perms, { data: memberRows }, { data: fileRows }, { data: taskData }, { data: contractAmountRows }, { data: paidRows }] =
     await Promise.all([
       project.parent_project_id
         ? supabase.from("projects").select("id, project_name").eq("id", project.parent_project_id).maybeSingle()
@@ -75,18 +68,18 @@ export default async function ProjectPage({
         .eq("project_id", id)
         .order("created_at", { ascending: false })
         .limit(24),
+      supabase.rpc("portal_tasks", { p_project_id: id, p_open_limit: 200, p_closed_limit: 200 }),
       supabase
-        .from("actions")
-        .select("id, action, status, priority, target_date")
+        .from("contracts")
+        .select("amount")
         .eq("project_id", id)
-        .not("status", "in", "(Completed,Cancelled,Superseded)")
-        .order("target_date", { ascending: true, nullsFirst: false })
-        .limit(50),
+        .eq("direction", "payable"),
       supabase
-        .from("actions")
-        .select("id", { count: "exact", head: true })
+        .from("transactions")
+        .select("amount")
         .eq("project_id", id)
-        .in("status", ["Completed", "Cancelled", "Superseded"]),
+        .eq("direction", "out")
+        .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"]),
     ]);
 
   // One line per person - a contact can hold several seats.
@@ -109,7 +102,29 @@ export default async function ProjectPage({
       if (data?.signedUrl) signed.set(f.id, data.signedUrl);
     })
   );
-  const openTasks = (openRows ?? []) as TaskRow[];
+  type PortalTask = {
+    id: string; action: string; status: string; priority: string | null;
+    target_date: string | null; last_updated: string | null; notes: string | null;
+    project: string | null; state: "open" | "closed";
+    assignee_id: string | null; assignee: string | null; trade: string | null;
+  };
+  const { data: meRow } = await supabase.rpc("me");
+  const myContactId: string | null = meRow?.contact_id ?? null;
+  const projectTasks: TableTask[] = (((taskData ?? []) as PortalTask[])).map((t) => ({
+    id: t.id, action: t.action, status: t.status, priority: t.priority,
+    target_date: t.target_date, last_updated: t.last_updated, notes: t.notes,
+    project: t.project,
+    who: (myContactId && t.assignee_id === myContactId ? "you" : "others") as "you" | "others",
+    state: t.state, trade: t.trade, assignee: t.assignee,
+  }));
+  const openCount = projectTasks.filter((t) => t.state === "open").length;
+  const doneCount = projectTasks.filter((t) => t.state === "closed").length;
+  const deliveryPct = openCount + doneCount > 0 ? Math.round((doneCount / (openCount + doneCount)) * 100) : 0;
+  const contracted = ((contractAmountRows ?? []) as { amount: number | null }[])
+    .reduce((sum, c) => sum + Number(c.amount ?? 0), 0);
+  const paid = ((paidRows ?? []) as { amount: number | null }[])
+    .reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
+  const budgetPct = contracted > 0 ? Math.min(100, Math.round((paid / contracted) * 100)) : null;
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
@@ -132,6 +147,27 @@ export default async function ProjectPage({
           project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
           perms={perms}
         />
+
+        <div className="card" style={{ display: "grid", gap: 12 }}>
+          <div>
+            <div className="small" style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <strong>Deliveries</strong>
+              <span className="muted">{doneCount} of {openCount + doneCount} tasks done · {deliveryPct}%</span>
+            </div>
+            <div className="progressbar"><span style={{ width: `${deliveryPct}%` }} /></div>
+          </div>
+          {budgetPct !== null && (
+            <div>
+              <div className="small" style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <strong>Funds / budget</strong>
+                <span className="muted">
+                  ${Math.round(paid).toLocaleString()} paid of ${Math.round(contracted).toLocaleString()} contracted · {budgetPct}%
+                </span>
+              </div>
+              <div className="progressbar"><span style={{ width: `${budgetPct}%`, background: "#a8842c" }} /></div>
+            </div>
+          )}
+        </div>
 
         {perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
           <div className="card">
@@ -156,20 +192,11 @@ export default async function ProjectPage({
         )}
 
         <div className="card">
-          <h2 className="section-title">Tasks · {openTasks.length} open{closedCount ? ` · ${closedCount} done` : ""}</h2>
-          {openTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing open here.</p>}
-          <div style={{ display: "grid", gap: 8 }}>
-            {openTasks.map((t) => (
-              <Link key={t.id} href={`/my/task/${t.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
-                <strong style={{ fontSize: 15 }}>{t.action}</strong>
-                <div className="muted small">
-                  {t.status}
-                  {t.priority && t.priority !== "Missing" && <> · {t.priority}</>}
-                  {t.target_date && <> · due {t.target_date}</>}
-                </div>
-              </Link>
-            ))}
-          </div>
+          <h2 className="section-title">Tasks · {openCount} open · {doneCount} done</h2>
+          {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
+          {projectTasks.length > 0 && (
+            <TasksTable tasks={projectTasks} todayIso={new Date().toISOString().slice(0, 10)} />
+          )}
         </div>
 
         {files.length > 0 && (

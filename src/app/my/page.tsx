@@ -9,15 +9,6 @@ import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
 const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
 
-type TaskRow = {
-  id: string;
-  action: string | null;
-  status: string;
-  priority: string | null;
-  target_date: string | null;
-  projects: { project_name: string | null } | null;
-};
-
 type Vendor = {
   id: string;
   name: string;
@@ -188,69 +179,28 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "tasks") {
-    const FIELDS = "id, action, status, priority, target_date, last_updated, notes, contract_id, assigned_to_contact_id, projects(project_name)";
-    const [openRes, closedRes] = await Promise.all([
-      supabase
-        .from("actions")
-        .select(FIELDS)
-        .not("status", "in", openFilter)
-        .order("target_date", { ascending: true, nullsFirst: false })
-        .limit(250),
-      supabase
-        .from("actions")
-        .select(FIELDS)
-        .in("status", CLOSED_STATUSES)
-        .order("last_updated", { ascending: false })
-        .limit(150),
-    ]);
-    type PanelTaskRow = TaskRow & {
-      notes: string | null; last_updated: string | null;
-      contract_id: string | null; assigned_to_contact_id: string | null;
+    type PortalTask = {
+      id: string; action: string; status: string; priority: string | null;
+      target_date: string | null; last_updated: string | null; notes: string | null;
+      project: string | null; state: "open" | "closed";
+      assignee_id: string | null; assignee: string | null; trade: string | null;
     };
-    const openRows = (openRes.data ?? []) as unknown as PanelTaskRow[];
-    const closedRows = (closedRes.data ?? []) as unknown as PanelTaskRow[];
-    const allRows = [...openRows, ...closedRows];
+    const { data: portalData } = await supabase.rpc("portal_tasks");
+    const tableTasks = (((portalData ?? []) as PortalTask[])).map((t) => ({
+      id: t.id,
+      action: t.action,
+      status: t.status,
+      priority: t.priority,
+      target_date: t.target_date,
+      last_updated: t.last_updated,
+      notes: t.notes,
+      project: t.project,
+      who: (myContact && t.assignee_id === myContact ? "you" : "others") as "you" | "others",
+      state: t.state,
+      trade: t.trade,
+      assignee: t.assignee,
+    }));
 
-    // Trade per task: the contract's trade first, else the assignee's
-    // registered trade. Assignee names ride along for the person filter.
-    const contractIds = [...new Set(allRows.map((r) => r.contract_id).filter(Boolean))] as string[];
-    const assigneeIds = [...new Set(allRows.map((r) => r.assigned_to_contact_id).filter(Boolean))] as string[];
-    const [{ data: contractTradeRows }, { data: roleRows }, { data: nameRows }] = await Promise.all([
-      contractIds.length
-        ? supabase.from("contracts").select("id, trade").in("id", contractIds)
-        : Promise.resolve({ data: [] }),
-      assigneeIds.length
-        ? supabase.from("contact_trade_roles").select("contact_id, trade").in("contact_id", assigneeIds)
-        : Promise.resolve({ data: [] }),
-      assigneeIds.length
-        ? supabase.from("contacts").select("id, name, person_name").in("id", assigneeIds)
-        : Promise.resolve({ data: [] }),
-    ]);
-    const tradeByContract = new Map(((contractTradeRows ?? []) as { id: string; trade: string | null }[]).map((c) => [c.id, c.trade]));
-    const tradeByContact = new Map<string, string>();
-    for (const r of (roleRows ?? []) as { contact_id: string; trade: string }[]) {
-      if (!tradeByContact.has(r.contact_id)) tradeByContact.set(r.contact_id, r.trade);
-    }
-    const nameByContact = new Map(((nameRows ?? []) as { id: string; name: string | null; person_name: string | null }[])
-      .map((c) => [c.id, c.person_name ?? c.name ?? "Unnamed"]));
-
-    const toTable = (rows: PanelTaskRow[], state: "open" | "closed") =>
-      rows.map((t) => ({
-        id: t.id,
-        action: t.action ?? "(untitled)",
-        status: t.status,
-        priority: t.priority,
-        target_date: t.target_date,
-        last_updated: t.last_updated,
-        notes: t.notes,
-        project: t.projects?.project_name ?? null,
-        who: (myContact && t.assigned_to_contact_id === myContact ? "you" : "others") as "you" | "others",
-        state,
-        trade: (t.contract_id ? tradeByContract.get(t.contract_id) : null) ??
-               (t.assigned_to_contact_id ? tradeByContact.get(t.assigned_to_contact_id) : null) ?? null,
-        assignee: t.assigned_to_contact_id ? (nameByContact.get(t.assigned_to_contact_id) ?? null) : null,
-      }));
-    const tableTasks = [...toTable(openRows, "open"), ...toTable(closedRows, "closed")];
     detail = (
       <>
         {leads.length > 0 && (
@@ -274,8 +224,8 @@ export default async function MyPage({
             </div>
           </>
         )}
-        <h2 className="section-title">Open tasks</h2>
-        <TasksTable tasks={tableTasks} />
+        <h2 className="section-title">Tasks</h2>
+        <TasksTable tasks={tableTasks} todayIso={new Date().toISOString().slice(0, 10)} />
       </>
     );
   } else if (panel === "weather") {
@@ -448,6 +398,14 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "projects") {
+    type ProjectOverview = {
+      id: string; project_name: string; address: string | null; status: string;
+      parent_project_id: string | null; is_template: boolean;
+      open_count: number; last_activity: string;
+    };
+    const { data: overviewData } = await supabase.rpc("portal_projects_overview");
+    const ownerIds = new Set(ownerProjects.map((p) => p.id));
+    const overview = (((overviewData ?? []) as ProjectOverview[])).filter((p) => ownerIds.has(p.id));
     detail = (
       <>
         <h2 className="section-title">Your projects — as owner</h2>
@@ -455,16 +413,20 @@ export default async function MyPage({
           <Link href="/my?panel=addproject">＋ Start a new project</Link>
         </p>
         <div style={{ display: "grid", gap: 8 }}>
-          {ownerProjects.map((p) => (
-            <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
-              <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
-              <div className="muted small">
-                {p.parent_project_id ? "Job" : "Home"}
-                {p.address && <> · {p.address}</>} · {p.status}
-              </div>
+          {overview.map((p) => (
+            <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <span>
+                <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
+                <div className="muted small">
+                  {p.parent_project_id ? "Job" : "Home"}
+                  {p.address && <> · {p.address}</>} · {p.status}
+                  <> · active {new Date(p.last_activity).toLocaleDateString()}</>
+                </div>
+              </span>
+              <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>{p.open_count} open</span>
             </Link>
           ))}
-          {ownerProjects.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
+          {overview.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
         </div>
       </>
     );
