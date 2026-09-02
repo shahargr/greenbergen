@@ -76,7 +76,7 @@ export function InquiryForm({ projectId }: { projectId: string }) {
             checked={kind === "question"}
             onChange={() => setKind("question")}
           />
-          Ask us
+          Ask a question
         </label>
         <label className="radio-opt">
           <input
@@ -86,7 +86,7 @@ export function InquiryForm({ projectId }: { projectId: string }) {
             checked={kind === "site_visit"}
             onChange={() => setKind("site_visit")}
           />
-          Site visit
+          Schedule site visit
         </label>
           {kind === "site_visit" && (
             <input
