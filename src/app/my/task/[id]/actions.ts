@@ -344,3 +344,103 @@ export async function completeTask(taskId: string, formData: FormData) {
   revalidatePath("/my");
   redirect("/my?panel=tasks");
 }
+// Comments never require unlocking: anyone who can SEE the task (project
+// member) can leave one. RLS on task_comments is the enforcement; the
+// author stamp comes from the session, not the form.
+export async function addComment(taskId: string, formData: FormData) {
+  const supabase = await createClient();
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Write the comment first.")}`);
+  }
+  const { data: me } = await supabase.rpc("me");
+  const { error } = await supabase.from("task_comments").insert({
+    action_id: taskId,
+    author_contact_id: me?.contact_id ?? null,
+    author_name: me?.full_name ?? me?.email ?? "Someone",
+    body,
+  });
+  revalidatePath(`/my/task/${taskId}`);
+  redirect(error
+    ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}`
+    : `/my/task/${taskId}?saved=1`);
+}
+
+// The person you need is not on the project yet: create the contact and a
+// contractor seat in one go, optionally assigning them this task. RLS is
+// the boundary (own-contact insert + can_invite_to_project on the seat);
+// if the email already belongs to a contact you can see, that contact is
+// reused instead of duplicated.
+export async function addContractor(taskId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data: task } = await supabase
+    .from("actions")
+    .select("id, project_id, assigned_to_contact_id")
+    .eq("id", taskId)
+    .maybeSingle();
+  if (!task?.project_id) redirect("/my?panel=tasks");
+
+  const name = String(formData.get("nc_name") ?? "").trim();
+  const email = String(formData.get("nc_email") ?? "").trim().toLowerCase() || null;
+  const phone = String(formData.get("nc_phone") ?? "").trim() || null;
+  if (!name) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("The contractor needs at least a name.")}`);
+  }
+
+  const { data: me } = await supabase.rpc("me");
+
+  let contactId: string | null = null;
+  if (email) {
+    const { data: existing } = await supabase
+      .from("contacts").select("id").eq("email_a", email).maybeSingle();
+    if (existing) contactId = existing.id;
+  }
+  if (!contactId) {
+    const { data: created, error: cErr } = await supabase
+      .from("contacts")
+      .insert({
+        name, person_name: name, email_a: email, phone,
+        owner_user_id: me?.app_user_id ?? null,
+        created_by: "portal:task", source: "side_interface",
+      })
+      .select("id")
+      .maybeSingle();
+    if (cErr || !created) {
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent(cErr?.message ?? "Could not create the contact.")}`);
+    }
+    contactId = created.id;
+  }
+
+  const { data: seat } = await supabase
+    .from("project_members")
+    .select("id, status")
+    .eq("project_id", task.project_id)
+    .eq("contact_id", contactId)
+    .maybeSingle();
+  if (!seat) {
+    const { error: mErr } = await supabase.from("project_members").insert({
+      project_id: task.project_id,
+      contact_id: contactId,
+      role: "collaborator",
+      project_role: "contractor",
+      status: "active",
+    });
+    if (mErr) {
+      redirect(`/my/task/${taskId}?error=${encodeURIComponent(
+        mErr.message.includes("row-level security")
+          ? "Adding people to this project is not yours to do."
+          : mErr.message)}`);
+    }
+  }
+
+  const p = await taskPerms(task.project_id, task.assigned_to_contact_id);
+  if (p.assign) {
+    await supabase
+      .from("actions")
+      .update({ assigned_to_contact_id: contactId, assigned_to_persona_id: null, last_modified_by: "portal:task" })
+      .eq("id", taskId);
+  }
+  revalidatePath(`/my/task/${taskId}`);
+  revalidatePath("/my");
+  redirect(`/my/task/${taskId}?saved=1`);
+}

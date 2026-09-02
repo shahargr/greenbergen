@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { saveTask, completeTask, setTaskStatus, uploadEvidence, type TaskPerms } from "./actions";
+import { saveTask, completeTask, setTaskStatus, uploadEvidence, addComment, addContractor, type TaskPerms } from "./actions";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 
 export type TaskView = {
@@ -29,6 +29,7 @@ export type TaskView = {
 };
 
 export type MemberOption = { contactId: string; name: string };
+export type CommentView = { id: string; author_name: string; body: string; created_at: string };
 
 const OPEN_STATUSES = ["Not Started", "In Progress", "Pending on Others", "Parked"];
 const PRIORITIES = ["No Priority", "Low", "Medium", "High"];
@@ -50,34 +51,40 @@ export function TaskEditor({
   task,
   perms,
   members,
+  comments,
   isOpen,
   evidenceCount,
 }: {
   task: TaskView;
   perms: TaskPerms;
   members: MemberOption[];
+  comments: CommentView[];
   isOpen: boolean;
   evidenceCount: number;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [status, setStatus] = useState(task.status);
-  const [mode, setMode] = useState<"none" | "upload">("none");
+  const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
   const [moveTo, setMoveTo] = useState(task.status);
   const [closeReason, setCloseReason] = useState("");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busyEvidence, setBusyEvidence] = useState(false);
 
-  async function submitEvidence(e: React.FormEvent<HTMLFormElement>) {
+  async function submitPhotos(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.currentTarget;
+    const input = e.currentTarget.querySelector<HTMLInputElement>('input[name="photos"]');
     const fd = new FormData();
-    const input = form.querySelector<HTMLInputElement>('input[name="photos"]');
     for (const f of Array.from(input?.files ?? [])) fd.append("files", f);
-    if (voiceBlob) {
-      const ext = voiceBlob.type.includes("mp4") ? "m4a" : "webm";
-      fd.append("files", new File([voiceBlob], `voice-note.${ext}`, { type: voiceBlob.type }));
-    }
     if (![...fd.keys()].length) return;
+    setBusyEvidence(true);
+    await uploadEvidence(task.id, fd);
+  }
+
+  async function submitVoice() {
+    if (!voiceBlob) return;
+    const fd = new FormData();
+    const ext = voiceBlob.type.includes("mp4") ? "m4a" : "webm";
+    fd.append("files", new File([voiceBlob], `voice-note.${ext}`, { type: voiceBlob.type }));
     setBusyEvidence(true);
     await uploadEvidence(task.id, fd);
   }
@@ -111,8 +118,78 @@ export function TaskEditor({
       })
     : [...new Set([task.status, "Completed"])];
 
+  const canAttach = isOpen && (perms.notes || perms.complete);
+
   return (
     <div style={{ display: "grid", gap: 14 }}>
+      {isOpen && (
+        <div className="card" style={{ display: "grid", gap: 10 }}>
+          <div className="btn-row">
+            {canAttach && (
+              <button type="button" className={quick === "photo" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "photo" ? "none" : "photo")}>
+                📷 Add photo
+              </button>
+            )}
+            {canAttach && (
+              <button type="button" className={quick === "audio" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "audio" ? "none" : "audio")}>
+                🎙 Record audio
+              </button>
+            )}
+            <button type="button" className={quick === "comment" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "comment" ? "none" : "comment")}>
+              💬 Add comment
+            </button>
+            <span className="muted small" style={{ alignSelf: "center" }}>
+              {evidenceCount > 0 ? `${evidenceCount} file${evidenceCount > 1 ? "s" : ""} attached` : ""}
+            </span>
+          </div>
+
+          {quick === "photo" && (
+            <form onSubmit={submitPhotos} style={{ display: "grid", gap: 8 }}>
+              <input type="file" name="photos" accept="image/*" capture="environment" multiple className="small" />
+              <div className="btn-row">
+                <button className="btn" disabled={busyEvidence}>{busyEvidence ? "Uploading..." : "Upload"}</button>
+              </div>
+            </form>
+          )}
+
+          {quick === "audio" && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <VoiceRecorder onReady={setVoiceBlob} />
+              <div className="btn-row">
+                <button type="button" className="btn" disabled={!voiceBlob || busyEvidence} onClick={submitVoice}>
+                  {busyEvidence ? "Saving..." : "Save recording"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {quick === "comment" && (
+            <form action={addComment.bind(null, task.id)} style={{ display: "grid", gap: 8 }}>
+              <textarea name="body" className="input" rows={2} required placeholder="Add a comment — no unlock needed" />
+              <div className="btn-row">
+                <button className="btn">Post comment</button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {comments.length > 0 && (
+        <div className="card" style={{ display: "grid", gap: 8 }}>
+          <h2 className="section-title" style={{ margin: 0 }}>Comments · {comments.length}</h2>
+          {comments.map((c) => (
+            <div key={c.id} className="small" style={{ borderLeft: "3px solid var(--brand, #1f6b45)", paddingLeft: 10 }}>
+              <span className="muted">
+                <strong style={{ color: "inherit" }}>{c.author_name}</strong>
+                {" · "}
+                {new Date(c.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              </span>
+              <div style={{ whiteSpace: "pre-line" }}>{c.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form action={saveTask.bind(null, task.id)} className="card" style={{ display: "grid", gap: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Task</h2>
@@ -232,12 +309,29 @@ export function TaskEditor({
 
         <Row label="Assigned to">
           {unlocked && perms.assign ? (
-            <select name="assigned_to" className="input" defaultValue={task.assignedToContactId ?? ""} style={{ maxWidth: 260 }}>
-              <option value="">Unassigned</option>
-              {members.map((m) => (
-                <option key={m.contactId} value={m.contactId}>{m.name}</option>
-              ))}
-            </select>
+            <span style={{ display: "grid", gap: 8 }}>
+              <select name="assigned_to" className="input" defaultValue={task.assignedToContactId ?? ""} style={{ maxWidth: 260 }}>
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.contactId} value={m.contactId}>{m.name}</option>
+                ))}
+              </select>
+              <details>
+                <summary className="muted small" style={{ cursor: "pointer" }}>
+                  Not on the project yet? Add a contractor
+                </summary>
+                <span style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                  <input name="nc_name" className="input" placeholder="Name (required)" />
+                  <input name="nc_email" type="email" className="input" placeholder="Email (optional)" />
+                  <input name="nc_phone" type="tel" className="input" placeholder="Phone (optional)" />
+                  <span>
+                    <button className="btn ghost" formAction={addContractor.bind(null, task.id)} formNoValidate>
+                      ＋ Add to project &amp; assign
+                    </button>
+                  </span>
+                </span>
+              </details>
+            </span>
           ) : (
             task.assignedToName ?? "Unassigned"
           )}
@@ -276,13 +370,7 @@ export function TaskEditor({
             </span>
           </div>
 
-          {mode === "none" && (
-            <div style={{ display: "grid", gap: 10 }}>
-              <div className="btn-row">
-                <button type="button" className="btn ghost" onClick={() => setMode("upload")}>
-                  ⬆ Upload evidence
-                </button>
-              </div>
+          <div style={{ display: "grid", gap: 10 }}>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label htmlFor="te-move">Move this task to</label>
                 <div className="btn-row">
@@ -318,7 +406,7 @@ export function TaskEditor({
                       ? "This task requires an AFTER photo attached as evidence before it can close."
                       : evidenceCount > 0
                         ? "Evidence is attached — Apply closes the task; add a note if you like."
-                        : "No evidence attached: upload some first, or write a short reason for closing without it."}
+                        : "No evidence attached: add photos or audio up top, or write a short reason for closing without it."}
                   </p>
                   <textarea
                     className="input"
@@ -330,26 +418,6 @@ export function TaskEditor({
                 </div>
               )}
             </div>
-          )}
-
-          {mode === "upload" && (
-            <form onSubmit={submitEvidence} style={{ display: "grid", gap: 10 }}>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label>Photos — pick as many as you need</label>
-                <input type="file" name="photos" accept="image/*" capture="environment" multiple className="small" />
-              </div>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label>Voice note (optional)</label>
-                <VoiceRecorder onReady={setVoiceBlob} />
-              </div>
-              <div className="btn-row">
-                <button className="btn" disabled={busyEvidence}>
-                  {busyEvidence ? "Uploading..." : "Upload"}
-                </button>
-                <button type="button" className="btn ghost" onClick={() => setMode("none")}>Cancel</button>
-              </div>
-            </form>
-          )}
 
         </div>
       )}

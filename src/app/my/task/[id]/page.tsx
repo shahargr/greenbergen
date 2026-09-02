@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { TaskEditor, type TaskView, type MemberOption } from "./TaskEditor";
+import { TaskEditor, type TaskView, type MemberOption, type CommentView } from "./TaskEditor";
 import { taskPerms } from "./actions";
 
 const CLOSED = ["Completed", "Cancelled", "Force Cancelled"];
@@ -46,6 +46,14 @@ export default async function TaskPage({
   const t = rawTask as unknown as TaskFull;
 
   const perms = await taskPerms(t.project_id, t.assigned_to_contact_id);
+
+  const { data: commentRows } = await supabase
+    .from("task_comments")
+    .select("id, author_name, body, created_at")
+    .eq("action_id", t.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const comments = (commentRows ?? []) as CommentView[];
 
   const { count: evidenceCount } = await supabase
     .from("file_links")
@@ -120,7 +128,7 @@ export default async function TaskPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
-      <TaskEditor task={view} perms={perms} members={members} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
+      <TaskEditor task={view} perms={perms} members={members} comments={comments} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
     </main>
   );
 }
