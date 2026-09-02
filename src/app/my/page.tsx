@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, createJob, setTown, toggleDeal } from "./actions";
+import { createHome, setTown, toggleDeal } from "./actions";
+import { StartProjectForm } from "./StartProjectForm";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
 const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
@@ -389,21 +390,7 @@ export default async function MyPage({
     detail = (
       <>
         <h2 className="section-title">Start a project</h2>
-        {flashError && <p className="error small">{flashError}</p>}
-        <form action={createJob} style={{ display: "grid", gap: 10, maxWidth: 440 }}>
-          <input type="hidden" name="parent" value={projects[0].id} />
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="pj-name">What are we doing?</label>
-            <input id="pj-name" name="name" className="input" required placeholder="e.g. Kitchen remodel, new pool, generator" />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="pj-desc">Tell us more (optional)</label>
-            <textarea id="pj-desc" name="description" className="input" rows={3} />
-          </div>
-          <div>
-            <button className="btn">Create project</button>
-          </div>
-        </form>
+        <StartProjectForm parentId={projects[0].id} error={flashError} />
       </>
     );
   }

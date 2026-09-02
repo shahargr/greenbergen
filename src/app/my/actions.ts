@@ -49,11 +49,14 @@ export async function setTown(formData: FormData) {
 }
 
 // Adds a job under the owner's home container (create_home_project with a
-// parent), governed by the agreement like everything else.
+// parent), governed by the agreement like everything else. An optional voice
+// note describing the project is stored in project-media and recorded on the
+// new project through the file store.
 export async function createJob(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const parentId = String(formData.get("parent") ?? "").trim();
+  const audio = formData.get("audio");
   if (!name || !parentId) {
     redirect(`/my?panel=addproject&error=${encodeURIComponent("Give the project a name.")}`);
   }
@@ -66,6 +69,28 @@ export async function createJob(formData: FormData) {
   if (error || !data?.ok) {
     redirect(`/my?panel=addproject&error=${encodeURIComponent(data?.reason ?? "Could not create the project — try again.")}`);
   }
+
+  if (audio instanceof File && audio.size > 0 && data.project_id) {
+    const ext = audio.type.includes("mp4") ? ".m4a" : ".webm";
+    const path = `${data.project_id}/description-${Date.now()}${ext}`;
+    const bytes = await audio.arrayBuffer();
+    const { error: upErr } = await supabase.storage
+      .from("project-media")
+      .upload(path, bytes, { contentType: audio.type || undefined, upsert: true });
+    if (!upErr) {
+      await supabase.rpc("record_project_file", {
+        p_project_id: data.project_id,
+        p_path: path,
+        p_file_name: `project-description${ext}`,
+        p_mime: audio.type || null,
+        p_size: audio.size,
+        p_caption: "Project description (voice note)",
+        p_kind: "audio",
+      });
+    }
+    // A failed voice upload never blocks the project itself.
+  }
+
   revalidatePath("/my");
   redirect("/my");
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { saveTask, completeTask, uploadEvidence, type TaskPerms } from "./actions";
-import { VoiceRecorder } from "./VoiceRecorder";
+import { VoiceRecorder } from "@/components/VoiceRecorder";
 
 export type TaskView = {
   id: string;
