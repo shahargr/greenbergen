@@ -270,7 +270,7 @@ export function TaskEditor({
               {status === "Completed" && (
                 <span className="muted small">
                   Saving will close this task — it needs attached evidence
-                  (or use the completion card below to close with a reason).
+                  (or close it from the card up top, with a written reason).
                 </span>
               )}
               {status === "Cancelled" && (
