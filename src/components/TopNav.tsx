@@ -5,13 +5,7 @@ import { Wordmark } from "@/components/SiteHeader";
 import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
 import { MaskMenu } from "@/components/MaskMenu";
-
-const HomeIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 10.5 12 3l9 7.5" />
-    <path d="M5 9.5V21h14V9.5" />
-  </svg>
-);
+import { BackNav } from "@/components/BackNav";
 
 const InviteIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -73,13 +67,13 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </span>
         </div>
         <div className="topnav-right">
-          <Link href={ROLE_HOME[role]} className="iconlink" title="Home" aria-label="Home"><HomeIcon /></Link>
+          {isAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined} />}
+          <BackNav />
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
           <form action={signOut} style={{ display: "inline-flex" }}>
             <button className="iconlink" title="Sign out" aria-label="Sign out"><SignOutIcon /></button>
           </form>
-          {isAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined} />}
         </div>
       </nav>
     </header>
