@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { emailInvitation } from "./actions";
 
 const ResidentArt = () => (
-  <svg width="44" height="44" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="30" height="30" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M6 22 24 7l18 15" />
     <path d="M10 20v20h28V20" />
     <path d="M20 40v-9h8v9" />
@@ -14,7 +14,7 @@ const ResidentArt = () => (
 );
 
 const ContractorArt = () => (
-  <svg width="44" height="44" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="30" height="30" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M10 30a14 14 0 0 1 28 0z" />
     <path d="M19 19v-5h10v5" />
     <path d="M6 35h36" />
@@ -30,6 +30,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
   const [asContractor, setAsContractor] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -46,10 +47,6 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
       setError("Pick at least one: resident, contractor, or both.");
       return;
     }
-    if (!isEmailValid) {
-      setError("Their email is required.");
-      return;
-    }
     setBusy(true);
     setLink("");
     const supabase = createClient();
@@ -60,15 +57,17 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
     const call =
       asResident && isSuperadmin
         ? supabase.rpc("invite_consumer", {
-            p_email: email.trim(),
+            p_email: email.trim() || null,
             p_name: name.trim() || null,
             p_note: comment.trim() || null,
+            p_phone: phone.trim() || null,
           })
         : supabase.rpc("invite_peer", {
             p_kind: asResident ? "homeowner" : "contractor",
-            p_email: email.trim(),
+            p_email: email.trim() || null,
             p_name: name.trim() || null,
             p_note: comment.trim() || null,
+            p_phone: phone.trim() || null,
           });
 
     const { data, error: err } = await call;
@@ -122,7 +121,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <form onSubmit={create} className="card" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
-        <div className="typecards">
+        <div className="typecards duo">
           <label className={asResident ? "typecard art on" : "typecard art"}>
             <input type="checkbox" checked={asResident} onChange={(e) => setAsResident(e.target.checked)} hidden />
             <span className="typecard-art"><ResidentArt /></span>
@@ -140,13 +139,17 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
 
         <div className="form-2col">
           <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="inv-email">Their email (required)</label>
-            <input id="inv-email" className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label htmlFor="inv-email">Their email (optional)</label>
+            <input id="inv-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="inv-name">Their name (optional)</label>
             <input id="inv-name" className="input" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="inv-phone">Their phone (optional)</label>
+          <input id="inv-phone" className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="inv-comment">Add a comment (optional — travels with the invitation)</label>
@@ -166,6 +169,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
             {link}
           </code>
           <div className="btn-row">
+            {isEmailValid && (
             <button
               type="button"
               className="btn"
@@ -178,6 +182,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
             >
               {sendState === "Sending..." ? "Sending..." : "Send by email"}
             </button>
+            )}
             <button type="button" className="btn ghost" onClick={share}>
               {copyState === "copied" ? "Copied ✓" : "Share…"}
             </button>

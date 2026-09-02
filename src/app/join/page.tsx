@@ -1,5 +1,6 @@
 import { SiteHeader } from "@/components/SiteHeader";
-import { JoinForm } from "./JoinForm";
+import { createClient } from "@/lib/supabase/server";
+import { JoinForm, type InvitePrefill } from "./JoinForm";
 
 export default async function JoinPage({
   searchParams,
@@ -7,6 +8,14 @@ export default async function JoinPage({
   searchParams: Promise<{ invite?: string }>;
 }) {
   const { invite } = await searchParams;
+
+  // The link is the credential: preview the invitation and pre-populate.
+  let prefill: InvitePrefill | null = null;
+  if (invite) {
+    const supabase = await createClient();
+    const { data } = await supabase.rpc("invitation_preview", { p_token: invite });
+    if (data?.ok) prefill = data as InvitePrefill;
+  }
 
   return (
     <div className="page">
@@ -16,7 +25,7 @@ export default async function JoinPage({
         <p className="muted" style={{ marginTop: 0 }}>
           What would you like to do? Pick one — or both.
         </p>
-        <JoinForm inviteToken={invite ?? null} />
+        <JoinForm inviteToken={invite ?? null} prefill={prefill} />
       </main>
     </div>
   );

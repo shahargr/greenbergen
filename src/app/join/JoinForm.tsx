@@ -13,14 +13,24 @@ const RADII = [5, 10, 25, 50, 100];
 // services, or both. Quick by default: a provider signs up with About-you
 // plus trades; business info is completed later through the phone-verified
 // second form (/vendor/complete) - or right here for whoever prefers.
-export function JoinForm({ inviteToken }: { inviteToken: string | null }) {
-  const router = useRouter();
-  const [wantsProjects, setWantsProjects] = useState(true);
-  const [wantsServices, setWantsServices] = useState(false);
+export type InvitePrefill = {
+  ok: boolean;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  comment: string | null;
+  resident: boolean;
+  invited_by: string | null;
+};
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null; prefill: InvitePrefill | null }) {
+  const router = useRouter();
+  const [wantsProjects, setWantsProjects] = useState(prefill ? prefill.resident : true);
+  const [wantsServices, setWantsServices] = useState(prefill ? !prefill.resident : false);
+
+  const [name, setName] = useState(prefill?.name ?? "");
+  const [email, setEmail] = useState(prefill?.email ?? "");
+  const [phone, setPhone] = useState(prefill?.phone ?? "");
 
   // Business info (companies columns) - shown only when they opt to add it now.
   const [addNow, setAddNow] = useState(false);
@@ -247,7 +257,9 @@ export function JoinForm({ inviteToken }: { inviteToken: string | null }) {
     <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
       {inviteToken && (
         <p className="card small" style={{ padding: "10px 14px", margin: 0 }}>
-          You were invited — finishing signup will apply your invitation.
+          {prefill?.invited_by ? <>Invited by <strong>{prefill.invited_by}</strong></> : "You were invited"}
+          {prefill?.comment && <> — &ldquo;{prefill.comment}&rdquo;</>}
+          . Finishing signup will apply your invitation.
         </p>
       )}
 
