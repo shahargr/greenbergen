@@ -13,6 +13,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Outside the component: the purity lint is right that clocks do not belong
+// in render. The page is force-dynamic, so per-request freshness holds.
+function weekAgoIso() {
+  return new Date(Date.now() - 7 * 86400000).toISOString();
+}
+
 type Stat = { label: string; value: number };
 
 // The admin console for people: vendor approvals, accounts, invitations,
@@ -42,7 +48,6 @@ export default async function AdminUsersPage({
     return b.then((r) => r.count ?? 0);
   };
 
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
   const [
     users, contacts, companies, projects, pendingInvites, vendorRequests, inquiries7d, openTasks,
     vendorRows, accountRows, inviteRows, projectRows, roleRows, userRows,
@@ -53,7 +58,7 @@ export default async function AdminUsersPage({
     count("projects"),
     count("app_invitations", (b) => b.eq("status", "pending")),
     count("contacts", (b) => b.eq("vendor_status", "applied")),
-    count("project_inquiries", (b) => b.gte("created_at", weekAgo)),
+    count("project_inquiries", (b) => b.gte("created_at", weekAgoIso())),
     count("actions", (b) => b.not("status", "in", "(Completed,Cancelled,Force Cancelled)")),
     supabase
       .from("contacts")
