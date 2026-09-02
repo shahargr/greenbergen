@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { Wordmark } from "@/components/SiteHeader";
 import { signOut } from "@/app/my/actions";
+import { setView, VIEW_HOME } from "@/components/viewas";
 
 const HomeIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -34,35 +36,16 @@ const SignOutIcon = () => (
   </svg>
 );
 
-const OwnerIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 10.5 12 3l9 7.5" />
-    <path d="M5 9.5V21h14V9.5" />
-    <path d="M10 21v-6h4v6" />
-  </svg>
-);
-
-const ContractorIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m14.5 9.5 6 6L18 18l-6-6" />
-    <path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" />
-    <path d="m5 21 5.5-5.5" />
-  </svg>
-);
-
-const AdminIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 3 4 6v5c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6z" />
+const MaskIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6.5C5.6 5.1 8.7 4.4 12 4.4s6.4.7 9 2.1v4.6c0 5.3-4 9.5-9 9.5s-9-4.2-9-9.5z" />
+    <path d="M7 10.6c1-.9 2.4-.9 3.4 0" />
+    <path d="M13.6 10.6c1-.9 2.4-.9 3.4 0" />
+    <path d="M9 15.4c1.8 1.4 4.2 1.4 6 0" />
   </svg>
 );
 
 export type NavRole = "Owner" | "Contractor" | "Admin";
-
-const ROLE_ICON: Record<NavRole, () => React.ReactNode> = {
-  Owner: OwnerIcon,
-  Contractor: ContractorIcon,
-  Admin: AdminIcon,
-};
 
 const ROLE_HOME: Record<NavRole, string> = {
   Owner: "/my",
@@ -70,38 +53,51 @@ const ROLE_HOME: Record<NavRole, string> = {
   Admin: "/admin",
 };
 
-// The signed-in top menu: role switcher on the left, icon utilities on the
-// right. Roles: Owner and Contractor for everyone (their surfaces gate
-// themselves), Admin for a superadmin.
+// Every hat a view can be designed for. The ones without a surface yet are
+// listed but not selectable.
+const ALL_VIEWS = ["Owner", "Contractor", "PM", "GC", "Buyer", "Developer", "Viewer", "Admin"] as const;
+
+// The signed-in top menu: brand with the view's intended hat in small red
+// letters under it; utilities on the right, led by the mask - click it to
+// put on a different hat.
 export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const [{ data: me }, jar] = await Promise.all([supabase.rpc("me"), cookies()]);
 
-  const roles: NavRole[] = me?.is_superadmin
-    ? ["Owner", "Contractor", "Admin"]
-    : ["Owner", "Contractor"];
-  const CurrentIcon = ROLE_ICON[role];
+  // The label under the logo: the picked hat, as long as it lives on this
+  // surface; otherwise the surface's own name.
+  const picked = jar.get("gb_view")?.value;
+  const viewLabel = picked && VIEW_HOME[picked] === ROLE_HOME[role] ? picked : role;
+
+  const isAdmin: boolean = me?.is_superadmin ?? false;
+  const views = ALL_VIEWS.filter((v) => v !== "Admin" || isAdmin);
 
   return (
     <header className="topnav">
       <nav className="wrap topnav-inner">
-        <div className="topnav-left" style={{ display: "inline-flex", alignItems: "center", gap: 16 }}>
-          <Wordmark small href={ROLE_HOME[role]} />
-          <details className="rolemenu">
-            <summary><span className="rolemenu-current"><CurrentIcon /> {role} ▾</span></summary>
-            <div className="rolemenu-list">
-              {roles.map((r) => {
-                const Icon = ROLE_ICON[r];
-                return r === role ? (
-                  <span key={r} className="rolemenu-item current"><Icon /> {r}</span>
-                ) : (
-                  <Link key={r} className="rolemenu-item" href={ROLE_HOME[r]}><Icon /> {r}</Link>
-                );
-              })}
-            </div>
-          </details>
+        <div className="topnav-left">
+          <span className="brandstack">
+            <Wordmark small href={ROLE_HOME[role]} />
+            <span className="brand-viewfor">{viewLabel}</span>
+          </span>
         </div>
         <div className="topnav-right">
+          <details className="rolemenu rolemenu-right">
+            <summary className="iconlink" title="View as" aria-label="View as"><MaskIcon /></summary>
+            <div className="rolemenu-list">
+              {views.map((v) =>
+                v === viewLabel ? (
+                  <span key={v} className="rolemenu-item current">{v} ✓</span>
+                ) : VIEW_HOME[v] ? (
+                  <form key={v} action={setView.bind(null, v)} style={{ display: "contents" }}>
+                    <button className="rolemenu-item" style={{ width: "100%", textAlign: "left" }}>{v}</button>
+                  </form>
+                ) : (
+                  <span key={v} className="rolemenu-item current">{v} · soon</span>
+                )
+              )}
+            </div>
+          </details>
           <Link href={ROLE_HOME[role]} className="iconlink" title="Home" aria-label="Home"><HomeIcon /></Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
