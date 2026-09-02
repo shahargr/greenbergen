@@ -1,7 +1,7 @@
 // Small stroke icons per trade for the trade stat tiles; anything unmapped
 // gets the generic tools glyph.
 const S = {
-  width: 22, height: 22, viewBox: "0 0 24 24", fill: "none",
+  width: 26, height: 26, viewBox: "0 0 24 24", fill: "none",
   stroke: "currentColor", strokeWidth: 1.8,
   strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
 };

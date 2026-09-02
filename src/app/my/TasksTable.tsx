@@ -110,29 +110,29 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      <div className="btn-row" style={{ gap: 8 }}>
-        <select className="input" value={project} onChange={pick(setProject)} style={{ maxWidth: 190 }}>
+      <div className="filterbar">
+        <select value={project} onChange={pick(setProject)} style={{ maxWidth: 190 }}>
           <option value="all">All projects</option>
           {projects.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select className="input" value={domain} onChange={pickServer("domain")} style={{ maxWidth: 140 }}>
+        <select value={domain} onChange={pickServer("domain")}>
           <option value="all">All domains</option>
           {domains.map((d) => <option key={d}>{d}</option>)}
         </select>
-        <select className="input" value={state} onChange={pickServer("state")} style={{ maxWidth: 110 }}>
+        <select value={state} onChange={pickServer("state")}>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
           <option value="all">All</option>
         </select>
-        <select className="input" value={person} onChange={pick(setPerson)} style={{ maxWidth: 170 }}>
+        <select value={person} onChange={pick(setPerson)} style={{ maxWidth: 170 }}>
           <option value="all">Anyone</option>
           {people.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select className="input" value={priority} onChange={pick(setPriority)} style={{ maxWidth: 135 }}>
+        <select value={priority} onChange={pick(setPriority)} style={{ maxWidth: 135 }}>
           <option value="all">Any priority</option>
           {PRIORITY_ORDER.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select className="input" value={sort} onChange={pick(setSort)} style={{ maxWidth: 150 }}>
+        <select value={sort} onChange={pick(setSort)} style={{ maxWidth: 150 }}>
           <option value="due">By due date</option>
           <option value="updated">By last update</option>
         </select>
@@ -148,11 +148,12 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
               onClick={() => { setTrade(trade === tr ? "all" : tr); setOpen(null); }}
             >
               <span className="tradestat-icon"><TradeIcon trade={tr} /></span>
-              <span className="tradestat-name">{tr}</span>
-              <span className="tradestat-nums">
-                <strong>{st.open}</strong> open
-                {st.overdue > 0 && <span className="tradestat-late"> · {st.overdue} late</span>}
-                <span className="muted"> · {st.total}</span>
+              <span className="tradestat-text">
+                <span className="tradestat-name">{tr}</span>
+                <span className="tradestat-nums">
+                  <strong>{st.open}</strong> open
+                  {st.overdue > 0 && <span className="tradestat-late"> · {st.overdue} late</span>}
+                </span>
               </span>
             </button>
           ))}

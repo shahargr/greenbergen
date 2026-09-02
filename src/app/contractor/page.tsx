@@ -33,7 +33,13 @@ type PortalTask = {
   assignee_id: string | null; assignee: string | null; trade: string | null;
 };
 
-export default async function WorkHome() {
+export default async function WorkHome({
+  searchParams,
+}: {
+  searchParams: Promise<{ all?: string }>;
+}) {
+  const { all } = await searchParams;
+  const showAll = all === "1";
   const supabase = await createClient();
   const jar = await cookies();
   const { data: me } = await supabase.rpc("me");
@@ -55,18 +61,20 @@ export default async function WorkHome() {
     supabase.rpc("portal_tasks", { p_domain: "construction", p_closed_limit: 0 }),
   ]);
 
-  const seats = (((rows ?? []) as unknown as Membership[]))
+  const allSeats = (((rows ?? []) as unknown as Membership[]))
     .filter((m) => m.projects && !m.projects.is_template)
     .filter((m, i, arr) => arr.findIndex((x) => x.projects!.id === m.projects!.id) === i);
+  const seats = showAll ? allSeats : allSeats.filter((m) => m.projects!.status === "In Progress");
+  const hiddenClosed = allSeats.length - seats.length;
   const seatIds = new Set(seats.map((s) => s.projects!.id));
 
-  const all = ((taskData ?? []) as PortalTask[]).filter(
+  const seatTasks = ((taskData ?? []) as PortalTask[]).filter(
     (t) => t.project_id && seatIds.has(t.project_id)
   );
   // Contractor: only YOUR contract-backed work. PM/GC: the whole board.
   const scoped = hat === "Contractor"
-    ? all.filter((t) => myContact && t.assignee_id === myContact && t.has_contract)
-    : all;
+    ? seatTasks.filter((t) => myContact && t.assignee_id === myContact && t.has_contract)
+    : seatTasks;
 
   const tableTasks: TableTask[] = scoped.map((t) => ({
     id: t.id, action: t.action, status: t.status, priority: t.priority,
@@ -99,7 +107,7 @@ export default async function WorkHome() {
             : "No site-PM seats yet — when a project hands you the PM seat, it shows up here."}
         </p>
       )}
-      <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+      <div style={{ display: "grid", gap: 8, marginBottom: 8 }}>
         {visibleSeats.map((s) => (
           <Link key={s.projects!.id} href={`/my/project/${s.projects!.id}`} className="card statlink" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
             <span>
@@ -115,6 +123,17 @@ export default async function WorkHome() {
           </Link>
         ))}
       </div>
+
+      {!showAll && hiddenClosed > 0 && (
+        <p className="small" style={{ margin: "0 0 18px" }}>
+          <Link href="?all=1">Show all projects ({hiddenClosed} closed hidden)</Link>
+        </p>
+      )}
+      {showAll && (
+        <p className="small" style={{ margin: "0 0 18px" }}>
+          <Link href="?">Show open projects only</Link>
+        </p>
+      )}
 
       {tableTasks.length > 0 && (
         <>
