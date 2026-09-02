@@ -1,12 +1,18 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { TasksTable, type TableTask } from "../my/TasksTable";
 
 export const dynamic = "force-dynamic";
 
-// Contractor lens: a project appears here only when you hold a working
-// (non-owner) seat on it AND it has open construction tasks assigned to
-// you. Admin work - system-domain tasks - never shows here, and neither
-// does a project you merely hold a seat on. The owner lens lives on /my.
+// The work surface wears the picked hat (admin mask cookie; everyone else
+// gets the contractor lens):
+//   Contractor - projects where you hold a collaborator seat, and the
+//     contract-backed construction tasks assigned to YOU there. PM and
+//     homeowner to-dos never leak in.
+//   PM / GC - projects where you hold the site-PM (manager) seat, and
+//     EVERY open construction task on them - the whole board you run,
+//     not just what is assigned to you.
 type Membership = {
   role: string;
   project_role: string | null;
@@ -15,95 +21,107 @@ type Membership = {
     project_name: string;
     address: string | null;
     status: string;
-    parent_project_id: string | null;
+    is_template: boolean;
   } | null;
 };
 
-export default async function ContractorHome() {
+type PortalTask = {
+  id: string; action: string; status: string; priority: string | null;
+  target_date: string | null; last_updated: string | null; notes: string | null;
+  project: string | null; project_id: string | null; domain: string | null;
+  has_contract: boolean; state: "open" | "closed";
+  assignee_id: string | null; assignee: string | null; trade: string | null;
+};
+
+export default async function WorkHome() {
   const supabase = await createClient();
+  const jar = await cookies();
   const { data: me } = await supabase.rpc("me");
+  const isAdmin: boolean = me?.is_superadmin ?? false;
+  const picked = isAdmin ? jar.get("gb_view")?.value : undefined;
+  const hat = picked === "PM" || picked === "GC" ? picked : "Contractor";
+  const myContact: string | null = me?.contact_id ?? null;
 
-  const { data: rows } = me?.app_user_id
-    ? await supabase
-        .from("project_members")
-        .select("role, project_role, projects(id, project_name, address, status, parent_project_id)")
-        .eq("app_user_id", me.app_user_id)
-        .eq("status", "active")
-        .neq("role", "owner")
-    : { data: [] };
-  // One card per project - a user can hold several seats (e.g. site PM and
-  // viewer); keep the strongest one.
-  const seatWeight = (m: Membership) => (m.role === "viewer" ? 0 : m.role === "manager" ? 2 : 1);
-  const byProject = new Map<string, Membership>();
-  for (const m of ((rows ?? []) as unknown as Membership[]).filter((x) => x.projects)) {
-    const prev = byProject.get(m.projects!.id);
-    if (!prev || seatWeight(m) > seatWeight(prev)) byProject.set(m.projects!.id, m);
+  const wantedRole = hat === "Contractor" ? "collaborator" : "manager";
+  const [{ data: rows }, { data: taskData }] = await Promise.all([
+    me?.app_user_id
+      ? supabase
+          .from("project_members")
+          .select("role, project_role, projects(id, project_name, address, status, is_template)")
+          .eq("app_user_id", me.app_user_id)
+          .eq("status", "active")
+          .eq("role", wantedRole)
+      : Promise.resolve({ data: [] }),
+    supabase.rpc("portal_tasks", { p_domain: "construction", p_closed_limit: 0 }),
+  ]);
+
+  const seats = (((rows ?? []) as unknown as Membership[]))
+    .filter((m) => m.projects && !m.projects.is_template)
+    .filter((m, i, arr) => arr.findIndex((x) => x.projects!.id === m.projects!.id) === i);
+  const seatIds = new Set(seats.map((s) => s.projects!.id));
+
+  const all = ((taskData ?? []) as PortalTask[]).filter(
+    (t) => t.project_id && seatIds.has(t.project_id)
+  );
+  // Contractor: only YOUR contract-backed work. PM/GC: the whole board.
+  const scoped = hat === "Contractor"
+    ? all.filter((t) => myContact && t.assignee_id === myContact && t.has_contract)
+    : all;
+
+  const tableTasks: TableTask[] = scoped.map((t) => ({
+    id: t.id, action: t.action, status: t.status, priority: t.priority,
+    target_date: t.target_date, last_updated: t.last_updated, notes: t.notes,
+    project: t.project, domain: t.domain,
+    who: (myContact && t.assignee_id === myContact ? "you" : "others") as "you" | "others",
+    state: t.state, trade: t.trade, assignee: t.assignee,
+  }));
+
+  const openByProject = new Map<string, number>();
+  for (const t of scoped) {
+    if (t.project_id) openByProject.set(t.project_id, (openByProject.get(t.project_id) ?? 0) + 1);
   }
-
-  // Open construction tasks assigned to me on those projects decide what
-  // qualifies as "your work".
-  const memberProjectIds = [...byProject.keys()];
-  const { data: taskRows } = memberProjectIds.length && me?.contact_id
-    ? await supabase
-        .from("actions")
-        .select("id, action, status, priority, target_date, project_id, projects(project_name)")
-        .in("project_id", memberProjectIds)
-        .eq("assigned_to_contact_id", me.contact_id)
-        .eq("domain", "construction")
-        .not("status", "in", "(Completed,Cancelled,Superseded)")
-        .order("target_date", { ascending: true, nullsFirst: false })
-        .limit(50)
-    : { data: [] };
-  type TaskRow = {
-    id: string; action: string; status: string; priority: string | null;
-    target_date: string | null; project_id: string;
-    projects: { project_name: string } | null;
-  };
-  const tasks = ((taskRows ?? []) as unknown as TaskRow[]);
-  const workingProjectIds = new Set(tasks.map((t) => t.project_id));
-  const seats = [...byProject.values()]
-    .filter((m) => workingProjectIds.has(m.projects!.id))
-    .sort((a, b) => a.projects!.project_name.localeCompare(b.projects!.project_name));
+  const visibleSeats = hat === "Contractor"
+    ? seats.filter((s) => (openByProject.get(s.projects!.id) ?? 0) > 0)
+    : seats;
 
   return (
-    <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
-      <span className="kicker">Contractor</span>
+    <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 720 }}>
+      <span className="kicker">{hat === "Contractor" ? "Contractor" : `${hat} — site view`}</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 10px" }}>Your work</h1>
 
-      <h2 className="section-title">Projects you work on · {seats.length}</h2>
-      {seats.length === 0 && (
+      <h2 className="section-title">
+        {hat === "Contractor" ? "Projects you work on" : "Projects you run"} · {visibleSeats.length}
+      </h2>
+      {visibleSeats.length === 0 && (
         <p className="muted small">
-          Nothing on you right now — when a project assigns you work, it
-          shows up here.
+          {hat === "Contractor"
+            ? "No contract work assigned to you right now — when a project engages you, it shows up here."
+            : "No site-PM seats yet — when a project hands you the PM seat, it shows up here."}
         </p>
       )}
-      <div style={{ display: "grid", gap: 8 }}>
-        {seats.map((s) => (
-          <div key={s.projects!.id} className="card" style={{ padding: "10px 14px" }}>
-            <strong style={{ fontSize: 15 }}>{s.projects!.project_name}</strong>
-            <div className="muted small">
-              {s.project_role ?? s.role}
-              {s.projects!.address && <> · {s.projects!.address}</>} · {s.projects!.status}
-            </div>
-          </div>
+      <div style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+        {visibleSeats.map((s) => (
+          <Link key={s.projects!.id} href={`/my/project/${s.projects!.id}`} className="card statlink" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <span>
+              <strong style={{ fontSize: 15 }}>{s.projects!.project_name}</strong>
+              <div className="muted small">
+                {s.project_role ?? s.role}
+                {s.projects!.address && <> · {s.projects!.address}</>} · {s.projects!.status}
+              </div>
+            </span>
+            <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>
+              {openByProject.get(s.projects!.id) ?? 0} open
+            </span>
+          </Link>
         ))}
       </div>
 
-      {tasks.length > 0 && (
+      {tableTasks.length > 0 && (
         <>
-          <h2 className="section-title" style={{ marginTop: 18 }}>On you · {tasks.length}</h2>
-          <div style={{ display: "grid", gap: 8 }}>
-            {tasks.map((t) => (
-              <Link key={t.id} href={`/my/task/${t.id}`} className="card statlink" style={{ padding: "10px 14px", display: "block" }}>
-                <strong style={{ fontSize: 15 }}>{t.action}</strong>
-                <div className="muted small">
-                  {t.projects?.project_name && <>{t.projects.project_name} · </>}
-                  {t.status}
-                  {t.target_date && <> · due {t.target_date}</>}
-                </div>
-              </Link>
-            ))}
-          </div>
+          <h2 className="section-title">
+            {hat === "Contractor" ? "On you" : "Open on your projects"} · {tableTasks.length}
+          </h2>
+          <TasksTable tasks={tableTasks} todayIso={new Date().toISOString().slice(0, 10)} />
         </>
       )}
     </main>
