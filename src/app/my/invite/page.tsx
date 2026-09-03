@@ -25,6 +25,9 @@ type SentInvitation = {
   uses: number;
   max_uses: number | null;
   comment: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  seat: string | null;
   acceptors: Acceptor[];
 };
 
@@ -48,7 +51,10 @@ export default async function InvitePage({
   // Projects I can invite to (for the picker when none was passed in).
   const invitable = ((me?.projects ?? []) as { project_id: string; project_name: string; can_invite: boolean; role: string }[])
     .filter((p) => p.can_invite || p.role === "owner" || me?.is_superadmin);
-  const all: SentInvitation[] = (sentData as SentInvitation[]) ?? [];
+  // Only the invitations sent to THIS project show here; the full list
+  // lives under Admin → User management.
+  const allMine: SentInvitation[] = (sentData as SentInvitation[]) ?? [];
+  const all = projectId ? allMine.filter((i) => i.project_id === projectId) : [];
   // An invitation with acceptors counts as accepted whatever its row says.
   const effective = (i: SentInvitation) => (i.acceptors.length > 0 ? "accepted" : i.status);
   const counts = new Map<string, number>();
@@ -90,13 +96,17 @@ export default async function InvitePage({
           <input id="pi-contact" name="contact" className="input" required autoComplete="off" placeholder="name@example.com or 201-555-0100" />
         </div>
         <div className="radio-row" style={{ minHeight: 0 }}>
-          <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Resident</label>
           <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>
           <label className="radio-opt"><input type="radio" name="seat" value="viewer" /> Viewer</label>
+          <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Co-owner</label>
         </div>
+        <p className="muted small" style={{ margin: 0 }}>
+          Contractor: delivers work, sees their own tasks and deliveries. Viewer: read-only, no money.
+          Co-owner: a spouse, partner or family member who runs the home with you — full authority, sees money.
+        </p>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pi-note">Note (optional — travels with the invitation)</label>
-          <input id="pi-note" name="note" className="input" defaultValue={forName ? `Join me on ${forName}` : ""} />
+          <input id="pi-note" name="note" className="input" defaultValue={forName ? `Please join ${forName} to assist with ` : "Please join the project to assist with "} />
         </div>
         <p className="muted small" style={{ margin: 0 }}>
           If no account matches, you&apos;ll see &ldquo;wrong user information provided&rdquo; — use the signup link below instead.
@@ -110,14 +120,14 @@ export default async function InvitePage({
           <InviteBuilder
             isSuperadmin={me?.is_superadmin ?? false}
             senderName={me?.full_name ?? "Someone"}
-            defaultComment={forName ? `Join me on ${forName}` : undefined}
+            defaultComment={forName ? `Please join ${forName} to assist with ` : undefined}
           />
         </div>
       </details>
 
       {all.length > 0 && (
         <div className="card" style={{ marginTop: 14, display: "grid", gap: 10 }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Your invitations</h2>
+          <h2 className="section-title" style={{ margin: 0 }}>Invitations to {forName}</h2>
           <div className="btn-row" style={{ gap: 6 }}>
             {["all", "pending", "accepted", "declined", "revoked", "expired"].map((st) => {
               const n = st === "all" ? all.length : counts.get(st) ?? 0;
@@ -145,7 +155,7 @@ export default async function InvitePage({
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                 <span>
                   <strong>{i.invitee_name ?? i.invitee_email ?? "Open link"}</strong>
-                  <span className="muted small"> · {i.resident ? "resident" : "contractor"} · {new Date(i.created_at).toLocaleDateString()}</span>
+                  <span className="muted small"> · {i.seat ?? (i.resident ? "resident" : "contractor")} · {new Date(i.created_at).toLocaleDateString()}</span>
                 </span>
                 <span className="extra-chip">{i.acceptors.length > 0 ? "accepted" : i.status}</span>
               </div>
@@ -189,6 +199,11 @@ export default async function InvitePage({
             </div>
           ))}
         </div>
+      )}
+      {me?.is_superadmin && (
+        <p className="small" style={{ marginTop: 14 }}>
+          <Link href="/admin/users">All invitations, every project → Admin · User management</Link>
+        </p>
       )}
     </main>
   );

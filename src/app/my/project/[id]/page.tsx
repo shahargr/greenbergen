@@ -380,14 +380,15 @@ export default async function ProjectPage({
                 </div>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="inv-note">Note (optional)</label>
-                  <input id="inv-note" name="note" className="input" defaultValue={`Join me on ${project.project_name}`} />
+                  <input id="inv-note" name="note" className="input" defaultValue={`Please join ${project.project_name} to assist with `} />
                 </div>
               </div>
               <div className="radio-row" style={{ minHeight: 0 }}>
                 <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>
-                <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Resident</label>
                 <label className="radio-opt"><input type="radio" name="seat" value="viewer" /> Viewer</label>
+                <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Co-owner</label>
               </div>
+              <p className="muted small" style={{ margin: 0 }}>Co-owner = runs the home with you: full authority, sees money. Viewer = read-only, no money.</p>
               <div className="btn-row" style={{ alignItems: "center" }}>
                 <button className="btn small">Invite user</button>
                 <Link href={`/my/invite?project=${project.id}`} className="small muted">Not on the platform yet? Send a signup link →</Link>
