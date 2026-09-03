@@ -145,13 +145,18 @@ export function StartProjectForm({
               key={j.name}
               type="button"
               className={name === j.name ? "featured-job on" : "featured-job"}
-              onClick={() => setName(j.name)}
+              onClick={() => setName(name === j.name ? "" : j.name)}
             >
               <span className="featured-job-icon">{j.icon}</span>
               <span className="featured-job-name">{j.name}</span>
             </button>
           ))}
         </div>
+        {WIZARDS[name] && (
+          <p className="muted small" style={{ margin: 0 }}>
+            Tap the selected tile again to clear it and type your own instead.
+          </p>
+        )}
 
         {WIZARDS[name] && (
           <div className="card" style={{ background: "#f7faf8", display: "grid", gap: 10 }}>
