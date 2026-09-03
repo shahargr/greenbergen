@@ -48,9 +48,16 @@ export default async function InvitePage({
       : Promise.resolve({ data: null as { id: string; project_name: string } | null }),
   ]);
   const forName = forProject?.project_name ?? null;
-  // Projects I can invite to (for the picker when none was passed in).
-  const invitable = ((me?.projects ?? []) as { project_id: string; project_name: string; can_invite: boolean; role: string }[])
+  // Projects I can invite to (for the picker when none was passed in). One
+  // person can hold several seats on a project — one entry per project, and
+  // never a template.
+  const seatRows = ((me?.projects ?? []) as { project_id: string; project_name: string; can_invite: boolean; role: string }[])
     .filter((p) => p.can_invite || p.role === "owner" || me?.is_superadmin);
+  const seatIds = [...new Set(seatRows.map((p) => p.project_id))];
+  const { data: realRows } = seatIds.length && !projectId
+    ? await supabase.from("projects").select("id, project_name").in("id", seatIds).eq("is_template", false).is("trashed_at", null).order("project_name")
+    : { data: [] as { id: string; project_name: string }[] };
+  const invitable = ((realRows ?? []) as { id: string; project_name: string }[]).map((p) => ({ project_id: p.id, project_name: p.project_name }));
   // Only the invitations sent to THIS project show here; the full list
   // lives under Admin → User management.
   const allMine: SentInvitation[] = (sentData as SentInvitation[]) ?? [];
