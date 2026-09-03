@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TaskEditor, type TaskView, type MemberOption, type CommentView } from "./TaskEditor";
+import { TaskTransactions, type TaskTx } from "./TaskTransactions";
 import { taskPerms } from "./actions";
 
 export const maxDuration = 60;
@@ -134,6 +135,22 @@ export default async function TaskPage({
 
   const isOpen = !CLOSED.includes(view.status);
 
+  // Transactions clubbed under this task, plus the project's unattached ones
+  // to search/attach from. A transaction carries one action_id (many per task).
+  const TX_COLS = "id, description, amount, paid_on, status, paid_from_account";
+  const [{ data: attachedTxRows }, { data: candidateTxRows }] = await Promise.all([
+    supabase.from("transactions").select(TX_COLS)
+      .eq("action_id", t.id).eq("direction", "out")
+      .order("paid_on", { ascending: false, nullsFirst: false }),
+    t.project_id
+      ? supabase.from("transactions").select(TX_COLS)
+          .eq("project_id", t.project_id).eq("direction", "out").is("action_id", null)
+          .order("created_at", { ascending: false }).limit(200)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const attachedTx = (attachedTxRows ?? []) as TaskTx[];
+  const candidateTx = (candidateTxRows ?? []) as TaskTx[];
+
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 64, maxWidth: 680 }}>
       <p className="small" style={{ margin: "0 0 10px" }}>
@@ -143,6 +160,9 @@ export default async function TaskPage({
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
       <TaskEditor task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
+      <div style={{ marginTop: 14 }}>
+        <TaskTransactions taskId={t.id} attached={attachedTx} candidates={candidateTx} canEdit={perms.status} />
+      </div>
     </main>
   );
 }

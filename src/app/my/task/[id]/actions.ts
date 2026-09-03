@@ -457,3 +457,39 @@ export async function addContractor(taskId: string, formData: FormData) {
   revalidatePath("/my");
   redirect(`/my/task/${taskId}?saved=1`);
 }
+
+// Club transactions under a task: a transaction carries one action_id, so a
+// task can hold many. Attach sets it, detach clears it. PM+ only (rank >= 50).
+async function txPermitted(taskId: string) {
+  const supabase = await createClient();
+  const { data: task } = await supabase
+    .from("actions").select("id, project_id, assigned_to_contact_id").eq("id", taskId).maybeSingle();
+  if (!task?.project_id) redirect("/my?panel=tasks");
+  const p = await taskPerms(task.project_id, task.assigned_to_contact_id);
+  if (!p.status) redirect(`/my/task/${taskId}?error=${encodeURIComponent("Attaching transactions here is not yours to do.")}`);
+  return { supabase, projectId: task.project_id as string };
+}
+
+export async function attachTransaction(taskId: string, txId: string) {
+  const { supabase, projectId } = await txPermitted(taskId);
+  // Scope the write to this project so a transaction can never be pulled in
+  // from a project the user is only looking at.
+  const { error } = await supabase
+    .from("transactions")
+    .update({ action_id: taskId, last_modified_by: "portal:task" })
+    .eq("id", txId)
+    .eq("project_id", projectId);
+  revalidatePath(`/my/task/${taskId}`);
+  redirect(error ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}` : `/my/task/${taskId}?saved=1`);
+}
+
+export async function detachTransaction(taskId: string, txId: string) {
+  const { supabase } = await txPermitted(taskId);
+  const { error } = await supabase
+    .from("transactions")
+    .update({ action_id: null, last_modified_by: "portal:task" })
+    .eq("id", txId)
+    .eq("action_id", taskId);
+  revalidatePath(`/my/task/${taskId}`);
+  redirect(error ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}` : `/my/task/${taskId}?saved=1`);
+}
