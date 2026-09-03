@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { FileDrop } from "@/components/FileDrop";
 import { editPayment } from "./actions";
 
 // A transaction as the homepage card carries it: the compact row fields plus
@@ -290,8 +291,8 @@ export function CardTxRow({
                 </div>
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor={`ctx-ev-${tx.id}`}>Evidence / receipt (optional)</label>
-                <input id={`ctx-ev-${tx.id}`} type="file" name="photos" accept="image/*,application/pdf" multiple className="small" />
+                <label>Evidence / receipt (optional)</label>
+                <FileDrop name="photos" accept="image/*,application/pdf" label="Add receipts" />
               </div>
               {err && <p className="error small" style={{ margin: 0 }}>{err}</p>}
               <div className="btn-row">

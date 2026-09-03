@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { setGodMode } from "../admin/actions";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, setTown, toggleDeal, requestMoreHomes } from "./actions";
@@ -96,6 +98,8 @@ export default async function MyPage({
 }) {
   const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll, allp } = await searchParams;
   const showClosedProjects = allp === "1";
+  // God mode cookie (set from Admin → Overview). Only honored for a superadmin.
+  const godOn = (await cookies()).get("gb_god")?.value === "1";
   const supabase = await createClient();
   const { data: boot, error: bootErr } = await rpcRetry(supabase, "portal_home");
 
@@ -126,6 +130,7 @@ export default async function MyPage({
   const banner = banner0;
   const welcomeVideo: string | null = boot?.welcome_video ?? null;
   const canCreate: boolean = home?.can_create ?? false;
+  const godMode = godOn && !!boot?.me?.is_superadmin;
 
   // Projects this user holds a seat on, with the seat itself.
   type Membership = {
@@ -164,8 +169,20 @@ export default async function MyPage({
   const pendingOnMe = onMe + leads.length;
 
   const ownerIdSet = new Set(ownerProjects.map((p) => p.id));
-  const bandOverviewAll = (((bandOverviewData ?? []) as ProjectOverviewRow[]))
+  let bandOverviewAll = (((bandOverviewData ?? []) as ProjectOverviewRow[]))
     .filter((p) => ownerIdSet.has(p.id) && !p.is_template);
+  if (godMode) {
+    // God mode: every project on the platform, as if invited to all of them.
+    // Counts come from the (p_all) cards; the overview rows just shape the tree.
+    const { data: allRows } = await supabase
+      .from("projects")
+      .select("id, project_name, address, status, parent_project_id, is_template")
+      .is("trashed_at", null)
+      .eq("is_template", false)
+      .order("project_name");
+    bandOverviewAll = (((allRows ?? []) as Omit<ProjectOverviewRow, "open_count" | "last_activity">[]))
+      .map((p) => ({ ...p, open_count: 0, last_activity: "" }));
+  }
   const bandOverview = showClosedProjects
     ? bandOverviewAll
     : bandOverviewAll.filter((p) => p.status === "In Progress");
@@ -212,7 +229,7 @@ export default async function MyPage({
   };
   // Card bundle plus the status / method lists the inline transaction editor needs.
   const [{ data: cardData }, { data: txStatusRows }, { data: txMethodRows }] = await Promise.all([
-    supabase.rpc("portal_project_cards"),
+    supabase.rpc("portal_project_cards", { p_all: godMode }),
     supabase.from("transaction_statuses").select("status"),
     supabase.from("payment_methods").select("id, name").eq("is_active", true)
       .order("display_order", { ascending: true, nullsFirst: false }),
@@ -659,6 +676,16 @@ export default async function MyPage({
         </p>
       )}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f", marginTop: 0 }}>{flashOk}</p>}
+      {godMode && (
+        <p className="banner" style={{ background: "#7a1f2b", marginTop: 0, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span>⚡ <strong>God mode is on</strong> — showing every project on the platform as if you were invited to all.</span>
+          <form action={setGodMode} style={{ display: "inline" }}>
+            <input type="hidden" name="back" value="/my" />
+            <input type="hidden" name="on" value="0" />
+            <button className="btn small" style={{ background: "#fff", color: "#7a1f2b" }}>Turn off</button>
+          </form>
+        </p>
+      )}
       {banner?.text && (
         <section className="hero-banner">
           <p style={{ margin: 0, fontSize: 17, fontWeight: 700, lineHeight: 1.35 }}>{banner.text}</p>

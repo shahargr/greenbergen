@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { useMemo, useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
-import { FilePick } from "@/components/FilePick";
+import { FileDrop } from "@/components/FileDrop";
 import { logPayment } from "./actions";
 
 export type PayProject = { id: string; name: string };
@@ -176,10 +176,10 @@ export function LogPaymentForm({
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
         <label>Attachments (optional)</label>
-        <div className="btn-row" style={{ alignItems: "flex-start" }}>
-          <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
-          <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
-          <FilePick name="videos" label="🎬 Video" accept="video/*" capture="environment" multiple={false} />
+        <div style={{ display: "grid", gap: 8 }}>
+          {/* Receipts, photos, a video: drop / paste many at once on desktop,
+              one tap on a phone. Videos post as "videos", the rest as "photos". */}
+          <FileDrop name="photos" videoName="videos" accept="image/*,video/*,application/pdf" label="Add photos / video / PDF" />
           <VoiceRecorder onReady={setVoiceBlob} />
         </div>
       </div>

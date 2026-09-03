@@ -115,8 +115,10 @@ export async function restoreProject(projectId: string) {
   if (error || !data?.ok) {
     redirect(`/my/settings?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not restore.")}`);
   }
+  // Stay on Settings: the row leaves the recycle bin and the project is back home.
   revalidatePath("/my");
-  redirect(`/my?ok=${encodeURIComponent(`${data.name} restored ✓`)}`);
+  revalidatePath("/my/settings");
+  redirect("/my/settings");
 }
 
 // Empty-now path: storage bytes first, then the guarded hard delete.
@@ -137,8 +139,10 @@ export async function deleteProjectNow(projectId: string) {
   for (const [bucket, paths] of byBucket) {
     await supabase.storage.from(bucket).remove(paths);
   }
+  // Stay on Settings: the row simply disappears from the recycle bin.
   revalidatePath("/my");
-  redirect(`/my?ok=${encodeURIComponent("Project deleted permanently.")}`);
+  revalidatePath("/my/settings");
+  redirect("/my/settings");
 }
 
 // A configuration checklist item: attach a photo (uploaded after the

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FilePick } from "@/components/FilePick";
+import { FileDrop } from "@/components/FileDrop";
 import { configAttach, configToggle } from "./actions";
 
 export type ConfigItem = {
@@ -48,7 +48,7 @@ export function ConfigChecklist({ projectId, items }: { projectId: string; items
                 </a>
               ))}
               <form action={configAttach.bind(null, projectId, it.id)}>
-                <FilePick name="photos" label="📷 Add photo" accept="image/*" capture="environment" multiple />
+                <FileDrop name="photos" accept="image/*" label="Add photos" />
                 <button type="submit" className="btn ghost small" style={{ marginTop: 6 }}>Attach &amp; done</button>
               </form>
             </div>

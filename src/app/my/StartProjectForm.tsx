@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
-import { FilePick } from "@/components/FilePick";
+import { FileDrop } from "@/components/FileDrop";
 
 type WizardField = { key: string; label: string; options?: string[]; number?: boolean; unit?: string };
 // Jobs that want photos up front say so here.
@@ -164,10 +164,7 @@ export function StartProjectForm({
             {WIZARD_PHOTOS[name] && (
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>{WIZARD_PHOTOS[name]}</label>
-                <div className="btn-row" style={{ alignItems: "flex-start" }}>
-                  <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
-                  <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
-                </div>
+                <FileDrop name="photos" accept="image/*" label="Add photos" />
               </div>
             )}
             <div className="form-2col">
@@ -204,11 +201,8 @@ export function StartProjectForm({
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Photos, plans &amp; documents (optional)</label>
-          <div className="btn-row" style={{ alignItems: "flex-start" }}>
-            <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
-            <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
-            <FilePick name="docs" label="📄 PDF / plans" accept="application/pdf" />
-          </div>
+          {/* Photos post as "photos", PDFs / plans as "docs" — one drop zone. */}
+          <FileDrop name="photos" docName="docs" accept="image/*,application/pdf" label="Add photos / plans (PDF)" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Or just say it (optional)</label>

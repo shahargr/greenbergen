@@ -2,7 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+
+// God mode toggle (superadmin only). A cookie the portal reads: ON shows
+// EVERY project on the platform as if invited to all, with a banner; OFF is
+// just your own memberships. Access itself is unchanged — RLS already grants
+// a superadmin full rights everywhere; this only changes what is listed.
+export async function setGodMode(formData: FormData) {
+  const supabase = await createClient();
+  const { data: me } = await supabase.rpc("me");
+  const back = String(formData.get("back") ?? "/admin");
+  const safeBack = back.startsWith("/") && !back.startsWith("//") ? back : "/admin";
+  if (!me?.is_superadmin) redirect(safeBack);
+  const jar = await cookies();
+  if (formData.get("on") === "1") {
+    jar.set("gb_god", "1", { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 30 });
+  } else {
+    jar.delete("gb_god");
+  }
+  revalidatePath("/my");
+  revalidatePath("/admin");
+  redirect(safeBack);
+}
 
 // Saves the community banner (dashboard headline + link). One live banner:
 // the newest row wins on the dashboard, so saving updates the latest row or

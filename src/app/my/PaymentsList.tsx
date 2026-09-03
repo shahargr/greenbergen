@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
-import { FilePick } from "@/components/FilePick";
+import { FileDrop } from "@/components/FileDrop";
 import { editPayment, commentPayment } from "./actions";
 import { GENERIC_ACCOUNTS, type PayMethod } from "./LogPaymentForm";
 
@@ -158,9 +158,8 @@ export function PaymentsList({ payments, methods, statuses = [], accounts = GENE
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Attachments</label>
-                <div className="btn-row" style={{ alignItems: "flex-start" }}>
-                  <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
-                  <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
+                <div style={{ display: "grid", gap: 8 }}>
+                  <FileDrop name="photos" accept="image/*,application/pdf" label="Add photos / PDF" />
                   <VoiceRecorder onReady={setVoiceBlob} />
                 </div>
               </div>

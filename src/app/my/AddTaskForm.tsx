@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { useMemo, useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { FileDrop } from "@/components/FileDrop";
 import { createTask } from "./actions";
 import type { PayProject, PayMember } from "./LogPaymentForm";
 
@@ -95,7 +96,7 @@ export function AddTaskForm({
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Photos as instructions</label>
-          <input type="file" name="photos" accept="image/*" capture="environment" multiple className="small" />
+          <FileDrop name="photos" accept="image/*,application/pdf" label="Add photos / PDF" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Or say it</label>

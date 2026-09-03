@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { saveBanner, saveTips, saveTrashRetention, saveWelcomeVideo } from "./actions";
+import { cookies } from "next/headers";
+import { saveBanner, saveTips, saveTrashRetention, saveWelcomeVideo, setGodMode } from "./actions";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -10,12 +11,13 @@ const SECTIONS = [
   { href: "/admin/photos", title: "Public pages", note: "Hero photos, galleries, about text, scope facts.", live: true },
   { href: "/admin/users", title: "User management", note: "Accounts, invitations, roles.", live: false },
   { href: "/admin/finance", title: "Finance", note: "Agreements, billing, receivables.", live: false },
-  { href: "/admin/projects", title: "Project management", note: "Projects, members, inquiries.", live: false },
+  { href: "/admin/projects", title: "Project management", note: "Every project on the platform; enter any in god mode.", live: true },
 ];
 
 export default async function AdminHome() {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
+  const godOn = (await cookies()).get("gb_god")?.value === "1";
   const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url").maybeSingle();
   const trashDays = cfgRow?.trash_retention_days ?? 14;
   const { data: bannerRows } = await supabase
@@ -51,6 +53,24 @@ export default async function AdminHome() {
             {!s.live && <span className="small" style={{ color: "var(--brand)" }}>To be developed</span>}
           </Link>
         ))}
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 8, borderLeft: godOn ? "4px solid #7a1f2b" : undefined }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 className="section-title" style={{ margin: 0 }}>⚡ God mode · {godOn ? "ON" : "off"}</h2>
+          <form action={setGodMode}>
+            <input type="hidden" name="back" value="/admin" />
+            <input type="hidden" name="on" value={godOn ? "0" : "1"} />
+            <button className="btn small" style={godOn ? undefined : { background: "#7a1f2b" }}>
+              {godOn ? "Turn off" : "Turn on"}
+            </button>
+          </form>
+        </div>
+        <p className="muted small" style={{ margin: 0 }}>
+          ON: your homepage lists <strong>every project on the platform</strong> as if you were invited to all of them,
+          and every project page shows a god-mode banner. OFF: only projects you hold a seat on. Your admin rights
+          themselves don&apos;t change — this only changes what is listed.
+        </p>
       </div>
 
       <div className="card" style={{ display: "grid", gap: 8 }}>

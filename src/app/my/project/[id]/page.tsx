@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
 import { ProjectEditor } from "./ProjectEditor";
 import { projectPerms } from "./actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
@@ -99,10 +100,12 @@ export default async function ProjectPage({
   };
   const { data: meRow } = await supabase.rpc("me");
   const myContactId: string | null = meRow?.contact_id ?? null;
-  // God mode: a superadmin on a project they hold no seat on. RLS already
-  // grants full access; this only makes it visible on the page.
-  const godMode = !!meRow?.is_superadmin &&
-    !(((memberRows ?? []) as unknown as MemberRow[]).some((m) => !!m.contact_id && m.contact_id === myContactId));
+  // God mode banner: the admin toggle is on, or a superadmin is on a project
+  // they hold no seat on. RLS already grants full access; this only makes it
+  // visible on the page.
+  const godOn = (await cookies()).get("gb_god")?.value === "1";
+  const godMode = !!meRow?.is_superadmin && (godOn ||
+    !(((memberRows ?? []) as unknown as MemberRow[]).some((m) => !!m.contact_id && m.contact_id === myContactId)));
   const projectTasks: TableTask[] = (((taskData ?? []) as PortalTask[])).map((t) => ({
     id: t.id, action: t.action, status: t.status, priority: t.priority,
     target_date: t.target_date, last_updated: t.last_updated, notes: t.notes,
