@@ -156,6 +156,15 @@ export function StartProjectForm({
         {WIZARDS[name] && (
           <div className="card" style={{ background: "#f7faf8", display: "grid", gap: 10 }}>
             <strong className="small">A few questions about the {name.toLowerCase()}</strong>
+            {WIZARD_PHOTOS[name] && (
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>{WIZARD_PHOTOS[name]}</label>
+                <div className="btn-row" style={{ alignItems: "flex-start" }}>
+                  <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
+                  <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
+                </div>
+              </div>
+            )}
             <div className="form-2col">
               {WIZARDS[name].map((f) => (
                 <div key={f.key} className="field" style={{ marginBottom: 0 }}>
@@ -171,24 +180,19 @@ export function StartProjectForm({
                 </div>
               ))}
             </div>
-            {WIZARD_PHOTOS[name] && (
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label>{WIZARD_PHOTOS[name]}</label>
-                <div className="btn-row" style={{ alignItems: "flex-start" }}>
-                  <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
-                  <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="pj-name">What are we doing?</label>
-          <input id="pj-name" name="name" className="input" required autoComplete="off"
-            value={name} onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Kitchen remodel, new pool, generator" />
-        </div>
+        {WIZARDS[name] ? (
+          <input type="hidden" name="name" value={name} />
+        ) : (
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="pj-name">What are we doing?</label>
+            <input id="pj-name" name="name" className="input" required autoComplete="off"
+              value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Kitchen remodel, new pool, generator" />
+          </div>
+        )}
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-desc">Tell us more (optional)</label>
           <textarea id="pj-desc" name="description" className="input" rows={3} />
