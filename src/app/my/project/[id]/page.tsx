@@ -30,7 +30,9 @@ export default async function ProjectPage({
   // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
   // three counts link here).
   const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
-  const initialTaskView: "all" | "stuck" = tasksBucket === "stuck" ? "stuck" : "all";
+  // Default on load: the 10 most urgent tasks. ?tasks=open|done|stuck override.
+  const initialTaskView: "all" | "stuck" | "urgent" =
+    tasksBucket === "stuck" ? "stuck" : (tasksBucket === "done" || tasksBucket === "open") ? "all" : "urgent";
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -48,7 +50,7 @@ export default async function ProjectPage({
     );
   }
 
-  const [perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }, { data: rollupData }] =
+  const [perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }] =
     await Promise.all([
       projectPerms(id),
       supabase
@@ -67,24 +69,10 @@ export default async function ProjectPage({
         .from("project_config_values")
         .select("key, value")
         .eq("project_id", id),
-      supabase.rpc("portal_finance_rollup", { p_project_id: id }),
     ]);
 
-  // Per-stage budget vs actual for the task-stage tiles. Phases come from the
-  // project's own budget (e.g. "3. Rough"); the numeric prefix is dropped for
-  // the tile label. Stages with no budget and no tasks are hidden by the tile.
-  type RollupPhase = { phase: string; budget: number; actual_paid: number; open_committed: number };
-  const rollupPhases: RollupPhase[] =
-    (((rollupData as { projects?: { phases?: RollupPhase[] }[] } | null)?.projects?.[0]?.phases) ?? [])
-      .filter((ph) => ph.phase !== "Unassigned");
-  const stageTiles = rollupPhases
-    .map((ph) => ({
-      key: ph.phase,
-      label: ph.phase.replace(/^\s*\d+\.\s*/, ""),
-      budget: Number(ph.budget) || 0,
-      actual: Number(ph.actual_paid) || 0,
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key));
+  // Stage (budget-phase) tiles are hidden on this page for now; the task
+  // table opens on the 10 most urgent tasks and the late-by-person panels.
 
   // One line per person - a contact can hold several seats.
   const people = new Map<string, string[]>();
@@ -122,17 +110,8 @@ export default async function ProjectPage({
   const openCount = projectTasks.filter((t) => t.state === "open").length;
   const doneCount = projectTasks.filter((t) => t.state === "closed").length;
 
-  // People with LATE open tasks on this project - panels appear only for
-  // those who actually have overdue work.
+  // Late-by-person panels now live inside TasksTable (clickable filters).
   const todayIso = new Date().toISOString().slice(0, 10);
-  const lateByPerson = new Map<string, number>();
-  for (const t of projectTasks) {
-    if (t.state === "open" && t.target_date && t.target_date < todayIso) {
-      const who = t.assignee ?? "Unassigned";
-      lateByPerson.set(who, (lateByPerson.get(who) ?? 0) + 1);
-    }
-  }
-  const latePeople = [...lateByPerson.entries()].sort((a, b) => b[1] - a[1]);
 
   type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };
   const config = ((configRows ?? []) as ConfigRow[]);
@@ -238,21 +217,8 @@ export default async function ProjectPage({
             </details>
           )}
           {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
-          {latePeople.length > 0 && (
-            <div className="phase-grid" style={{ marginBottom: 4 }}>
-              {latePeople.map(([who, n]) => (
-                <div key={who} className="phase-tile" style={{ cursor: "default" }}>
-                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d" }}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
-                  </span>
-                  <span className="phase-name" style={{ fontSize: 11 }}>{who}</span>
-                  <span className="tradestat-late"><strong>{n}</strong> late</span>
-                </div>
-              ))}
-            </div>
-          )}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters stageTiles={stageTiles}
+            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters showTradeTiles={false} showLatePanels
               initialState={initialTaskState} initialView={initialTaskView} />
           )}
         </div>

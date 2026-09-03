@@ -66,12 +66,13 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
   initialState?: "open" | "closed" | "all";
-  initialView?: "all" | "mine" | "late" | "stuck";
+  initialView?: "all" | "mine" | "late" | "stuck" | "urgent";
+  showLatePanels?: boolean;
   syncUrl?: boolean;
   showTradeTiles?: boolean;
   compact?: boolean;
@@ -101,7 +102,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const stageOf = (trade: string | null) => (trade ? tradeStage[trade] ?? null : null);
   const router = useRouter();
   // compact mode: the table stays hidden until a view is picked.
-  const [view, setView] = useState<"none" | "mine" | "late" | "stuck" | "all">(compact ? "none" : (initialView ?? "all"));
+  const [view, setView] = useState<"none" | "mine" | "late" | "stuck" | "urgent" | "all">(compact ? "none" : (initialView ?? "all"));
   const [state, setState] = useState<"open" | "closed" | "all">(initialState ?? "open");
   const [domain, setDomain] = useState(initialDomain ?? "construction");
   const [project, setProject] = useState(initialProject ?? "all");
@@ -180,14 +181,28 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, project, todayIso, stageMode, tradeStage]);
 
-  const shown = tasks
+  // People with LATE open tasks — clickable panels that filter the list to
+  // that person's overdue work. "Unassigned" is its own bucket.
+  const latePeople = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.state === "open" && t.target_date && t.target_date < todayIso) {
+        const who = t.assignee ?? "Unassigned";
+        m.set(who, (m.get(who) ?? 0) + 1);
+      }
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [tasks, todayIso]);
+
+  const prioRank = (p: string | null) => (p === "High" ? 0 : p === "Medium" ? 1 : p === "Low" ? 2 : 3);
+  const shownAll = tasks
     .filter(
       (t) =>
         (state === "all" || t.state === state) &&
         (domain === "all" || t.domain === domain) &&
         (project === "all" || (t.project ?? "No project") === project) &&
         (trade === "all" || t.trade === trade) &&
-        (person === "all" || t.assignee === person) &&
+        (person === "all" || (person === "__unassigned__" ? !t.assignee : t.assignee === person)) &&
         (priority === "all" || (t.priority ?? "No Priority") === priority) &&
         (view !== "mine" || t.who === "you") &&
         (view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso)) &&
@@ -195,15 +210,20 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         // Mirrors the homepage card's "stuck" count.
         (view !== "stuck" || (t.state === "open" &&
           ((!!t.target_date && t.target_date < todayIso) || /pending/i.test(t.status) || t.status === "Parked"))) &&
+        (view !== "urgent" || t.state === "open") &&
         (phase === "all" || (stageMode ? stageOf(t.trade) : phaseOf(t.trade)) === phase)
     )
     .sort((a, b) =>
-      view === "late" || view === "stuck"
-        ? (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
-        : sort === "updated"
-          ? (b.last_updated ?? "").localeCompare(a.last_updated ?? "")
-          : (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
+      view === "urgent"
+        ? ((a.target_date ?? "9999").localeCompare(b.target_date ?? "9999") || (prioRank(a.priority) - prioRank(b.priority)))
+        : view === "late" || view === "stuck"
+          ? (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
+          : sort === "updated"
+            ? (b.last_updated ?? "").localeCompare(a.last_updated ?? "")
+            : (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
     );
+  // Urgent = the 10 nearest-due open tasks, line by line (the default view).
+  const shown = view === "urgent" ? shownAll.slice(0, 10) : shownAll;
   const tableVisible = !compact || view !== "none" || trade !== "all";
 
   const pick = (setter: (v: never) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -268,7 +288,34 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
+      {showLatePanels && latePeople.length > 0 && (
+        <div className="phase-grid" style={{ marginBottom: 4 }}>
+          {latePeople.map(([who, n]) => {
+            const key = who === "Unassigned" ? "__unassigned__" : who;
+            const on = view === "late" && person === key;
+            return (
+              <button key={who} type="button" className={on ? "phase-tile on" : "phase-tile"}
+                title={on ? "Clear" : `Show ${who}'s late tasks`}
+                onClick={() => {
+                  if (on) { setPerson("all"); setView("all"); } else { setPerson(key); setView("late"); }
+                  setOpen(null);
+                }}>
+                <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d" }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
+                </span>
+                <span className="phase-name" style={{ fontSize: 11 }}>{who}</span>
+                <span className="tradestat-late"><strong>{n}</strong> late</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="btn-row" style={{ gap: 6 }}>
+        <button type="button" className={view === "urgent" ? "btn small" : "btn ghost small"}
+          onClick={() => { setView(view === "urgent" ? "none" : "urgent"); setOpen(null); }}>
+          Urgent
+        </button>
         <button type="button" className={view === "mine" ? "btn small" : "btn ghost small"}
           onClick={() => { setView(view === "mine" ? "none" : "mine"); setOpen(null); }}>
           My tasks
@@ -306,6 +353,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </select>
         <select value={person} onChange={pick(setPerson)}>
           <option value="all">Anyone</option>
+          <option value="__unassigned__">Unassigned</option>
           {people.map((p) => <option key={p}>{p}</option>)}
         </select>
         <select value={priority} onChange={pick(setPriority)}>
