@@ -62,3 +62,14 @@ export async function saveTrashRetention(formData: FormData) {
     ? `/admin?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save.")}`
     : `/admin?saved=1`);
 }
+
+// The welcome video shown to first-run users (YouTube link or MP4 URL).
+export async function saveWelcomeVideo(formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_welcome_video_url", {
+    p_url: String(formData.get("url") ?? "").trim(),
+  });
+  redirect(error || !data?.ok
+    ? `/admin?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save.")}`
+    : `/admin?saved=1`);
+}

@@ -834,3 +834,14 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
   color: var(--brand, #1f6b45); display: grid; place-items: center;
 }
 .featured-job-name { font-size: 12px; font-weight: 700; line-height: 1.25; }
+
+/* Welcome steps */
+.welcome-steps { margin: 0; padding: 0 0 0 4px; list-style: none; counter-reset: step; display: grid; gap: 14px; }
+.welcome-steps li { counter-increment: step; display: grid; gap: 3px; padding-left: 40px; position: relative; opacity: 0.55; }
+.welcome-steps li.active { opacity: 1; }
+.welcome-steps li::before {
+  content: counter(step); position: absolute; left: 0; top: 0;
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: #eef6f0; color: var(--brand, #1f6b45); font-weight: 800; font-size: 14px;
+}
+.welcome-steps li.active::before { background: var(--brand, #1f6b45); color: #fff; }

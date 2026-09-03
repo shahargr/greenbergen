@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { saveBanner, saveTips, saveTrashRetention } from "./actions";
+import { saveBanner, saveTips, saveTrashRetention, saveWelcomeVideo } from "./actions";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -16,7 +16,7 @@ const SECTIONS = [
 export default async function AdminHome() {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
-  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days").maybeSingle();
+  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url").maybeSingle();
   const trashDays = cfgRow?.trash_retention_days ?? 14;
   const { data: bannerRows } = await supabase
     .from("community_banners")
@@ -51,6 +51,18 @@ export default async function AdminHome() {
             {!s.live && <span className="small" style={{ color: "var(--brand)" }}>To be developed</span>}
           </Link>
         ))}
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 8 }}>
+        <h2 className="section-title">Welcome video</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          Shown to first-run users on their welcome screen. YouTube link or a direct MP4 URL; empty hides it.
+        </p>
+        <form action={saveWelcomeVideo} className="btn-row">
+          <input name="url" className="input" defaultValue={cfgRow?.welcome_video_url ?? ""}
+            placeholder="https://youtu.be/…" style={{ maxWidth: 340 }} />
+          <button className="btn">Save</button>
+        </form>
       </div>
 
       <div className="card" style={{ display: "grid", gap: 8 }}>

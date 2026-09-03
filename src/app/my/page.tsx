@@ -4,6 +4,7 @@ import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, setTown, toggleDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
+import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
@@ -122,6 +123,7 @@ export default async function MyPage({
   const projects: HomeProject[] = (home?.projects as HomeProject[]) ?? [];
   const hasHome = projects.length > 0;
   const banner = banner0;
+  const welcomeVideo: string | null = boot?.welcome_video ?? null;
   const canCreate: boolean = home?.can_create ?? false;
 
   // Projects this user holds a seat on, with the seat itself.
@@ -477,8 +479,58 @@ export default async function MyPage({
         </section>
       )}
 
-      {/* New owner: claiming the address is the whole point of the page. */}
+      {/* First run: welcome + step-by-step until the first project exists. */}
       {!hasHome && (
+        <section className="card" style={{ marginBottom: 14, display: "grid", gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 24, margin: "0 0 4px" }}>
+              Welcome to <span style={{ color: "var(--brand)" }}>green</span>bergen
+            </h1>
+            <p className="muted" style={{ margin: 0 }}>
+              Your home gets a page of its own — projects, people, paperwork
+              and money, all in one place. Three steps and you&apos;re running:
+            </p>
+          </div>
+          {welcomeVideo && <WelcomeVideo url={welcomeVideo} />}
+          <ol className="welcome-steps">
+            <li className="active">
+              <strong>Claim your address</strong>
+              <span className="muted small">Tell us where home is — that&apos;s where everything lives.</span>
+              {canCreate ? (
+                <form action={createHome} style={{ display: "grid", gap: 8, marginTop: 8, maxWidth: 380 }}>
+                  <input name="name" className="input" required autoComplete="off" placeholder="What should we call it? e.g. Our house" />
+                  <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
+                  <div><button className="btn">Claim it</button></div>
+                </form>
+              ) : (
+                <span className="muted small">Your account has no active agreement yet — ask us for an invitation.</span>
+              )}
+            </li>
+            <li>
+              <strong>Start your first project</strong>
+              <span className="muted small">A generator, a water heater, a leak — say it, snap it, or type it.</span>
+            </li>
+            <li>
+              <strong>We take it from there</strong>
+              <span className="muted small">Tasks, the right pros, and every payment tracked in one place.</span>
+            </li>
+          </ol>
+        </section>
+      )}
+
+      {hasHome && bandOverviewAll.length > 0 && !bandOverviewAll.some((p) => p.parent_project_id) && (
+        <section className="card" style={{ marginBottom: 14, display: "grid", gap: 10 }}>
+          <strong>Your home is in ✓ — now start your first project</strong>
+          {welcomeVideo && <WelcomeVideo url={welcomeVideo} />}
+          <p className="muted small" style={{ margin: 0 }}>
+            A generator, a water heater, a leak — describe it once and it
+            becomes a project with tasks, people and money attached.
+          </p>
+          <div><Link className="btn" href="/my/new-project">Start your first project</Link></div>
+        </section>
+      )}
+
+      {false && (
         <section className="card hero-claim">
           <div>
             <h1 style={{ fontSize: 22, margin: "0 0 4px" }}>Claim your address</h1>
