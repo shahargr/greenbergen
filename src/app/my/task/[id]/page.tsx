@@ -18,7 +18,7 @@ type TaskFull = {
   is_gate: boolean | null; cadence: string | null; created_at: string;
   created_by: string | null; source: string | null; project_id: string | null;
   assigned_to_contact_id: string | null; assigned_to_persona_id: string | null;
-  assigned_by: string | null; inquiry_id: string | null; follows_action_id: string | null;
+  assigned_by: string | null; inquiry_id: string | null; follows_action_id: string | null; parent_action_id: string | null;
   projects: { project_name: string | null } | null;
 };
 
@@ -41,7 +41,7 @@ export default async function TaskPage({
     .select(
       "id, action, status, priority, target_date, desired_outcome, notes, dependencies, learnings, " +
       "pending_on, pending_reason, requires_photo_evidence, is_gate, cadence, created_at, created_by, " +
-      "source, project_id, assigned_to_contact_id, assigned_to_persona_id, assigned_by, inquiry_id, follows_action_id, " +
+      "source, project_id, assigned_to_contact_id, assigned_to_persona_id, assigned_by, inquiry_id, follows_action_id, parent_action_id, " +
       "projects(project_name)",
     )
     .eq("id", id)
@@ -97,6 +97,33 @@ export default async function TaskPage({
   ]);
   const chainPrev = (prevRow ?? null) as ChainLink | null;
   const chainNext = ((nextRows ?? []) as ChainLink[]);
+
+  // Breadcrumb: home › house › project › parent task(s) › this task.
+  // Project parents and task parents are both walked upward, capped so a
+  // bad self-reference can never loop.
+  type Crumb = { key: string; label: string; href: string | null };
+  const projectCrumbs: Crumb[] = [];
+  let projCursor: string | null = t.project_id;
+  for (let i = 0; projCursor && i < 6; i += 1) {
+    const { data: pr } = await supabase.from("projects").select("id, project_name, parent_project_id").eq("id", projCursor).maybeSingle();
+    if (!pr) break;
+    projectCrumbs.unshift({ key: pr.id, label: pr.project_name, href: `/my/project/${pr.id}` });
+    projCursor = pr.parent_project_id as string | null;
+  }
+  const taskCrumbs: Crumb[] = [];
+  let taskCursor: string | null = t.parent_action_id;
+  for (let i = 0; taskCursor && i < 6; i += 1) {
+    const { data: pa } = await supabase.from("actions").select("id, action, parent_action_id").eq("id", taskCursor).maybeSingle();
+    if (!pa) break;
+    taskCrumbs.unshift({ key: pa.id, label: pa.action ?? "(untitled)", href: `/my/task/${pa.id}` });
+    taskCursor = pa.parent_action_id as string | null;
+  }
+  const crumbs: Crumb[] = [
+    { key: "home", label: "Home", href: "/my" },
+    ...projectCrumbs,
+    ...taskCrumbs,
+    { key: t.id, label: t.action ?? "(untitled)", href: null },
+  ];
   const comments = (commentRows ?? []) as CommentView[];
 
   const allTrades = ((tradeRows ?? []) as { trade: string; is_construction: boolean | null; is_worker_trade: boolean | null }[]);
@@ -179,9 +206,16 @@ export default async function TaskPage({
 
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 64, maxWidth: 680 }}>
-      <p className="small" style={{ margin: "0 0 10px" }}>
-        <Link href="/my?panel=tasks">← Back to tasks</Link>
-      </p>
+      <nav aria-label="Breadcrumb" className="small" style={{ margin: "0 0 10px", display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 4, minWidth: 0 }}>
+        {crumbs.map((c, i) => (
+          <span key={c.key} style={{ display: "inline-flex", alignItems: "baseline", gap: 4, minWidth: 0, maxWidth: "100%" }}>
+            {i > 0 && <span className="muted">›</span>}
+            {c.href
+              ? <Link href={c.href} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{c.label}</Link>
+              : <span style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{c.label}</span>}
+          </span>
+        ))}
+      </nav>
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
