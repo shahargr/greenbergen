@@ -565,7 +565,21 @@ export default async function MyPage({
 
       {hasHome && bandOverviewAll.length > 0 && (
         <section style={{ display: "grid", gap: 8, marginBottom: 18 }}>
-          {bandRoots.map((r) => renderTree(r, 0))}
+          {bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0 ? (
+            <>
+              {/* One home: its card is noise - the projects ARE the page.
+                  A quiet line keeps the home itself reachable. */}
+              <p className="small" style={{ margin: "0 0 2px" }}>
+                <Link href={`/my/project/${bandRoots[0].id}`} className="muted">
+                  🏠 {bandRoots[0].project_name}
+                  {bandRoots[0].address && <> · {bandRoots[0].address}</>}
+                </Link>
+              </p>
+              {(bandChildren.get(bandRoots[0].id) ?? []).map((c) => renderTree(c, 0))}
+            </>
+          ) : (
+            bandRoots.map((r) => renderTree(r, 0))
+          )}
           {!showClosedProjects && hiddenClosedProjects > 0 && (
             <p className="small" style={{ margin: 0 }}>
               <Link href="/my?allp=1">Show all projects ({hiddenClosedProjects} closed hidden)</Link>
