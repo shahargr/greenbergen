@@ -14,7 +14,11 @@ export type PayPayee = { projectId: string; name: string };
 export type PayMethod = { id: string; name: string };
 
 // The accounts money leaves from (Shahar, 2026-09-02, simplified same day).
-export const PAID_FROM_OPTIONS = ["55 Walnut", "Net Positive LLC", "Personal"];
+// The org's own named accounts - shown ONLY to the org (superadmin).
+// Everyone else gets generic suggestions and can type their own; the
+// field is free text either way, so no one's private accounts leak.
+export const ORG_ACCOUNTS = ["55 Walnut", "Net Positive LLC", "Personal"];
+export const GENERIC_ACCOUNTS = ["Checking", "Credit card", "Cash", "Other"];
 
 // The payment screen: everything below the project select follows it -
 // payers and requested-by come from that project's members, contracts from
@@ -25,6 +29,7 @@ export function LogPaymentForm({
   contracts,
   methods,
   payees = [],
+  accounts = GENERIC_ACCOUNTS,
   meName,
 }: {
   projects: PayProject[];
@@ -32,6 +37,7 @@ export function LogPaymentForm({
   contracts: PayContract[];
   methods: PayMethod[];
   payees?: PayPayee[];
+  accounts?: string[];
   meName: string;
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
@@ -115,10 +121,10 @@ export function LogPaymentForm({
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pay-from">Paid from (account)</label>
-          <select id="pay-from" name="paid_from" className="input" defaultValue="">
-            <option value="">—</option>
-            {PAID_FROM_OPTIONS.map((a) => <option key={a}>{a}</option>)}
-          </select>
+          <input id="pay-from" name="paid_from" className="input" list="paid-from-options" autoComplete="off" placeholder="Account" />
+          <datalist id="paid-from-options">
+            {accounts.map((a) => <option key={a} value={a} />)}
+          </datalist>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pay-method">Payment type</label>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { FilePick } from "@/components/FilePick";
 import { editPayment, commentPayment } from "./actions";
-import { PAID_FROM_OPTIONS, type PayMethod } from "./LogPaymentForm";
+import { GENERIC_ACCOUNTS, type PayMethod } from "./LogPaymentForm";
 
 export type RecentPayment = {
   id: string;
@@ -22,7 +22,7 @@ export type RecentPayment = {
 
 // Recent payments with in-place editing - fix a field, or attach the
 // receipt photos and voice note that arrived after the fact.
-export function PaymentsList({ payments, methods, statuses = [] }: { payments: RecentPayment[]; methods: PayMethod[]; statuses?: string[] }) {
+export function PaymentsList({ payments, methods, statuses = [], accounts = GENERIC_ACCOUNTS }: { payments: RecentPayment[]; methods: PayMethod[]; statuses?: string[]; accounts?: string[] }) {
   const [open, setOpen] = useState<{ id: string; mode: "view" | "edit" } | null>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
@@ -147,13 +147,10 @@ export function PaymentsList({ payments, methods, statuses = [] }: { payments: R
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Paid from (account)</label>
-                <select name="paid_from" className="input" defaultValue={p.paid_from_account ?? ""}>
-                  <option value="">—</option>
-                  {p.paid_from_account && !PAID_FROM_OPTIONS.includes(p.paid_from_account) && (
-                    <option value={p.paid_from_account}>{p.paid_from_account}</option>
-                  )}
-                  {PAID_FROM_OPTIONS.map((a) => <option key={a}>{a}</option>)}
-                </select>
+                <input name="paid_from" className="input" list="edit-account-options" autoComplete="off" defaultValue={p.paid_from_account ?? ""} />
+                <datalist id="edit-account-options">
+                  {accounts.map((a) => <option key={a} value={a} />)}
+                </datalist>
               </div>
               <div className="field" style={{ marginBottom: 0 }}>
                 <label>Notes</label>

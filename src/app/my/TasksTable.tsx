@@ -15,6 +15,7 @@ export type TableTask = {
   notes: string | null;
   project: string | null;
   who: "you" | "others";
+  project_id?: string | null;
   domain: string | null;
   state: "open" | "closed";
   trade: string | null;

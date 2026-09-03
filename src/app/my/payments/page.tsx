@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { LogPaymentForm } from "../LogPaymentForm";
+import { LogPaymentForm, ORG_ACCOUNTS, GENERIC_ACCOUNTS } from "../LogPaymentForm";
 import { PaymentsList } from "../PaymentsList";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +96,7 @@ export default async function PaymentsPage({
   const paidTotal = paidRows2.reduce((t, r) => t + Number(r.amount ?? 0), 0);
   const openTotal = openRows2.reduce((t, r) => t + Number(r.amount ?? 0), 0);
   const statuses = ((statusRows ?? []) as { status: string }[]).map((r) => r.status);
+  const accounts = me?.is_superadmin ? ORG_ACCOUNTS : GENERIC_ACCOUNTS;
 
   const methods = ((methodRows ?? []) as { id: string; name: string }[]);
   const preferred = ["Cash", "Check", "ACH", "Credit card"];
@@ -185,9 +186,9 @@ export default async function PaymentsPage({
           <span style={{ fontSize: 20, fontWeight: 800, color: "#a8842c" }}>${Math.round(openTotal).toLocaleString()}</span>
           <span className="tile-sub">{openRows2.length} awaiting payment</span>
         </div>
-        <Link className="tile" href="/my/financials">
-          <span className="tile-label">Financials</span>
-          <span className="tile-sub" style={{ marginTop: 6 }}>Contracted vs. paid, per project</span>
+        <Link className="tile" href="/my/payments?all=1">
+          <span className="tile-label">Transactions</span>
+          <span className="tile-sub" style={{ marginTop: 6 }}>The full ledger</span>
         </Link>
       </div>
 
@@ -221,6 +222,7 @@ export default async function PaymentsPage({
       <PaymentsList
         methods={methods}
         statuses={statuses}
+        accounts={accounts}
         payments={recent.map((r) => ({
           id: r.id,
           amount: r.amount,
