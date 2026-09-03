@@ -121,7 +121,7 @@ export default async function MyPage({
   type Membership = {
     role: string;
     project_role: string | null;
-    projects: { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean } | null;
+    projects: { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean; asset_id: string | null } | null;
   };
   type ProjectOverviewRow = {
     id: string; project_name: string; address: string | null; status: string;
@@ -134,7 +134,7 @@ export default async function MyPage({
     me?.app_user_id
       ? supabase
           .from("project_members")
-          .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template)")
+          .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template, asset_id)")
           .eq("app_user_id", me.app_user_id)
           .eq("status", "active")
       : Promise.resolve({ data: [] }),
@@ -421,11 +421,18 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "addproject" && hasHome) {
-    // Candidate parents: your open homes. Default: the home whose tree you
-    // touched last (latest task activity anywhere under it).
-    const parentHomes = ownerProjects.filter(
-      (p) => !p.parent_project_id && !p.is_template && p.status === "In Progress"
+    // Candidate parents: your PROPERTIES - projects carrying a claimed
+    // asset (an address), wherever they sit in the tree. Corporate
+    // containers without an asset never belong in this picker. Fallback:
+    // open root projects with an address.
+    let parentHomes = ownerProjects.filter(
+      (p) => p.asset_id && !p.is_template && p.status === "In Progress"
     );
+    if (parentHomes.length === 0) {
+      parentHomes = ownerProjects.filter(
+        (p) => !p.parent_project_id && !p.is_template && p.address && p.status === "In Progress"
+      );
+    }
     const rootOf = (id: string): string => {
       const proj = ownerProjects.find((p) => p.id === id);
       return proj?.parent_project_id ? rootOf(proj.parent_project_id) : id;
