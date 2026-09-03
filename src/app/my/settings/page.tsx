@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { saveProfile, saveAskingPrice, renameHome } from "./actions";
 import { createHome } from "../actions";
@@ -30,6 +31,31 @@ export default async function SettingsPage({
   type ContactPerson = { contact_id: string; name: string; phone: string | null; email: string | null; notes: string | null; role: string; trade: string | null };
   type ContactHouse = { project_id: string; project_name: string; address: string | null; people: ContactPerson[] };
   const contactHouses = ((contactsData ?? []) as ContactHouse[]);
+
+  // Every seat the caller holds (any role): houses (roots) with their projects.
+  type MemProj = { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean; trashed_at: string | null };
+  const { data: memRows } = me?.app_user_id
+    ? await supabase
+        .from("project_members")
+        .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template, trashed_at)")
+        .eq("app_user_id", me.app_user_id)
+        .eq("status", "active")
+    : { data: [] };
+  const seats = new Map<string, Set<string>>();
+  const memProjects = new Map<string, MemProj>();
+  for (const r of ((memRows ?? []) as unknown as { role: string; project_role: string | null; projects: MemProj | null }[])) {
+    const p = r.projects;
+    if (!p || p.is_template || p.trashed_at) continue;
+    memProjects.set(p.id, p);
+    const s = seats.get(p.id) ?? new Set<string>();
+    s.add(r.project_role ?? r.role);
+    seats.set(p.id, s);
+  }
+  const houses = [...memProjects.values()]
+    .filter((p) => !p.parent_project_id || !memProjects.has(p.parent_project_id))
+    .sort((a, b) => a.project_name.localeCompare(b.project_name));
+  const childrenOf = (pid: string) =>
+    [...memProjects.values()].filter((p) => p.parent_project_id === pid).sort((a, b) => a.project_name.localeCompare(b.project_name));
   const trashDays: number = trashData?.days ?? 14;
   const trashItems = ((trashData?.items ?? []) as { id: string; name: string; trashed_at: string; expires_on: string }[]);
 
@@ -97,11 +123,16 @@ export default async function SettingsPage({
               Signed in as <strong>{me?.email}</strong>
               {me?.is_superadmin && <span className="extra-chip" style={{ marginLeft: 8 }}>admin</span>}
             </div>
+            <div className="muted small">
+              {contact?.phone ? <a href={`tel:${contact.phone}`} style={{ textDecoration: "none" }}>📞 {contact.phone}</a> : <span>📞 no phone yet</span>}
+            </div>
           </span>
         </div>
 
-        <form action={saveProfile} className="card" style={{ display: "grid", gap: 10 }}>
-          <h2 className="section-title">About you</h2>
+        {/* The identity card above is the summary; the full form sits behind Edit. */}
+        <details className="card">
+          <summary style={{ cursor: "pointer", fontWeight: 700 }}>✏️ Edit your details</summary>
+          <form action={saveProfile} style={{ display: "grid", gap: 10, marginTop: 10 }}>
           <div className="form-2col">
             <div className="field" style={{ marginBottom: 0 }}>
               <label htmlFor="st-name">Full name</label>
@@ -132,7 +163,8 @@ export default async function SettingsPage({
           <div>
             <button className="btn">Save</button>
           </div>
-        </form>
+          </form>
+        </details>
 
         {homes.map((h) => (
           <details key={h.assetId} className="card">
@@ -175,6 +207,27 @@ export default async function SettingsPage({
             </p>
           </div>
         )}
+
+        {/* Your houses & projects: every seat you hold. A house opens its own page. */}
+        <div className="card" style={{ display: "grid", gap: 6 }}>
+          <h2 className="section-title" style={{ margin: 0 }}>Your houses &amp; projects · {memProjects.size}</h2>
+          {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>You don&apos;t hold a seat on any project yet.</p>}
+          {houses.map((h) => (
+            <div key={h.id} style={{ display: "grid", gap: 3, borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
+              <div className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                <Link href={`/my/house/${h.id}`} style={{ fontWeight: 700 }}>🏠 {h.project_name} →</Link>
+                <span className="muted" style={{ whiteSpace: "nowrap" }}>{[...(seats.get(h.id) ?? [])].join(", ")} · {h.status}</span>
+              </div>
+              {h.address && <div className="muted small">{h.address}</div>}
+              {childrenOf(h.id).map((p) => (
+                <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, paddingLeft: 18 }}>
+                  <Link href={`/my/project/${p.id}`}>↳ {p.project_name}</Link>
+                  <span className="muted" style={{ whiteSpace: "nowrap" }}>{[...(seats.get(p.id) ?? [])].join(", ")} · {p.status}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
 
         {/* Contacts: every house's approved people, editable in place. */}
         {contactHouses.map((h) => (
