@@ -29,9 +29,14 @@ export function ProjectEditor({ project, perms }: { project: ProjectView; perms:
       <div className="card" style={{ display: "grid", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
           <h2 className="section-title" style={{ margin: 0 }}>Details</h2>
-          {(canEditAnything || canDelete) && (
-            <button className="btn ghost small" onClick={() => setSetup(true)}>⚙️ Setup</button>
-          )}
+          <span className="btn-row" style={{ gap: 6 }}>
+            {canEditAnything && (
+              <a href={`/my/invite?project=${project.id}`} className="btn ghost small" title="Invite someone to this space">➕ Invite</a>
+            )}
+            {(canEditAnything || canDelete) && (
+              <button className="btn ghost small" onClick={() => setSetup(true)}>⚙️ Setup</button>
+            )}
+          </span>
         </div>
         <div className="small" style={{ display: "grid", gap: 4 }}>
           <span><span className="muted">Status:</span> {project.status ?? "—"}</span>

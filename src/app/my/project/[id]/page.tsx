@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor } from "./ProjectEditor";
 import { projectPerms, updateContact } from "./actions";
+import { inviteToProject } from "../../invite/actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
@@ -24,10 +25,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; error?: string; tasks?: string; assign?: string; parent?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string }>;
 }) {
   const { id } = await params;
-  const { saved, error, tasks: tasksBucket, assign: assignContact, parent: parentTask } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask } = await searchParams;
   // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
   // three counts link here).
   const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
@@ -247,6 +248,7 @@ export default async function ProjectPage({
       <h1 style={{ fontSize: 26, margin: "6px 0 2px" }}>{project.project_name}</h1>
 
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
+      {flashOk && <p className="banner" style={{ background: "#2f6b4f" }}>{flashOk}</p>}
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14, marginTop: 10 }}>
@@ -357,6 +359,37 @@ export default async function ProjectPage({
           )}
         </div>
 
+
+        {/* Invite someone into this space. They accept or decline on their
+            next login; the answer shows on the inviter's home page. */}
+        {(perms.admin || perms.name || perms.status || perms.address) && (
+          <details className="card" style={{ display: "grid", gap: 8 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 700 }}>➕ Invite someone to this {project.parent_project_id ? "project" : "home"}</summary>
+            <form action={inviteToProject} style={{ display: "grid", gap: 8, marginTop: 8 }}>
+              <input type="hidden" name="project" value={project.id} />
+              <input type="hidden" name="back" value={`/my/project/${project.id}`} />
+              <div className="form-2col">
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="inv-contact">Their email or phone</label>
+                  <input id="inv-contact" name="contact" className="input" required autoComplete="off" placeholder="name@example.com or 201-555-0100" />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="inv-note">Note (optional)</label>
+                  <input id="inv-note" name="note" className="input" defaultValue={`Join me on ${project.project_name}`} />
+                </div>
+              </div>
+              <div className="radio-row" style={{ minHeight: 0 }}>
+                <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>
+                <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Resident</label>
+                <label className="radio-opt"><input type="radio" name="seat" value="viewer" /> Viewer</label>
+              </div>
+              <div className="btn-row" style={{ alignItems: "center" }}>
+                <button className="btn small">Invite user</button>
+                <Link href={`/my/invite?project=${project.id}`} className="small muted">Not on the platform yet? Send a signup link →</Link>
+              </div>
+            </form>
+          </details>
+        )}
 
         {peopleRows.length > 0 && (
           // minWidth 0 + overflow hidden at every level so a long task title
