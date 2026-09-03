@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { reviewBids } from "@/lib/einstein";
 
 // Bid Planner, Phase 1. Every write goes through the gated RPCs
 // (portal_bid_*); these actions only shape form data and route back.
@@ -148,5 +149,41 @@ export async function submitReply(bidId: string, formData: FormData) {
   revalidatePath(back);
   redirect(error || !data?.ok
     ? `${back}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not submit the reply.")}`
+    : `${back}?saved=1`);
+}
+
+// Einstein review of a package's replies. Phase 1 (internal-first) is
+// gathered here from the platform — the comparison grid and each bidder's
+// history; Phase 2 is one model call. The result is a structured brief saved
+// to bid_reviews; it recommends, it never awards.
+export async function runAiReview(projectId: string, pkgId: string) {
+  const supabase = await createClient();
+  const back = pkgUrl(projectId, pkgId);
+  const { data: cmp } = await supabase.rpc("portal_bid_compare", { p_pkg: pkgId });
+  if (!cmp) redirect(`${back}?error=${encodeURIComponent("Reviewing this package is not yours to do.")}`);
+  type CmpBid = { id: string; bidder: string | null; bidder_contact_id: string | null } & Record<string, unknown>;
+  const bids = ((cmp.bids ?? []) as CmpBid[]);
+  if (bids.length === 0) redirect(`${back}?error=${encodeURIComponent("No replies to review yet.")}`);
+
+  const histories = await Promise.all(bids.map(async (b) =>
+    b.bidder_contact_id ? (await supabase.rpc("portal_bidder_history", { p_contact: b.bidder_contact_id })).data : null));
+  const out = await reviewBids({
+    package: cmp.package ?? {},
+    items: ((cmp.items ?? []) as { scope_item_id: string; item: string; is_required: boolean }[])
+      .map((i) => ({ scope_item_id: i.scope_item_id, item: i.item, is_required: i.is_required })),
+    bids: bids.map((b, i) => ({ ...b, history: histories[i] })),
+  });
+  if (!out.ok) redirect(`${back}?error=${encodeURIComponent(out.reason)}`);
+
+  const ids = new Set(bids.map((b) => b.id));
+  const rec = out.review.recommended_bid_id && ids.has(out.review.recommended_bid_id) ? out.review.recommended_bid_id : null;
+  const { data: saved, error } = await supabase.rpc("portal_bid_review_save", {
+    p_pkg: pkgId, p_reviewer: "ai", p_model: out.model,
+    p_ranking: out.review.ranking ?? [], p_risks: out.review.risks ?? [], p_questions: out.review.questions ?? [],
+    p_recommended_bid_id: rec, p_confidence: out.review.confidence ?? null, p_unverified: out.review.unverified ?? null,
+  });
+  revalidatePath(back);
+  redirect(error || !saved?.ok
+    ? `${back}?error=${encodeURIComponent(saved?.reason ?? error?.message ?? "Could not save the review.")}`
     : `${back}?saved=1`);
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { FileDrop } from "@/components/FileDrop";
-import { savePackage, setPackageItems, inviteBidders, attachBidDocs } from "../actions";
+import { savePackage, setPackageItems, inviteBidders, attachBidDocs, runAiReview } from "../actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -48,6 +48,28 @@ export default async function BidPackagePage({
     const { data: s } = await supabase.storage.from(d.bucket).createSignedUrl(d.path, 3600);
     if (s?.signedUrl) docUrls.set(d.id, s.signedUrl);
   }));
+  // Phase 2: the like-for-like comparison (managers only; null otherwise).
+  type CmpCell = { bid_id: string; included: boolean; price: number | null };
+  type CmpItem = { scope_item_id: string; item: string; is_required: boolean; cells: CmpCell[] };
+  type CmpBid = {
+    id: string; bidder: string | null; status: string; amount: number | null; valid_until: string | null;
+    terms_reply: { deposit_pct?: number | null; retainage_pct?: number | null; net_days?: number | null; note?: string | null } | null;
+    insurance_reply: { gl_held?: boolean; wc_held?: boolean; coi?: boolean; carrier?: string | null } | null;
+    gaps: number; gap_cost: number; normalized: number; terms_ok: boolean; insurance_ok: boolean;
+  };
+  type CmpReview = {
+    id: string; reviewer: string; model: string | null;
+    ranking: { bid_id: string; rank: number; reason: string }[] | null;
+    risks: { bid_id: string; risk: string }[] | null;
+    questions: { bid_id: string; question: string }[] | null;
+    recommended_bid_id: string | null; confidence: string | null; unverified: string | null; created_at: string; created_by: string | null;
+  };
+  type Compare = { items: CmpItem[]; bids: CmpBid[]; reviews: CmpReview[] };
+  const { data: cmpData } = p.can_edit ? await supabase.rpc("portal_bid_compare", { p_pkg: pkgId }) : { data: null };
+  const cmp = (cmpData ?? null) as Compare | null;
+  const bidderOf = (bidId: string | null) => cmp?.bids.find((b) => b.id === bidId)?.bidder ?? "—";
+  const latestReview = cmp?.reviews[0] ?? null;
+
   const back = `/my/project/${id}/bids/${pkgId}`;
   const save = savePackage.bind(null, id, pkgId);
   const editable = p.can_edit && p.status !== "closed";
@@ -250,6 +272,143 @@ export default async function BidPackagePage({
               <div><button className="btn small">Invite selected</button></div>
             </form>
           </details>
+        )}
+
+        {/* Phase 2 · Compare — like for like, gaps priced, normalized totals */}
+        {cmp && (
+          <div className="card" style={{ display: "grid", gap: 8, overflowX: "auto" }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Compare · {cmp.bids.length} repl{cmp.bids.length === 1 ? "y" : "ies"}</h2>
+            {cmp.bids.length === 0 && <p className="muted small" style={{ margin: 0 }}>Waiting for replies — the grid fills in as they arrive.</p>}
+            {cmp.bids.length > 0 && (
+              <table className="tasktable" style={{ width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th>Package line</th>
+                    <th style={{ width: 60 }}>Req.</th>
+                    {cmp.bids.map((b) => <th key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap" }}>{b.bidder ?? "—"}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cmp.items.map((it) => (
+                    <tr key={it.scope_item_id}>
+                      <td style={{ fontWeight: 600 }}>{it.item}</td>
+                      <td className="muted">{it.is_required ? "yes" : "no"}</td>
+                      {cmp.bids.map((b) => {
+                        const c = it.cells.find((x) => x.bid_id === b.id);
+                        const inc = !!c?.included;
+                        return (
+                          <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap", color: inc ? "#2f6b4f" : (it.is_required ? "#c0262d" : "#7b857e"), fontWeight: inc || it.is_required ? 600 : 400 }}>
+                            {inc ? (c?.price != null ? money(c.price) : "included") : (it.is_required ? "excluded · gap" : "—")}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  <tr>
+                    <td style={{ fontWeight: 600 }}>Terms (deposit / retainage / net)</td>
+                    <td className="muted">terms</td>
+                    {cmp.bids.map((b) => (
+                      <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {b.terms_ok ? <span style={{ color: "#2f6b4f", fontWeight: 600 }}>accept</span> : (
+                          <span className="extra-chip" style={{ background: "#f7efdd", color: "#a8842c" }}>
+                            counter {[b.terms_reply?.deposit_pct != null ? `dep ${b.terms_reply.deposit_pct}%` : null,
+                                      b.terms_reply?.retainage_pct != null ? `ret ${b.terms_reply.retainage_pct}%` : null,
+                                      b.terms_reply?.net_days != null ? `net ${b.terms_reply.net_days}` : null].filter(Boolean).join(" · ")}
+                          </span>)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 600 }}>Insurance ({[p.insurance_workers_comp ? "WC" : null, p.coi_required ? "COI" : null, "GL"].filter(Boolean).join(" · ")})</td>
+                    <td className="muted">ins.</td>
+                    {cmp.bids.map((b) => (
+                      <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {b.insurance_ok ? <span style={{ color: "#2f6b4f", fontWeight: 600 }}>held</span>
+                          : <span className="extra-chip" style={{ background: "#f9e4e5", color: "#c0262d" }}>
+                              {[!b.insurance_reply?.gl_held ? "no GL" : null, p.insurance_workers_comp && !b.insurance_reply?.wc_held ? "no WC" : null, p.coi_required && !b.insurance_reply?.coi ? "no COI" : null].filter(Boolean).join(" · ") || "gap"}
+                            </span>}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td style={{ fontWeight: 600 }}>Quoted total</td><td />
+                    {cmp.bids.map((b) => <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap" }}>{money(b.amount)}</td>)}
+                  </tr>
+                  <tr style={{ borderTop: "2px solid #d8ddd4" }}>
+                    <td style={{ fontWeight: 700 }}>Normalized total</td>
+                    <td className="muted small">+gaps</td>
+                    {cmp.bids.map((b) => (
+                      <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap", fontWeight: 700 }}>
+                        {money(b.normalized)}
+                        {b.gaps > 0 && <span className="extra-chip" style={{ marginLeft: 6, background: "#f7efdd", color: "#a8842c" }}>+{money(b.gap_cost)} · {b.gaps} gap{b.gaps > 1 ? "s" : ""}</span>}
+                        {b.id === p.awarded_bid_id && <span className="extra-chip" style={{ marginLeft: 6, background: "#e4f0e9", color: "#2f6b4f" }}>awarded</span>}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            )}
+            <p className="muted small" style={{ margin: 0 }}>Gap cost = the highest price any bidder gave that line; the normalized total is what a reply really costs once its gaps are closed.</p>
+          </div>
+        )}
+
+        {/* Phase 2 · Einstein review — a brief, not a verdict */}
+        {cmp && (
+          <div className="card" style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <h2 className="section-title" style={{ margin: 0 }}>AI review · Einstein</h2>
+              {cmp.bids.length > 0 && p.status !== "closed" && (
+                <form action={runAiReview.bind(null, id, pkgId)}>
+                  <button className="btn small">{latestReview ? "Run again" : "Run AI review"}</button>
+                </form>
+              )}
+            </div>
+            {!latestReview && (
+              <p className="muted small" style={{ margin: 0 }}>
+                Einstein reads the package, every reply line by line, the comparison flags and each bidder&apos;s history here — internal data first — and returns a ranking with reasons, risks, the questions to ask each bidder, and a recommendation with confidence. It recommends; you decide.
+              </p>
+            )}
+            {latestReview && (
+              <div style={{ display: "grid", gap: 10 }}>
+                <div className="small muted">
+                  {latestReview.created_at.slice(0, 10)} · {latestReview.reviewer === "ai" ? `Einstein (${latestReview.model ?? "model"})` : latestReview.created_by ?? "human"}
+                  {cmp.reviews.length > 1 && ` · ${cmp.reviews.length} reviews on file`}
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+                  <span className="small">Recommendation:</span>
+                  <strong>{latestReview.recommended_bid_id ? bidderOf(latestReview.recommended_bid_id) : "none"}</strong>
+                  {latestReview.confidence && (
+                    <span className="extra-chip" style={latestReview.confidence === "high" ? { background: "#e4f0e9", color: "#2f6b4f" } : latestReview.confidence === "low" ? { background: "#f9e4e5", color: "#c0262d" } : { background: "#f7efdd", color: "#a8842c" }}>
+                      confidence {latestReview.confidence}
+                    </span>
+                  )}
+                </div>
+                {(latestReview.ranking ?? []).length > 0 && (
+                  <div style={{ display: "grid", gap: 4 }}>
+                    <span className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>Ranking</span>
+                    {[...(latestReview.ranking ?? [])].sort((a, b) => a.rank - b.rank).map((r) => (
+                      <div key={`${r.bid_id}-${r.rank}`} className="small"><strong>{r.rank}. {bidderOf(r.bid_id)}</strong> — {r.reason}</div>
+                    ))}
+                  </div>
+                )}
+                {(latestReview.risks ?? []).length > 0 && (
+                  <div style={{ display: "grid", gap: 4 }}>
+                    <span className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>Risks</span>
+                    {(latestReview.risks ?? []).map((r, i) => <div key={i} className="small"><strong>{bidderOf(r.bid_id)}:</strong> {r.risk}</div>)}
+                  </div>
+                )}
+                {(latestReview.questions ?? []).length > 0 && (
+                  <div style={{ display: "grid", gap: 4 }}>
+                    <span className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>Ask before deciding</span>
+                    {(latestReview.questions ?? []).map((q, i) => <div key={i} className="small"><strong>{bidderOf(q.bid_id)}:</strong> {q.question}</div>)}
+                  </div>
+                )}
+                {latestReview.unverified && (
+                  <div className="small"><span className="muted">Could not verify: </span>{latestReview.unverified}</div>
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Replies */}
