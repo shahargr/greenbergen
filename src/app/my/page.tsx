@@ -7,7 +7,7 @@ import { StartProjectForm } from "./StartProjectForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
-import { CardTxRow, type CardTx } from "./CardTxRow";
+import { CardTxRow, CardTxHead, type CardTx } from "./CardTxRow";
 
 export const maxDuration = 60;
 
@@ -306,60 +306,87 @@ export default async function MyPage({
         {/* Schedule: this week and next week (Mon–Sun) — tasks due in the
             window, plus any planned payments falling in it. */}
         {c && ([["This week", c.week], ["Next week", c.next_week]] as const).map(([label, w]) => (
-          <div key={label} style={{ display: "grid", gap: 3 }}>
+          <div key={label} style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
               <span className="small" style={{ fontWeight: 700 }}>{label}</span>
               <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{fmtRange(w.start, w.end)}</span>
             </div>
-            {w.tasks.length === 0 && w.payments.length === 0 && (
+            {w.tasks.length === 0 && w.payments.length === 0 ? (
               <span className="muted small">Nothing scheduled.</span>
+            ) : (
+              <table className="tasktable" style={{ width: "100%", tableLayout: "fixed" }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 82 }}>Day</th>
+                    <th>What</th>
+                    <th style={{ width: 96 }}>Who</th>
+                    <th style={{ width: 84, textAlign: "right" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {w.tasks.map((t) => (
+                    <tr key={t.id}>
+                      <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDay(t.target_date)}</td>
+                      <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <Link href={`/my/task/${t.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                          {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                        </Link>
+                      </td>
+                      <td className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {t.assignee ? t.assignee.split(" ")[0] : "—"}
+                      </td>
+                      <td className="muted" style={{ textAlign: "right" }}>—</td>
+                    </tr>
+                  ))}
+                  {w.payments.map((t) => (
+                    <tr key={t.id}>
+                      <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDay(t.on_date)}</td>
+                      <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {t.paid_to}
+                        <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>{t.status}</span>
+                      </td>
+                      <td className="muted">payment</td>
+                      <td style={{ textAlign: "right", fontWeight: 600, color: "#a8842c", whiteSpace: "nowrap" }}>{money(t.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
-            {w.tasks.map((t) => (
-              <Link key={t.id} href={`/my/task/${t.id}`} className="small"
-                style={{ display: "flex", gap: 10, alignItems: "baseline", textDecoration: "none", color: "inherit", minWidth: 0 }}>
-                <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 72 }}>{fmtDay(t.target_date)}</span>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                  {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
-                </span>
-                {t.assignee && <span className="muted" style={{ whiteSpace: "nowrap", flex: "none" }}>→ {t.assignee.split(" ")[0]}</span>}
-              </Link>
-            ))}
-            {w.payments.map((t) => (
-              <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
-                <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 72 }}>{fmtDay(t.on_date)}</span>
-                <span style={{ whiteSpace: "nowrap", fontWeight: 600, color: "#a8842c" }}>{money(t.amount)}</span>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                  {t.paid_to}
-                  <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>planned</span>
-                </span>
-              </div>
-            ))}
           </div>
         ))}
 
         {/* Recent 10 PAID transactions (date · amount · paid to, newest
             first), then the next few pending ones — kept separate so
             future-dated scheduled rows can't crowd out real payments. */}
-        {c && (c.transactions.length > 0 || c.pending.length > 0) && (
-          <div style={{ display: "grid", gap: 3 }}>
+        {c && c.transactions.length > 0 && (
+          <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span className="small" style={{ fontWeight: 700 }}>Recent transactions</span>
               <Link href="/my/payments" className="small">All →</Link>
             </div>
-            {/* Click a row to open its fields below and update / close. */}
-            {c.transactions.map((t) => (
-              <CardTxRow key={t.id} tx={t} statuses={txStatuses} methods={txMethods} pending={false} />
-            ))}
-            {c.pending.length > 0 && (
-              <>
-                <span className="muted" style={{ fontSize: 11, fontWeight: 700, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
-                  Pending · next up
-                </span>
+            {/* Click a row to open its fields beneath it and update / close. */}
+            <table className="tasktable" style={{ width: "100%", tableLayout: "fixed" }}>
+              <CardTxHead />
+              <tbody>
+                {c.transactions.map((t) => (
+                  <CardTxRow key={t.id} tx={t} statuses={txStatuses} methods={txMethods} pending={false} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {c && c.pending.length > 0 && (
+          <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+            <span className="small" style={{ fontWeight: 700 }}>Pending · next up</span>
+            <table className="tasktable" style={{ width: "100%", tableLayout: "fixed" }}>
+              <CardTxHead />
+              <tbody>
                 {c.pending.map((t) => (
                   <CardTxRow key={t.id} tx={t} statuses={txStatuses} methods={txMethods} pending />
                 ))}
-              </>
-            )}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
