@@ -4,6 +4,8 @@ import { saveProfile } from "./actions";
 import { createHome } from "../actions";
 import { restoreProject, deleteProjectNow } from "../project/[id]/actions";
 import { PhotoPick } from "@/components/PhotoPick";
+import { cookies } from "next/headers";
+import { setGodMode } from "../../admin/actions";
 
 type HomeAsset = {
   projectId: string;
@@ -35,6 +37,8 @@ export default async function SettingsPage({
   type MyContractor = { id: string; name: string; company: string | null; trade: string | null; phone: string | null; email: string | null; seats: string[] | null; projects: number; awarded: number; vendor_status: string | null };
   const { data: contractorsData } = await supabase.rpc("portal_my_contractors");
   const contractors = ((contractorsData ?? []) as MyContractor[]);
+  // God mode (superadmins): the same cookie the Admin overview toggles.
+  const godOn = !!me?.is_superadmin && (await cookies()).get("gb_god")?.value === "1";
 
   // Every seat the caller holds (any role): houses (roots) with their projects.
   type MemProj = { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean; trashed_at: string | null };
@@ -121,6 +125,24 @@ export default async function SettingsPage({
             </div>
           </span>
         </div>
+
+        {/* Superadmin controls, right where the account is. */}
+        {me?.is_superadmin && (
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", borderLeft: godOn ? "4px solid #7a1f2b" : undefined }}>
+            <span>
+              <strong>⚡ God mode · {godOn ? "ON" : "off"}</strong>
+              <div className="muted small">ON: every project on the platform, full admin rights, red banner on each page. OFF: only projects you hold a seat on.</div>
+            </span>
+            <span className="btn-row" style={{ gap: 8 }}>
+              <form action={setGodMode}>
+                <input type="hidden" name="back" value="/my/settings" />
+                <input type="hidden" name="on" value={godOn ? "0" : "1"} />
+                <button className="btn small" style={godOn ? undefined : { background: "#7a1f2b" }}>{godOn ? "Turn off" : "Turn on"}</button>
+              </form>
+              <Link href="/admin" className="btn ghost small">Admin console →</Link>
+            </span>
+          </div>
+        )}
 
         {/* The identity card above is the summary; the full form sits behind Edit. */}
         <details className="card">
