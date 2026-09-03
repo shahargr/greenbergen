@@ -13,17 +13,6 @@ type MemberRow = {
   contacts: { name: string } | null;
 };
 
-type FileRow = {
-  id: string;
-  bucket: string;
-  path: string;
-  file_name: string;
-  mime_type: string | null;
-  kind: string | null;
-  caption: string | null;
-  created_at: string;
-};
-
 // Project drill-down: details (unlock-to-edit per rank), the people on it,
 // its files - voice notes play right here - and its tasks.
 export default async function ProjectPage({
@@ -52,7 +41,7 @@ export default async function ProjectPage({
     );
   }
 
-  const [{ data: parent }, perms, { data: memberRows }, { data: fileRows }, { data: taskData }, { data: configRows }, { data: configValueRows }, { data: contractAmountRows }, { data: paidRows }] =
+  const [{ data: parent }, perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }, { data: contractAmountRows }, { data: paidRows }] =
     await Promise.all([
       project.parent_project_id
         ? supabase.from("projects").select("id, project_name").eq("id", project.parent_project_id).maybeSingle()
@@ -63,12 +52,6 @@ export default async function ProjectPage({
         .select("role, project_role, contacts(name)")
         .eq("project_id", id)
         .eq("status", "active"),
-      supabase
-        .from("files")
-        .select("id, bucket, path, file_name, mime_type, kind, caption, created_at")
-        .eq("project_id", id)
-        .order("created_at", { ascending: false })
-        .limit(24),
       supabase.rpc("portal_tasks", { p_project_id: id, p_open_limit: 200, p_closed_limit: 200 }),
       supabase
         .from("actions")
@@ -104,15 +87,6 @@ export default async function ProjectPage({
     people.set(name, seats);
   }
 
-  // Signed URLs so private project-media renders inline (audio plays here).
-  const files = (fileRows ?? []) as FileRow[];
-  const signed = new Map<string, string>();
-  await Promise.all(
-    files.map(async (f) => {
-      const { data } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
-      if (data?.signedUrl) signed.set(f.id, data.signedUrl);
-    })
-  );
   type PortalTask = {
     id: string; action: string; status: string; priority: string | null;
     target_date: string | null; last_updated: string | null; notes: string | null;
@@ -253,37 +227,6 @@ export default async function ProjectPage({
           )}
         </div>
 
-        {files.length > 0 && (
-          <div className="card">
-            <h2 className="section-title">Files · {files.length}</h2>
-            <div style={{ display: "grid", gap: 10 }}>
-              {files.map((f) => {
-                const url = signed.get(f.id);
-                const isAudio = f.kind === "audio" || (f.mime_type ?? "").startsWith("audio/");
-                const isImage = f.kind === "photo" || (f.mime_type ?? "").startsWith("image/");
-                return (
-                  <div key={f.id} style={{ display: "grid", gap: 4 }}>
-                    <span className="small">
-                      <strong>{f.caption ?? f.file_name}</strong>
-                      <span className="muted"> · {new Date(f.created_at).toLocaleDateString()}</span>
-                    </span>
-                    {url && isAudio && <audio controls src={url} style={{ width: "100%", maxWidth: 400 }} />}
-                    {url && isImage && (
-                      <a href={url} target="_blank" rel="noreferrer">
-                        {/* Signed URLs expire; next/image caching fights that. */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt={f.caption ?? f.file_name} style={{ maxWidth: 180, borderRadius: 8, display: "block" }} />
-                      </a>
-                    )}
-                    {url && !isAudio && !isImage && (
-                      <a className="small" href={url} target="_blank" rel="noreferrer">Open {f.file_name}</a>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {people.size > 0 && (
           <div className="card">
