@@ -74,3 +74,51 @@ export async function saveProject(projectId: string, formData: FormData) {
     ? `/my/project/${projectId}?error=${encodeURIComponent(error.message)}`
     : `/my/project/${projectId}?saved=1`);
 }
+
+// Structured configurator answers - one row per field, upserted.
+export async function saveConfigValues(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data: me } = await supabase.rpc("me");
+  const who = me?.full_name ?? me?.email ?? "portal user";
+
+  const rows: { project_id: string; key: string; label: string; value: string | null; updated_by: string }[] = [];
+  for (const [key, raw] of formData.entries()) {
+    if (typeof raw !== "string") continue;
+    rows.push({ project_id: projectId, key, label: key.replace(/_/g, " "), value: raw.trim() || null, updated_by: who });
+  }
+  const { error } = await supabase
+    .from("project_config_values")
+    .upsert(rows, { onConflict: "project_id,key" });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error
+    ? `/my/project/${projectId}?error=${encodeURIComponent(error.message)}`
+    : `/my/project/${projectId}?saved=1`);
+}
+
+// Delete a mistaken project: storage bytes first (the RPC only sweeps
+// rows), then delete_own_project enforces the guards - owner rank, no
+// children, no contracts, no money - and removes the orphaned asset.
+export async function deleteProject(projectId: string) {
+  const supabase = await createClient();
+  const { data: fileRows } = await supabase
+    .from("files")
+    .select("bucket, path")
+    .eq("project_id", projectId);
+  const byBucket = new Map<string, string[]>();
+  for (const f of (fileRows ?? []) as { bucket: string; path: string }[]) {
+    byBucket.set(f.bucket, [...(byBucket.get(f.bucket) ?? []), f.path]);
+  }
+
+  const { data, error } = await supabase.rpc("delete_own_project", { p_project_id: projectId });
+  if (error || !data?.ok) {
+    redirect(`/my/project/${projectId}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not delete.")}`);
+  }
+
+  // Rows are gone; now the bytes. A failed storage delete leaves only
+  // unreferenced objects behind.
+  for (const [bucket, paths] of byBucket) {
+    await supabase.storage.from(bucket).remove(paths);
+  }
+  revalidatePath("/my");
+  redirect(`/my?ok=${encodeURIComponent(`Project deleted ✓`)}`);
+}

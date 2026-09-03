@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ProjectEditor } from "./ProjectEditor";
 import { projectPerms } from "./actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
+import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
+import { deleteProject } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +53,7 @@ export default async function ProjectPage({
     );
   }
 
-  const [{ data: parent }, perms, { data: memberRows }, { data: fileRows }, { data: taskData }, { data: configRows }, { data: contractAmountRows }, { data: paidRows }] =
+  const [{ data: parent }, perms, { data: memberRows }, { data: fileRows }, { data: taskData }, { data: configRows }, { data: configValueRows }, { data: contractAmountRows }, { data: paidRows }] =
     await Promise.all([
       project.parent_project_id
         ? supabase.from("projects").select("id, project_name").eq("id", project.parent_project_id).maybeSingle()
@@ -75,6 +77,10 @@ export default async function ProjectPage({
         .eq("project_id", id)
         .eq("scope_milestone", "Configuration")
         .order("created_at"),
+      supabase
+        .from("project_config_values")
+        .select("key, value")
+        .eq("project_id", id),
       supabase
         .from("contracts")
         .select("amount")
@@ -136,6 +142,10 @@ export default async function ProjectPage({
   type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };
   const config = ((configRows ?? []) as ConfigRow[]);
   const configDone = config.filter((c) => ["Completed"].includes(c.status)).length;
+  const configValues: Record<string, string> = {};
+  for (const r of (configValueRows ?? []) as { key: string; value: string | null }[]) {
+    if (r.value != null) configValues[r.key] = r.value;
+  }
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
@@ -189,6 +199,14 @@ export default async function ProjectPage({
             <div className="progressbar">
               <span style={{ width: `${config.length ? Math.round((configDone / config.length) * 100) : 0}%` }} />
             </div>
+            <details open={Object.keys(configValues).length === 0}>
+              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                Parameters {Object.keys(configValues).length > 0 ? `· ${Object.keys(configValues).length} filled` : "— fill these in"}
+              </summary>
+              <div style={{ marginTop: 10 }}>
+                <ConfiguratorForm projectId={project.id} fields={GENERATOR_FIELDS} values={configValues} />
+              </div>
+            </details>
             <div style={{ display: "grid", gap: 6 }}>
               {config.map((c) => (
                 <Link key={c.id} href={`/my/task/${c.id}`} className="card statlink"
@@ -266,6 +284,22 @@ export default async function ProjectPage({
               })}
             </div>
           </div>
+        )}
+
+        {perms.rank >= 70 && (
+          <details className="card" style={{ borderColor: "#e3b7ba" }}>
+            <summary className="small" style={{ cursor: "pointer", fontWeight: 700, color: "#c0262d" }}>
+              Delete this project
+            </summary>
+            <p className="muted small" style={{ margin: "10px 0 8px" }}>
+              Removes the project, its tasks and its media files for good.
+              Only possible while nothing depends on it — no projects
+              underneath, no contracts, no ledger transactions.
+            </p>
+            <form action={deleteProject.bind(null, project.id)}>
+              <button className="btn" style={{ background: "#c0262d" }}>Delete permanently</button>
+            </form>
+          </details>
         )}
 
         {people.size > 0 && (
