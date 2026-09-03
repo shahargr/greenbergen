@@ -151,7 +151,7 @@ export default async function MyPage({
   };
   type ProjectOverviewRow = {
     id: string; project_name: string; address: string | null; status: string;
-    parent_project_id: string | null; is_template: boolean;
+    parent_project_id: string | null; is_template: boolean; domain?: string | null;
     open_count: number; last_activity: string;
   };
 
@@ -187,7 +187,7 @@ export default async function MyPage({
     // Counts come from the (p_all) cards; the overview rows just shape the tree.
     const { data: allRows } = await supabase
       .from("projects")
-      .select("id, project_name, address, status, parent_project_id, is_template")
+      .select("id, project_name, address, status, parent_project_id, is_template, domain")
       .is("trashed_at", null)
       .eq("is_template", false)
       .order("project_name");
@@ -283,13 +283,31 @@ export default async function MyPage({
   // Two kinds of tile, kept visibly apart: a HOUSE (green, the address is
   // the point, shows how many projects sit under it) and a PROJECT (amber,
   // names the house it belongs to).
-  const projectTile = (p: ProjectOverviewRow, isRoot: boolean, parentName?: string | null, childCount?: number) => {
+  // What a tile IS is decided by its domain and its place in the tree:
+  //   house    - construction, at house level (the address is the point)
+  //   project  - a job under a house
+  //   umbrella - the real-estate-development container over the houses
+  //   tech     - a CloudHiro / AI venture
+  //   system   - the platform and data itself
+  type TileKind = "house" | "project" | "umbrella" | "tech" | "system" | "personal" | "travel";
+  const KIND: Record<TileKind, { label: string; color: string; bg: string; glyph: React.ReactNode }> = {
+    house:    { label: "House",           color: "var(--brand)", bg: "#dcefe2", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg> },
+    project:  { label: "Project",         color: "#a8842c",      bg: "#fdf4e3", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg> },
+    umbrella: { label: "Umbrella",        color: "#2f4f6b",      bg: "#e6edf3", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 18 0z" /><path d="M12 12v7a2 2 0 0 0 4 0" /><path d="M12 3v1" /></svg> },
+    tech:     { label: "AI / Tech",       color: "#4a3f8f",      bg: "#ebe8f7", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="7" width="10" height="10" rx="2" /><path d="M10 10h4v4h-4z" /><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" /></svg> },
+    system:   { label: "Platform & data", color: "#555",         bg: "#ececea", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13" /><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></svg> },
+    personal: { label: "Personal",        color: "#7a1f2b",      bg: "#f7e6e8", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg> },
+    travel:   { label: "Travel",          color: "#1f6b8f",      bg: "#e3eff5", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2 16l20-6-3-3-6 2-5-6-2 1 3 6-5 2-3-2-1 1z" /></svg> },
+  };
+  const projectTile = (p: ProjectOverviewRow, kind: TileKind, parentName?: string | null, childCount?: number) => {
     const c = cardsById.get(p.id);
     const urgent = c?.urgent[0];
     const starred = priority.has(p.id);
+    const k = KIND[kind];
+    const isRoot = kind !== "project";
     return (
-      <div key={p.id} className={`card ptile ${isRoot ? "ptile-house" : "ptile-project"}`}
-        style={{ position: "relative", borderLeft: isRoot ? "4px solid var(--brand)" : "4px solid #a8842c", borderColor: starred ? (isRoot ? "var(--brand)" : "#a8842c") : undefined }}>
+      <div key={p.id} className={`card ptile ptile-${kind}`}
+        style={{ position: "relative", borderLeft: `4px solid ${k.color}`, borderColor: starred ? k.color : undefined }}>
         {/* Priority star: mine only, sits outside the link so the tile stays one click. */}
         <form action={setProjectPriority} style={{ position: "absolute", top: 6, right: 8 }}>
           <input type="hidden" name="project" value={p.id} />
@@ -302,13 +320,14 @@ export default async function MyPage({
         </form>
       <Link href={`/my/project/${p.id}`} style={{ display: "grid", gap: 6, textDecoration: "none", color: "inherit", minWidth: 0 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0, paddingRight: 22 }}>
-          {isRoot ? homeGlyph : jobGlyph}
-          <strong style={{ fontSize: 15, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{p.project_name}</strong>
+          <span className="tile-icon" style={{ width: 34, height: 34, flex: "none", background: k.bg, color: k.color }}>{k.glyph}</span>
+          <strong style={{ fontSize: 15, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{kind === "umbrella" ? fmtRoot(p.project_name) : p.project_name}</strong>
         </div>
         <div className="muted small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {isRoot
-            ? <>{p.address ?? "Portfolio"} · {p.status}{childCount != null && childCount > 0 ? ` · ${childCount} project${childCount === 1 ? "" : "s"}` : ""}</>
-            : <>{parentName ? <>at <strong style={{ color: "var(--ink)" }}>{parentName}</strong> · </> : null}{p.status}</>}
+          {kind === "house" && <>{p.address ?? "No address yet"} · {p.status}{childCount ? ` · ${childCount} project${childCount === 1 ? "" : "s"}` : ""}</>}
+          {kind === "project" && <>{parentName ? <>at <strong style={{ color: "var(--ink)" }}>{parentName}</strong> · </> : null}{p.status}</>}
+          {kind === "umbrella" && <>Umbrella · {p.status}{childCount ? ` · ${childCount} house${childCount === 1 ? "" : "s"}` : ""}</>}
+          {(kind === "tech" || kind === "system" || kind === "personal" || kind === "travel") && <>{k.label} · {p.status}</>}
         </div>
         <div className="muted small">
           {fmtDate(c?.start_date ?? null)} → <span style={{ color: "var(--ink)" }}>{fmtDate(c?.est_complete ?? null)}</span>
@@ -957,17 +976,28 @@ export default async function MyPage({
             // is a project. Parents are looked up in the unfiltered list so a
             // closed house still classifies its jobs correctly.
             const byId = new Map(bandOverviewAll.map((p) => [p.id, p]));
-            const isHouse = (p: ProjectOverviewRow) => {
-              if (!p.parent_project_id) return true;
+            // Kind by domain first, then by place in the tree. Nothing is
+            // dropped: a root with no address and no children is still a
+            // venture or a system, and gets its own section.
+            const kindOf = (p: ProjectOverviewRow): TileKind => {
+              const d = (p.domain ?? "construction").toLowerCase();
+              if (d === "cloudhiro") return "tech";
+              if (d === "system") return "system";
+              if (d === "personal") return "personal";
+              if (d === "travel") return "travel";
+              if (d === "real estate development") return "umbrella";
+              // construction: house level = no parent, or parent is a container without an address
+              if (!p.parent_project_id) return "house";
               const parent = byId.get(p.parent_project_id);
-              return !!parent && !parent.address;
+              return parent && !parent.address ? "house" : "project";
             };
             const byPriority = (list: ProjectOverviewRow[]) => [...list.filter((p) => priority.has(p.id)), ...list.filter((p) => !priority.has(p.id))];
-            const visible = bandOverview.filter((p) => p.address || p.parent_project_id || (bandChildren.get(p.id) ?? []).length > 0);
-            const houses = byPriority(visible.filter(isHouse));
-            const jobs = byPriority(visible.filter((p) => !isHouse(p)));
+            const kinds = new Map(bandOverview.map((p) => [p.id, kindOf(p)]));
+            const houses = byPriority(bandOverview.filter((p) => kinds.get(p.id) === "house"));
+            const jobs = byPriority(bandOverview.filter((p) => kinds.get(p.id) === "project"));
+            const others = byPriority(bandOverview.filter((p) => !["house", "project"].includes(kinds.get(p.id) ?? "")));
             const childCount = new Map<string, number>();
-            for (const j of jobs) if (j.parent_project_id) childCount.set(j.parent_project_id, (childCount.get(j.parent_project_id) ?? 0) + 1);
+            for (const p of bandOverview) if (p.parent_project_id) childCount.set(p.parent_project_id, (childCount.get(p.parent_project_id) ?? 0) + 1);
             const houseName = (j: ProjectOverviewRow) => {
               const h = j.parent_project_id ? byId.get(j.parent_project_id) : null;
               return h ? fmtRoot(h.project_name) : null;
@@ -980,7 +1010,7 @@ export default async function MyPage({
                 </div>
                 {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — claim your address on the settings page.</p>}
                 <div className="ptiles">
-                  {houses.map((p) => projectTile(p, true, null, childCount.get(p.id) ?? 0))}
+                  {houses.map((p) => projectTile(p, "house", null, childCount.get(p.id) ?? 0))}
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
@@ -989,8 +1019,19 @@ export default async function MyPage({
                 </div>
                 {jobs.length === 0 && <p className="muted small" style={{ margin: 0 }}>No projects yet — a generator, a water heater, a leak: describe it once and it becomes a project under your house.</p>}
                 <div className="ptiles">
-                  {jobs.map((p) => projectTile(p, false, houseName(p)))}
+                  {jobs.map((p) => projectTile(p, "project", houseName(p)))}
                 </div>
+
+                {others.length > 0 && (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
+                      <h2 className="section-title" style={{ margin: 0, color: "#2f4f6b" }}>🏢 Umbrella, ventures &amp; systems · {others.length}</h2>
+                    </div>
+                    <div className="ptiles">
+                      {others.map((p) => projectTile(p, kinds.get(p.id) ?? "system", null, childCount.get(p.id) ?? 0))}
+                    </div>
+                  </>
+                )}
               </>
             );
           })()}

@@ -896,3 +896,8 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 .ptile-house .tile-icon { background: #dcefe2; color: var(--brand); }
 .ptile-project { background: #fffdf7; }
 .ptile-project .tile-icon { background: #fdf4e3; color: #a8842c; }
+.ptile-umbrella { background: #f2f5f8; }
+.ptile-tech { background: #f5f3fb; }
+.ptile-system { background: #f4f4f3; }
+.ptile-personal { background: #fbf3f4; }
+.ptile-travel { background: #f1f6f9; }
