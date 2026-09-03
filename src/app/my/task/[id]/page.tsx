@@ -48,7 +48,7 @@ export default async function TaskPage({
   if (!rawTask) notFound();
   const t = rawTask as unknown as TaskFull;
 
-  const [perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }, { data: tradeRows }] =
+  const [perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }, { data: tradeRows }, { data: childRows }] =
     await Promise.all([
       taskPerms(t.project_id, t.assigned_to_contact_id),
       supabase
@@ -77,7 +77,15 @@ export default async function TaskPage({
             .not("contact_id", "is", null)
         : Promise.resolve({ data: [] }),
       supabase.from("trades").select("trade, is_construction, is_worker_trade").order("sort_order"),
+      // Open subtasks: they block closing the parent, so link to them here.
+      supabase
+        .from("actions")
+        .select("id, action, status, target_date")
+        .eq("parent_action_id", id)
+        .not("status", "in", '("Completed","Cancelled","Force Cancelled","Superseded")')
+        .order("target_date", { ascending: true, nullsFirst: false }),
     ]);
+  const openChildren = ((childRows ?? []) as { id: string; action: string | null; status: string; target_date: string | null }[]);
   const comments = (commentRows ?? []) as CommentView[];
 
   const allTrades = ((tradeRows ?? []) as { trade: string; is_construction: boolean | null; is_worker_trade: boolean | null }[]);
@@ -159,7 +167,23 @@ export default async function TaskPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
-      <TaskEditor task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
+      {openChildren.length > 0 && (
+        <div className="card" style={{ display: "grid", gap: 6, marginBottom: 12 }}>
+          <h2 className="section-title" style={{ margin: 0 }}>Open subtasks · {openChildren.length}</h2>
+          <p className="muted small" style={{ margin: 0 }}>These must be closed before this task can be completed.</p>
+          {openChildren.map((ch) => (
+            <Link key={ch.id} href={`/my/task/${ch.id}`} className="small"
+              style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", minWidth: 0 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{ch.action ?? "(untitled)"} →</span>
+              <span className="muted" style={{ whiteSpace: "nowrap", flex: "none" }}>{ch.status}{ch.target_date ? ` · ${ch.target_date}` : ""}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+      {/* Keyed on saved/error so the editor remounts after a redirect back to
+          this page — otherwise a client-side "Applying..." can stick after an
+          error (Next keeps client state across a same-route searchParams change). */}
+      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
       <div style={{ marginTop: 14 }}>
         <TaskTransactions taskId={t.id} attached={attachedTx} candidates={candidateTx} canEdit={perms.status} />
       </div>

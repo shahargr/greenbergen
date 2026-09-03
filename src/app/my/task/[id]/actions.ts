@@ -153,7 +153,7 @@ export async function saveTask(taskId: string, formData: FormData) {
     });
     if (closeErr) {
       const msg = closeErr.message.includes("OPEN_CHILDREN")
-        ? "This task has open subtasks - close them first."
+        ? "This task has open subtasks — close them first (they're listed below)."
         : closeErr.message.includes("MISSING_PHOTO_EVIDENCE")
           ? "This task requires BEFORE and AFTER photos on record before completing."
           : closeErr.message;
@@ -197,7 +197,7 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
     });
     if (closeErr) {
       const msg = closeErr.message.includes("OPEN_CHILDREN")
-        ? "This task has open subtasks - close them first."
+        ? "This task has open subtasks — close them first (they're listed below)."
         : closeErr.message;
       redirect(`/my/task/${taskId}?error=${encodeURIComponent(msg)}`);
     }
@@ -347,7 +347,7 @@ export async function completeTask(taskId: string, formData: FormData) {
   });
   if (error) {
     const msg = error.message.includes("OPEN_CHILDREN")
-      ? "This task has open subtasks - close them first."
+      ? "This task has open subtasks — close them first (they're listed below)."
       : error.message.includes("MISSING_PHOTO_EVIDENCE")
         ? "This task still needs its BEFORE photo on record."
         : error.message;
