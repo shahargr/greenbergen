@@ -191,14 +191,22 @@ export default async function MyPage({
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg>
     </span>
   );
+  // A Mon–Sun window: open tasks due in it, and planned payments due in it.
+  type WeekBlock = {
+    start: string; end: string;
+    tasks: { id: string; action: string; target_date: string; priority: string | null; assignee: string | null }[];
+    payments: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
+  };
   // Per-project dashboard bundle for the cards (dates, task counts, recent
-  // transactions, urgent tasks) — one call, scoped to the caller.
+  // transactions, urgent tasks, this/next week) — one call, scoped to the caller.
   type ProjectCard = {
     id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null;
     start_date: string | null; est_complete: string | null;
     open: number; done: number; stuck: number;
     transactions: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
     pending: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
+    week: WeekBlock;
+    next_week: WeekBlock;
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
   const { data: cardData } = await supabase.rpc("portal_project_cards");
@@ -207,6 +215,9 @@ export default async function MyPage({
 
   const money = (n: number | null) => (n == null ? "—" : n >= 1000 ? `$${Math.round(n).toLocaleString()}` : `$${Math.round(n * 100) / 100}`);
   const fmtDate = (d: string | null) => (d ? new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
+  // Weekday + short date for the schedule rows, e.g. "Tue 9/8".
+  const fmtDay = (d: string | null) => (d ? new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "numeric", day: "numeric" }) : "—");
+  const fmtRange = (s: string, e: string) => `${fmtDay(s)} – ${fmtDay(e)}`;
   // Brand-normalize the portfolio root's display name (e.g. "Green Bergen
   // Development" -> "GreenBergen development").
   const fmtRoot = (n: string) => n.replace(/green\s*bergen/i, "GreenBergen").replace(/development/i, "development");
@@ -282,6 +293,40 @@ export default async function MyPage({
             ))}
           </div>
         )}
+
+        {/* Schedule: this week and next week (Mon–Sun) — tasks due in the
+            window, plus any planned payments falling in it. */}
+        {c && ([["This week", c.week], ["Next week", c.next_week]] as const).map(([label, w]) => (
+          <div key={label} style={{ display: "grid", gap: 3 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <span className="small" style={{ fontWeight: 700 }}>{label}</span>
+              <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{fmtRange(w.start, w.end)}</span>
+            </div>
+            {w.tasks.length === 0 && w.payments.length === 0 && (
+              <span className="muted small">Nothing scheduled.</span>
+            )}
+            {w.tasks.map((t) => (
+              <Link key={t.id} href={`/my/task/${t.id}`} className="small"
+                style={{ display: "flex", gap: 10, alignItems: "baseline", textDecoration: "none", color: "inherit", minWidth: 0 }}>
+                <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 72 }}>{fmtDay(t.target_date)}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                </span>
+                {t.assignee && <span className="muted" style={{ whiteSpace: "nowrap", flex: "none" }}>→ {t.assignee.split(" ")[0]}</span>}
+              </Link>
+            ))}
+            {w.payments.map((t) => (
+              <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
+                <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 72 }}>{fmtDay(t.on_date)}</span>
+                <span style={{ whiteSpace: "nowrap", fontWeight: 600, color: "#a8842c" }}>{money(t.amount)}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  {t.paid_to}
+                  <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>planned</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
 
         {/* Recent 10 PAID transactions (date · amount · paid to, newest
             first), then the next few pending ones — kept separate so
