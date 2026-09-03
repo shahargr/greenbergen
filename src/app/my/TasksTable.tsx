@@ -28,7 +28,7 @@ const PRIORITY_ORDER = ["High", "Medium", "Low", "No Priority"];
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
@@ -37,6 +37,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   showTradeTiles?: boolean;
   compact?: boolean;
   addTaskSlot?: React.ReactNode;
+  domainOptions?: string[];
   todayIso: string;
 }) {
   const router = useRouter();
@@ -55,10 +56,11 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     () => [...new Set(tasks.map((t) => t.project ?? "No project"))].sort(),
     [tasks]
   );
+  // Only the domains actually present (or an explicit admin-provided set);
+  // never the hardcoded internal list.
   const domains = useMemo(
-    () => [...new Set(["construction", "system", "cloudhiro", "personal",
-      ...tasks.map((t) => t.domain).filter((x): x is string => !!x)])],
-    [tasks]
+    () => domainOptions ?? [...new Set(tasks.map((t) => t.domain).filter((x): x is string => !!x))].sort(),
+    [tasks, domainOptions]
   );
   const people = useMemo(
     () => [...new Set(tasks.map((t) => t.assignee).filter((x): x is string => !!x))].sort(),
@@ -79,7 +81,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
       }
       m.set(t.trade, s0);
     }
-    return [...m.entries()].sort((a, b) => b[1].open - a[1].open);
+    return [...m.entries()].filter(([, st]) => st.open > 0).sort((a, b) => b[1].open - a[1].open);
   }, [tasks, project, todayIso]);
 
   const shown = tasks
@@ -133,10 +135,12 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                 <option value="all">All projects</option>
                 {projects.map((p) => <option key={p}>{p}</option>)}
               </select>
-              <select value={domain} onChange={pickServer("domain")}>
-                <option value="all">All domains</option>
-                {domains.map((d) => <option key={d}>{d}</option>)}
-              </select>
+              {domains.length > 1 && (
+                <select value={domain} onChange={pickServer("domain")}>
+                  <option value="all">All domains</option>
+                  {domains.map((d) => <option key={d}>{d}</option>)}
+                </select>
+              )}
               <select value={state} onChange={pickServer("state")}>
                 <option value="open">Open</option>
                 <option value="closed">Closed</option>
@@ -180,10 +184,12 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
           <option value="all">All projects</option>
           {projects.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select value={domain} onChange={pickServer("domain")}>
-          <option value="all">All domains</option>
-          {domains.map((d) => <option key={d}>{d}</option>)}
-        </select>
+        {domains.length > 1 && (
+          <select value={domain} onChange={pickServer("domain")}>
+            <option value="all">All domains</option>
+            {domains.map((d) => <option key={d}>{d}</option>)}
+          </select>
+        )}
         <select value={state} onChange={pickServer("state")}>
           <option value="open">Open</option>
           <option value="closed">Closed</option>

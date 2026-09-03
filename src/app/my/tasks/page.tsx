@@ -39,6 +39,7 @@ export default async function TasksPage({
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
   const myContact: string | null = me?.contact_id ?? null;
+  const isAdmin: boolean = me?.is_superadmin ?? false;
 
   const [{ data: portalData }, { data: leadData }, { data: membershipRows }] = await Promise.all([
     supabase.rpc("portal_tasks", {
