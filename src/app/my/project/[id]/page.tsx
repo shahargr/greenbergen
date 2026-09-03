@@ -44,7 +44,7 @@ export default async function ProjectPage({
     );
   }
 
-  const [perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }] =
+  const [perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }, { data: rollupData }] =
     await Promise.all([
       projectPerms(id),
       supabase
@@ -63,7 +63,24 @@ export default async function ProjectPage({
         .from("project_config_values")
         .select("key, value")
         .eq("project_id", id),
+      supabase.rpc("portal_finance_rollup", { p_project_id: id }),
     ]);
+
+  // Per-stage budget vs actual for the task-stage tiles. Phases come from the
+  // project's own budget (e.g. "3. Rough"); the numeric prefix is dropped for
+  // the tile label. Stages with no budget and no tasks are hidden by the tile.
+  type RollupPhase = { phase: string; budget: number; actual_paid: number; open_committed: number };
+  const rollupPhases: RollupPhase[] =
+    (((rollupData as { projects?: { phases?: RollupPhase[] }[] } | null)?.projects?.[0]?.phases) ?? [])
+      .filter((ph) => ph.phase !== "Unassigned");
+  const stageTiles = rollupPhases
+    .map((ph) => ({
+      key: ph.phase,
+      label: ph.phase.replace(/^\s*\d+\.\s*/, ""),
+      budget: Number(ph.budget) || 0,
+      actual: Number(ph.actual_paid) || 0,
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
 
   // One line per person - a contact can hold several seats.
   const people = new Map<string, string[]>();
@@ -231,7 +248,7 @@ export default async function ProjectPage({
             </div>
           )}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters />
+            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters stageTiles={stageTiles} />
           )}
         </div>
 

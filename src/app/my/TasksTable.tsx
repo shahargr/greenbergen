@@ -35,6 +35,24 @@ const PHASE_OF: Record<string, string> = {
   Landscaping: "Outside", Hardscaping: "Outside", Roofing: "Outside", Gutters: "Outside", Driveway: "Outside", Pools: "Outside", Fencing: "Outside",
 };
 const phaseOf = (trade: string | null) => (trade ? PHASE_OF[trade] ?? null : null);
+
+// When the project's budget stages drive the tiles, tasks map into a stage
+// by their trade. The token is matched against the project's own phase names
+// (e.g. "3. Rough") so this works whatever the exact phase label is.
+const STAGE_TOKEN: Record<string, string> = {
+  Excavation: "pre", Demolition: "pre", "Portable toilet": "pre",
+  Masonry: "rough", Framing: "rough", Insulation: "rough",
+  Plumbing: "rough", Electrical: "rough", HVAC: "rough", Drywall: "rough",
+  Roofing: "rough", Gutters: "rough", Windows: "rough", Tile: "rough",
+  Painting: "finish", Flooring: "finish", Cabinets: "finish", Trim: "finish",
+  "Interior Design": "finish", Appliances: "finish", "Water Systems": "finish", "Water Heater": "finish",
+  Landscaping: "hardscape", Hardscaping: "hardscape", Driveway: "hardscape", Fencing: "hardscape", Pools: "hardscape",
+};
+const tileMoney = (n: number) =>
+  n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(n >= 1e7 ? 0 : 1)}M`
+    : n >= 1000 ? `$${Math.round(n / 1000)}k`
+    : `$${Math.round(n)}`;
+export type StageTile = { key: string; label: string; budget: number; actual: number };
 const PHASE_ICON: Record<string, React.ReactNode> = {
   "Site prep": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 20h18" /><path d="M4 20V9l6-3 6 3v11" /><path d="M9 20v-5h2v5" /><path d="m14 6 3-2 3 6-3 1z" /></svg>,
   "Rough": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21V8l8-4 8 4v13" /><path d="M8 21v-7h8v7" /><path d="M12 4v6M4 12h16" /></svg>,
@@ -48,7 +66,7 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, savedFilters = false, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
@@ -59,8 +77,27 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   addTaskSlot?: React.ReactNode;
   domainOptions?: string[];
   savedFilters?: boolean;
+  stageTiles?: StageTile[];
   todayIso: string;
 }) {
+  // Stage mode: budget-bearing tiles from the project's own budget stages,
+  // replacing the derived trade-phase tiles. Tasks map to a stage by trade.
+  const stageMode = !!stageTiles && stageTiles.length > 0;
+  const tradeStage = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (!stageTiles) return map;
+    const findKey = (token: string) =>
+      stageTiles.find((s) => {
+        const hay = `${s.key} ${s.label}`.toLowerCase();
+        return hay.includes(token) || (token === "hardscape" && hay.includes("landscape"));
+      })?.key;
+    for (const [trade, token] of Object.entries(STAGE_TOKEN)) {
+      const k = findKey(token);
+      if (k) map[trade] = k;
+    }
+    return map;
+  }, [stageTiles]);
+  const stageOf = (trade: string | null) => (trade ? tradeStage[trade] ?? null : null);
   const router = useRouter();
   // compact mode: the table stays hidden until a view is picked.
   const [view, setView] = useState<"none" | "mine" | "late" | "all">(compact ? "none" : "all");
@@ -126,12 +163,12 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     [tasks]
   );
 
-  // Phase panels: open per phase within the current filters (not phase).
+  // Phase/stage panels: open per bucket within the current project filter.
   const phaseStats = useMemo(() => {
     const m = new Map<string, { open: number; late: number }>();
     for (const t of tasks) {
       if (project !== "all" && (t.project ?? "No project") !== project) continue;
-      const ph = phaseOf(t.trade);
+      const ph = stageMode ? stageOf(t.trade) : phaseOf(t.trade);
       if (!ph || t.state !== "open") continue;
       const s0 = m.get(ph) ?? { open: 0, late: 0 };
       s0.open += 1;
@@ -139,7 +176,8 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
       m.set(ph, s0);
     }
     return m;
-  }, [tasks, project, todayIso]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, project, todayIso, stageMode, tradeStage]);
 
   const shown = tasks
     .filter(
@@ -152,7 +190,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         (priority === "all" || (t.priority ?? "No Priority") === priority) &&
         (view !== "mine" || t.who === "you") &&
         (view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso)) &&
-        (phase === "all" || phaseOf(t.trade) === phase)
+        (phase === "all" || (stageMode ? stageOf(t.trade) : phaseOf(t.trade)) === phase)
     )
     .sort((a, b) =>
       view === "late"
@@ -272,7 +310,35 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
       </div>
       )}
 
-      {showTradeTiles && (
+      {showTradeTiles && stageMode && (
+        <div className="phase-grid">
+          {stageTiles!.map((s) => {
+            const st = phaseStats.get(s.key) ?? { open: 0, late: 0 };
+            const on = phase === s.key;
+            const over = s.budget > 0 && s.actual > s.budget;
+            const pct = s.budget > 0 ? Math.min(100, (s.actual / s.budget) * 100) : s.actual > 0 ? 100 : 0;
+            return (
+              <button key={s.key} type="button" className={on ? "phase-tile on" : "phase-tile"}
+                onClick={() => { setPhase(on ? "all" : s.key); setView("all"); setOpen(null); }}>
+                <span className="phase-name" style={{ fontSize: 12 }}>{s.label}</span>
+                <span className="small" style={{ fontWeight: 700 }}>
+                  <span style={{ color: over ? "#c0262d" : "#2f6b4f" }}>{tileMoney(s.actual)}</span>
+                  <span className="muted" style={{ fontWeight: 400 }}> / {tileMoney(s.budget)}</span>
+                </span>
+                <span className="progressbar" style={{ width: "100%", background: "#eceee9" }}>
+                  <span style={{ width: `${pct}%`, background: over ? "#c0262d" : "#2f6b4f", display: "inline-block", height: "100%" }} />
+                </span>
+                <span className="phase-nums">
+                  <strong>{st.open}</strong> open
+                  {st.late > 0 && <span className="tradestat-late"> · {st.late} late</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {showTradeTiles && !stageMode && (
         <div className="phase-grid">
           {PHASES.map((ph) => {
             const st = phaseStats.get(ph) ?? { open: 0, late: 0 };
