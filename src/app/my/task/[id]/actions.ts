@@ -188,7 +188,9 @@ export async function saveTask(taskId: string, formData: FormData) {
       redirect(`${back}?error=${encodeURIComponent(msg)}`);
     }
     revalidatePath("/my");
-    redirect("/my?panel=tasks");
+    // Close-and-chain: land on the follow-up if one was named.
+    const nextId = await spawnFollowUp(supabase, taskId, String(formData.get("follow_up") ?? ""));
+    redirect(nextId ? `/my/task/${nextId}?saved=1` : "/my?panel=tasks");
   }
 
   revalidatePath(`/my/task/${taskId}`);
@@ -231,7 +233,9 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
       redirect(`${back}?error=${encodeURIComponent(msg)}`);
     }
     revalidatePath("/my");
-    redirect("/my?panel=tasks");
+    // Close-and-chain: a cancelled task can still hand off to a follow-up.
+    const nextId = await spawnFollowUp(supabase, taskId, String(formData.get("follow_up") ?? ""));
+    redirect(nextId ? `/my/task/${nextId}?saved=1` : "/my?panel=tasks");
   }
   if (!OPEN_STATUSES.includes(st)) {
     redirect(`${back}?error=${encodeURIComponent("That is not a status this task can move to.")}`);
@@ -386,7 +390,10 @@ export async function completeTask(taskId: string, formData: FormData) {
   }
 
   revalidatePath("/my");
-  redirect("/my?panel=tasks");
+  // Close-and-chain: the follow-up is a sibling that follows this task, so
+  // the close above already succeeded before it is created; land on it.
+  const nextId = await spawnFollowUp(supabase, taskId, String(formData.get("follow_up") ?? ""));
+  redirect(nextId ? `/my/task/${nextId}?saved=1` : "/my?panel=tasks");
 }
 // Comments never require unlocking: anyone who can SEE the task (project
 // member) can leave one. RLS on task_comments is the enforcement; the
@@ -573,4 +580,45 @@ export async function createTaskTransaction(taskId: string, formData: FormData) 
   redirect(error
     ? `${back}?error=${encodeURIComponent(error.message.includes("row-level security") ? "Logging a transaction on this project is not yours to do." : error.message)}`
     : `${back}?saved=1`);
+}
+
+// Close-and-chain: when a task closes with a follow-up named, the next task
+// is created as a SIBLING that follows it (follows_action_id), never as a
+// child - a child would have blocked the close under the OPEN_CHILDREN
+// guard. Carries over project, assignee, priority and domain. Returns the
+// new id, or null when there was nothing to spawn or the insert failed
+// (a failed follow-up must never undo a close that already happened).
+async function spawnFollowUp(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  closedTaskId: string,
+  title: string | null,
+): Promise<string | null> {
+  const clean = (title ?? "").trim();
+  if (!clean) return null;
+  const { data: src } = await supabase
+    .from("actions")
+    .select("project_id, assigned_to_contact_id, assigned_to_persona_id, priority, domain, target_date")
+    .eq("id", closedTaskId)
+    .maybeSingle();
+  if (!src) return null;
+  const { data: me } = await supabase.rpc("me");
+  const { data: row } = await supabase
+    .from("actions")
+    .insert({
+      action: clean,
+      status: "Not Started",
+      priority: src.priority ?? "No Priority",
+      domain: src.domain ?? "construction",
+      project_id: src.project_id,
+      assigned_to_contact_id: src.assigned_to_contact_id,
+      assigned_to_persona_id: src.assigned_to_persona_id,
+      follows_action_id: closedTaskId,
+      created_by: me?.full_name ?? me?.email ?? "portal user",
+      source: "manual",
+      notes: `Follow-up chained from the closed task ${closedTaskId}.`,
+      last_modified_by: "portal:follow-up",
+    })
+    .select("id")
+    .maybeSingle();
+  return (row?.id as string | undefined) ?? null;
 }

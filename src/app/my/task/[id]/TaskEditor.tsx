@@ -79,6 +79,9 @@ export function TaskEditor({
   const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
   const [moveTo, setMoveTo] = useState(task.status);
   const [closeReason, setCloseReason] = useState("");
+  // Close-and-chain: name the next task and it is created as a follow-up
+  // (a sibling that follows this one, never a child that would block the close).
+  const [followUp, setFollowUp] = useState("");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busyEvidence, setBusyEvidence] = useState(false);
   const [busyMove, setBusyMove] = useState(false);
@@ -120,6 +123,7 @@ export function TaskEditor({
 
   async function applyMove() {
     const fd = new FormData();
+    if (followUp.trim()) fd.append("follow_up", followUp.trim());
     if (moveTo === "Completed") {
       if (closeReason.trim()) fd.append("reason", closeReason.trim());
       await guarded(setBusyMove, () => completeTask(task.id, fd));
@@ -256,6 +260,22 @@ export function TaskEditor({
                     onChange={(e) => setCloseReason(e.target.value)}
                     placeholder={evidenceCount > 0 ? "Closing note (optional)" : "Reason for closing without evidence"}
                   />
+                </div>
+              )}
+              {(moveTo === "Completed" || moveTo === "Cancelled") && (
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="follow-up">Close and start a follow-up (optional)</label>
+                  <input
+                    id="follow-up"
+                    className="input"
+                    value={followUp}
+                    onChange={(e) => setFollowUp(e.target.value)}
+                    placeholder="What comes next? e.g. Second coat once the first has cured"
+                  />
+                  <p className="muted small" style={{ margin: "4px 0 0" }}>
+                    Created as the next link in the chain — same project and assignee — and you land on it.
+                    It never blocks closing this one.
+                  </p>
                 </div>
               )}
             </div>

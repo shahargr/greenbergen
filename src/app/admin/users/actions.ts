@@ -67,9 +67,27 @@ export async function assignUser(formData: FormData) {
   const { supabase } = await admin();
   const userId = String(formData.get("user") ?? "");
   const projectId = String(formData.get("project") ?? "");
-  const role = String(formData.get("role") ?? "collaborator");
-  const projectRole = String(formData.get("project_role") ?? "").trim() || null;
   if (!userId || !projectId) done("Pick a user and a project.");
+
+  // One picker: the seat. The membership role (what the app lets them do)
+  // follows from it - directive seats manage, working seats collaborate,
+  // everyone else views. Ranks live on project_roles, not here.
+  const SEAT_MAP: Record<string, { role: string; project_role: string }> = {
+    "GC":                  { role: "manager",      project_role: "site GC" },
+    "Project manager":     { role: "manager",      project_role: "site project manager" },
+    "Contractor":          { role: "collaborator", project_role: "contractor" },
+    "Consultant":          { role: "collaborator", project_role: "Consultant" },
+    "Maintenance manager": { role: "collaborator", project_role: "Maintenance manager" },
+    "Inspector":           { role: "viewer",       project_role: "Inspector" },
+    "Investor":            { role: "viewer",       project_role: "Investor" },
+    "Viewer":              { role: "viewer",       project_role: "viewer" },
+  };
+  const seat = String(formData.get("seat") ?? "").trim();
+  const mapped = SEAT_MAP[seat];
+  if (seat && !mapped) done(`Unknown seat "${seat}".`);
+  // Legacy two-field form still honored if no seat was sent.
+  const role = mapped?.role ?? String(formData.get("role") ?? "collaborator");
+  const projectRole = mapped?.project_role ?? (String(formData.get("project_role") ?? "").trim() || null);
 
   const { data: u } = await supabase
     .from("app_users")

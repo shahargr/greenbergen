@@ -18,7 +18,7 @@ type TaskFull = {
   is_gate: boolean | null; cadence: string | null; created_at: string;
   created_by: string | null; source: string | null; project_id: string | null;
   assigned_to_contact_id: string | null; assigned_to_persona_id: string | null;
-  assigned_by: string | null; inquiry_id: string | null;
+  assigned_by: string | null; inquiry_id: string | null; follows_action_id: string | null;
   projects: { project_name: string | null } | null;
 };
 
@@ -41,7 +41,7 @@ export default async function TaskPage({
     .select(
       "id, action, status, priority, target_date, desired_outcome, notes, dependencies, learnings, " +
       "pending_on, pending_reason, requires_photo_evidence, is_gate, cadence, created_at, created_by, " +
-      "source, project_id, assigned_to_contact_id, assigned_to_persona_id, assigned_by, inquiry_id, " +
+      "source, project_id, assigned_to_contact_id, assigned_to_persona_id, assigned_by, inquiry_id, follows_action_id, " +
       "projects(project_name)",
     )
     .eq("id", id)
@@ -87,6 +87,16 @@ export default async function TaskPage({
         .order("target_date", { ascending: true, nullsFirst: false }),
     ]);
   const openChildren = ((childRows ?? []) as Subtask[]);
+  // The chain this task sits in: what it follows, and what follows it.
+  type ChainLink = { id: string; action: string | null; status: string };
+  const [{ data: prevRow }, { data: nextRows }] = await Promise.all([
+    t.follows_action_id
+      ? supabase.from("actions").select("id, action, status").eq("id", t.follows_action_id).maybeSingle()
+      : Promise.resolve({ data: null as ChainLink | null }),
+    supabase.from("actions").select("id, action, status").eq("follows_action_id", id).order("created_at"),
+  ]);
+  const chainPrev = (prevRow ?? null) as ChainLink | null;
+  const chainNext = ((nextRows ?? []) as ChainLink[]);
   const comments = (commentRows ?? []) as CommentView[];
 
   const allTrades = ((tradeRows ?? []) as { trade: string; is_construction: boolean | null; is_worker_trade: boolean | null }[]);
@@ -175,6 +185,16 @@ export default async function TaskPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
+      {(chainPrev || chainNext.length > 0) && (
+        <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 14, flexWrap: "wrap" }}>
+          {chainPrev && (
+            <span>⛓ Follows <Link href={`/my/task/${chainPrev.id}`}>{chainPrev.action ?? "(untitled)"}</Link> <span className="muted">· {chainPrev.status}</span></span>
+          )}
+          {chainNext.map((n) => (
+            <span key={n.id}>→ Followed by <Link href={`/my/task/${n.id}`}>{n.action ?? "(untitled)"}</Link> <span className="muted">· {n.status}</span></span>
+          ))}
+        </p>
+      )}
       {openChildren.length > 0 && (
         <div className="card" style={{ display: "grid", gap: 6, marginBottom: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Open subtasks · {openChildren.length}</h2>

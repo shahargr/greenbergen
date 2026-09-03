@@ -79,11 +79,23 @@ export default async function AdminUsersPage({
       .limit(25),
     supabase
       .from("projects")
-      .select("id, project_name, address, status")
+      .select("id, project_name, address, status, owner_user_id, is_template")
+      .is("trashed_at", null)
       .order("project_name"),
     supabase.from("project_roles").select("role, authority_rank").order("authority_rank", { ascending: false }),
     supabase.from("app_users").select("id, email, full_name").eq("is_active", true).order("email"),
   ]);
+
+  // Owner email per project, for the assign picker ("owner email - project").
+  type ProjRow = { id: string; project_name: string; address: string | null; status: string; owner_user_id: string | null; is_template: boolean | null };
+  const projList = ((projectRows.data ?? []) as ProjRow[]).filter((p) => !p.is_template);
+  const ownerIds = [...new Set(projList.map((p) => p.owner_user_id).filter((x): x is string => !!x))];
+  const { data: ownerRows } = ownerIds.length
+    ? await supabase.from("app_users").select("id, email").in("id", ownerIds)
+    : { data: [] as { id: string; email: string | null }[] };
+  const ownerEmail = new Map(((ownerRows ?? []) as { id: string; email: string | null }[]).map((u) => [u.id, u.email ?? ""]));
+  // The eight seats the picker offers, in Shahar's order.
+  const SEATS = ["GC", "Contractor", "Viewer", "Project manager", "Inspector", "Consultant", "Investor", "Maintenance manager"];
 
   const stats: Stat[] = [
     { label: "Accounts", value: users },
@@ -211,20 +223,18 @@ export default async function AdminUsersPage({
                 <option key={u.id} value={u.id}>{u.full_name ?? u.email}</option>
               ))}
             </select>
-            <select name="project" className="input" required style={{ maxWidth: 220 }}>
+            <select name="project" className="input" required style={{ maxWidth: 300 }}>
               <option value="">Project…</option>
-              {(projectRows.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>{p.project_name}</option>
+              {projList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {(p.owner_user_id && ownerEmail.get(p.owner_user_id)) || "no owner"} - {p.project_name}
+                </option>
               ))}
             </select>
-            <select name="role" className="input" defaultValue="collaborator" style={{ maxWidth: 160 }}>
-              <option>owner</option><option>manager</option><option>collaborator</option><option>viewer</option>
-            </select>
-            <select name="project_role" className="input" defaultValue="" style={{ maxWidth: 200 }}>
-              <option value="">No authority seat</option>
-              {(roleRows.data ?? []).map((r) => (
-                <option key={r.role} value={r.role}>{r.role}</option>
-              ))}
+            {/* One picker: the seat. The membership role is derived from it server-side. */}
+            <select name="seat" className="input" required defaultValue="" style={{ maxWidth: 200 }} aria-label="Assigned as">
+              <option value="" disabled>Assigned as…</option>
+              {SEATS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
             <button className="btn">Seat them</button>
           </form>
