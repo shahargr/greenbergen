@@ -40,7 +40,7 @@ export default async function ProjectPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, project_name, status, address, notes, parent_project_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount")
+    .select("id, project_name, status, address, notes, parent_project_id, owner_user_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount")
     .eq("id", id)
     .maybeSingle();
 
@@ -240,6 +240,27 @@ export default async function ProjectPage({
     .order("project_name");
   const childProjects = ((childProjectRows ?? []) as { id: string; project_name: string; status: string }[]);
 
+  // Hierarchy for the Details card: owner › every parent › this project.
+  // Parents are walked upward (a home is normally one level; a portfolio
+  // root two), capped so a bad self-reference can never loop.
+  const ancestors: { id: string; project_name: string }[] = [];
+  let cursor: string | null = (project as { parent_project_id: string | null }).parent_project_id;
+  for (let i = 0; cursor && i < 6; i += 1) {
+    const { data: up } = await supabase.from("projects").select("id, project_name, parent_project_id").eq("id", cursor).maybeSingle();
+    if (!up) break;
+    ancestors.unshift({ id: up.id, project_name: up.project_name });
+    cursor = up.parent_project_id as string | null;
+  }
+  const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
+  const { data: ownerRow } = ownerId
+    ? await supabase.from("app_users").select("full_name, email").eq("id", ownerId).maybeSingle()
+    : { data: null as { full_name: string | null; email: string | null } | null };
+  const crumbs = [
+    ...(ownerRow ? [{ id: "owner", name: ownerRow.full_name ?? ownerRow.email ?? "Owner", href: null as string | null }] : []),
+    ...ancestors.map((a) => ({ id: a.id, name: a.project_name, href: `/my/project/${a.id}` as string | null })),
+    { id: project.id, name: project.project_name, href: null as string | null },
+  ];
+
   const configValues: Record<string, string> = {};
   for (const r of (configValueRows ?? []) as { key: string; value: string | null }[]) {
     if (r.value != null) configValues[r.key] = r.value;
@@ -277,6 +298,7 @@ export default async function ProjectPage({
         <ProjectEditor
           project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
           perms={perms}
+          crumbs={crumbs}
         />
 
         {/* What the owner asked for: description, specs, photos. Travels

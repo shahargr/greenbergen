@@ -16,7 +16,26 @@ const PROJECT_STATUSES = ["In Progress", "Closed - Completed", "Closed - Incompl
 // Unlock-to-edit, same contract as the task editor: everything reads as
 // text until unlocked; unlocked, only the fields your rank allows become
 // inputs - and the server re-checks every one on save.
-export function ProjectEditor({ project, perms }: { project: ProjectView; perms: ProjectPerms }) {
+type Crumb = { id: string; name: string; href: string | null };
+
+// Owner › parent › … › this project. Parents link; the ends are plain.
+function Hierarchy({ crumbs }: { crumbs: Crumb[] }) {
+  if (crumbs.length === 0) return null;
+  return (
+    <div className="small" style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 4, minWidth: 0 }}>
+      {crumbs.map((c, i) => (
+        <span key={c.id} style={{ display: "inline-flex", alignItems: "baseline", gap: 4, minWidth: 0 }}>
+          {i > 0 && <span className="muted">›</span>}
+          {c.href
+            ? <a href={c.href} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</a>
+            : <span style={{ fontWeight: i === crumbs.length - 1 ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function ProjectEditor({ project, perms, crumbs = [] }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[] }) {
   const [setup, setSetup] = useState(false);
   const [confirmName, setConfirmName] = useState("");
   const canEditAnything = perms.name || perms.notes || perms.status || perms.address;
@@ -38,6 +57,7 @@ export function ProjectEditor({ project, perms }: { project: ProjectView; perms:
             )}
           </span>
         </div>
+        <Hierarchy crumbs={crumbs} />
         <div className="small" style={{ display: "grid", gap: 4 }}>
           <span><span className="muted">Status:</span> {project.status ?? "—"}</span>
           <span><span className="muted">Address:</span> {project.address ?? "—"}</span>
