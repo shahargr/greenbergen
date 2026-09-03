@@ -90,9 +90,10 @@ function WxIcon({ icon, size = 26 }: { icon: WeatherIcon; size?: number }) {
 export default async function MyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ panel?: string; error?: string; ok?: string; t?: string; all?: string }>;
+  searchParams: Promise<{ panel?: string; error?: string; ok?: string; t?: string; all?: string; allp?: string }>;
 }) {
-  const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll } = await searchParams;
+  const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll, allp } = await searchParams;
+  const showClosedProjects = allp === "1";
   const supabase = await createClient();
   const { data: boot, error: bootErr } = await rpcRetry(supabase, "portal_home");
 
@@ -160,8 +161,12 @@ export default async function MyPage({
   const pendingOnMe = onMe + leads.length;
 
   const ownerIdSet = new Set(ownerProjects.map((p) => p.id));
-  const bandOverview = (((bandOverviewData ?? []) as ProjectOverviewRow[]))
+  const bandOverviewAll = (((bandOverviewData ?? []) as ProjectOverviewRow[]))
     .filter((p) => ownerIdSet.has(p.id) && !p.is_template);
+  const bandOverview = showClosedProjects
+    ? bandOverviewAll
+    : bandOverviewAll.filter((p) => p.status === "In Progress");
+  const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length;
   const bandIds = new Set(bandOverview.map((p) => p.id));
   // Full tree: roots are projects whose parent is absent from the list;
   // children nest recursively under their parent at any depth.
@@ -497,9 +502,19 @@ export default async function MyPage({
         </section>
       )}
 
-      {hasHome && bandOverview.length > 0 && (
+      {hasHome && bandOverviewAll.length > 0 && (
         <section style={{ display: "grid", gap: 8, marginBottom: 18 }}>
           {bandRoots.map((r) => renderTree(r, 0))}
+          {!showClosedProjects && hiddenClosedProjects > 0 && (
+            <p className="small" style={{ margin: 0 }}>
+              <Link href="/my?allp=1">Show all projects ({hiddenClosedProjects} closed hidden)</Link>
+            </p>
+          )}
+          {showClosedProjects && (
+            <p className="small" style={{ margin: 0 }}>
+              <Link href="/my">Show open projects only</Link>
+            </p>
+          )}
         </section>
       )}
 
