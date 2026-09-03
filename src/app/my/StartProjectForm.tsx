@@ -13,6 +13,8 @@ const WIZARDS: Record<string, WizardField[]> = {
     { key: "fuel", label: "Fuel available", options: ["Natural gas", "Propane", "Not sure"] },
     { key: "location", label: "Where would it sit?", options: ["Attached to house", "Detached / standalone", "Not sure"] },
     { key: "routing", label: "Wires & gas pipe routing", options: ["In-ground", "Above-ground", "Not sure"] },
+    { key: "gas_distance_ft", label: "Distance from gas meter", number: true, unit: "ft" },
+    { key: "panel_distance_ft", label: "Distance from electric panel", number: true, unit: "ft" },
   ],
   "EV charger installation": [
     { key: "charger_type", label: "Charger type", options: ["Level 2 hardwired", "Level 2 plug (NEMA 14-50)", "Not sure"] },
