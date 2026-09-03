@@ -1,7 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
-import { recordStorageOp } from "./actions";
+import { recordStorageOp, setUserPlan, setUserQuota } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+type UserStorage = {
+  user_id: string; name: string; email: string; is_super: boolean;
+  plan_code: string; quota_bytes: number | null; used_bytes: number; file_count: number;
+  cap_voice: boolean; cap_image: boolean; cap_video: boolean; cap_document: boolean;
+  has_quota_override: boolean;
+};
 
 type Stats = {
   ok: boolean;
@@ -33,8 +40,14 @@ export default async function StoragePage({
 }) {
   const { saved, error } = await searchParams;
   const supabase = await createClient();
-  const { data } = await supabase.rpc("storage_stats");
+  const [{ data }, { data: usersData }, { data: planRows }] = await Promise.all([
+    supabase.rpc("storage_stats"),
+    supabase.rpc("storage_by_user"),
+    supabase.from("plans").select("code, name").eq("is_active", true).order("sort_order"),
+  ]);
   const s = (data ?? null) as Stats | null;
+  const users = ((usersData ?? []) as UserStorage[]);
+  const plans = ((planRows ?? []) as { code: string; name: string }[]);
 
   if (!s?.ok) {
     return <p className="muted">Storage stats are for administrators.</p>;
@@ -76,6 +89,57 @@ export default async function StoragePage({
           </div>
         ))}
         {s.buckets.length === 0 && <p className="muted small" style={{ margin: 0 }}>No media stored yet.</p>}
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <h2 className="section-title" style={{ margin: 0 }}>By user · quota &amp; plan</h2>
+          <span className="muted small">Consumption per user, right now.</span>
+        </div>
+        {users.length === 0 && <p className="muted small" style={{ margin: 0 }}>No users.</p>}
+        {users.map((u) => {
+          const unlimited = u.quota_bytes == null;
+          const pct = unlimited ? 0 : u.quota_bytes! > 0 ? Math.min(100, (u.used_bytes / u.quota_bytes!) * 100) : u.used_bytes > 0 ? 100 : 0;
+          const over = !unlimited && u.quota_bytes! > 0 && u.used_bytes > u.quota_bytes!;
+          const caps = [u.cap_voice && "voice", u.cap_image && "image", u.cap_video && "video", u.cap_document && "docs"].filter(Boolean).join(" · ");
+          return (
+            <div key={u.user_id} style={{ display: "grid", gap: 6, borderTop: "1px solid #eef0ec", paddingTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 600, fontSize: 14 }}>
+                  {u.name}{u.is_super && <span className="muted" style={{ fontWeight: 400 }}> · admin</span>}
+                </span>
+                <span className="small" style={{ whiteSpace: "nowrap" }}>
+                  <strong style={{ color: over ? "#c0262d" : undefined }}>{fmtBytes(u.used_bytes)}</strong>
+                  <span className="muted"> / {unlimited ? "∞" : fmtBytes(u.quota_bytes!)}</span>
+                  <span className="muted"> · {u.file_count} file{u.file_count === 1 ? "" : "s"}</span>
+                </span>
+              </div>
+              {!unlimited && (
+                <div className="progressbar" style={{ background: "#eceee9" }}>
+                  <span style={{ width: `${pct}%`, background: over ? "#c0262d" : "#2f6b4f", display: "inline-block", height: "100%" }} />
+                </div>
+              )}
+              <div className="muted" style={{ fontSize: 11 }}>Can upload: {caps || "nothing"}</div>
+              {!u.is_super && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <form action={setUserPlan.bind(null, u.user_id)} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <select name="plan" defaultValue={u.plan_code} className="input small" style={{ height: 30, padding: "2px 6px" }}>
+                      {plans.map((p) => <option key={p.code} value={p.code}>{p.name}</option>)}
+                    </select>
+                    <button className="btn ghost small">Set plan</button>
+                  </form>
+                  <form action={setUserQuota.bind(null, u.user_id)} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <input name="mb" placeholder={u.has_quota_override ? "override MB" : "MB override"} inputMode="decimal"
+                      className="input small" style={{ height: 30, width: 110, padding: "2px 6px" }}
+                      defaultValue={u.has_quota_override && u.quota_bytes != null ? Math.round(u.quota_bytes / (1024 * 1024)) : ""} />
+                    <button className="btn ghost small">Set quota</button>
+                  </form>
+                  {u.has_quota_override && <span className="muted" style={{ fontSize: 11 }}>custom quota (blank = plan default)</span>}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <div className="card" style={{ display: "grid", gap: 10 }}>
