@@ -77,16 +77,29 @@ export function StartProjectForm({
     <>
       {error && <p className="error small">{error}</p>}
       <form onSubmit={submit} style={{ display: "grid", gap: 10, maxWidth: 440 }}>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="pj-parent">Which property is this for?</label>
-          <select id="pj-parent" name="parent" className="input" defaultValue={defaultParent} required>
-            {homes.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}{h.address && h.address !== h.name ? ` — ${h.address}` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
+        {homes.length === 1 ? (
+          <div className="field" style={{ marginBottom: 0 }}>
+            <input type="hidden" name="parent" value={homes[0].id} />
+            <p className="small" style={{ margin: 0 }}>
+              <span className="muted">For </span>
+              <strong>{homes[0].name}</strong>
+              {homes[0].address && homes[0].address !== homes[0].name && (
+                <span className="muted"> — {homes[0].address}</span>
+              )}
+            </p>
+          </div>
+        ) : (
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="pj-parent">Which property is this for?</label>
+            <select id="pj-parent" name="parent" className="input" defaultValue={defaultParent} required>
+              {homes.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}{h.address && h.address !== h.name ? ` — ${h.address}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="featured-jobs">
           {[
             {
