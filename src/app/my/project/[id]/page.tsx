@@ -7,6 +7,7 @@ import { inviteToProject } from "../../invite/actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
+import { ProjectBrief } from "@/components/ProjectBrief";
 import { AddTaskForm } from "../../AddTaskForm";
 
 export const dynamic = "force-dynamic";
@@ -256,6 +257,10 @@ export default async function ProjectPage({
           project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
           perms={perms}
         />
+
+        {/* What the owner asked for: description, specs, photos. Travels
+            with every bid package as the scope bidders price from. */}
+        {project.parent_project_id && <ProjectBrief projectId={project.id} />}
 
         {config.length > 0 && (
           <div className="card" style={{ display: "grid", gap: 8 }}>

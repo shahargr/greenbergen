@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProjectBrief } from "@/components/ProjectBrief";
 import { createClient } from "@/lib/supabase/server";
 import { FileDrop } from "@/components/FileDrop";
 import { submitReply, attachBidDocs } from "../../project/[id]/bids/actions";
@@ -100,6 +101,9 @@ export default async function BidReplyPage({
           </div>
           {pk.docs.length > 0 && docList(pk.docs, pkgUrls)}
         </div>
+
+        {/* The owner's brief: their description, the specs, their photos. */}
+        <ProjectBrief projectId={pk.project_id} title="Owner's brief" />
 
         {b.can_reply ? (
           <form action={submitReply.bind(null, bidId)} className="card" style={{ display: "grid", gap: 10 }}>

@@ -159,7 +159,10 @@ export async function submitReply(bidId: string, formData: FormData) {
 export async function runAiReview(projectId: string, pkgId: string) {
   const supabase = await createClient();
   const back = pkgUrl(projectId, pkgId);
-  const { data: cmp } = await supabase.rpc("portal_bid_compare", { p_pkg: pkgId });
+  const [{ data: cmp }, { data: brief }] = await Promise.all([
+    supabase.rpc("portal_bid_compare", { p_pkg: pkgId }),
+    supabase.rpc("portal_project_brief", { p_project: projectId }),
+  ]);
   if (!cmp) redirect(`${back}?error=${encodeURIComponent("Reviewing this package is not yours to do.")}`);
   type CmpBid = { id: string; bidder: string | null; bidder_contact_id: string | null } & Record<string, unknown>;
   const bids = ((cmp.bids ?? []) as CmpBid[]);
@@ -168,7 +171,9 @@ export async function runAiReview(projectId: string, pkgId: string) {
   const histories = await Promise.all(bids.map(async (b) =>
     b.bidder_contact_id ? (await supabase.rpc("portal_bidder_history", { p_contact: b.bidder_contact_id })).data : null));
   const out = await reviewBids({
-    package: cmp.package ?? {},
+    // The owner's brief (description, specs, attached files by name) rides
+    // along so the review judges replies against what was actually asked.
+    package: { ...(cmp.package ?? {}), owner_brief: brief ? { description: brief.description, specs: brief.specs, files: (brief.files as { file_name: string }[]).map((f) => f.file_name) } : null },
     items: ((cmp.items ?? []) as { scope_item_id: string; item: string; is_required: boolean }[])
       .map((i) => ({ scope_item_id: i.scope_item_id, item: i.item, is_required: i.is_required })),
     bids: bids.map((b, i) => ({ ...b, history: histories[i] })),

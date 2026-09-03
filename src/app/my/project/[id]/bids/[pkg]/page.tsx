@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProjectBrief } from "@/components/ProjectBrief";
 import { createClient } from "@/lib/supabase/server";
 import { FileDrop } from "@/components/FileDrop";
 import { savePackage, setPackageItems, inviteBidders, attachBidDocs, runAiReview } from "../actions";
@@ -149,6 +150,9 @@ export default async function BidPackagePage({
             </form>
           )}
         </div>
+
+        {/* The owner's brief — description, specs, photos — is scope too. */}
+        <ProjectBrief projectId={id} />
 
         {/* Documents */}
         <div className="card" style={{ display: "grid", gap: 8 }}>
