@@ -191,36 +191,114 @@ export default async function MyPage({
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg>
     </span>
   );
-  const overviewCard = (p: ProjectOverviewRow, isRoot: boolean, depth: number) => (
-    <div key={p.id} className="card"
-      style={{
-        padding: "12px 14px", display: "grid", gap: 10,
-        marginLeft: Math.min(depth, 3) * 24,
-        borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c",
-      }}>
-      <Link href={`/my/project/${p.id}`} className="statlink"
-        style={{ display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "inherit" }}>
-        {isRoot ? homeGlyph : jobGlyph}
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
-          <div className="muted small">
-            {isRoot ? (p.address ? "Your home" : "Portfolio") : "Project"}
-            {p.address && depth === 0 && <> · {p.address}</>} · {p.status}
-          </div>
-        </span>
-      </Link>
-      <div className="btn-row" style={{ gap: 8 }}>
-        <Link href={`/my/project/${p.id}`} className="btn ghost small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>
-          {p.open_count} open
-        </Link>
-        <Link href={`/my/payments`} className="btn ghost small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>
-          Financials
-        </Link>
-      </div>
-    </div>
+  // Per-project dashboard bundle for the cards (dates, task counts, recent
+  // transactions, urgent tasks) — one call, scoped to the caller.
+  type ProjectCard = {
+    id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null;
+    start_date: string | null; est_complete: string | null;
+    open: number; done: number; stuck: number;
+    transactions: { id: string; description: string; amount: number | null; paid_on: string | null; status: string }[];
+    urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
+  };
+  const { data: cardData } = await supabase.rpc("portal_project_cards");
+  const cardsById = new Map<string, ProjectCard>();
+  for (const c of ((cardData ?? []) as ProjectCard[])) cardsById.set(c.id, c);
+
+  const money = (n: number | null) => (n == null ? "—" : n >= 1000 ? `$${Math.round(n).toLocaleString()}` : `$${Math.round(n * 100) / 100}`);
+  const fmtDate = (d: string | null) => (d ? new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
+  // Brand-normalize the portfolio root's display name (e.g. "Green Bergen
+  // Development" -> "GreenBergen development").
+  const fmtRoot = (n: string) => n.replace(/green\s*bergen/i, "GreenBergen").replace(/development/i, "development");
+  const inviteGlyph = (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>
   );
+
+  const overviewCard = (p: ProjectOverviewRow, isRoot: boolean, depth: number) => {
+    const c = cardsById.get(p.id);
+    return (
+      <div key={p.id} className="card"
+        style={{
+          padding: "14px 16px", display: "grid", gap: 10,
+          marginLeft: Math.min(depth, 3) * 24,
+          borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c",
+        }}>
+        {/* Header: name + address/status, with per-project invite on the panel. */}
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+          {isRoot ? homeGlyph : jobGlyph}
+          <Link href={`/my/project/${p.id}`}
+            style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
+            <strong style={{ fontSize: 16 }}>{p.project_name}</strong>
+            <div className="muted small">
+              {isRoot ? (p.address ? "Your home" : "Portfolio") : "Project"}
+              {p.address && depth === 0 && <> · {p.address}</>} · {p.status}
+            </div>
+          </Link>
+          <Link href={`/my/invite?project=${p.id}`} className="btn ghost small"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
+            title="Invite someone to this project">
+            {inviteGlyph} Invite
+          </Link>
+        </div>
+
+        {/* Dates */}
+        <div className="small" style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+          <span className="muted">Started <strong style={{ color: "var(--ink)" }}>{fmtDate(c?.start_date ?? null)}</strong></span>
+          <span className="muted">Est. complete <strong style={{ color: "var(--ink)" }}>{fmtDate(c?.est_complete ?? null)}</strong></span>
+        </div>
+
+        {/* Task status counts */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link href={`/my/project/${p.id}`} className="extra-chip" style={{ textDecoration: "none" }}>
+            <strong>{c?.open ?? p.open_count}</strong> open
+          </Link>
+          <span className="extra-chip"><strong>{c?.done ?? 0}</strong> done</span>
+          {(c?.stuck ?? 0) > 0 && (
+            <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>
+          )}
+        </div>
+
+        {/* Last 5 transactions (shown inline) */}
+        {c && c.transactions.length > 0 && (
+          <div style={{ display: "grid", gap: 3 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span className="small" style={{ fontWeight: 700 }}>Recent transactions</span>
+              <Link href="/my/payments" className="small">All →</Link>
+            </div>
+            {c.transactions.map((t) => (
+              <div key={t.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  {t.description || "(payment)"}
+                </span>
+                <span className="muted" style={{ whiteSpace: "nowrap" }}>
+                  {money(t.amount)}{t.paid_on ? ` · ${t.paid_on}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 5 most urgent tasks — behind an expand */}
+        {c && c.urgent.length > 0 && (
+          <details>
+            <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+              {c.urgent.length} most urgent task{c.urgent.length > 1 ? "s" : ""}
+            </summary>
+            <div style={{ display: "grid", gap: 3, marginTop: 6 }}>
+              {c.urgent.map((u) => (
+                <Link key={u.id} href={`/my/task/${u.id}`} className="small"
+                  style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit" }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                    {u.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{u.action}
+                  </span>
+                  <span className="muted" style={{ whiteSpace: "nowrap" }}>{u.target_date ?? "—"}</span>
+                </Link>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+    );
+  };
   const renderTree = (p: ProjectOverviewRow, depth: number): React.ReactNode => (
     <div key={p.id} style={{ display: "grid", gap: 8 }}>
       {overviewCard(p, depth === 0, depth)}
@@ -579,14 +657,16 @@ export default async function MyPage({
         <section style={{ display: "grid", gap: 8, marginBottom: 18 }}>
           {bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0 ? (
             <>
-              {/* One home: its card is noise - the projects ARE the page.
-                  A quiet line keeps the home itself reachable. */}
-              <p className="small" style={{ margin: "0 0 2px" }}>
-                <Link href={`/my/project/${bandRoots[0].id}`} className="muted">
-                  🏠 {bandRoots[0].project_name}
+              {/* Portfolio root as a heading line, with Create-a-project
+                  aligned to the right on the same line. The projects below
+                  are the real content. */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
+                <Link href={`/my/project/${bandRoots[0].id}`} className="muted" style={{ fontWeight: 600 }}>
+                  🏠 {fmtRoot(bandRoots[0].project_name)}
                   {bandRoots[0].address && <> · {bandRoots[0].address}</>}
                 </Link>
-              </p>
+                <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
+              </div>
               {(bandChildren.get(bandRoots[0].id) ?? []).map((c) => (
                 <div key={c.id} style={{ display: "grid", gap: 8 }}>
                   {overviewCard(c, false, 0)}
@@ -595,7 +675,12 @@ export default async function MyPage({
               ))}
             </>
           ) : (
-            bandRoots.map((r) => renderTree(r, 0))
+            <>
+              <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 2px" }}>
+                <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
+              </div>
+              {bandRoots.map((r) => renderTree(r, 0))}
+            </>
           )}
           {!showClosedProjects && hiddenClosedProjects > 0 && (
             <p className="small" style={{ margin: 0 }}>
@@ -605,14 +690,6 @@ export default async function MyPage({
           {showClosedProjects && (
             <p className="small" style={{ margin: 0 }}>
               <Link href="/my">Show open projects only</Link>
-            </p>
-          )}
-          <p className="small" style={{ margin: "2px 0 0" }}>
-            <Link href="/my/new-project" style={{ fontWeight: 700 }}>＋ Create a project</Link>
-          </p>
-          {bandOverviewAll.length > 0 && (
-            <p className="small" style={{ margin: "2px 0 0" }}>
-              <Link href="/my/invite" style={{ fontWeight: 700 }}>＋ Invite friends &amp; contractors to your project</Link>
             </p>
           )}
         </section>
