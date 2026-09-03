@@ -71,6 +71,21 @@ export function TaskEditor({
   const [busyEvidence, setBusyEvidence] = useState(false);
   const [busyMove, setBusyMove] = useState(false);
   const [uploadFailed, setUploadFailed] = useState("");
+  // Files staged by drag-drop or clipboard paste (in addition to the picker).
+  const [staged, setStaged] = useState<File[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+
+  function acceptFiles(list: FileList | File[] | null | undefined) {
+    const ok = Array.from(list ?? []).filter(
+      (f) => f.size > 0 && (f.type.startsWith("image/") || f.type.startsWith("video/") ||
+        f.type.startsWith("audio/") || f.type === "application/pdf")
+    );
+    if (ok.length) setStaged((prev) => [...prev, ...ok]);
+  }
+  function onPasteEvidence(e: React.ClipboardEvent) {
+    const files = Array.from(e.clipboardData?.files ?? []);
+    if (files.length) { e.preventDefault(); acceptFiles(files); }
+  }
 
   // Upload and Move are independent actions with independent busy states -
   // sharing one flag made the Apply button show "Applying..." and stay
@@ -92,8 +107,10 @@ export function TaskEditor({
     const input = e.currentTarget.querySelector<HTMLInputElement>('input[name="photos"]');
     const fd = new FormData();
     for (const f of Array.from(input?.files ?? [])) fd.append("files", f);
+    for (const f of staged) fd.append("files", f);
     if (![...fd.keys()].length) return;
     await guarded(setBusyEvidence, () => uploadEvidence(task.id, fd));
+    setStaged([]);
   }
 
   async function submitVoice() {
@@ -169,7 +186,36 @@ export function TaskEditor({
 
           {quick === "photo" && (
             <form onSubmit={submitPhotos} style={{ display: "grid", gap: 8 }}>
-              <input type="file" name="photos" accept="image/*" capture="environment" multiple className="small" />
+              <div
+                tabIndex={0}
+                onPaste={onPasteEvidence}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); acceptFiles(e.dataTransfer.files); }}
+                style={{
+                  border: `2px dashed ${dragOver ? "var(--brand)" : "#cdd2cc"}`,
+                  background: dragOver ? "#f0f6f2" : "#fafbfa",
+                  borderRadius: 10, padding: "14px 12px", textAlign: "center",
+                  display: "grid", gap: 8, outline: "none",
+                }}
+              >
+                <span className="muted small" style={{ margin: 0 }}>
+                  Drag a file here, or click in this box and paste (⌘/Ctrl+V) a screenshot
+                </span>
+                <input type="file" name="photos" accept="image/*,video/*,application/pdf" capture="environment" multiple className="small" style={{ margin: "0 auto" }} />
+                {staged.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+                    {staged.map((f, i) => (
+                      <span key={i} className="extra-chip" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        {f.name || f.type || "pasted file"}
+                        <button type="button" aria-label="Remove"
+                          onClick={() => setStaged((prev) => prev.filter((_, j) => j !== i))}
+                          style={{ border: "none", background: "none", cursor: "pointer", fontWeight: 700 }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="btn-row">
                 <button className="btn" disabled={busyEvidence}>{busyEvidence ? "Uploading..." : "Upload"}</button>
               </div>
