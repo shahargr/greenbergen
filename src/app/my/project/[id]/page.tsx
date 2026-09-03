@@ -42,11 +42,8 @@ export default async function ProjectPage({
     );
   }
 
-  const [{ data: parent }, perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }] =
+  const [perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }] =
     await Promise.all([
-      project.parent_project_id
-        ? supabase.from("projects").select("id, project_name").eq("id", project.parent_project_id).maybeSingle()
-        : Promise.resolve({ data: null }),
       projectPerms(id),
       supabase
         .from("project_members")
