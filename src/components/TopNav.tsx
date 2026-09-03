@@ -18,6 +18,13 @@ const InviteIcon = () => (
   </svg>
 );
 
+const InboxIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+    <path d="M5.5 5.5 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.5A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.5z" />
+  </svg>
+);
+
 const SettingsIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -50,11 +57,14 @@ const ALL_VIEWS = ["Owner", "Contractor", "PM", "GC", "Buyer", "Developer", "Vie
 // put on a different hat.
 export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const supabase = await createClient();
-  const [me, { data: borrowed }, jar] = await Promise.all([
+  const [me, { data: borrowed }, jar, { data: invites }] = await Promise.all([
     getMe(),
     supabase.rpc("borrowed_seat"),
     cookies(),
+    supabase.rpc("portal_my_invites"),
   ]);
+  // Things waiting on you: invitations to answer, and answers to yours.
+  const inbound = ((invites?.incoming ?? []) as unknown[]).length + ((invites?.outcomes ?? []) as unknown[]).length;
 
   // The label under the logo: the picked hat, as long as it lives on this
   // surface; otherwise the surface's own name.
@@ -75,6 +85,15 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
         <div className="topnav-right">
           {isAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined} />}
           <BackNav />
+          <Link href="/my#inbound" className="iconlink" title={inbound > 0 ? `${inbound} waiting on you` : "Inbox"} aria-label="Inbox"
+            style={{ position: "relative" }}>
+            <InboxIcon />
+            {inbound > 0 && (
+              <span aria-hidden style={{ position: "absolute", top: 2, right: 2, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, background: "#c0262d", color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: "16px", textAlign: "center" }}>
+                {inbound}
+              </span>
+            )}
+          </Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
           <form action={signOut} style={{ display: "inline-flex" }}>

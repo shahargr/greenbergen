@@ -742,40 +742,38 @@ export default async function MyPage({
       )}
 
       {/* Invitations waiting for my answer, and answers to the ones I sent. */}
+      {/* One line per thing waiting on you, right above the project tiles.
+          The inbox icon in the top bar carries the same count. */}
       {(invites.incoming.length > 0 || invites.outcomes.length > 0) && (
-        <section className="card" style={{ marginBottom: 14, display: "grid", gap: 8, borderLeft: "3px solid var(--brand)" }}>
+        <div id="inbound" style={{ display: "grid", gap: 4, marginBottom: 10 }}>
           {invites.incoming.map((i) => (
-            <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <span>
-                ✉️ You&apos;re invited to <strong>{i.project_name}</strong> by <strong>{i.by ?? "someone"}</strong>
-                {i.seat && <span className="muted"> · as {i.seat}</span>}
-                {i.message && <span className="muted"> — &ldquo;{i.message}&rdquo;</span>}
+            <div key={i.id} className="small" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "6px 10px", borderRadius: 8, background: "#eef5f0", borderLeft: "3px solid var(--brand)" }}>
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={i.message ?? undefined}>
+                ✉️ Invited to <strong>{i.project_name}</strong> by {i.by ?? "someone"}{i.seat ? ` as ${i.seat}` : ""}{i.message ? ` — “${i.message}”` : ""}
               </span>
-              <span className="btn-row" style={{ gap: 6 }}>
-                <form action={respondInvite}>
-                  <input type="hidden" name="id" value={i.id} /><input type="hidden" name="accept" value="1" />
-                  <button className="btn small">Accept</button>
-                </form>
-                <form action={respondInvite}>
-                  <input type="hidden" name="id" value={i.id} /><input type="hidden" name="accept" value="0" />
-                  <button className="btn ghost small">Decline</button>
-                </form>
-              </span>
-            </div>
-          ))}
-          {invites.outcomes.map((o) => (
-            <div key={o.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <span>
-                {o.status === "accepted" ? "✅" : "🚫"} <strong>{o.who ?? "Someone"}</strong> {o.status} your invitation to{" "}
-                <Link href={`/my/project/${o.project_id}`}><strong>{o.project_name}</strong></Link>
-              </span>
-              <form action={dismissInviteOutcome}>
-                <input type="hidden" name="id" value={o.id} />
-                <button className="btn ghost small">Dismiss</button>
+              <form action={respondInvite} style={{ display: "inline", flex: "none" }}>
+                <input type="hidden" name="id" value={i.id} /><input type="hidden" name="accept" value="1" />
+                <button className="btn small" style={{ padding: "2px 10px" }}>Accept</button>
+              </form>
+              <form action={respondInvite} style={{ display: "inline", flex: "none" }}>
+                <input type="hidden" name="id" value={i.id} /><input type="hidden" name="accept" value="0" />
+                <button className="btn ghost small" style={{ padding: "2px 10px" }}>Decline</button>
               </form>
             </div>
           ))}
-        </section>
+          {invites.outcomes.map((o) => (
+            <div key={o.id} className="small" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "6px 10px", borderRadius: 8, background: "#f4f5f2" }}>
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {o.status === "accepted" ? "✅" : "🚫"} <strong>{o.who ?? "Someone"}</strong> {o.status} your invitation to{" "}
+                <Link href={`/my/project/${o.project_id}`}>{o.project_name}</Link>
+              </span>
+              <form action={dismissInviteOutcome} style={{ display: "inline", flex: "none" }}>
+                <input type="hidden" name="id" value={o.id} />
+                <button className="btn ghost small" style={{ padding: "2px 10px" }}>Dismiss</button>
+              </form>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* First run: welcome + step-by-step until the first project exists. */}
