@@ -80,6 +80,53 @@ export function StartProjectForm({
             ))}
           </div>
         </div>
+        <div className="featured-jobs">
+          {[
+            {
+              name: "Emergency generator",
+              icon: (
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2.5" y="8" width="19" height="10" rx="2" />
+                  <path d="M6 8V6.5A1.5 1.5 0 0 1 7.5 5h9A1.5 1.5 0 0 1 18 6.5V8" />
+                  <path d="m12.5 10-2.4 3.4h3l-2.4 3.4" />
+                  <path d="M5.5 21v-3M18.5 21v-3" />
+                </svg>
+              ),
+            },
+            {
+              name: "EV charger installation",
+              icon: (
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="3" width="10" height="18" rx="2" />
+                  <rect x="7.5" y="6" width="5" height="4" rx="0.8" />
+                  <path d="m10.6 12-2 3h2.6l-2 3" />
+                  <path d="M15 8h2.5a2 2 0 0 1 2 2v7a1.75 1.75 0 1 1-3.5 0v-2.5" />
+                </svg>
+              ),
+            },
+            {
+              name: "Water heater replacement",
+              icon: (
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="7" y="2.5" width="10" height="16" rx="3.5" />
+                  <path d="M10 21.5v-3M14 21.5v-3" />
+                  <path d="M12 7c-1.1 1.5-2 2.4-2 3.6a2 2 0 0 0 4 0c0-1.2-.9-2.1-2-3.6z" />
+                </svg>
+              ),
+            },
+          ].map((j) => (
+            <button
+              key={j.name}
+              type="button"
+              className={name === j.name ? "featured-job on" : "featured-job"}
+              onClick={() => setName(j.name)}
+            >
+              <span className="featured-job-icon">{j.icon}</span>
+              <span className="featured-job-name">{j.name}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-name">What are we doing?</label>
           <input id="pj-name" name="name" className="input" required autoComplete="off"

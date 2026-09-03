@@ -818,3 +818,19 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 /* Half-width paired cards */
 .halfrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 @media (max-width: 560px) { .halfrow { grid-template-columns: 1fr; } }
+
+/* Featured jobs - illustrated quick-start panels */
+.featured-jobs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 480px) { .featured-jobs { grid-template-columns: repeat(3, 1fr); gap: 6px; } }
+.featured-job {
+  border: 1px solid var(--line, #e5e7eb); border-radius: 12px; background: #fff;
+  display: grid; justify-items: center; gap: 6px; padding: 14px 6px 12px;
+  font: inherit; cursor: pointer; text-align: center;
+}
+.featured-job:hover { background: #f4f8f5; }
+.featured-job.on { border-color: var(--brand, #1f6b45); background: #eef6f0; }
+.featured-job-icon {
+  width: 52px; height: 52px; border-radius: 14px; background: #eef6f0;
+  color: var(--brand, #1f6b45); display: grid; place-items: center;
+}
+.featured-job-name { font-size: 12px; font-weight: 700; line-height: 1.25; }
