@@ -120,6 +120,16 @@ export default async function ProjectPage({
   // Late-by-person panels now live inside TasksTable (clickable filters).
   const todayIso = new Date().toISOString().slice(0, 10);
 
+  // Bid planner: this project's packages, and any bids the caller was invited to.
+  const [{ data: bidPkgData }, { data: myBidData }] = await Promise.all([
+    supabase.rpc("portal_bid_packages", { p_project: id }),
+    supabase.rpc("portal_my_bids", { p_project: id }),
+  ]);
+  type BidPkg = { id: string; phase: string | null; category: string | null; trade: string | null; status: string; reply_by: string | null; n_invited: number; n_received: number };
+  type MyBid = { id: string; package_id: string; phase: string | null; category: string | null; status: string; reply_by: string | null; amount: number | null; package_status: string };
+  const bidPkgs = ((bidPkgData ?? []) as BidPkg[]);
+  const myBids = ((myBidData ?? []) as MyBid[]);
+
   // People table: trade, open tasks, outstanding balance, a call link, a
   // create-task link — and, on click, every task the person is connected to.
   const OPEN_TX = ["scheduled", "forecast", "invoice received", "approved", "disputed"];
@@ -282,6 +292,46 @@ export default async function ProjectPage({
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Bid planner: packages for managers; invitations to answer for bidders. */}
+        {(perms.rank >= 50 || myBids.length > 0) && (
+          <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <h2 className="section-title" style={{ margin: 0 }}>Bid planner · {bidPkgs.length} package{bidPkgs.length === 1 ? "" : "s"}</h2>
+              {perms.rank >= 50 && <Link className="btn ghost small" href={`/my/project/${project.id}/bids`}>Open planner →</Link>}
+            </div>
+            {myBids.length > 0 && (
+              <div style={{ display: "grid", gap: 4 }}>
+                <span className="muted" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Bids to answer</span>
+                {myBids.map((b) => (
+                  <Link key={b.id} href={`/my/bid/${b.id}`} className="small"
+                    style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      <strong>{b.category ?? "Package"}</strong>{b.phase ? <span className="muted"> · {b.phase}</span> : null}
+                    </span>
+                    <span className="muted" style={{ whiteSpace: "nowrap" }}>{b.status}{b.reply_by ? ` · by ${b.reply_by}` : ""}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {perms.rank >= 50 && bidPkgs.length > 0 && (
+              <div style={{ display: "grid", gap: 4 }}>
+                {bidPkgs.slice(0, 6).map((p) => (
+                  <Link key={p.id} href={`/my/project/${project.id}/bids/${p.id}`} className="small"
+                    style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      <span className="muted">{p.phase ?? "—"} · </span><strong>{p.category ?? p.trade ?? "Package"}</strong>
+                    </span>
+                    <span className="muted" style={{ whiteSpace: "nowrap" }}>{p.status} · {p.n_received}/{p.n_invited} replies</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {perms.rank >= 50 && bidPkgs.length === 0 && (
+              <p className="muted small" style={{ margin: 0 }}>No packages yet — open the planner to start one from a budget line.</p>
+            )}
           </div>
         )}
 

@@ -765,7 +765,11 @@ export default async function MyPage({
       )}
 
       {hasHome && bandOverviewAll.length > 0 && (
-        <section style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+        // Keyed on the flash params: an action redirecting back here with
+        // ?ok= / ?error= must remount the client rows (Saving… / Uploading…
+        // would otherwise stick — Next keeps client state on a same-route
+        // searchParams change).
+        <section key={`${flashOk ?? ""}|${flashError ?? ""}`} style={{ display: "grid", gap: 8, marginBottom: 18 }}>
           {bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0 ? (
             <>
               {/* Portfolio root as a heading line, with Create-a-project

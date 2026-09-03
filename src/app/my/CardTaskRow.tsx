@@ -255,7 +255,20 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                 <textarea id={`ct-n-${task.id}`} name="notes" className="input" rows={3} defaultValue={detail.notes ?? ""} />
               </div>
               {status === "Completed" && (
-                <p className="muted small" style={{ margin: 0 }}>Completing needs evidence attached (or use the task page to close with a reason).</p>
+                <div style={{ display: "grid", gap: 4 }}>
+                  <p className="muted small" style={{ margin: 0 }}>
+                    Completing needs evidence attached{detail.evidence.length > 0 ? ` — ${detail.evidence.length} on file ✓` : ""}.
+                  </p>
+                  {detail.evidence.length === 0 && (
+                    <label className="small" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                      <input type="checkbox" name="force_close" />
+                      <span>No evidence to attach — close anyway (recorded in the notes)</span>
+                    </label>
+                  )}
+                  {detail.requires_photo_evidence && (
+                    <p className="small" style={{ margin: 0, color: "#c0262d" }}>This task requires BEFORE and AFTER photos — it cannot be force-closed.</p>
+                  )}
+                </div>
               )}
               {err && <p className="error small" style={{ margin: 0 }}>{err}</p>}
               <div className="btn-row">

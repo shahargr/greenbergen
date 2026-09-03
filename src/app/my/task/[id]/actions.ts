@@ -150,8 +150,21 @@ export async function saveTask(taskId: string, formData: FormData) {
         .select("id", { count: "exact", head: true })
         .eq("action_id", taskId)
         .in("role", ["after", "evidence", "before", "progress"]);
-      if (!evidenceCount) {
-        redirect(`${back}?error=${encodeURIComponent("Completing needs evidence or a reason — use the Evidence & completion card below.")}`);
+      // "No evidence to attach — close anyway": bypasses the generic
+      // evidence-or-reason rule and records who forced it. It does NOT
+      // bypass the photo-required gate or open subtasks (close_action keeps
+      // enforcing both — p_force stays false).
+      const forced = formData.get("force_close") === "on";
+      if (!evidenceCount && !forced) {
+        redirect(`${back}?error=${encodeURIComponent("Completing needs evidence — attach a photo/file, or tick “No evidence to attach — close anyway”.")}`);
+      }
+      if (!evidenceCount && forced) {
+        const { data: who } = await supabase.rpc("me");
+        const { data: cur } = await supabase.from("actions").select("notes").eq("id", taskId).maybeSingle();
+        await supabase.from("actions").update({
+          notes: `${cur?.notes ? cur.notes + "\n\n" : ""}[${new Date().toISOString().slice(0, 10)}] Closed without evidence — forced by ${who?.full_name ?? who?.email ?? "portal user"}.`,
+          last_modified_by: "portal:task",
+        }).eq("id", taskId);
       }
     }
     const { data: me } = await supabase.rpc("me");
