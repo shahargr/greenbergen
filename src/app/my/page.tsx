@@ -7,6 +7,7 @@ import { StartProjectForm } from "./StartProjectForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
+import { CardTxRow, type CardTx } from "./CardTxRow";
 
 export const maxDuration = 60;
 
@@ -203,13 +204,21 @@ export default async function MyPage({
     id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null;
     start_date: string | null; est_complete: string | null;
     open: number; done: number; stuck: number;
-    transactions: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
-    pending: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
+    transactions: CardTx[];
+    pending: CardTx[];
     week: WeekBlock;
     next_week: WeekBlock;
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
-  const { data: cardData } = await supabase.rpc("portal_project_cards");
+  // Card bundle plus the status / method lists the inline transaction editor needs.
+  const [{ data: cardData }, { data: txStatusRows }, { data: txMethodRows }] = await Promise.all([
+    supabase.rpc("portal_project_cards"),
+    supabase.from("transaction_statuses").select("status"),
+    supabase.from("payment_methods").select("id, name").eq("is_active", true)
+      .order("display_order", { ascending: true, nullsFirst: false }),
+  ]);
+  const txStatuses = ((txStatusRows ?? []) as { status: string }[]).map((r) => r.status);
+  const txMethods = ((txMethodRows ?? []) as { id: string; name: string }[]);
   const cardsById = new Map<string, ProjectCard>();
   for (const c of ((cardData ?? []) as ProjectCard[])) cardsById.set(c.id, c);
 
@@ -337,12 +346,9 @@ export default async function MyPage({
               <span className="small" style={{ fontWeight: 700 }}>Recent transactions</span>
               <Link href="/my/payments" className="small">All →</Link>
             </div>
+            {/* Click a row to open its fields below and update / close. */}
             {c.transactions.map((t) => (
-              <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 84 }}>{t.on_date ?? "—"}</span>
-                <span style={{ whiteSpace: "nowrap", minWidth: 72, fontWeight: 600 }}>{money(t.amount)}</span>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.paid_to}</span>
-              </div>
+              <CardTxRow key={t.id} tx={t} statuses={txStatuses} methods={txMethods} pending={false} />
             ))}
             {c.pending.length > 0 && (
               <>
@@ -350,14 +356,7 @@ export default async function MyPage({
                   Pending · next up
                 </span>
                 {c.pending.map((t) => (
-                  <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                    <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 84 }}>{t.on_date ?? "—"}</span>
-                    <span style={{ whiteSpace: "nowrap", minWidth: 72, fontWeight: 600, color: "#a8842c" }}>{money(t.amount)}</span>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                      {t.paid_to}
-                      <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>{t.status}</span>
-                    </span>
-                  </div>
+                  <CardTxRow key={t.id} tx={t} statuses={txStatuses} methods={txMethods} pending />
                 ))}
               </>
             )}

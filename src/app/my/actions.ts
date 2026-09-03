@@ -286,7 +286,9 @@ export async function logPayment(formData: FormData) {
 export async function editPayment(formData: FormData) {
   const supabase = await createClient();
   const txId = String(formData.get("tx") ?? "");
-  const back = "/my/payments?";
+  // Return to where the edit was made: the homepage card passes back="/my".
+  // Only known in-app paths are honored (no open redirect).
+  const back = (formData.get("back") === "/my" ? "/my" : "/my/payments") + "?";
   if (!txId) redirect(`${back}error=${encodeURIComponent("Missing payment id.")}`);
 
   const { data: tx } = await supabase
