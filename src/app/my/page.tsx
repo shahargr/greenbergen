@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, setTown, toggleDeal } from "./actions";
+import { createHome, setTown, toggleDeal, requestMoreHomes } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
@@ -459,7 +459,16 @@ export default async function MyPage({
 
   return (
     <main className="wrap" style={{ paddingTop: 16, paddingBottom: 64 }}>
-      {flashError && <p className="error small" style={{ marginTop: 0 }}>{flashError}</p>}
+      {flashError && (
+        <div className="error small" style={{ marginTop: 0, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span>{flashError}</span>
+          {/extend it/i.test(flashError) && (
+            <form action={requestMoreHomes}>
+              <button className="btn small">Request another address</button>
+            </form>
+          )}
+        </div>
+      )}
       {(meErr || homeErr) && (
         <p className="error small" style={{ marginTop: 0 }}>
           Home data failed to load{meErr && <> — me(): {meErr.message}</>}
