@@ -198,6 +198,7 @@ export default async function MyPage({
     start_date: string | null; est_complete: string | null;
     open: number; done: number; stuck: number;
     transactions: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
+    pending: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
   const { data: cardData } = await supabase.rpc("portal_project_cards");
@@ -282,29 +283,39 @@ export default async function MyPage({
           </div>
         )}
 
-        {/* Recent 10 transactions: date · amount · paid to, newest first.
-            Pending (scheduled/forecast) rows are included and flagged. */}
-        {c && c.transactions.length > 0 && (
+        {/* Recent 10 PAID transactions (date · amount · paid to, newest
+            first), then the next few pending ones — kept separate so
+            future-dated scheduled rows can't crowd out real payments. */}
+        {c && (c.transactions.length > 0 || c.pending.length > 0) && (
           <div style={{ display: "grid", gap: 3 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span className="small" style={{ fontWeight: 700 }}>Recent transactions</span>
               <Link href="/my/payments" className="small">All →</Link>
             </div>
-            {c.transactions.map((t) => {
-              const paid = ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"].includes(t.status);
-              return (
-                <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                  <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 84 }}>{t.on_date ?? "—"}</span>
-                  <span style={{ whiteSpace: "nowrap", minWidth: 72, fontWeight: 600, color: paid ? "inherit" : "#a8842c" }}>
-                    {money(t.amount)}
-                  </span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                    {t.paid_to}
-                    {!paid && <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>pending</span>}
-                  </span>
-                </div>
-              );
-            })}
+            {c.transactions.map((t) => (
+              <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 84 }}>{t.on_date ?? "—"}</span>
+                <span style={{ whiteSpace: "nowrap", minWidth: 72, fontWeight: 600 }}>{money(t.amount)}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.paid_to}</span>
+              </div>
+            ))}
+            {c.pending.length > 0 && (
+              <>
+                <span className="muted" style={{ fontSize: 11, fontWeight: 700, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                  Pending · next up
+                </span>
+                {c.pending.map((t) => (
+                  <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                    <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 84 }}>{t.on_date ?? "—"}</span>
+                    <span style={{ whiteSpace: "nowrap", minWidth: 72, fontWeight: 600, color: "#a8842c" }}>{money(t.amount)}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      {t.paid_to}
+                      <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>{t.status}</span>
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
