@@ -858,3 +858,7 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 .phase-icon { width: 40px; height: 40px; border-radius: 11px; background: #eef6f0; color: var(--brand, #1f6b45); display: grid; place-items: center; }
 .phase-name { font-size: 12px; font-weight: 700; }
 .phase-nums { font-size: 11px; color: #556158; }
+
+/* Three invite type cards */
+.typecards.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 520px) { .typecards.trio { grid-template-columns: 1fr; } }

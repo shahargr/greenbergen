@@ -28,6 +28,7 @@ const ContractorArt = () => (
 export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: boolean; senderName: string }) {
   const [asResident, setAsResident] = useState(true);
   const [asContractor, setAsContractor] = useState(false);
+  const [asViewer, setAsViewer] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -43,8 +44,8 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!asResident && !asContractor) {
-      setError("Pick at least one: resident, contractor, or both.");
+    if (!asResident && !asContractor && !asViewer) {
+      setError("Pick a role: resident, contractor, or viewer.");
       return;
     }
     setBusy(true);
@@ -63,7 +64,7 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
             p_phone: phone.trim() || null,
           })
         : supabase.rpc("invite_peer", {
-            p_kind: asResident ? "homeowner" : "contractor",
+            p_kind: asResident ? "homeowner" : asViewer ? "viewer" : "contractor",
             p_email: email.trim() || null,
             p_name: name.trim() || null,
             p_note: comment.trim() || null,
@@ -121,21 +122,29 @@ export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: bool
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <form onSubmit={create} className="card" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
-        <div className="typecards duo">
+        <div className="typecards trio">
           <label className={asResident ? "typecard art on" : "typecard art"}>
-            <input type="checkbox" checked={asResident} onChange={(e) => setAsResident(e.target.checked)} hidden />
+            <input type="checkbox" checked={asResident} onChange={(e) => { setAsResident(e.target.checked); if (e.target.checked) setAsViewer(false); }} hidden />
             <span className="typecard-art"><ResidentArt /></span>
             <strong>Resident</strong>
             <span className="muted small">Manage their home and its projects.</span>
           </label>
           <label className={asContractor ? "typecard art on" : "typecard art"}>
-            <input type="checkbox" checked={asContractor} onChange={(e) => setAsContractor(e.target.checked)} hidden />
+            <input type="checkbox" checked={asContractor} onChange={(e) => { setAsContractor(e.target.checked); if (e.target.checked) setAsViewer(false); }} hidden />
             <span className="typecard-art"><ContractorArt /></span>
             <strong>Contractor</strong>
             <span className="muted small">Deliver services on our projects.</span>
           </label>
+          <label className={asViewer ? "typecard art on" : "typecard art"}>
+            <input type="checkbox" checked={asViewer} onChange={(e) => { setAsViewer(e.target.checked); if (e.target.checked) { setAsResident(false); setAsContractor(false); } }} hidden />
+            <span className="typecard-art">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>
+            </span>
+            <strong>Viewer</strong>
+            <span className="muted small">Read-only — follow along, no edits.</span>
+          </label>
         </div>
-        <p className="muted small" style={{ margin: 0 }}>Both can be selected — plenty of contractors own homes too.</p>
+        <p className="muted small" style={{ margin: 0 }}>Resident and contractor can combine; viewer is read-only on its own.</p>
 
         <div className="form-2col">
           <div className="field" style={{ marginBottom: 0 }}>
