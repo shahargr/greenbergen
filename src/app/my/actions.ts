@@ -63,7 +63,7 @@ export async function createJob(formData: FormData) {
   const parentId = String(formData.get("parent") ?? "").trim();
   const audio = formData.get("audio");
   if (!name || !parentId) {
-    redirect(`/my?panel=addproject&error=${encodeURIComponent("Give the project a name.")}`);
+    redirect(`/my/new-project?error=${encodeURIComponent("Give the project a name.")}`);
   }
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("create_home_project", {
@@ -72,7 +72,7 @@ export async function createJob(formData: FormData) {
     p_parent_project_id: parentId,
   });
   if (error || !data?.ok) {
-    redirect(`/my?panel=addproject&error=${encodeURIComponent(data?.reason ?? "Could not create the project — try again.")}`);
+    redirect(`/my/new-project?error=${encodeURIComponent(data?.reason ?? "Could not create the project — try again.")}`);
   }
 
   if (audio instanceof File && audio.size > 0 && data.project_id) {

@@ -403,7 +403,7 @@ export default async function MyPage({
       <>
         <h2 className="section-title">Your projects — as owner</h2>
         <p className="small" style={{ marginTop: 0 }}>
-          <Link href="/my?panel=addproject">＋ Start a new project</Link>
+          <Link href="/my/new-project">＋ Start a new project</Link>
         </p>
         <div style={{ display: "grid", gap: 8 }}>
           {bandRoots.map((r) => renderTree(r, 0))}
@@ -535,7 +535,7 @@ export default async function MyPage({
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>,
           }] : []),
           {
-            href: "/my?panel=addproject",
+            href: "/my/new-project",
             key: "addproject",
             label: "Create a project",
             sub: "A job under one of your homes",
