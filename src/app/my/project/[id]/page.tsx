@@ -24,16 +24,16 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; error?: string; tasks?: string; assign?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; tasks?: string; assign?: string; parent?: string }>;
 }) {
   const { id } = await params;
-  const { saved, error, tasks: tasksBucket, assign: assignContact } = await searchParams;
+  const { saved, error, tasks: tasksBucket, assign: assignContact, parent: parentTask } = await searchParams;
   // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
   // three counts link here).
   const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
   // Default on load: the 10 most urgent tasks. ?tasks=open|done|stuck override.
   const initialTaskView: "all" | "stuck" | "urgent" =
-    tasksBucket === "stuck" ? "stuck" : (tasksBucket === "done" || tasksBucket === "open") ? "all" : "urgent";
+    parentTask ? "all" : tasksBucket === "stuck" ? "stuck" : (tasksBucket === "done" || tasksBucket === "open") ? "all" : "urgent";
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -97,6 +97,7 @@ export default async function ProjectPage({
     target_date: string | null; last_updated: string | null; notes: string | null;
     project: string | null; domain: string | null; state: "open" | "closed";
     assignee_id: string | null; assignee: string | null; trade: string | null;
+    parent_id: string | null; parent_title: string | null; open_children: number;
   };
   const { data: meRow } = await supabase.rpc("me");
   const myContactId: string | null = meRow?.contact_id ?? null;
@@ -113,6 +114,7 @@ export default async function ProjectPage({
     who: (myContactId && t.assignee_id === myContactId ? "you" : "others") as "you" | "others",
     domain: t.domain,
     state: t.state, trade: t.trade, assignee: t.assignee,
+    parent_id: t.parent_id, parent: t.parent_title, open_children: t.open_children,
   }));
   const openCount = projectTasks.filter((t) => t.state === "open").length;
   const doneCount = projectTasks.filter((t) => t.state === "closed").length;
@@ -349,6 +351,7 @@ export default async function ProjectPage({
           {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
           {projectTasks.length > 0 && (
             <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters showTradeTiles={false} showLatePanels avatars={avatars}
+              initialParent={parentTask ?? null}
               initialState={initialTaskState} initialView={initialTaskView} />
           )}
         </div>

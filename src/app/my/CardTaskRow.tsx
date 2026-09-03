@@ -29,6 +29,7 @@ type Detail = {
   created_by: string | null;
   last_updated: string | null;
   project: string | null;
+  project_id: string;
   assignee: { id: string; name: string } | null;
   evidence: { id: string; file_name: string; kind: string | null; bucket: string; path: string; role: string }[];
   comments: { author: string; body: string; created_at: string }[];
@@ -152,7 +153,11 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                   {detail.desired_outcome && <div className="small"><span className="muted">Outcome: </span>{detail.desired_outcome}</div>}
                   {detail.notes && <div className="small" style={{ whiteSpace: "pre-line" }}><span className="muted">Notes: </span>{detail.notes}</div>}
                   {detail.open_children > 0 && (
-                    <div className="small" style={{ color: "#c0262d" }}>{detail.open_children} open subtask{detail.open_children > 1 ? "s" : ""} — must close before this can complete.</div>
+                    <div className="small" style={{ color: "#c0262d" }}>
+                      <Link href={`/my/project/${detail.project_id}?parent=${task.id}`} style={{ color: "inherit", fontWeight: 600 }}>
+                        {detail.open_children} open subtask{detail.open_children > 1 ? "s" : ""} →
+                      </Link>{" "}— must close before this can complete.
+                    </div>
                   )}
                   <div>
                     <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>

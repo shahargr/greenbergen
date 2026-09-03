@@ -19,6 +19,11 @@ export type TableTask = {
   state: "open" | "closed";
   trade: string | null;
   assignee: string | null;
+  // Subtask linkage: the parent this row hangs under, and this row's own
+  // open-children count (so parents can show a "N subtasks" chip).
+  parent_id?: string | null;
+  parent?: string | null;
+  open_children?: number;
 };
 
 const PRIORITY_ORDER = ["High", "Medium", "Low", "No Priority"];
@@ -66,7 +71,7 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, avatars, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, avatars, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
@@ -75,6 +80,8 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   showLatePanels?: boolean;
   // Display name -> public photo URL; people without one keep the icon.
   avatars?: Record<string, string>;
+  // Start filtered to this parent's subtasks (from ?parent= on the project page).
+  initialParent?: string | null;
   syncUrl?: boolean;
   showTradeTiles?: boolean;
   compact?: boolean;
@@ -114,6 +121,8 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const [phase, setPhase] = useState("all");
   const [sort, setSort] = useState<"due" | "updated">("due");
   const [open, setOpen] = useState<string | null>(null);
+  // Subtask filter: show only the children of this parent (chip / ?parent=).
+  const [parentOf, setParentOf] = useState<string | null>(initialParent ?? null);
 
   // Three personal saved filters, per browser.
   type Slot = { label: string; project: string; person: string; priority: string; phase: string; view: string } | null;
@@ -213,6 +222,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         (view !== "stuck" || (t.state === "open" &&
           ((!!t.target_date && t.target_date < todayIso) || /pending/i.test(t.status) || t.status === "Parked"))) &&
         (view !== "urgent" || t.state === "open") &&
+        (parentOf === null || t.parent_id === parentOf) &&
         (phase === "all" || (stageMode ? stageOf(t.trade) : phaseOf(t.trade)) === phase)
     )
     .sort((a, b) =>
@@ -225,7 +235,9 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
             : (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
     );
   // Urgent = the 10 nearest-due open tasks, line by line (the default view).
-  const shown = view === "urgent" ? shownAll.slice(0, 10) : shownAll;
+  // (When filtered to a parent's subtasks, show all of them — no urgent cap.)
+  const shown = view === "urgent" && parentOf === null ? shownAll.slice(0, 10) : shownAll;
+  const parentTitle = parentOf ? (tasks.find((t) => t.id === parentOf)?.action ?? tasks.find((t) => t.parent_id === parentOf)?.parent ?? "this task") : null;
   const tableVisible = !compact || view !== "none" || trade !== "all";
 
   const pick = (setter: (v: never) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -446,6 +458,13 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
+      {parentOf && (
+        <div className="small" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#fdecec", color: "#c0262d", padding: "6px 10px", borderRadius: 8 }}>
+          <span>Subtasks of <strong>{parentTitle}</strong> · {shown.length}</span>
+          <button type="button" className="btn ghost small" onClick={() => { setParentOf(null); setOpen(null); }}>Show all tasks ✕</button>
+        </div>
+      )}
+
       {!tableVisible ? null : shown.length === 0 ? (
         <p className="muted small" style={{ margin: 0 }}>Nothing matches these filters.</p>
       ) : (
@@ -467,7 +486,21 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                     style={{ cursor: "pointer", opacity: t.state === "closed" ? 0.65 : 1 }}
                     aria-expanded={open === t.id}
                   >
-                    <td><strong style={{ fontWeight: 600 }}>{t.action}</strong></td>
+                    <td style={{ minWidth: 0 }}>
+                      <strong style={{ fontWeight: 600 }}>{t.action}</strong>
+                      {/* Subtask linkage: children say whose; parents get a chip that filters to their children. */}
+                      {t.parent_id && parentOf !== t.parent_id && (
+                        <div className="muted" style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>↳ under {t.parent ?? "a parent task"}</div>
+                      )}
+                      {(t.open_children ?? 0) > 0 && (
+                        <button type="button" className="extra-chip"
+                          style={{ marginTop: 2, cursor: "pointer", border: "none", background: "#fdecec", color: "#c0262d", fontWeight: 600 }}
+                          title="Show this task's open subtasks"
+                          onClick={(e) => { e.stopPropagation(); setParentOf(t.id); setView("all"); setOpen(null); }}>
+                          {t.open_children} open subtask{t.open_children === 1 ? "" : "s"} →
+                        </button>
+                      )}
+                    </td>
                     <td className="muted">{t.project ?? "—"}</td>
                     <td className="muted">{t.trade ?? "—"}</td>
                     <td className="muted" style={{ whiteSpace: "nowrap" }}>
