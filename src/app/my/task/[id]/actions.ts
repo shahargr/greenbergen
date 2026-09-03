@@ -6,6 +6,16 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/transcribe";
 
+// Where a task action returns to: the task page by default, or the homepage
+// when the form was submitted from a card there (back="/my"). Only known
+// in-app paths are honored (no open redirect).
+function backOf(formData: FormData, taskId: string) {
+  return formData.get("back") === "/my" ? "/my" : `/my/task/${taskId}`;
+}
+function doneUrl(back: string) {
+  return back === "/my" ? `/my?ok=${encodeURIComponent("Saved ✓")}` : `${back}?saved=1`;
+}
+
 // Server-side permission matrix (Shahar, 2026-09-01). The UI hides what you
 // cannot edit, but THIS is the enforcement - every save recomputes rank and
 // assignee and drops disallowed fields.
@@ -60,6 +70,7 @@ const PRIORITIES = ["No Priority", "Low", "Medium", "High"];
 
 export async function saveTask(taskId: string, formData: FormData) {
   const supabase = await createClient();
+  const back = backOf(formData, taskId);
   const { data: task } = await supabase
     .from("actions")
     .select("id, project_id, assigned_to_contact_id, status")
@@ -120,13 +131,13 @@ export async function saveTask(taskId: string, formData: FormData) {
   }
 
   if (Object.keys(updates).length === 0 && !closing) {
-    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Nothing you may edit was changed.")}`);
+    redirect(`${back}?error=${encodeURIComponent("Nothing you may edit was changed.")}`);
   }
   if (Object.keys(updates).length > 0) {
     updates.last_modified_by = "portal:task";
     const { error } = await supabase.from("actions").update(updates).eq("id", taskId);
     if (error) {
-      redirect(`/my/task/${taskId}?error=${encodeURIComponent(error.message)}`);
+      redirect(`${back}?error=${encodeURIComponent(error.message)}`);
     }
   }
 
@@ -140,7 +151,7 @@ export async function saveTask(taskId: string, formData: FormData) {
         .eq("action_id", taskId)
         .in("role", ["after", "evidence", "before", "progress"]);
       if (!evidenceCount) {
-        redirect(`/my/task/${taskId}?error=${encodeURIComponent("Completing needs evidence or a reason — use the Evidence & completion card below.")}`);
+        redirect(`${back}?error=${encodeURIComponent("Completing needs evidence or a reason — use the Evidence & completion card below.")}`);
       }
     }
     const { data: me } = await supabase.rpc("me");
@@ -157,7 +168,7 @@ export async function saveTask(taskId: string, formData: FormData) {
         : closeErr.message.includes("MISSING_PHOTO_EVIDENCE")
           ? "This task requires BEFORE and AFTER photos on record before completing."
           : closeErr.message;
-      redirect(`/my/task/${taskId}?error=${encodeURIComponent(msg)}`);
+      redirect(`${back}?error=${encodeURIComponent(msg)}`);
     }
     revalidatePath("/my");
     redirect("/my?panel=tasks");
@@ -165,7 +176,7 @@ export async function saveTask(taskId: string, formData: FormData) {
 
   revalidatePath(`/my/task/${taskId}`);
   revalidatePath("/my");
-  redirect(`/my/task/${taskId}?saved=1`);
+  redirect(doneUrl(back));
 }
 
 // Status moves from the completion card. Completion itself never comes
@@ -174,6 +185,7 @@ export async function saveTask(taskId: string, formData: FormData) {
 // PM-and-above right per the matrix.
 export async function setTaskStatus(taskId: string, formData: FormData) {
   const supabase = await createClient();
+  const back = backOf(formData, taskId);
   const { data: task } = await supabase
     .from("actions")
     .select("id, project_id, assigned_to_contact_id")
@@ -184,7 +196,7 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
   const p = await taskPerms(task.project_id, task.assigned_to_contact_id);
   const st = String(formData.get("status") ?? "");
   if (!p.status) {
-    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Changing status is not yours to do — you can complete the task, with evidence.")}`);
+    redirect(`${back}?error=${encodeURIComponent("Changing status is not yours to do — you can complete the task, with evidence.")}`);
   }
   if (st === "Cancelled") {
     const { data: me } = await supabase.rpc("me");
@@ -199,13 +211,13 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
       const msg = closeErr.message.includes("OPEN_CHILDREN")
         ? "This task has open subtasks — close them first (they're listed below)."
         : closeErr.message;
-      redirect(`/my/task/${taskId}?error=${encodeURIComponent(msg)}`);
+      redirect(`${back}?error=${encodeURIComponent(msg)}`);
     }
     revalidatePath("/my");
     redirect("/my?panel=tasks");
   }
   if (!OPEN_STATUSES.includes(st)) {
-    redirect(`/my/task/${taskId}?error=${encodeURIComponent("That is not a status this task can move to.")}`);
+    redirect(`${back}?error=${encodeURIComponent("That is not a status this task can move to.")}`);
   }
 
   const { error } = await supabase
@@ -215,8 +227,8 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
   revalidatePath(`/my/task/${taskId}`);
   revalidatePath("/my");
   redirect(error
-    ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}`
-    : `/my/task/${taskId}?saved=1`);
+    ? `${back}?error=${encodeURIComponent(error.message)}`
+    : doneUrl(back));
 }
 
 // Evidence uploads: any number of photos plus an optional voice note, at
@@ -225,6 +237,7 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
 // the AFTER image, audio as evidence) - rulebook 11f machinery.
 export async function uploadEvidence(taskId: string, formData: FormData) {
   const supabase = await createClient();
+  const back = backOf(formData, taskId);
   const { data: task } = await supabase
     .from("actions")
     .select("id, project_id, assigned_to_contact_id")
@@ -234,12 +247,12 @@ export async function uploadEvidence(taskId: string, formData: FormData) {
 
   const p = await taskPerms(task.project_id, task.assigned_to_contact_id);
   if (!p.notes && !p.complete) {
-    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Uploading evidence here is not yours to do.")}`);
+    redirect(`${back}?error=${encodeURIComponent("Uploading evidence here is not yours to do.")}`);
   }
 
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) {
-    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Pick at least one photo or record audio first.")}`);
+    redirect(`${back}?error=${encodeURIComponent("Pick at least one photo or record audio first.")}`);
   }
 
   // Record file metadata + link NOW (fast DB ops, so the evidence gate
@@ -287,7 +300,8 @@ export async function uploadEvidence(taskId: string, formData: FormData) {
   });
 
   revalidatePath(`/my/task/${taskId}`);
-  redirect(`/my/task/${taskId}?saved=1`);
+  revalidatePath("/my");
+  redirect(doneUrl(back));
 }
 
 // Flag complete: closes on the strength of ALREADY-ATTACHED evidence, or a

@@ -10,6 +10,7 @@ import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 import { CardTxRow, CardTxHead, type CardTx } from "./CardTxRow";
+import { CardTaskRow } from "./CardTaskRow";
 
 export const maxDuration = 60;
 
@@ -341,19 +342,9 @@ export default async function MyPage({
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Click a task to open it beneath the row (detail, Edit, evidence). */}
                   {w.tasks.map((t) => (
-                    <tr key={t.id}>
-                      <td className="muted" style={{ whiteSpace: "nowrap" }}>{fmtDay(t.target_date)}</td>
-                      <td style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        <Link href={`/my/task/${t.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                          {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
-                        </Link>
-                      </td>
-                      <td className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {t.assignee ? t.assignee.split(" ")[0] : "—"}
-                      </td>
-                      <td className="muted" style={{ textAlign: "right" }}>—</td>
-                    </tr>
+                    <CardTaskRow key={t.id} task={t} day={fmtDay(t.target_date)} />
                   ))}
                   {w.payments.map((t) => (
                     <tr key={t.id}>
