@@ -133,6 +133,15 @@ export default async function ProjectPage({
   type MyBid = { id: string; package_id: string; phase: string | null; category: string | null; status: string; reply_by: string | null; amount: number | null; package_status: string };
   const bidPkgs = ((bidPkgData ?? []) as BidPkg[]);
   const myBids = ((myBidData ?? []) as MyBid[]);
+  // Awarded bids on this project, for the Award stage of the ladder.
+  const { data: wonRows } = perms.rank >= 50
+    ? await supabase.from("bids").select("id, package_id, amount, contacts(name, person_name)").eq("project_id", id).eq("won", true)
+    : { data: [] };
+  type WonBid = { id: string; package_id: string | null; amount: number | null; contacts: { name: string | null; person_name: string | null } | null };
+  const wonBids = ((wonRows ?? []) as unknown as WonBid[]);
+  const wonByPkg = new Map(wonBids.filter((w) => w.package_id).map((w) => [w.package_id as string, w]));
+  const totalInvited = bidPkgs.reduce((s, p) => s + (p.n_invited ?? 0), 0);
+  const totalReceived = bidPkgs.reduce((s, p) => s + (p.n_received ?? 0), 0);
 
   // People table: trade, open tasks, outstanding balance, a call link, a
   // create-task link — and, on click, every task the person is connected to.
@@ -303,15 +312,17 @@ export default async function ProjectPage({
 
         {/* What the owner asked for: description, specs, photos. Travels
             with every bid package as the scope bidders price from. */}
-        {project.parent_project_id && <ProjectBrief projectId={project.id} />}
+        {project.parent_project_id && <ProjectBrief projectId={project.id} collapsible />}
 
+        {/* On a job the brief carries the specs; the configurator folds away
+            underneath it and is only opened to change them. */}
         {config.length > 0 && (
-          <div className="card" style={{ display: "grid", gap: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <h2 className="section-title" style={{ margin: 0 }}>Configuration · {configDone} of {config.length} done</h2>
-              <span className="muted small">Complete these so the work can be priced and scheduled.</span>
-            </div>
-            <div className="progressbar">
+          <details className="card" style={{ display: "grid", gap: 8 }} open={!project.parent_project_id}>
+            <summary className="section-title" style={{ margin: 0, cursor: "pointer", listStyle: "revert" }}>
+              Configuration · {configDone} of {config.length} done
+              <span className="muted small" style={{ fontWeight: 400, marginLeft: 8 }}>edit parameters and the setup checklist</span>
+            </summary>
+            <div className="progressbar" style={{ marginTop: 8 }}>
               <span style={{ width: `${config.length ? Math.round((configDone / config.length) * 100) : 0}%` }} />
             </div>
             <details open={Object.keys(configValues).length === 0}>
@@ -323,7 +334,7 @@ export default async function ProjectPage({
               </div>
             </details>
             <ConfigChecklist projectId={project.id} items={configItems} />
-          </div>
+          </details>
         )}
 
         {perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
@@ -348,46 +359,23 @@ export default async function ProjectPage({
           </div>
         )}
 
-        {/* Bid planner: packages for managers; invitations to answer for bidders. */}
-        {(perms.rank >= 50 || myBids.length > 0) && (
-          <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <h2 className="section-title" style={{ margin: 0 }}>Bid planner · {bidPkgs.length} package{bidPkgs.length === 1 ? "" : "s"}</h2>
-              {perms.rank >= 50 && <Link className="btn ghost small" href={`/my/project/${project.id}/bids`}>Open planner →</Link>}
-            </div>
-            {myBids.length > 0 && (
-              <div style={{ display: "grid", gap: 4 }}>
-                <span className="muted" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Bids to answer</span>
-                {myBids.map((b) => (
-                  <Link key={b.id} href={`/my/bid/${b.id}`} className="small"
-                    style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                      <strong>{b.category ?? "Package"}</strong>{b.phase ? <span className="muted"> · {b.phase}</span> : null}
-                    </span>
-                    <span className="muted" style={{ whiteSpace: "nowrap" }}>{b.status}{b.reply_by ? ` · by ${b.reply_by}` : ""}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-            {perms.rank >= 50 && bidPkgs.length > 0 && (
-              <div style={{ display: "grid", gap: 4 }}>
-                {bidPkgs.slice(0, 6).map((p) => (
-                  <Link key={p.id} href={`/my/project/${project.id}/bids/${p.id}`} className="small"
-                    style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                      <span className="muted">{p.phase ?? "—"} · </span><strong>{p.category ?? p.trade ?? "Package"}</strong>
-                    </span>
-                    <span className="muted" style={{ whiteSpace: "nowrap" }}>{p.status} · {p.n_received}/{p.n_invited} replies</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-            {perms.rank >= 50 && bidPkgs.length === 0 && (
-              <p className="muted small" style={{ margin: 0 }}>No packages yet — open the planner to start one from a budget line.</p>
-            )}
+        {/* Bids the caller was invited to answer (bidders, not managers). */}
+        {myBids.length > 0 && (
+          <div className="card" style={{ display: "grid", gap: 4, minWidth: 0 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Bids to answer · {myBids.length}</h2>
+            {myBids.map((b) => (
+              <Link key={b.id} href={`/my/bid/${b.id}`} className="small"
+                style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  <strong>{b.category ?? "Package"}</strong>{b.phase ? <span className="muted"> · {b.phase}</span> : null}
+                </span>
+                <span className="muted" style={{ whiteSpace: "nowrap" }}>{b.status}{b.reply_by ? ` · by ${b.reply_by}` : ""}</span>
+              </Link>
+            ))}
           </div>
         )}
 
+        {/* The job ladder: tasks → create a bid → invite bidders → award. */}
         <div className="card">
           <h2 className="section-title" style={{ margin: 0 }}>Tasks · {openCount} open · {doneCount} done</h2>
           {perms.rank >= 50 && (
@@ -406,6 +394,70 @@ export default async function ProjectPage({
               initialState={initialTaskState} initialView={initialTaskView} />
           )}
         </div>
+
+        {perms.rank >= 50 && (
+          <>
+            {/* Stage 1 — Create a bid */}
+            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <h2 className="section-title" style={{ margin: 0 }}>1 · Create a bid · {bidPkgs.length} package{bidPkgs.length === 1 ? "" : "s"}</h2>
+                <Link className={bidPkgs.length === 0 ? "btn small" : "btn ghost small"} href={`/my/project/${project.id}/bids`}>
+                  {bidPkgs.length === 0 ? "＋ Create a bid package" : "Open planner →"}
+                </Link>
+              </div>
+              {bidPkgs.length === 0
+                ? <p className="muted small" style={{ margin: 0 }}>Start a package from a budget line. The brief above travels with it, so bidders price from the owner&apos;s own words and photos.</p>
+                : bidPkgs.map((p) => (
+                  <Link key={p.id} href={`/my/project/${project.id}/bids/${p.id}`} className="small"
+                    style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      <span className="muted">{p.phase ?? "—"} · </span><strong>{p.category ?? p.trade ?? "Package"}</strong>
+                    </span>
+                    <span className="muted" style={{ whiteSpace: "nowrap" }}>{p.status}</span>
+                  </Link>
+                ))}
+            </div>
+
+            {/* Stage 2 — Invite bidders */}
+            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+              <h2 className="section-title" style={{ margin: 0 }}>2 · Invite bidders · {totalInvited} invited · {totalReceived} replied</h2>
+              {bidPkgs.length === 0
+                ? <p className="muted small" style={{ margin: 0 }}>Create a package first, then invite from the People on this project. Bidders reply through their portal account.</p>
+                : bidPkgs.map((p) => (
+                  <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      <strong>{p.category ?? p.trade ?? "Package"}</strong> <span className="muted">· {p.n_received}/{p.n_invited} replies{p.reply_by ? ` · by ${p.reply_by}` : ""}</span>
+                    </span>
+                    <Link href={`/my/project/${project.id}/bids/${p.id}`} className="btn ghost small" style={{ whiteSpace: "nowrap" }}>
+                      {p.n_invited === 0 ? "Invite →" : "Invite more →"}
+                    </Link>
+                  </div>
+                ))}
+            </div>
+
+            {/* Stage 3 — Award */}
+            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+              <h2 className="section-title" style={{ margin: 0 }}>3 · Award project · {wonBids.length} awarded</h2>
+              {bidPkgs.length === 0 && <p className="muted small" style={{ margin: 0 }}>Awarding opens once replies are in. Negotiate two rounds first — never after awarding.</p>}
+              {bidPkgs.map((p) => {
+                const w = wonByPkg.get(p.id);
+                return (
+                  <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      <strong>{p.category ?? p.trade ?? "Package"}</strong>{" "}
+                      {w
+                        ? <span style={{ color: "#2f6b4f" }}>✅ awarded to {w.contacts?.person_name ?? w.contacts?.name ?? "—"}{w.amount != null ? ` · $${Math.round(w.amount).toLocaleString()}` : ""}</span>
+                        : <span className="muted">· {p.n_received > 0 ? `${p.n_received} repl${p.n_received === 1 ? "y" : "ies"} to review` : "waiting for replies"}</span>}
+                    </span>
+                    {!w && p.n_received > 0 && (
+                      <Link href={`/my/project/${project.id}/bids/${p.id}`} className="btn small" style={{ whiteSpace: "nowrap" }}>Review &amp; award →</Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
 
         {/* Invite someone into this space. They accept or decline on their

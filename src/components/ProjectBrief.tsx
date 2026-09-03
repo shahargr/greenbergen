@@ -11,7 +11,7 @@ type Brief = {
 // photos / documents they attached when starting the project. One block,
 // the same on the project page, every bid package, and the bidder's reply —
 // so bidders price from the owner's own words and pictures.
-export async function ProjectBrief({ projectId, title = "Project brief" }: { projectId: string; title?: string }) {
+export async function ProjectBrief({ projectId, title = "Project brief", collapsible = false, defaultOpen = true }: { projectId: string; title?: string; collapsible?: boolean; defaultOpen?: boolean }) {
   const supabase = await createClient();
   const { data } = await supabase.rpc("portal_project_brief", { p_project: projectId });
   const b = (data ?? null) as Brief | null;
@@ -27,9 +27,8 @@ export async function ProjectBrief({ projectId, title = "Project brief" }: { pro
   }));
   const transcripts = b.files.map((f) => f.transcript).filter((t): t is string => !!t);
 
-  return (
-    <div className="card" style={{ display: "grid", gap: 8 }}>
-      <h2 className="section-title" style={{ margin: 0 }}>{title} · {b.project_name}</h2>
+  const body = (
+    <>
       {b.description && <p className="small" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{b.description}</p>}
       {transcripts.map((t, i) => (
         <p key={i} className="small muted" style={{ margin: 0, whiteSpace: "pre-wrap" }}>🎙 {t}</p>
@@ -68,6 +67,28 @@ export async function ProjectBrief({ projectId, title = "Project brief" }: { pro
           })}
         </div>
       )}
+    </>
+  );
+
+  // Collapsible: the brief is the summary of the job, so it opens by
+  // default and folds away when the reader wants the workflow below.
+  if (collapsible) {
+    return (
+      <details className="card" open={defaultOpen} style={{ display: "grid", gap: 8 }}>
+        <summary className="section-title" style={{ margin: 0, cursor: "pointer", listStyle: "revert" }}>
+          {title} · {b.project_name}
+          <span className="muted small" style={{ fontWeight: 400, marginLeft: 8 }}>
+            {[b.specs.length ? `${b.specs.length} specs` : null, photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"}` : null, others.length ? `${others.length} file${others.length === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ")}
+          </span>
+        </summary>
+        <div style={{ display: "grid", gap: 8, marginTop: 8 }}>{body}</div>
+      </details>
+    );
+  }
+  return (
+    <div className="card" style={{ display: "grid", gap: 8 }}>
+      <h2 className="section-title" style={{ margin: 0 }}>{title} · {b.project_name}</h2>
+      {body}
     </div>
   );
 }

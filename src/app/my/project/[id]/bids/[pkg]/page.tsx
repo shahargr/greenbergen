@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { createClient } from "@/lib/supabase/server";
 import { FileDrop } from "@/components/FileDrop";
-import { savePackage, setPackageItems, inviteBidders, attachBidDocs, runAiReview } from "../actions";
+import { savePackage, setPackageItems, inviteBidders, attachBidDocs, runAiReview, awardBid } from "../actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -430,7 +430,15 @@ export default async function BidPackagePage({
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{money(b.amount)}</td>
                     <td className="small">{b.is_like_for_like == null ? <span className="muted">—</span> : b.is_like_for_like ? <span style={{ color: "#2f6b4f", fontWeight: 600 }}>yes</span> : <span style={{ color: "#c0262d", fontWeight: 600 }} title={b.scope_gaps ?? ""}>gaps</span>}</td>
                     <td className="muted" style={{ whiteSpace: "nowrap" }}>{b.received_on ?? "—"}</td>
-                    <td style={{ textAlign: "right" }}><Link href={`/my/bid/${b.id}`} className="small">View →</Link></td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <Link href={`/my/bid/${b.id}`} className="small">View →</Link>
+                      {p.can_edit && p.status !== "closed" && ["received", "under negotiation"].includes(b.status) && (
+                        <form action={awardBid.bind(null, id, pkgId, b.id)} style={{ display: "inline", marginLeft: 8 }}>
+                          <button className="btn small" title="Award this package to this bidder">Award</button>
+                        </form>
+                      )}
+                      {b.status === "awarded" && <span className="extra-chip" style={{ marginLeft: 8, background: "#e6f2ea", color: "#1f6b45" }}>✅ awarded</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

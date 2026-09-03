@@ -192,3 +192,16 @@ export async function runAiReview(projectId: string, pkgId: string) {
     ? `${back}?error=${encodeURIComponent(saved?.reason ?? error?.message ?? "Could not save the review.")}`
     : `${back}?saved=1`);
 }
+
+// Award a package to one received reply. The RPC marks the winner and the
+// rest, and closes the package; contract + signature are a later step.
+export async function awardBid(projectId: string, pkgId: string, bidId: string, formData: FormData) {
+  const supabase = await createClient();
+  const back = pkgUrl(projectId, pkgId);
+  const { data, error } = await supabase.rpc("portal_bid_award", { p_pkg: pkgId, p_bid: bidId, p_reason: txt(formData.get("reason")) });
+  revalidatePath(back);
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error || !data?.ok
+    ? `${back}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not award.")}`
+    : `${back}?saved=1`);
+}

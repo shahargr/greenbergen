@@ -266,10 +266,12 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
           <details className="card" style={{ margin: 0 }}>
             <summary style={{ cursor: "pointer", fontWeight: 700 }}>Filters</summary>
             <div className="filterbar" style={{ marginTop: 10 }}>
-              <select value={project} onChange={(e) => { pick(setProject)(e); setView("all"); }}>
-                <option value="all">All projects</option>
-                {projects.map((p) => <option key={p}>{p}</option>)}
-              </select>
+              {projects.length > 1 && (
+                <select value={project} onChange={(e) => { pick(setProject)(e); setView("all"); }}>
+                  <option value="all">All projects</option>
+                  {projects.map((p) => <option key={p}>{p}</option>)}
+                </select>
+              )}
               {domains.length > 1 && (
                 <select value={domain} onChange={pickServer("domain")}>
                   <option value="all">All domains</option>
@@ -356,10 +358,13 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
 
       {!compact && (
       <div className="filterbar">
-        <select value={project} onChange={pick(setProject)}>
-          <option value="all">All projects</option>
-          {projects.map((p) => <option key={p}>{p}</option>)}
-        </select>
+        {/* One project only (a project page): no project filter, no project column. */}
+        {projects.length > 1 && (
+          <select value={project} onChange={pick(setProject)}>
+            <option value="all">All projects</option>
+            {projects.map((p) => <option key={p}>{p}</option>)}
+          </select>
+        )}
         {domains.length > 1 && (
           <select value={domain} onChange={pickServer("domain")}>
             <option value="all">All domains</option>
@@ -473,7 +478,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
             <thead>
               <tr>
                 <th>Task</th>
-                <th>Project</th>
+                {projects.length > 1 && <th>Project</th>}
                 <th>Trade</th>
                 <th>{sort === "updated" ? "Updated" : "Due"}</th>
               </tr>
@@ -501,7 +506,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                         </button>
                       )}
                     </td>
-                    <td className="muted">{t.project ?? "—"}</td>
+                    {projects.length > 1 && <td className="muted">{t.project ?? "—"}</td>}
                     <td className="muted">{t.trade ?? "—"}</td>
                     <td className="muted" style={{ whiteSpace: "nowrap" }}>
                       {sort === "updated"
