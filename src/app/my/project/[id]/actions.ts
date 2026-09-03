@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 // Server-side permission matrix for projects, in the spirit of the task
@@ -138,4 +139,48 @@ export async function deleteProjectNow(projectId: string) {
   }
   revalidatePath("/my");
   redirect(`/my?ok=${encodeURIComponent("Project deleted permanently.")}`);
+}
+
+// A configuration checklist item: attach a photo (uploaded after the
+// response) and mark it done, or toggle done directly. Config items are
+// tasks (scope_milestone=Configuration); RLS on actions is the boundary.
+export async function configAttach(projectId: string, taskId: string, formData: FormData) {
+  const supabase = await createClient();
+  const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+
+  if (files.length) {
+    after(async () => {
+      let i = 0;
+      for (const file of files) {
+        const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? ".jpg").toLowerCase();
+        const path = `${projectId}/config/${taskId}/${Date.now()}-${i}${ext}`;
+        const bytes = await file.arrayBuffer();
+        const { error: upErr } = await supabase.storage
+          .from("project-media")
+          .upload(path, bytes, { contentType: file.type || undefined, upsert: true });
+        if (!upErr) {
+          const { data: fileId } = await supabase.rpc("record_project_file", {
+            p_project_id: projectId, p_path: path, p_file_name: file.name || `config${ext}`,
+            p_mime: file.type || null, p_size: file.size, p_caption: "Configuration photo", p_kind: "photo",
+          });
+          if (fileId) {
+            await supabase.rpc("file_attach", { p_file_id: fileId, p_action_id: taskId, p_contract_id: null, p_role: "reference" });
+          }
+        }
+        i += 1;
+      }
+    });
+  }
+  await supabase.from("actions").update({ status: "Completed", completed_on: new Date().toISOString(), last_modified_by: "portal:config" }).eq("id", taskId);
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(`/my/project/${projectId}?saved=1`);
+}
+
+export async function configToggle(projectId: string, taskId: string, done: boolean) {
+  const supabase = await createClient();
+  await supabase.from("actions")
+    .update({ status: done ? "Completed" : "Not Started", completed_on: done ? new Date().toISOString() : null, last_modified_by: "portal:config" })
+    .eq("id", taskId);
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(`/my/project/${projectId}?saved=1`);
 }

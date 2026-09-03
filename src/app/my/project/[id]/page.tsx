@@ -4,6 +4,7 @@ import { ProjectEditor } from "./ProjectEditor";
 import { projectPerms } from "./actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
+import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +116,31 @@ export default async function ProjectPage({
   type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };
   const config = ((configRows ?? []) as ConfigRow[]);
   const configDone = config.filter((c) => ["Completed"].includes(c.status)).length;
+
+  const configIds = config.map((c) => c.id);
+  const { data: cfgFileRows } = configIds.length
+    ? await supabase
+        .from("file_links")
+        .select("action_id, files(bucket, path)")
+        .in("action_id", configIds)
+        .in("role", ["reference", "after", "evidence"])
+    : { data: [] };
+  const cfgPhotos = new Map<string, string[]>();
+  await Promise.all(
+    (((cfgFileRows ?? []) as unknown as { action_id: string; files: { bucket: string; path: string } | null }[]))
+      .filter((r) => r.files)
+      .map(async (r) => {
+        const { data } = await supabase.storage.from(r.files!.bucket).createSignedUrl(r.files!.path, 3600);
+        if (data?.signedUrl) cfgPhotos.set(r.action_id, [...(cfgPhotos.get(r.action_id) ?? []), data.signedUrl]);
+      })
+  );
+  const configItems: ConfigItem[] = config.map((c) => ({
+    id: c.id,
+    label: c.action,
+    requiresPhoto: !!c.requires_photo_evidence,
+    done: c.status === "Completed",
+    photos: cfgPhotos.get(c.id) ?? [],
+  }));
   const configValues: Record<string, string> = {};
   for (const r of (configValueRows ?? []) as { key: string; value: string | null }[]) {
     if (r.value != null) configValues[r.key] = r.value;
@@ -180,20 +206,7 @@ export default async function ProjectPage({
                 <ConfiguratorForm projectId={project.id} fields={GENERATOR_FIELDS} values={configValues} />
               </div>
             </details>
-            <div style={{ display: "grid", gap: 6 }}>
-              {config.map((c) => (
-                <Link key={c.id} href={`/my/task/${c.id}`} className="card statlink"
-                  style={{ padding: "9px 12px", display: "flex", gap: 10, alignItems: "center" }}>
-                  <span style={{ fontSize: 17, flex: "none" }}>{c.status === "Completed" ? "✅" : "⬜"}</span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ fontSize: 14 }}>{c.action.replace(/^Config: /, "")}</strong>
-                    <div className="muted small">
-                      {c.requires_photo_evidence ? "Photo required · " : ""}{c.status}
-                    </div>
-                  </span>
-                </Link>
-              ))}
-            </div>
+            <ConfigChecklist projectId={project.id} items={configItems} />
           </div>
         )}
 
