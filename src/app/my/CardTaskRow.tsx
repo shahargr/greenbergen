@@ -127,7 +127,7 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
         <td style={cell}>
           {task.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{task.action}
         </td>
-        <td className="muted" style={cell}>{task.assignee ? task.assignee.split(" ")[0] : "—"}</td>
+        <td className="muted col-who" style={cell}>{task.assignee ? task.assignee.split(" ")[0] : "—"}</td>
         <td className="muted" style={{ textAlign: "right", fontSize: 11 }}>{open ? "▴" : "▾"}</td>
       </tr>
 

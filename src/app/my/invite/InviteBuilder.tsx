@@ -25,14 +25,14 @@ const ContractorArt = () => (
 // Builds an invitation and hands it to the sender's channel of choice:
 // "Send by email" goes through the app's mailer; the second button is
 // "Share..." where a native share sheet exists (phones) and "Copy" elsewhere.
-export function InviteBuilder({ isSuperadmin, senderName }: { isSuperadmin: boolean; senderName: string }) {
+export function InviteBuilder({ isSuperadmin, senderName, defaultComment }: { isSuperadmin: boolean; senderName: string; defaultComment?: string }) {
   const [asResident, setAsResident] = useState(true);
   const [asContractor, setAsContractor] = useState(false);
   const [asViewer, setAsViewer] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [comment, setComment] = useState("");
+  const [comment, setComment] = useState(defaultComment ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [link, setLink] = useState("");

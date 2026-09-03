@@ -50,7 +50,7 @@ export function CardTxHead() {
         <th style={{ width: 92 }}>Date</th>
         <th style={{ width: 84 }}>Amount</th>
         <th>Paid to</th>
-        <th style={{ width: 150 }}>Status</th>
+        <th className="col-status" style={{ width: 150 }}>Status</th>
         <th style={{ width: 22 }} aria-label="Open" />
       </tr>
     </thead>
@@ -66,11 +66,14 @@ export function CardTxRow({
   statuses,
   methods,
   pending,
+  className,
 }: {
   tx: CardTx;
   statuses: string[];
   methods: { id: string; name: string }[];
   pending: boolean;
+  // e.g. "tx-extra" — hidden on narrow screens by CSS.
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"view" | "edit">("view");
@@ -147,6 +150,7 @@ export function CardTxRow({
   return (
     <Fragment>
       <tr
+        className={className}
         onClick={() => { setOpen(!open); setMode("view"); setErr(""); }}
         aria-expanded={open}
         title={open ? "Close" : "Open this transaction"}
@@ -155,7 +159,7 @@ export function CardTxRow({
         <td className="muted" style={cell}>{tx.on_date ?? "—"}</td>
         <td style={{ ...cell, fontWeight: 600, color: pending ? "#a8842c" : undefined }}>{money(tx.amount)}</td>
         <td style={cell}>{tx.paid_to}</td>
-        <td className="muted" style={cell}>{tx.status}</td>
+        <td className="muted col-status" style={cell}>{tx.status}</td>
         <td className="muted" style={{ fontSize: 11, textAlign: "right" }}>{open ? "▴" : "▾"}</td>
       </tr>
 

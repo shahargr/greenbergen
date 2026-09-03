@@ -81,7 +81,7 @@ export default async function SettingsPage({
           {contact?.avatar_path ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={supabase.storage.from("public-media").getPublicUrl(contact.avatar_path).data.publicUrl}
+              src={`${supabase.storage.from("public-media").getPublicUrl(contact.avatar_path).data.publicUrl}?v=${Date.now()}`}
               alt="" width={42} height={42}
               style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", flex: "none" }}
             />
@@ -263,7 +263,7 @@ export default async function SettingsPage({
                     <button className="btn ghost small">Restore</button>
                   </form>
                   <form action={deleteProjectNow.bind(null, t.id)}>
-                    <button className="btn ghost small" style={{ color: "#c0262d", borderColor: "#e3b7ba" }}>Delete now</button>
+                    <button className="btn ghost small" style={{ color: "#c0262d", borderColor: "#e3b7ba" }}>Empty now</button>
                   </form>
                 </span>
               </div>

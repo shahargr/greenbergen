@@ -237,6 +237,11 @@ export default async function MyPage({
   ]);
   const txStatuses = ((txStatusRows ?? []) as { status: string }[]).map((r) => r.status);
   const txMethods = ((txMethodRows ?? []) as { id: string; name: string }[]);
+  // "Add a profile photo" nudge until one exists (photos show on task panels).
+  const { data: myContact } = boot?.me?.contact_id
+    ? await supabase.from("contacts").select("avatar_path").eq("id", boot.me.contact_id).maybeSingle()
+    : { data: null as { avatar_path: string | null } | null };
+  const needsPhoto = !!boot?.me?.contact_id && !myContact?.avatar_path;
   const cardsById = new Map<string, ProjectCard>();
   for (const c of ((cardData ?? []) as ProjectCard[])) cardsById.set(c.id, c);
 
@@ -337,7 +342,7 @@ export default async function MyPage({
                   <tr>
                     <th style={{ width: 82 }}>Day</th>
                     <th>What</th>
-                    <th style={{ width: 96 }}>Who</th>
+                    <th className="col-who" style={{ width: 96 }}>Who</th>
                     <th style={{ width: 84, textAlign: "right" }}>Amount</th>
                   </tr>
                 </thead>
@@ -353,7 +358,7 @@ export default async function MyPage({
                         {t.paid_to}
                         <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>{t.status}</span>
                       </td>
-                      <td className="muted">payment</td>
+                      <td className="muted col-who">payment</td>
                       <td style={{ textAlign: "right", fontWeight: 600, color: "#a8842c", whiteSpace: "nowrap" }}>{money(t.amount)}</td>
                     </tr>
                   ))}
@@ -376,8 +381,9 @@ export default async function MyPage({
             <table className="tasktable" style={{ width: "100%", tableLayout: "fixed" }}>
               <CardTxHead />
               <tbody>
-                {c.transactions.map((t) => (
-                  <CardTxRow key={t.id} tx={t} statuses={txStatuses} methods={txMethods} pending={false} />
+                {/* Rows past the first 5 are hidden on narrow screens (CSS .tx-extra). */}
+                {c.transactions.map((t, i) => (
+                  <CardTxRow key={t.id} tx={t} statuses={txStatuses} methods={txMethods} pending={false} className={i >= 5 ? "tx-extra" : undefined} />
                 ))}
               </tbody>
             </table>
@@ -667,6 +673,12 @@ export default async function MyPage({
         </p>
       )}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f", marginTop: 0 }}>{flashOk}</p>}
+      {hasHome && needsPhoto && (
+        <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span>📷 Add a profile photo — it shows on your task panels.</span>
+          <Link href="/my/settings" className="btn ghost small">Add one →</Link>
+        </p>
+      )}
       {godMode && (
         <p className="banner" style={{ background: "#7a1f2b", marginTop: 0, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <span>⚡ <strong>God mode is on</strong> — showing every project on the platform as if you were invited to all.</span>

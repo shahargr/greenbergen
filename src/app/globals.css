@@ -876,3 +876,10 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 .slot-num { width: 20px; height: 20px; border-radius: 50%; background: #eef6f0; color: var(--brand, #1f6b45); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
 .slot-label { font-size: 12px; font-weight: 700; line-height: 1.2; }
 .slot-x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line,#e5e7eb); background: #fff; cursor: pointer; font-size: 13px; line-height: 1; color: #c0262d; }
+
+/* Narrow screens: keep the homepage card tables readable — drop the Who /
+   Status columns and show only the first 5 recent transactions. */
+@media (max-width: 560px) {
+  .col-who, .col-status { display: none; }
+  tr.tx-extra { display: none; }
+}

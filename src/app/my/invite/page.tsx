@@ -31,14 +31,20 @@ type SentInvitation = {
 export default async function InvitePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; error?: string; ok?: string }>;
+  searchParams: Promise<{ status?: string; error?: string; ok?: string; project?: string }>;
 }) {
-  const { status: statusFilter, error, ok } = await searchParams;
+  const { status: statusFilter, error, ok, project: projectId } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: sentData }] = await Promise.all([
+  // ?project= (from a project card): show which project this invite is for
+  // and seed the note with it — invitations themselves aren't project-scoped.
+  const [{ data: me }, { data: sentData }, { data: forProject }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("my_invitation_results"),
+    projectId
+      ? supabase.from("projects").select("project_name").eq("id", projectId).maybeSingle()
+      : Promise.resolve({ data: null as { project_name: string } | null }),
   ]);
+  const forName = forProject?.project_name ?? null;
   const all: SentInvitation[] = (sentData as SentInvitation[]) ?? [];
   // An invitation with acceptors counts as accepted whatever its row says.
   const effective = (i: SentInvitation) => (i.acceptors.length > 0 ? "accepted" : i.status);
@@ -56,9 +62,15 @@ export default async function InvitePage({
       </p>
       {error && <p className="error small">{error}</p>}
       {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
+      {forName && (
+        <p className="small" style={{ margin: "0 0 10px" }}>
+          <span className="extra-chip">For <strong>{forName}</strong></span>
+        </p>
+      )}
       <InviteBuilder
         isSuperadmin={me?.is_superadmin ?? false}
         senderName={me?.full_name ?? "Someone"}
+        defaultComment={forName ? `Join me on ${forName}` : undefined}
       />
 
       {all.length > 0 && (

@@ -195,7 +195,8 @@ export default async function ProjectPage({
     const ap = m.contacts?.avatar_path;
     if (!m.contacts || !ap) continue;
     const nm = m.contacts.person_name ?? m.contacts.name;
-    if (nm && !avatars[nm]) avatars[nm] = supabase.storage.from("public-media").getPublicUrl(ap).data.publicUrl;
+    // ?v= busts the browser cache after a photo is replaced (stable path).
+    if (nm && !avatars[nm]) avatars[nm] = `${supabase.storage.from("public-media").getPublicUrl(ap).data.publicUrl}?v=${Date.now()}`;
   }
 
   type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };

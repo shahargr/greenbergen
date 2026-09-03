@@ -218,6 +218,19 @@ export async function logPayment(formData: FormData) {
       : Promise.resolve({ data: null }),
   ]);
   const requesterName = requesterRow ? (requesterRow.person_name ?? requesterRow.name) : null;
+  // The row's contact is the PAYEE (who got paid), never the requester — the
+  // requester lives only in the description suffix. Match "Paid to" against
+  // people on this project (exact, case-insensitive); no match = no contact.
+  const { data: payeeRows } = await supabase
+    .from("project_members")
+    .select("contact_id, contacts(name, person_name)")
+    .eq("project_id", projectId)
+    .eq("status", "active")
+    .not("contact_id", "is", null);
+  const want = paidTo.toLowerCase();
+  const payeeId = (((payeeRows ?? []) as unknown as { contact_id: string; contacts: { name: string | null; person_name: string | null } | null }[]))
+    .find((m) => [m.contacts?.person_name, m.contacts?.name].some((n) => (n ?? "").trim().toLowerCase() === want))
+    ?.contact_id ?? null;
   const paidBy = String(formData.get("paid_by") ?? "").trim();
   const extraNotes = String(formData.get("notes") ?? "").trim();
   const paidOn = String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10);
@@ -233,7 +246,7 @@ export async function logPayment(formData: FormData) {
     paid_from_account: String(formData.get("paid_from") ?? "").trim() || null,
     project_id: projectId,
     contract_id: String(formData.get("contract") ?? "").trim() || null,
-    contractor_id: requesterRow?.id ?? null,
+    contractor_id: payeeId,
     payment_reference: String(formData.get("payment_ref") ?? "").trim() || null,
     notes: [paidBy ? `Paid by: ${paidBy}.` : null, extraNotes || null].filter(Boolean).join(" ") || null,
     created_by: "portal:payment",
