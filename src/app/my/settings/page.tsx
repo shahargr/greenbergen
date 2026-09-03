@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { saveProfile, saveAskingPrice, renameHome } from "./actions";
 import { createHome } from "../actions";
 import { restoreProject, deleteProjectNow, updateContact } from "../project/[id]/actions";
+import { PhotoPick } from "@/components/PhotoPick";
 
 type HomeAsset = {
   projectId: string;
@@ -112,8 +113,8 @@ export default async function SettingsPage({
             </div>
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="st-avatar">Profile photo (optional)</label>
-            <input id="st-avatar" name="avatar" type="file" accept="image/*" className="small" />
+            <label>Profile photo (optional)</label>
+            <PhotoPick name="avatar" label="Add photo" />
             <p className="muted small" style={{ margin: "4px 0 0" }}>
               Shows on your task panels. Leave empty to keep {contact?.avatar_path ? "your current photo" : "the icon"}.
             </p>
