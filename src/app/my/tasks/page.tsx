@@ -166,6 +166,7 @@ export default async function TasksPage({
         initialState={state}
         syncUrl
         compact
+        domainOptions={isAdmin ? ["construction", "system", "cloudhiro", "personal"] : ["construction"]}
         addTaskSlot={pmProjects.length > 0 ? <AddTaskForm projects={taskProjects} members={taskMembers} /> : <p className="muted small">Task creation is for project managers and above.</p>}
         todayIso={todayIso}
       />
