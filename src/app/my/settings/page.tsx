@@ -31,6 +31,10 @@ export default async function SettingsPage({
   type ContactPerson = { contact_id: string; name: string; phone: string | null; email: string | null; notes: string | null; role: string; trade: string | null };
   type ContactHouse = { project_id: string; project_name: string; address: string | null; people: ContactPerson[] };
   const contactHouses = ((contactsData ?? []) as ContactHouse[]);
+  // Everyone ever added to one of my projects, at any role.
+  type MyContractor = { id: string; name: string; company: string | null; trade: string | null; phone: string | null; email: string | null; seats: string[] | null; projects: number; awarded: number; vendor_status: string | null };
+  const { data: contractorsData } = await supabase.rpc("portal_my_contractors");
+  const contractors = ((contractorsData ?? []) as MyContractor[]);
 
   // Every seat the caller holds (any role): houses (roots) with their projects.
   type MemProj = { id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null; is_template: boolean; trashed_at: string | null };
@@ -105,18 +109,7 @@ export default async function SettingsPage({
 
       <div style={{ display: "grid", gap: 14 }}>
         <div className="card" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          {contact?.avatar_path ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`${supabase.storage.from("public-media").getPublicUrl(contact.avatar_path).data.publicUrl}?v=${Date.now()}`}
-              alt="" width={42} height={42}
-              style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", flex: "none" }}
-            />
-          ) : (
-            <span className="tile-icon" aria-hidden style={{ width: 42, height: 42 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
-            </span>
-          )}
+          {/* No images on this page: the photo shows on task panels only. */}
           <span>
             <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
             <div className="muted small">
@@ -187,8 +180,32 @@ export default async function SettingsPage({
           ))}
         </div>
 
-        {/* People per house live on the house page (click a house above);
-            per-project people on the project page. Not repeated here. */}
+        {/* Your contractors: anyone ever added to a project of yours, at any
+            role. Each row opens the person's page. */}
+        <div className="card" style={{ display: "grid", gap: 6, overflowX: "auto" }}>
+          <h2 className="section-title" style={{ margin: 0 }}>Your contractors · {contractors.length}</h2>
+          {contractors.length === 0 && <p className="muted small" style={{ margin: 0 }}>No one added to your projects yet.</p>}
+          {contractors.length > 0 && (
+            <table className="tasktable" style={{ width: "100%" }}>
+              <thead><tr><th>Trade</th><th>Name</th><th>Role</th><th style={{ textAlign: "right" }}>Projects</th><th>Phone</th><th>Email</th></tr></thead>
+              <tbody>
+                {contractors.map((c) => (
+                  <tr key={c.id}>
+                    <td className="muted" style={{ whiteSpace: "nowrap" }}>{c.trade ?? "—"}</td>
+                    <td>
+                      <Link href={`/my/contractor/${c.id}`} style={{ fontWeight: 600 }}>{c.name}</Link>
+                      {c.company && c.company !== c.name && <div className="muted small">{c.company}</div>}
+                    </td>
+                    <td className="small">{c.seats?.length ? c.seats.join(", ") : <span className="muted">—</span>}</td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{c.projects}{c.awarded > 0 && <span className="muted small"> · {c.awarded} awarded</span>}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{c.phone ? <a href={`tel:${c.phone}`}>{c.phone}</a> : <span className="muted">—</span>}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : <span className="muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
 
         <details className="card">
           <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>
