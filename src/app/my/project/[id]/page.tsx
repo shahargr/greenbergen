@@ -292,12 +292,14 @@ export default async function ProjectPage({
               Delete this project
             </summary>
             <p className="muted small" style={{ margin: "10px 0 8px" }}>
-              Removes the project, its tasks and its media files for good.
+              Moves the project — tasks, media and all — to the recycle bin.
+              You can restore it from Settings within the retention window
+              (14 days by default); after that it purges automatically.
               Only possible while nothing depends on it — no projects
               underneath, no contracts, no ledger transactions.
             </p>
             <form action={deleteProject.bind(null, project.id)}>
-              <button className="btn" style={{ background: "#c0262d" }}>Delete permanently</button>
+              <button className="btn" style={{ background: "#c0262d" }}>Move to recycle bin</button>
             </form>
           </details>
         )}

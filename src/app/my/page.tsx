@@ -134,7 +134,7 @@ export default async function MyPage({
     me?.app_user_id
       ? supabase
           .from("project_members")
-          .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template, asset_id)")
+          .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template, asset_id, trashed_at)")
           .eq("app_user_id", me.app_user_id)
           .eq("status", "active")
       : Promise.resolve({ data: [] }),
@@ -156,7 +156,8 @@ export default async function MyPage({
       .eq("domain", "construction")
       .then((r) => r.count ?? 0),
   ]);
-  const myMemberships = ((membershipRows ?? []) as unknown as Membership[]).filter((m) => m.projects);
+  const myMemberships = ((membershipRows ?? []) as unknown as Membership[])
+    .filter((m) => m.projects && !(m.projects as { trashed_at?: string | null }).trashed_at);
   const ownerProjects = myMemberships
     .filter((m) => m.role === "owner")
     .map((m) => m.projects!)

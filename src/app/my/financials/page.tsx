@@ -18,13 +18,13 @@ export default async function FinancialsPage() {
   const { data: membershipRows } = me?.app_user_id
     ? await supabase
         .from("project_members")
-        .select("role, projects(id, project_name, is_template)")
+        .select("role, projects(id, project_name, is_template, trashed_at)")
         .eq("app_user_id", me.app_user_id)
         .eq("status", "active")
         .in("role", ["owner", "manager"])
     : { data: [] };
   const pmProjects = (((membershipRows ?? []) as unknown as Membership[]))
-    .filter((m) => m.projects && !m.projects.is_template)
+    .filter((m) => m.projects && !m.projects.is_template && !(m.projects as { trashed_at?: string | null }).trashed_at)
     .map((m) => m.projects!)
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
 

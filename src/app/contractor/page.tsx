@@ -53,7 +53,7 @@ export default async function WorkHome({
     me?.app_user_id
       ? supabase
           .from("project_members")
-          .select("role, project_role, projects(id, project_name, address, status, is_template)")
+          .select("role, project_role, projects(id, project_name, address, status, is_template, trashed_at)")
           .eq("app_user_id", me.app_user_id)
           .eq("status", "active")
           .eq("role", wantedRole)
@@ -62,7 +62,7 @@ export default async function WorkHome({
   ]);
 
   const allSeats = (((rows ?? []) as unknown as Membership[]))
-    .filter((m) => m.projects && !m.projects.is_template)
+    .filter((m) => m.projects && !m.projects.is_template && !(m.projects as { trashed_at?: string | null }).trashed_at)
     .filter((m, i, arr) => arr.findIndex((x) => x.projects!.id === m.projects!.id) === i);
   const seats = showAll ? allSeats : allSeats.filter((m) => m.projects!.status === "In Progress");
   const hiddenClosed = allSeats.length - seats.length;

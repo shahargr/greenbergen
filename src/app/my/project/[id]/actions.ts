@@ -95,10 +95,31 @@ export async function saveConfigValues(projectId: string, formData: FormData) {
     : `/my/project/${projectId}?saved=1`);
 }
 
-// Delete a mistaken project: storage bytes first (the RPC only sweeps
-// rows), then delete_own_project enforces the guards - owner rank, no
-// children, no contracts, no money - and removes the orphaned asset.
+// Deleting moves the project to the recycle bin (trash_own_project keeps
+// the same guards: owner rank, no children, no contracts, no money).
+// Restore any time inside the retention window; purge is nightly.
 export async function deleteProject(projectId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("trash_own_project", { p_project_id: projectId });
+  if (error || !data?.ok) {
+    redirect(`/my/project/${projectId}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not delete.")}`);
+  }
+  revalidatePath("/my");
+  redirect(`/my?ok=${encodeURIComponent(`Moved to the recycle bin — restore within ${data.days} days from Settings.`)}`);
+}
+
+export async function restoreProject(projectId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("restore_trashed_project", { p_project_id: projectId });
+  if (error || !data?.ok) {
+    redirect(`/my/settings?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not restore.")}`);
+  }
+  revalidatePath("/my");
+  redirect(`/my?ok=${encodeURIComponent(`${data.name} restored ✓`)}`);
+}
+
+// Empty-now path: storage bytes first, then the guarded hard delete.
+export async function deleteProjectNow(projectId: string) {
   const supabase = await createClient();
   const { data: fileRows } = await supabase
     .from("files")
@@ -108,17 +129,13 @@ export async function deleteProject(projectId: string) {
   for (const f of (fileRows ?? []) as { bucket: string; path: string }[]) {
     byBucket.set(f.bucket, [...(byBucket.get(f.bucket) ?? []), f.path]);
   }
-
   const { data, error } = await supabase.rpc("delete_own_project", { p_project_id: projectId });
   if (error || !data?.ok) {
-    redirect(`/my/project/${projectId}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not delete.")}`);
+    redirect(`/my/settings?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not delete.")}`);
   }
-
-  // Rows are gone; now the bytes. A failed storage delete leaves only
-  // unreferenced objects behind.
   for (const [bucket, paths] of byBucket) {
     await supabase.storage.from(bucket).remove(paths);
   }
   revalidatePath("/my");
-  redirect(`/my?ok=${encodeURIComponent(`Project deleted ✓`)}`);
+  redirect(`/my?ok=${encodeURIComponent("Project deleted permanently.")}`);
 }

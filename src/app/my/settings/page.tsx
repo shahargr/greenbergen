@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { saveProfile, saveAskingPrice } from "./actions";
 import { createHome } from "../actions";
+import { restoreProject, deleteProjectNow } from "../project/[id]/actions";
 
 type HomeAsset = {
   projectName: string;
@@ -18,7 +19,12 @@ export default async function SettingsPage({
 }) {
   const { saved, error, verified } = await searchParams;
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const [{ data: me }, { data: trashData }] = await Promise.all([
+    supabase.rpc("me"),
+    supabase.rpc("my_trash"),
+  ]);
+  const trashDays: number = trashData?.days ?? 14;
+  const trashItems = ((trashData?.items ?? []) as { id: string; name: string; trashed_at: string; expires_on: string }[]);
 
   const { data: contact } = me?.contact_id
     ? await supabase
@@ -153,6 +159,31 @@ export default async function SettingsPage({
             <div><button className="btn">Claim it</button></div>
           </form>
         </details>
+
+        {trashItems.length > 0 && (
+          <div className="card" style={{ display: "grid", gap: 8 }}>
+            <h2 className="section-title">Recycle bin · {trashItems.length}</h2>
+            <p className="muted small" style={{ margin: 0 }}>
+              Deleted projects stay restorable for {trashDays} days, then purge automatically.
+            </p>
+            {trashItems.map((t) => (
+              <div key={t.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <span>
+                  <strong>{t.name}</strong>
+                  <span className="muted"> · purges {t.expires_on}</span>
+                </span>
+                <span className="btn-row" style={{ gap: 6 }}>
+                  <form action={restoreProject.bind(null, t.id)}>
+                    <button className="btn ghost small">Restore</button>
+                  </form>
+                  <form action={deleteProjectNow.bind(null, t.id)}>
+                    <button className="btn ghost small" style={{ color: "#c0262d", borderColor: "#e3b7ba" }}>Delete now</button>
+                  </form>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="card">
           <h2 className="section-title">Images</h2>
