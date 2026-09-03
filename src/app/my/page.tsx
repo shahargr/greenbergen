@@ -95,7 +95,6 @@ export default async function MyPage({
   const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
   const { data: boot, error: bootErr } = await rpcRetry(supabase, "portal_home");
-  const me = boot?.me ?? null;
   const home = boot?.home ?? null;
   const meErr = bootErr;
   const homeErr = null as { message: string } | null;
