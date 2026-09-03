@@ -4,7 +4,6 @@ import { ProjectEditor } from "./ProjectEditor";
 import { projectPerms } from "./actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
-import { deleteProject } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -284,24 +283,6 @@ export default async function ProjectPage({
               })}
             </div>
           </div>
-        )}
-
-        {perms.rank >= 70 && (
-          <details className="card" style={{ borderColor: "#e3b7ba" }}>
-            <summary className="small" style={{ cursor: "pointer", fontWeight: 700, color: "#c0262d" }}>
-              Delete this project
-            </summary>
-            <p className="muted small" style={{ margin: "10px 0 8px" }}>
-              Moves the project — tasks, media and all — to the recycle bin.
-              You can restore it from Settings within the retention window
-              (14 days by default); after that it purges automatically.
-              Only possible while nothing depends on it — no projects
-              underneath, no contracts, no ledger transactions.
-            </p>
-            <form action={deleteProject.bind(null, project.id)}>
-              <button className="btn" style={{ background: "#c0262d" }}>Move to recycle bin</button>
-            </form>
-          </details>
         )}
 
         {people.size > 0 && (

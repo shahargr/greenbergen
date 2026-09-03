@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { saveProject, type ProjectPerms } from "./actions";
+import { saveProject, deleteProject, type ProjectPerms } from "./actions";
 
 type ProjectView = {
   id: string;
@@ -18,6 +18,8 @@ const PROJECT_STATUSES = ["In Progress", "Closed - Completed", "Closed - Incompl
 // inputs - and the server re-checks every one on save.
 export function ProjectEditor({ project, perms }: { project: ProjectView; perms: ProjectPerms }) {
   const [editing, setEditing] = useState(false);
+  const [setup, setSetup] = useState(false);
+  const [confirmName, setConfirmName] = useState("");
   const canEditAnything = perms.name || perms.notes || perms.status || perms.address;
   const save = saveProject.bind(null, project.id);
 
@@ -27,13 +29,49 @@ export function ProjectEditor({ project, perms }: { project: ProjectView; perms:
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
           <h2 className="section-title" style={{ margin: 0 }}>Details</h2>
           {canEditAnything && (
-            <button className="btn btn-ghost" onClick={() => setEditing(true)}>Unlock to edit</button>
+            <span className="btn-row" style={{ gap: 6 }}>
+              <button className="btn ghost small" onClick={() => { setEditing(true); setSetup(false); }}>✏️ Edit</button>
+              {perms.rank >= 70 && (
+                <button className="btn ghost small" onClick={() => setSetup(!setup)}>⚙️ Setup</button>
+              )}
+            </span>
           )}
         </div>
         <div className="small" style={{ display: "grid", gap: 4 }}>
           <span><span className="muted">Status:</span> {project.status ?? "—"}</span>
           <span><span className="muted">Address:</span> {project.address ?? "—"}</span>
         </div>
+
+        {setup && (
+          <div style={{ borderTop: "1px solid #e3b7ba", paddingTop: 10, display: "grid", gap: 8 }}>
+            <strong className="small" style={{ color: "#c0262d" }}>Project setup — danger zone</strong>
+            <p className="muted small" style={{ margin: 0 }}>
+              Deleting moves this project — tasks, media and all — to the
+              recycle bin (restorable from Settings for the retention
+              window). Type the project name to confirm.
+            </p>
+            <form
+              action={deleteProject.bind(null, project.id)}
+              onSubmit={(e) => { if (confirmName !== project.project_name) e.preventDefault(); }}
+              className="btn-row"
+            >
+              <input
+                className="input"
+                value={confirmName}
+                onChange={(e) => setConfirmName(e.target.value)}
+                placeholder={`Type "${project.project_name}"`}
+                style={{ maxWidth: 260 }}
+              />
+              <button
+                className="btn"
+                style={{ background: "#c0262d" }}
+                disabled={confirmName !== project.project_name}
+              >
+                Move to recycle bin
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     );
   }
