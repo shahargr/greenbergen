@@ -13,9 +13,12 @@ import type { PayProject, PayMember } from "./LogPaymentForm";
 export function AddTaskForm({
   projects,
   members,
+  defaultAssignee,
 }: {
   projects: PayProject[];
   members: PayMember[];
+  // Preselects the assignee (e.g. from the People table's "create task" link).
+  defaultAssignee?: string;
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -65,7 +68,7 @@ export function AddTaskForm({
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="nt-assign">Assign to</label>
-          <select id="nt-assign" name="assigned_to" className="input" defaultValue="">
+          <select id="nt-assign" name="assigned_to" className="input" defaultValue={defaultAssignee ?? ""}>
             <option value="">Unassigned</option>
             {people.map((m) => <option key={m.contactId} value={m.contactId}>{m.name}</option>)}
           </select>

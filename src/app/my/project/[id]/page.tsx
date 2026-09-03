@@ -13,7 +13,7 @@ type MemberRow = {
   role: string;
   project_role: string | null;
   contact_id: string | null;
-  contacts: { name: string; person_name?: string | null } | null;
+  contacts: { name: string; person_name?: string | null; phone?: string | null } | null;
 };
 
 // Project drill-down: details (unlock-to-edit per rank), the people on it,
@@ -23,10 +23,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; error?: string; tasks?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; tasks?: string; assign?: string }>;
 }) {
   const { id } = await params;
-  const { saved, error, tasks: tasksBucket } = await searchParams;
+  const { saved, error, tasks: tasksBucket, assign: assignContact } = await searchParams;
   // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
   // three counts link here).
   const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
@@ -55,7 +55,7 @@ export default async function ProjectPage({
       projectPerms(id),
       supabase
         .from("project_members")
-        .select("role, project_role, contact_id, contacts(name, person_name)")
+        .select("role, project_role, contact_id, contacts(name, person_name, phone)")
         .eq("project_id", id)
         .eq("status", "active"),
       supabase.rpc("portal_tasks", { p_project_id: id, p_open_limit: 200, p_closed_limit: 200 }),
@@ -112,6 +112,54 @@ export default async function ProjectPage({
 
   // Late-by-person panels now live inside TasksTable (clickable filters).
   const todayIso = new Date().toISOString().slice(0, 10);
+
+  // People table: trade, open tasks, outstanding balance, a call link, a
+  // create-task link — and, on click, every task the person is connected to.
+  const OPEN_TX = ["scheduled", "forecast", "invoice received", "approved", "disputed"];
+  const memberList = ((memberRows ?? []) as unknown as MemberRow[]);
+  const peopleIds = [...new Set(memberList.map((m) => m.contact_id).filter((x): x is string => !!x))];
+  const [{ data: personTradeRows }, { data: owedRows }] = await Promise.all([
+    peopleIds.length
+      ? supabase.from("contact_trade_roles").select("contact_id, trade").in("contact_id", peopleIds)
+      : Promise.resolve({ data: [] as { contact_id: string; trade: string }[] }),
+    peopleIds.length
+      ? supabase.from("transactions").select("contractor_id, amount, status")
+          .eq("project_id", id).eq("direction", "out").in("status", OPEN_TX).in("contractor_id", peopleIds)
+      : Promise.resolve({ data: [] as { contractor_id: string; amount: number | null; status: string }[] }),
+  ]);
+  const personTrade = new Map<string, string>();
+  for (const r of (personTradeRows ?? []) as { contact_id: string; trade: string }[]) {
+    if (!personTrade.has(r.contact_id)) personTrade.set(r.contact_id, r.trade);
+  }
+  // "Owed" = scheduled / invoiced / approved but not yet paid, to this person.
+  const owed = new Map<string, number>();
+  for (const r of (owedRows ?? []) as { contractor_id: string; amount: number | null }[]) {
+    owed.set(r.contractor_id, (owed.get(r.contractor_id) ?? 0) + Number(r.amount ?? 0));
+  }
+  const allPortal = ((taskData ?? []) as PortalTask[]);
+  type PersonTask = { id: string; action: string; state: "open" | "closed"; target_date: string | null; status: string };
+  type PersonRow = { contactId: string; name: string; phone: string | null; trade: string | null; open: number; balance: number; tasks: PersonTask[] };
+  const peopleRows: PersonRow[] = [];
+  const seenPerson = new Set<string>();
+  for (const m of memberList) {
+    if (!m.contact_id || !m.contacts || seenPerson.has(m.contact_id)) continue;
+    seenPerson.add(m.contact_id);
+    const mine = allPortal
+      .filter((t) => t.assignee_id === m.contact_id)
+      .sort((a, b) => (a.state === b.state
+        ? (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
+        : a.state === "open" ? -1 : 1));
+    peopleRows.push({
+      contactId: m.contact_id,
+      name: m.contacts.person_name ?? m.contacts.name,
+      phone: m.contacts.phone ?? null,
+      trade: personTrade.get(m.contact_id) ?? null,
+      open: mine.filter((t) => t.state === "open").length,
+      balance: owed.get(m.contact_id) ?? 0,
+      tasks: mine.map((t) => ({ id: t.id, action: t.action, state: t.state, target_date: t.target_date, status: t.status })),
+    });
+  }
+  peopleRows.sort((a, b) => (a.trade ?? "zz").localeCompare(b.trade ?? "zz") || a.name.localeCompare(b.name));
 
   type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };
   const config = ((configRows ?? []) as ConfigRow[]);
@@ -209,10 +257,11 @@ export default async function ProjectPage({
         <div className="card">
           <h2 className="section-title" style={{ margin: 0 }}>Tasks · {openCount} open · {doneCount} done</h2>
           {perms.rank >= 50 && (
-            <details className="card" style={{ marginBottom: 4 }}>
+            <details id="add-task" className="card" style={{ marginBottom: 4 }} open={!!assignContact}>
               <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add a task</summary>
               <div style={{ marginTop: 10 }}>
-                <AddTaskForm projects={[{ id: project.id, name: project.project_name }]} members={taskMembers} />
+                <AddTaskForm projects={[{ id: project.id, name: project.project_name }]} members={taskMembers}
+                  defaultAssignee={assignContact} />
               </div>
             </details>
           )}
@@ -224,14 +273,45 @@ export default async function ProjectPage({
         </div>
 
 
-        {people.size > 0 && (
-          <div className="card">
-            <h2 className="section-title">People · {people.size}</h2>
-            <div className="small" style={{ display: "grid", gap: 4 }}>
-              {[...people.entries()].map(([name, seats]) => (
-                <span key={name}><strong>{name}</strong> <span className="muted">· {seats.join(", ")}</span></span>
-              ))}
+        {peopleRows.length > 0 && (
+          <div className="card" style={{ display: "grid", gap: 6 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>People · {peopleRows.length}</h2>
+            <div className="muted" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 0.55fr 0.9fr 0.45fr 0.45fr", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
+              <span>Trade</span><span>Name</span><span>Open</span><span>Owed</span><span>Call</span><span>Task</span>
             </div>
+            {/* Click a row to open the person's card: every task they're connected to. */}
+            {peopleRows.map((p) => (
+              <details key={p.contactId} style={{ borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
+                <summary className="small" style={{ cursor: "pointer", listStyle: "none", display: "grid", gridTemplateColumns: "1fr 1.6fr 0.55fr 0.9fr 0.45fr 0.45fr", gap: 8, alignItems: "center" }}>
+                  <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.trade ?? "—"}</span>
+                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                  <span>{p.open}</span>
+                  <span style={{ color: p.balance > 0 ? "#a8842c" : undefined, whiteSpace: "nowrap" }}>
+                    {p.balance > 0 ? `$${Math.round(p.balance).toLocaleString()}` : "—"}
+                  </span>
+                  <span>
+                    {p.phone
+                      ? <a href={`tel:${p.phone}`} title={`Call ${p.name}`} style={{ textDecoration: "none" }}>📞</a>
+                      : <span className="muted">—</span>}
+                  </span>
+                  <span>
+                    {perms.rank >= 50
+                      ? <Link href={`/my/project/${project.id}?assign=${p.contactId}#add-task`} title={`Create a task for ${p.name}`} style={{ textDecoration: "none", fontWeight: 700 }}>＋</Link>
+                      : <span className="muted">—</span>}
+                  </span>
+                </summary>
+                <div style={{ display: "grid", gap: 3, padding: "6px 0 4px" }}>
+                  {p.tasks.length === 0 && <span className="muted small">No tasks connected.</span>}
+                  {p.tasks.map((t) => (
+                    <Link key={t.id} href={`/my/task/${t.id}`} className="small"
+                      style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", opacity: t.state === "closed" ? 0.6 : 1 }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.action}</span>
+                      <span className="muted" style={{ whiteSpace: "nowrap" }}>{t.state === "closed" ? t.status : (t.target_date ?? "—")}</span>
+                    </Link>
+                  ))}
+                </div>
+              </details>
+            ))}
           </div>
         )}
       </div>
