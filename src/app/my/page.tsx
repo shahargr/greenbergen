@@ -175,17 +175,18 @@ export default async function MyPage({
   const pendingOnMe = onMe + leads.length;
 
   const ownerIdSet = new Set(ownerProjects.map((p) => p.id));
-  const bandOverview = (((bandOverviewData ?? []) as ProjectOverviewRow[])).filter((p) => ownerIdSet.has(p.id));
-  const bandHomes = bandOverview.filter((p) => !p.parent_project_id);
-  const bandJobs = new Map<string, ProjectOverviewRow[]>();
-  const bandOrphans: ProjectOverviewRow[] = [];
-  for (const p of bandOverview.filter((x) => x.parent_project_id)) {
-    if (bandHomes.some((h) => h.id === p.parent_project_id)) {
-      const list = bandJobs.get(p.parent_project_id!) ?? [];
+  const bandOverview = (((bandOverviewData ?? []) as ProjectOverviewRow[]))
+    .filter((p) => ownerIdSet.has(p.id) && !p.is_template);
+  const bandIds = new Set(bandOverview.map((p) => p.id));
+  // Full tree: roots are projects whose parent is absent from the list;
+  // children nest recursively under their parent at any depth.
+  const bandRoots = bandOverview.filter((p) => !p.parent_project_id || !bandIds.has(p.parent_project_id));
+  const bandChildren = new Map<string, ProjectOverviewRow[]>();
+  for (const p of bandOverview) {
+    if (p.parent_project_id && bandIds.has(p.parent_project_id)) {
+      const list = bandChildren.get(p.parent_project_id) ?? [];
       list.push(p);
-      bandJobs.set(p.parent_project_id!, list);
-    } else {
-      bandOrphans.push(p);
+      bandChildren.set(p.parent_project_id, list);
     }
   }
   const homeGlyph = (
@@ -198,23 +199,29 @@ export default async function MyPage({
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg>
     </span>
   );
-  const overviewCard = (p: ProjectOverviewRow, isHome: boolean, indent: boolean) => (
+  const overviewCard = (p: ProjectOverviewRow, isRoot: boolean, depth: number) => (
     <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink"
       style={{
         padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
-        marginLeft: indent ? 26 : 0,
-        borderLeft: isHome ? "3px solid var(--brand)" : "3px solid #a8842c",
+        marginLeft: Math.min(depth, 3) * 24,
+        borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c",
       }}>
-      {isHome ? homeGlyph : jobGlyph}
+      {isRoot ? homeGlyph : jobGlyph}
       <span style={{ flex: 1, minWidth: 0 }}>
         <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
         <div className="muted small">
-          {isHome ? "Your home" : "Project"}
-          {p.address && !indent && <> · {p.address}</>} · {p.status}
+          {isRoot ? (p.address ? "Your home" : "Portfolio") : "Project"}
+          {p.address && depth === 0 && <> · {p.address}</>} · {p.status}
         </div>
       </span>
       <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>{p.open_count} open</span>
     </Link>
+  );
+  const renderTree = (p: ProjectOverviewRow, depth: number): React.ReactNode => (
+    <div key={p.id} style={{ display: "grid", gap: 8 }}>
+      {overviewCard(p, depth === 0, depth)}
+      {(bandChildren.get(p.id) ?? []).map((c) => renderTree(c, depth + 1))}
+    </div>
   );
 
   // ---- Panel detail ----
@@ -409,13 +416,7 @@ export default async function MyPage({
           <Link href="/my?panel=addproject">＋ Start a new project</Link>
         </p>
         <div style={{ display: "grid", gap: 8 }}>
-          {bandHomes.map((h) => (
-            <div key={h.id} style={{ display: "grid", gap: 8 }}>
-              {overviewCard(h, true, false)}
-              {(bandJobs.get(h.id) ?? []).map((j) => overviewCard(j, false, true))}
-            </div>
-          ))}
-          {bandOrphans.map((j) => overviewCard(j, false, false))}
+          {bandRoots.map((r) => renderTree(r, 0))}
           {bandOverview.length === 0 && <p className="muted small">No projects yet — claim your address above.</p>}
         </div>
       </>
@@ -513,13 +514,7 @@ export default async function MyPage({
 
       {hasHome && bandOverview.length > 0 && (
         <section style={{ display: "grid", gap: 8, marginBottom: 18 }}>
-          {bandHomes.map((h) => (
-            <div key={h.id} style={{ display: "grid", gap: 8 }}>
-              {overviewCard(h, true, false)}
-              {(bandJobs.get(h.id) ?? []).map((j) => overviewCard(j, false, true))}
-            </div>
-          ))}
-          {bandOrphans.map((j) => overviewCard(j, false, false))}
+          {bandRoots.map((r) => renderTree(r, 0))}
         </section>
       )}
 
