@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { InviteBuilder } from "./InviteBuilder";
-import { cancelInvitation, clearRevokedInvitations } from "./actions";
+import { cancelInvitation, clearRevokedInvitations, inviteToProject } from "./actions";
 
 type Acceptor = {
   name: string;
@@ -41,10 +41,13 @@ export default async function InvitePage({
     supabase.rpc("me"),
     supabase.rpc("my_invitation_results"),
     projectId
-      ? supabase.from("projects").select("project_name").eq("id", projectId).maybeSingle()
-      : Promise.resolve({ data: null as { project_name: string } | null }),
+      ? supabase.from("projects").select("id, project_name").eq("id", projectId).maybeSingle()
+      : Promise.resolve({ data: null as { id: string; project_name: string } | null }),
   ]);
   const forName = forProject?.project_name ?? null;
+  // Projects I can invite to (for the picker when none was passed in).
+  const invitable = ((me?.projects ?? []) as { project_id: string; project_name: string; can_invite: boolean; role: string }[])
+    .filter((p) => p.can_invite || p.role === "owner" || me?.is_superadmin);
   const all: SentInvitation[] = (sentData as SentInvitation[]) ?? [];
   // An invitation with acceptors counts as accepted whatever its row says.
   const effective = (i: SentInvitation) => (i.acceptors.length > 0 ? "accepted" : i.status);
@@ -67,17 +70,56 @@ export default async function InvitePage({
           <span className="extra-chip">For <strong>{forName}</strong></span>
         </p>
       )}
-      <InviteBuilder
-        isSuperadmin={me?.is_superadmin ?? false}
-        senderName={me?.full_name ?? "Someone"}
-        defaultComment={forName ? `Join me on ${forName}` : undefined}
-      />
+      {/* Invite an account already on the platform, by email or phone. They
+          answer on their next login; the answer shows on the inviter's home. */}
+      <form action={inviteToProject} className="card" style={{ display: "grid", gap: 10, marginBottom: 14 }}>
+        <h2 className="section-title" style={{ margin: 0 }}>Invite a user to {forName ? <strong>{forName}</strong> : "a project"}</h2>
+        {forProject ? (
+          <input type="hidden" name="project" value={forProject.id} />
+        ) : (
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="pi-project">Project</label>
+            <select id="pi-project" name="project" className="input" required defaultValue="">
+              <option value="" disabled>Pick a project…</option>
+              {invitable.map((p) => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="pi-contact">Their email or phone</label>
+          <input id="pi-contact" name="contact" className="input" required autoComplete="off" placeholder="name@example.com or 201-555-0100" />
+        </div>
+        <div className="radio-row" style={{ minHeight: 0 }}>
+          <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Resident</label>
+          <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>
+          <label className="radio-opt"><input type="radio" name="seat" value="viewer" /> Viewer</label>
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="pi-note">Note (optional — travels with the invitation)</label>
+          <input id="pi-note" name="note" className="input" defaultValue={forName ? `Join me on ${forName}` : ""} />
+        </div>
+        <p className="muted small" style={{ margin: 0 }}>
+          If no account matches, you&apos;ll see &ldquo;wrong user information provided&rdquo; — use the signup link below instead.
+        </p>
+        <div><button className="btn">Invite user</button></div>
+      </form>
+
+      <details className="card" style={{ marginBottom: 14 }}>
+        <summary style={{ cursor: "pointer", fontWeight: 700 }}>Not on the platform yet? Send a signup link</summary>
+        <div style={{ marginTop: 10 }}>
+          <InviteBuilder
+            isSuperadmin={me?.is_superadmin ?? false}
+            senderName={me?.full_name ?? "Someone"}
+            defaultComment={forName ? `Join me on ${forName}` : undefined}
+          />
+        </div>
+      </details>
 
       {all.length > 0 && (
         <div className="card" style={{ marginTop: 14, display: "grid", gap: 10 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Your invitations</h2>
           <div className="btn-row" style={{ gap: 6 }}>
-            {["all", "pending", "accepted", "revoked", "expired"].map((st) => {
+            {["all", "pending", "accepted", "declined", "revoked", "expired"].map((st) => {
               const n = st === "all" ? all.length : counts.get(st) ?? 0;
               if (st !== "all" && n === 0) return null;
               const active = (filter ?? "all") === st;

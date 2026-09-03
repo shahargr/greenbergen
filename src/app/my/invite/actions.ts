@@ -49,3 +49,24 @@ export async function clearRevokedInvitations() {
     ? `/my/invite?status=revoked&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not clear.")}`
     : `/my/invite?ok=${encodeURIComponent(`Cleared ${data.cleared} revoked invitation${data.cleared === 1 ? "" : "s"} ✓`)}`);
 }
+
+// Invite an existing account to a project by email or phone. The RPC finds
+// the account (or reports "wrong user information provided"), seats nobody
+// yet — the invitee accepts or declines on their next login.
+export async function inviteToProject(formData: FormData) {
+  const supabase = await createClient();
+  const project = String(formData.get("project") ?? "");
+  const contact = String(formData.get("contact") ?? "").trim();
+  const seat = String(formData.get("seat") ?? "viewer");
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const back = project ? `/my/invite?project=${project}&` : "/my/invite?";
+  const isEmail = contact.includes("@");
+  const { data, error } = await supabase.rpc("portal_invite_to_project", {
+    p_project: project || null, p_email: isEmail ? contact : null, p_phone: isEmail ? null : contact,
+    p_seat: seat, p_note: note,
+  });
+  revalidatePath("/my/invite");
+  redirect(error || !data?.ok
+    ? `${back}error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not send the invitation.")}`
+    : `${back}ok=${encodeURIComponent(`Invitation sent to ${data.name} ✓`)}`);
+}

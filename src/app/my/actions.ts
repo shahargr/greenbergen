@@ -514,3 +514,24 @@ Handle it in the portal task queue (system domain).`
   revalidatePath("/my");
   redirect(`/my?ok=${encodeURIComponent("Done — your agreement now covers 2 homes. Claim the next address from Settings.")}`);
 }
+
+// Answer a project invitation addressed to me: accept seats me on the
+// project, decline just records it. Either way the inviter sees the answer
+// on their home page.
+export async function respondInvite(formData: FormData) {
+  const supabase = await createClient();
+  const id = String(formData.get("id") ?? "");
+  const accept = String(formData.get("accept") ?? "") === "1";
+  const { data, error } = await supabase.rpc("portal_invite_respond", { p_id: id, p_accept: accept });
+  revalidatePath("/my");
+  if (error || !data?.ok) redirect(`/my?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not answer the invitation.")}`);
+  redirect(accept ? `/my/project/${data.project_id}` : `/my?ok=${encodeURIComponent("Invitation declined.")}`);
+}
+
+// The inviter has seen an accept / decline notice.
+export async function dismissInviteOutcome(formData: FormData) {
+  const supabase = await createClient();
+  await supabase.rpc("portal_invite_outcome_seen", { p_id: String(formData.get("id") ?? "") });
+  revalidatePath("/my");
+  redirect("/my");
+}

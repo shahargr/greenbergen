@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { setGodMode } from "../admin/actions";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, setTown, toggleDeal, requestMoreHomes } from "./actions";
+import { createHome, setTown, toggleDeal, requestMoreHomes , respondInvite, dismissInviteOutcome } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
@@ -229,14 +229,22 @@ export default async function MyPage({
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
   // Card bundle plus the status / method lists the inline transaction editor needs.
-  const [{ data: cardData }, { data: txStatusRows }, { data: txMethodRows }] = await Promise.all([
+  const [{ data: cardData }, { data: txStatusRows }, { data: txMethodRows }, { data: invitesData }] = await Promise.all([
     supabase.rpc("portal_project_cards", { p_all: godMode }),
     supabase.from("transaction_statuses").select("status"),
     supabase.from("payment_methods").select("id, name").eq("is_active", true)
       .order("display_order", { ascending: true, nullsFirst: false }),
+    supabase.rpc("portal_my_invites"),
   ]);
   const txStatuses = ((txStatusRows ?? []) as { status: string }[]).map((r) => r.status);
   const txMethods = ((txMethodRows ?? []) as { id: string; name: string }[]);
+  // Project invitations addressed to me (answer here) and answers to the ones
+  // I sent (shown until dismissed).
+  type Invites = {
+    incoming: { id: string; project_id: string; project_name: string; address: string | null; by: string | null; seat: string | null; message: string | null }[];
+    outcomes: { id: string; project_id: string; project_name: string; who: string | null; status: string; at: string | null }[];
+  };
+  const invites: Invites = { incoming: invitesData?.incoming ?? [], outcomes: invitesData?.outcomes ?? [] };
   // "Add a profile photo" nudge until one exists (photos show on task panels).
   const { data: myContact } = boot?.me?.contact_id
     ? await supabase.from("contacts").select("avatar_path").eq("id", boot.me.contact_id).maybeSingle()
@@ -256,6 +264,38 @@ export default async function MyPage({
   const inviteGlyph = (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><path d="M18 8v6M15 11h6" /></svg>
   );
+
+  // Landing view: one tile per project, four to a row; the tile itself opens
+  // the project. Counts are plain text (no nested links inside the tile).
+  const projectTile = (p: ProjectOverviewRow, isRoot: boolean) => {
+    const c = cardsById.get(p.id);
+    const urgent = c?.urgent[0];
+    return (
+      <Link key={p.id} href={`/my/project/${p.id}`} className="card ptile"
+        style={{ borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+          {isRoot ? homeGlyph : jobGlyph}
+          <strong style={{ fontSize: 15, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{p.project_name}</strong>
+        </div>
+        <div className="muted small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {isRoot ? (p.address ?? "Home") : "Project"} · {p.status}
+        </div>
+        <div className="muted small">
+          {fmtDate(c?.start_date ?? null)} → <span style={{ color: "var(--ink)" }}>{fmtDate(c?.est_complete ?? null)}</span>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <span className="extra-chip"><strong>{c?.open ?? p.open_count}</strong> open</span>
+          <span className="extra-chip"><strong>{c?.done ?? 0}</strong> done</span>
+          {(c?.stuck ?? 0) > 0 && <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
+        </div>
+        {urgent && (
+          <div className="small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {urgent.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{urgent.action}
+          </div>
+        )}
+      </Link>
+    );
+  };
 
   const overviewCard = (p: ProjectOverviewRow, isRoot: boolean, depth: number) => {
     const c = cardsById.get(p.id);
@@ -701,6 +741,43 @@ export default async function MyPage({
         </section>
       )}
 
+      {/* Invitations waiting for my answer, and answers to the ones I sent. */}
+      {(invites.incoming.length > 0 || invites.outcomes.length > 0) && (
+        <section className="card" style={{ marginBottom: 14, display: "grid", gap: 8, borderLeft: "3px solid var(--brand)" }}>
+          {invites.incoming.map((i) => (
+            <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <span>
+                ✉️ You&apos;re invited to <strong>{i.project_name}</strong> by <strong>{i.by ?? "someone"}</strong>
+                {i.seat && <span className="muted"> · as {i.seat}</span>}
+                {i.message && <span className="muted"> — &ldquo;{i.message}&rdquo;</span>}
+              </span>
+              <span className="btn-row" style={{ gap: 6 }}>
+                <form action={respondInvite}>
+                  <input type="hidden" name="id" value={i.id} /><input type="hidden" name="accept" value="1" />
+                  <button className="btn small">Accept</button>
+                </form>
+                <form action={respondInvite}>
+                  <input type="hidden" name="id" value={i.id} /><input type="hidden" name="accept" value="0" />
+                  <button className="btn ghost small">Decline</button>
+                </form>
+              </span>
+            </div>
+          ))}
+          {invites.outcomes.map((o) => (
+            <div key={o.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <span>
+                {o.status === "accepted" ? "✅" : "🚫"} <strong>{o.who ?? "Someone"}</strong> {o.status} your invitation to{" "}
+                <Link href={`/my/project/${o.project_id}`}><strong>{o.project_name}</strong></Link>
+              </span>
+              <form action={dismissInviteOutcome}>
+                <input type="hidden" name="id" value={o.id} />
+                <button className="btn ghost small">Dismiss</button>
+              </form>
+            </div>
+          ))}
+        </section>
+      )}
+
       {/* First run: welcome + step-by-step until the first project exists. */}
       {!hasHome && (
         <section className="card" style={{ marginBottom: 14, display: "grid", gap: 12 }}>
@@ -782,33 +859,47 @@ export default async function MyPage({
         // would otherwise stick — Next keeps client state on a same-route
         // searchParams change).
         <section key={`${flashOk ?? ""}|${flashError ?? ""}`} style={{ display: "grid", gap: 8, marginBottom: 18 }}>
-          {bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0 ? (
-            <>
-              {/* Portfolio root as a heading line, with Create-a-project
-                  aligned to the right on the same line. The projects below
-                  are the real content. */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
-                <Link href={`/my/project/${bandRoots[0].id}`} className="muted" style={{ fontWeight: 600 }}>
-                  🏠 {fmtRoot(bandRoots[0].project_name)}
-                  {bandRoots[0].address && <> · {bandRoots[0].address}</>}
-                </Link>
-                <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
-              </div>
-              {(bandChildren.get(bandRoots[0].id) ?? []).map((c) => (
-                <div key={c.id} style={{ display: "grid", gap: 8 }}>
-                  {overviewCard(c, false, 0)}
-                  {(bandChildren.get(c.id) ?? []).map((g) => renderTree(g, 1))}
+          {(() => {
+            // Single portfolio root with projects under it: the root is a
+            // heading line and the tiles are its projects. Otherwise every
+            // project in the list gets a tile, roots first.
+            const singleRoot = bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0 ? bandRoots[0] : null;
+            const flatten = (list: ProjectOverviewRow[]): ProjectOverviewRow[] =>
+              list.flatMap((p) => [p, ...flatten(bandChildren.get(p.id) ?? [])]);
+            const tiles = singleRoot ? flatten(bandChildren.get(singleRoot.id) ?? []) : flatten(bandRoots);
+            return (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
+                  {singleRoot ? (
+                    <Link href={`/my/project/${singleRoot.id}`} className="muted" style={{ fontWeight: 600 }}>
+                      🏠 {fmtRoot(singleRoot.project_name)}
+                      {singleRoot.address && <> · {singleRoot.address}</>}
+                    </Link>
+                  ) : <span />}
+                  <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
                 </div>
-              ))}
-            </>
-          ) : (
-            <>
-              <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 2px" }}>
-                <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
-              </div>
-              {bandRoots.map((r) => renderTree(r, 0))}
-            </>
-          )}
+                <div className="ptiles">
+                  {tiles.map((p) => projectTile(p, !p.parent_project_id || !bandIds.has(p.parent_project_id)))}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* The detailed panels (transactions, this/next week, urgent tasks)
+              stay available under one fold. */}
+          <details style={{ marginTop: 4 }}>
+            <summary className="small muted" style={{ cursor: "pointer", fontWeight: 600 }}>Activity — transactions and this/next week, per project</summary>
+            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+              {bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0
+                ? (bandChildren.get(bandRoots[0].id) ?? []).map((c) => (
+                    <div key={c.id} style={{ display: "grid", gap: 8 }}>
+                      {overviewCard(c, false, 0)}
+                      {(bandChildren.get(c.id) ?? []).map((g) => renderTree(g, 1))}
+                    </div>
+                  ))
+                : bandRoots.map((r) => renderTree(r, 0))}
+            </div>
+          </details>
           {!showClosedProjects && hiddenClosedProjects > 0 && (
             <p className="small" style={{ margin: 0 }}>
               <Link href="/my?allp=1">Show all projects ({hiddenClosedProjects} closed hidden)</Link>
