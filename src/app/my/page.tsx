@@ -575,7 +575,12 @@ export default async function MyPage({
                   {bandRoots[0].address && <> · {bandRoots[0].address}</>}
                 </Link>
               </p>
-              {(bandChildren.get(bandRoots[0].id) ?? []).map((c) => renderTree(c, 0))}
+              {(bandChildren.get(bandRoots[0].id) ?? []).map((c) => (
+                <div key={c.id} style={{ display: "grid", gap: 8 }}>
+                  {overviewCard(c, false, 0)}
+                  {(bandChildren.get(c.id) ?? []).map((g) => renderTree(g, 1))}
+                </div>
+              ))}
             </>
           ) : (
             bandRoots.map((r) => renderTree(r, 0))
@@ -590,6 +595,9 @@ export default async function MyPage({
               <Link href="/my">Show open projects only</Link>
             </p>
           )}
+          <p className="small" style={{ margin: "2px 0 0" }}>
+            <Link href="/my/new-project" style={{ fontWeight: 700 }}>＋ Create a project</Link>
+          </p>
         </section>
       )}
 
@@ -609,13 +617,6 @@ export default async function MyPage({
             sub: "Payments, budget & balances",
             icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>,
           }] : []),
-          {
-            href: "/my/new-project",
-            key: "addproject",
-            label: "Create a project",
-            sub: "A job under one of your homes",
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M12 12v6M9 15h6" /></svg>,
-          },
         ] : [
           {
             href: town ? "/my?panel=weather" : "/my?panel=town",
