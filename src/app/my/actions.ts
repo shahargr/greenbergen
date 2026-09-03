@@ -278,7 +278,7 @@ export async function logPayment(formData: FormData) {
   });
 
   revalidatePath("/my");
-  redirect(`${back}ok=${encodeURIComponent("Payment logged ✓")}`);
+  redirect(`${back}ok=${encodeURIComponent("Transaction logged ✓")}`);
 }
 
 // Edit a logged payment - fields plus late-arriving receipts. The ledger

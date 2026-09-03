@@ -218,18 +218,34 @@ export default async function PaymentsPage({
         </div>
       </details>
 
-      <details className="card" style={{ marginBottom: 14 }} open={!!error}>
+      {/* After a save the action redirects back here with ?ok=, and Next keeps
+          client state across a same-route searchParams change — so the form
+          is keyed on ok/error to remount (clears fields, un-sticks the
+          button), and a just-logged transaction shows a confirmation with a
+          way to start a fresh one instead of the stale form. */}
+      <details className="card" style={{ marginBottom: 14 }} open={!!error || !!ok}>
         <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Log a transaction</summary>
         <div style={{ marginTop: 12 }}>
-          <LogPaymentForm
-            projects={payProjects}
-            members={payMembers}
-            contracts={payContracts}
-            methods={methods}
-            payees={payPayees}
-            accounts={accounts}
-            meName={me?.full_name ?? me?.email ?? ""}
-          />
+          {ok ? (
+            <div style={{ display: "grid", gap: 10 }}>
+              <p style={{ margin: 0, fontWeight: 700, color: "#2f6b4f" }}>Transaction logged ✓</p>
+              <p className="muted small" style={{ margin: 0 }}>It&apos;s in the list below.</p>
+              <div>
+                <Link className="btn" href="/my/payments">＋ Log another transaction</Link>
+              </div>
+            </div>
+          ) : (
+            <LogPaymentForm
+              key={`${ok ?? ""}|${error ?? ""}`}
+              projects={payProjects}
+              members={payMembers}
+              contracts={payContracts}
+              methods={methods}
+              payees={payPayees}
+              accounts={accounts}
+              meName={me?.full_name ?? me?.email ?? ""}
+            />
+          )}
         </div>
       </details>
 
