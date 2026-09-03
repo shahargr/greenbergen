@@ -125,29 +125,34 @@ export function FinanceRollup({ rollup }: { rollup: Rollup }) {
       {projects.map((p) => {
         const remaining = p.budget - p.actual_paid - p.open_committed;
         return (
-          <div key={p.project_id} className="card" style={{ display: "grid", gap: 12 }}>
-            {projects.length > 1 && (
-              <h3 style={{ margin: 0, fontSize: 16 }}>{p.project_name}</h3>
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              <Stat label="Budget" value={money(p.budget)} />
-              <Stat label="Actual" value={money(p.actual_paid)} tone="#2f6b4f" />
-              <Stat
-                label={remaining < 0 ? "Over" : "Left"}
-                value={money(Math.abs(remaining))}
-                tone={remaining < 0 ? "#c0262d" : "#a8842c"}
-              />
-            </div>
-            <Bar paid={p.actual_paid} open={p.open_committed} budget={p.budget} />
+          // Each project is collapsed to its top line (Budget / Actual / Left);
+          // the stage breakdown opens on demand.
+          <details key={p.project_id} className="card" style={{ display: "grid", gap: 12 }}>
+            <summary style={{ cursor: "pointer", listStyle: "none", display: "grid", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                <strong style={{ fontSize: 16 }}>{p.project_name}</strong>
+                <span className="muted small">stages ▾</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <Stat label="Budget" value={money(p.budget)} />
+                <Stat label="Actual" value={money(p.actual_paid)} tone="#2f6b4f" />
+                <Stat
+                  label={remaining < 0 ? "Over" : "Left"}
+                  value={money(Math.abs(remaining))}
+                  tone={remaining < 0 ? "#c0262d" : "#a8842c"}
+                />
+              </div>
+              <Bar paid={p.actual_paid} open={p.open_committed} budget={p.budget} />
+            </summary>
             {p.open_committed > 0 && (
-              <span className="muted" style={{ fontSize: 11, marginTop: -6 }}>
+              <span className="muted" style={{ fontSize: 11 }}>
                 Solid = paid · gold = {money(p.open_committed)} scheduled / committed
               </span>
             )}
             <div>
               {p.phases.map((ph) => <PhaseBlock key={ph.phase} ph={ph} />)}
             </div>
-          </div>
+          </details>
         );
       })}
     </div>

@@ -211,7 +211,7 @@ export default async function PaymentsPage({
         </Link>
       </div>
 
-      <details className="card" style={{ marginBottom: 14 }} open>
+      <details className="card" style={{ marginBottom: 14 }}>
         <summary style={{ cursor: "pointer", fontWeight: 700 }}>Budget vs actual — by stage &amp; trade</summary>
         <div style={{ marginTop: 12 }}>
           <FinanceRollup rollup={rollup} />
