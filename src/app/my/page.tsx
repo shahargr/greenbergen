@@ -192,22 +192,34 @@ export default async function MyPage({
     </span>
   );
   const overviewCard = (p: ProjectOverviewRow, isRoot: boolean, depth: number) => (
-    <Link key={p.id} href={`/my/project/${p.id}`} className="card statlink"
+    <div key={p.id} className="card"
       style={{
-        padding: "10px 14px", display: "flex", gap: 10, alignItems: "center",
+        padding: "12px 14px", display: "grid", gap: 10,
         marginLeft: Math.min(depth, 3) * 24,
         borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c",
       }}>
-      {isRoot ? homeGlyph : jobGlyph}
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
-        <div className="muted small">
-          {isRoot ? (p.address ? "Your home" : "Portfolio") : "Project"}
-          {p.address && depth === 0 && <> · {p.address}</>} · {p.status}
-        </div>
-      </span>
-      <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>{p.open_count} open</span>
-    </Link>
+      <Link href={`/my/project/${p.id}`} className="statlink"
+        style={{ display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "inherit" }}>
+        {isRoot ? homeGlyph : jobGlyph}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <strong style={{ fontSize: 15 }}>{p.project_name}</strong>
+          <div className="muted small">
+            {isRoot ? (p.address ? "Your home" : "Portfolio") : "Project"}
+            {p.address && depth === 0 && <> · {p.address}</>} · {p.status}
+          </div>
+        </span>
+      </Link>
+      <div className="btn-row" style={{ gap: 8 }}>
+        <Link href={`/my/project/${p.id}`} className="btn ghost small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>
+          {p.open_count} open
+        </Link>
+        <Link href={`/my/payments`} className="btn ghost small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>
+          Financials
+        </Link>
+      </div>
+    </div>
   );
   const renderTree = (p: ProjectOverviewRow, depth: number): React.ReactNode => (
     <div key={p.id} style={{ display: "grid", gap: 8 }}>
@@ -606,23 +618,9 @@ export default async function MyPage({
         </section>
       )}
 
-      <section className={hasHome ? "youband square" : "youband"} style={{ marginTop: hasHome ? 0 : 14 }}>
-        {(hasHome ? [
-          {
-            href: "/my/tasks",
-            key: "tasks",
-            label: "Tasks",
-            sub: `${pendingOnMe} on you · ${onOthers} on others`,
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6h12M9 12h12M9 18h12" /><path d="m3.5 5.5 1 1 2-2M3.5 11.5l1 1 2-2M3.5 17.5l1 1 2-2" /></svg>,
-          },
-          ...(pmProjects.length > 0 ? [{
-            href: "/my/payments",
-            key: "payments",
-            label: "Financials",
-            sub: "Payments, budget & balances",
-            icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18" /><path d="M5 21V11l4 3 4-6 4 4 2-2v11" /></svg>,
-          }] : []),
-        ] : [
+      {!hasHome && (
+      <section className="youband" style={{ marginTop: 14 }}>
+        {([
           {
             href: town ? "/my?panel=weather" : "/my?panel=town",
             key: town ? "weather" : "town",
@@ -673,6 +671,7 @@ export default async function MyPage({
           </Link>
         ))}
       </section>
+      )}
 
       {detail && (
         <section className="card" style={{ marginTop: 12, padding: "16px 20px" }}>
