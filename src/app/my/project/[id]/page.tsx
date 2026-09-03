@@ -42,7 +42,7 @@ export default async function ProjectPage({
     );
   }
 
-  const [{ data: parent }, perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }, { data: contractAmountRows }, { data: paidRows }] =
+  const [{ data: parent }, perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }] =
     await Promise.all([
       project.parent_project_id
         ? supabase.from("projects").select("id, project_name").eq("id", project.parent_project_id).maybeSingle()
@@ -64,17 +64,6 @@ export default async function ProjectPage({
         .from("project_config_values")
         .select("key, value")
         .eq("project_id", id),
-      supabase
-        .from("contracts")
-        .select("amount")
-        .eq("project_id", id)
-        .eq("direction", "payable"),
-      supabase
-        .from("transactions")
-        .select("amount")
-        .eq("project_id", id)
-        .eq("direction", "out")
-        .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"]),
     ]);
 
   // One line per person - a contact can hold several seats.
@@ -106,12 +95,18 @@ export default async function ProjectPage({
   }));
   const openCount = projectTasks.filter((t) => t.state === "open").length;
   const doneCount = projectTasks.filter((t) => t.state === "closed").length;
-  const deliveryPct = openCount + doneCount > 0 ? Math.round((doneCount / (openCount + doneCount)) * 100) : 0;
-  const contracted = ((contractAmountRows ?? []) as { amount: number | null }[])
-    .reduce((sum, c) => sum + Number(c.amount ?? 0), 0);
-  const paid = ((paidRows ?? []) as { amount: number | null }[])
-    .reduce((sum, t) => sum + Number(t.amount ?? 0), 0);
-  const budgetPct = contracted > 0 ? Math.min(100, Math.round((paid / contracted) * 100)) : null;
+
+  // People with LATE open tasks on this project - panels appear only for
+  // those who actually have overdue work.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const lateByPerson = new Map<string, number>();
+  for (const t of projectTasks) {
+    if (t.state === "open" && t.target_date && t.target_date < todayIso) {
+      const who = t.assignee ?? "Unassigned";
+      lateByPerson.set(who, (lateByPerson.get(who) ?? 0) + 1);
+    }
+  }
+  const latePeople = [...lateByPerson.entries()].sort((a, b) => b[1] - a[1]);
 
   type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };
   const config = ((configRows ?? []) as ConfigRow[]);
@@ -153,11 +148,6 @@ export default async function ProjectPage({
       </p>
       <span className="kicker">{project.parent_project_id ? "Job" : "Home"}</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 2px" }}>{project.project_name}</h1>
-      {parent && (
-        <p className="muted small" style={{ marginTop: 0 }}>
-          Under <Link href={`/my/project/${parent.id}`}>{parent.project_name}</Link>
-        </p>
-      )}
 
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
@@ -167,27 +157,6 @@ export default async function ProjectPage({
           project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
           perms={perms}
         />
-
-        <div className="card" style={{ display: "grid", gap: 12 }}>
-          <div>
-            <div className="small" style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <strong>Deliveries</strong>
-              <span className="muted">{doneCount} of {openCount + doneCount} tasks done · {deliveryPct}%</span>
-            </div>
-            <div className="progressbar"><span style={{ width: `${deliveryPct}%` }} /></div>
-          </div>
-          {budgetPct !== null && (
-            <div>
-              <div className="small" style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <strong>Funds / budget</strong>
-                <span className="muted">
-                  ${Math.round(paid).toLocaleString()} paid of ${Math.round(contracted).toLocaleString()} contracted · {budgetPct}%
-                </span>
-              </div>
-              <div className="progressbar"><span style={{ width: `${budgetPct}%`, background: "#a8842c" }} /></div>
-            </div>
-          )}
-        </div>
 
         {config.length > 0 && (
           <div className="card" style={{ display: "grid", gap: 8 }}>
@@ -235,8 +204,21 @@ export default async function ProjectPage({
         <div className="card">
           <h2 className="section-title">Tasks · {openCount} open · {doneCount} done</h2>
           {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
+          {latePeople.length > 0 && (
+            <div className="phase-grid" style={{ marginBottom: 4 }}>
+              {latePeople.map(([who, n]) => (
+                <div key={who} className="phase-tile" style={{ cursor: "default" }}>
+                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d" }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
+                  </span>
+                  <span className="phase-name" style={{ fontSize: 11 }}>{who}</span>
+                  <span className="tradestat-late"><strong>{n}</strong> late</span>
+                </div>
+              ))}
+            </div>
+          )}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={new Date().toISOString().slice(0, 10)} />
+            <TasksTable tasks={projectTasks} todayIso={todayIso} />
           )}
         </div>
 
