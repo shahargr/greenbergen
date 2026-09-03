@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { LogPaymentForm, ORG_ACCOUNTS, GENERIC_ACCOUNTS } from "../LogPaymentForm";
 import { PaymentsList } from "../PaymentsList";
+import { FinanceRollup, type Rollup } from "../FinanceRollup";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -70,10 +71,13 @@ export default async function PaymentsPage({
     (() => {
       let qy = supabase
         .from("transactions")
-        .select("id, amount, paid_on, status, description, notes, paid_from_account, payment_method_id, payment_methods(name), projects(project_name)")
+        .select("id, amount, paid_on, status, description, notes, paid_from_account, payment_method_id, created_at, payment_methods(name), projects(project_name)")
         .eq("direction", "out");
       if (q) qy = qy.or(`description.ilike.%${q}%,notes.ilike.%${q}%,paid_from_account.ilike.%${q}%`);
-      return qy.order("paid_on", { ascending: false, nullsFirst: false }).limit(q || showAll ? 100 : 5);
+      // Order by when it was entered, not its pay-date: future-dated scheduled
+      // / forecast rows (2027 taxes, mortgage) would otherwise outrank an
+      // actual payment logged today and push it past the 5-row cap.
+      return qy.order("created_at", { ascending: false, nullsFirst: false }).limit(q || showAll ? 100 : 5);
     })(),
     supabase.rpc("portal_projects_overview"),
     supabase
@@ -83,6 +87,8 @@ export default async function PaymentsPage({
       .eq("status", "active")
       .not("company_id", "is", null),
   ]);
+  const { data: rollupData } = await supabase.rpc("portal_finance_rollup");
+  const rollup = (rollupData ?? { projects: [], totals: { budget: 0, agreed: 0, actual_paid: 0, open_committed: 0 } }) as Rollup;
 
   const PAID_SET = ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"];
   const [{ data: paidAgg }, { data: openAgg }, { data: statusRows }] = await Promise.all([
@@ -191,6 +197,13 @@ export default async function PaymentsPage({
           <span className="tile-sub" style={{ marginTop: 6 }}>The full ledger</span>
         </Link>
       </div>
+
+      <details className="card" style={{ marginBottom: 14 }} open>
+        <summary style={{ cursor: "pointer", fontWeight: 700 }}>Budget vs actual — by stage &amp; trade</summary>
+        <div style={{ marginTop: 12 }}>
+          <FinanceRollup rollup={rollup} />
+        </div>
+      </details>
 
       <details className="card" style={{ marginBottom: 14 }} open={!!error}>
         <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Log a transaction</summary>
