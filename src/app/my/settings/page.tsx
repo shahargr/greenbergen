@@ -34,7 +34,7 @@ export default async function SettingsPage({
   type ContactHouse = { project_id: string; project_name: string; address: string | null; people: ContactPerson[] };
   const contactHouses = ((contactsData ?? []) as ContactHouse[]);
   // Everyone ever added to one of my projects, at any role.
-  type MyContractor = { id: string; name: string; company: string | null; trade: string | null; phone: string | null; email: string | null; seats: string[] | null; projects: number; awarded: number; vendor_status: string | null };
+  type MyContractor = { id: string; name: string; company: string | null; trade: string | null; stage: string | null; phone: string | null; email: string | null; seats: string[] | null; projects: number; awarded: number; vendor_status: string | null };
   const { data: contractorsData } = await supabase.rpc("portal_my_contractors");
   const contractors = ((contractorsData ?? []) as MyContractor[]);
   // God mode (superadmins): the same cookie the Admin overview toggles.
@@ -208,22 +208,36 @@ export default async function SettingsPage({
           <h2 className="section-title" style={{ margin: 0 }}>Your contractors · {contractors.length}</h2>
           {contractors.length === 0 && <p className="muted small" style={{ margin: 0 }}>No one added to your projects yet.</p>}
           {contractors.length > 0 && (
+            // Ordered by the project phase the trade belongs to. Phone and
+            // text are icons: tap to call or message. (Recording those
+            // calls/texts per retention policy is a logged future task.)
             <table className="tasktable" style={{ width: "100%" }}>
-              <thead><tr><th>Trade</th><th>Name</th><th>Role</th><th style={{ textAlign: "right" }}>Projects</th><th>Phone</th><th>Email</th></tr></thead>
+              <thead><tr><th>Trade</th><th>Name</th><th>Role</th><th style={{ textAlign: "center" }}>Call</th><th style={{ textAlign: "center" }}>Text</th></tr></thead>
               <tbody>
-                {contractors.map((c) => (
-                  <tr key={c.id}>
-                    <td className="muted" style={{ whiteSpace: "nowrap" }}>{c.trade ?? "—"}</td>
-                    <td>
-                      <Link href={`/my/contractor/${c.id}`} style={{ fontWeight: 600 }}>{c.name}</Link>
-                      {c.company && c.company !== c.name && <div className="muted small">{c.company}</div>}
-                    </td>
-                    <td className="small">{c.seats?.length ? c.seats.join(", ") : <span className="muted">—</span>}</td>
-                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{c.projects}{c.awarded > 0 && <span className="muted small"> · {c.awarded} awarded</span>}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>{c.phone ? <a href={`tel:${c.phone}`}>{c.phone}</a> : <span className="muted">—</span>}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : <span className="muted">—</span>}</td>
-                  </tr>
-                ))}
+                {contractors.map((c, i) => {
+                  const newStage = i === 0 || contractors[i - 1].stage !== c.stage;
+                  return (
+                    <tr key={c.id}>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        {c.trade ?? <span className="muted">—</span>}
+                        {newStage && c.stage && <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>{c.stage}</div>}
+                      </td>
+                      <td>
+                        <Link href={`/my/contractor/${c.id}`} style={{ fontWeight: 600 }}>{c.name}</Link>
+                        <div className="muted small">
+                          {c.company && c.company !== c.name ? `${c.company} · ` : ""}{c.projects} project{c.projects === 1 ? "" : "s"}{c.awarded > 0 ? ` · ${c.awarded} awarded` : ""}
+                        </div>
+                      </td>
+                      <td className="small">{c.seats?.length ? c.seats.join(", ") : <span className="muted">—</span>}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {c.phone ? <a href={`tel:${c.phone}`} title={`Call ${c.phone}`} aria-label={`Call ${c.name}`} style={{ textDecoration: "none", fontSize: 18 }}>📞</a> : <span className="muted">—</span>}
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        {c.phone ? <a href={`sms:${c.phone}`} title={`Text ${c.phone}`} aria-label={`Text ${c.name}`} style={{ textDecoration: "none", fontSize: 18 }}>💬</a> : <span className="muted">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
