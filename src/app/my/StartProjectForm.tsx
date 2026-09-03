@@ -5,6 +5,28 @@ import Link from "next/link";
 import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { FilePick } from "@/components/FilePick";
+
+type WizardField = { key: string; label: string; options?: string[]; number?: boolean; unit?: string };
+const WIZARDS: Record<string, WizardField[]> = {
+  "Emergency generator": [
+    { key: "service_size", label: "Current electric service", options: ["100 amp", "200 amp", "300 amp", "Not sure"] },
+    { key: "fuel", label: "Fuel available", options: ["Natural gas", "Propane", "Not sure"] },
+    { key: "location", label: "Where would it sit?", options: ["Attached to house", "Detached / standalone", "Not sure"] },
+    { key: "routing", label: "Wires & gas pipe routing", options: ["In-ground", "Above-ground", "Not sure"] },
+  ],
+  "EV charger installation": [
+    { key: "charger_type", label: "Charger type", options: ["Level 2 hardwired", "Level 2 plug (NEMA 14-50)", "Not sure"] },
+    { key: "service_size", label: "Current electric service", options: ["100 amp", "200 amp", "300 amp", "Not sure"] },
+    { key: "panel_distance_ft", label: "Distance from electrical panel", number: true, unit: "ft" },
+    { key: "parking", label: "Where does the car park?", options: ["Garage", "Driveway / outdoor"] },
+  ],
+  "Water heater replacement": [
+    { key: "current_type", label: "Current heater", options: ["Tank — gas", "Tank — electric", "Tankless", "Not sure"] },
+    { key: "size", label: "Size", options: ["40 gal", "50 gal", "75 gal", "Not sure"] },
+    { key: "issue", label: "What's going on?", options: ["Leaking", "No / weak hot water", "Old — replacing proactively"] },
+    { key: "heater_location", label: "Where is it?", options: ["Basement", "Garage", "Closet", "Attic"] },
+  ],
+};
 import { createJob } from "./actions";
 
 // Start-a-project with three ways to describe the work: a name, optional
@@ -65,21 +87,6 @@ export function StartProjectForm({
             ))}
           </select>
         </div>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label>Common jobs — tap one, or type your own below</label>
-          <div className="btn-row" style={{ gap: 6, flexWrap: "wrap" }}>
-            {["Install appliance", "Unclog toilet", "Water heater", "Emergency power", "Generator for emergency", "Water leak"].map((j) => (
-              <button
-                key={j}
-                type="button"
-                className={name === j ? "btn small" : "btn ghost small"}
-                onClick={() => setName(j)}
-              >
-                {j}
-              </button>
-            ))}
-          </div>
-        </div>
         <div className="featured-jobs">
           {[
             {
@@ -126,6 +133,27 @@ export function StartProjectForm({
             </button>
           ))}
         </div>
+
+        {WIZARDS[name] && (
+          <div className="card" style={{ background: "#f7faf8", display: "grid", gap: 10 }}>
+            <strong className="small">A few questions about the {name.toLowerCase()}</strong>
+            <div className="form-2col">
+              {WIZARDS[name].map((f) => (
+                <div key={f.key} className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor={`wz-${f.key}`}>{f.label}{f.unit ? ` (${f.unit})` : ""}</label>
+                  {f.options ? (
+                    <select id={`wz-${f.key}`} name={`cfg_${f.key}`} className="input" defaultValue="">
+                      <option value="">—</option>
+                      {f.options.map((o) => <option key={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input id={`wz-${f.key}`} name={`cfg_${f.key}`} className="input" inputMode="decimal" autoComplete="off" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="pj-name">What are we doing?</label>

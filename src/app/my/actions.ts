@@ -150,6 +150,29 @@ export async function createJob(formData: FormData) {
     });
   }
 
+  // Wizard answers become structured config values on the new project.
+  const cfg: { key: string; value: string }[] = [];
+  for (const [k, v] of formData.entries()) {
+    if (k.startsWith("cfg_") && typeof v === "string" && v.trim()) {
+      cfg.push({ key: k.slice(4), value: v.trim() });
+    }
+  }
+  if (cfg.length && data.project_id) {
+    const cfgProjectId = data.project_id as string;
+    after(async () => {
+      await supabase.from("project_config_values").upsert(
+        cfg.map((c) => ({
+          project_id: cfgProjectId,
+          key: c.key,
+          label: c.key.replace(/_/g, " "),
+          value: c.value,
+          updated_by: "portal:new-project wizard",
+        })),
+        { onConflict: "project_id,key" }
+      );
+    });
+  }
+
   revalidatePath("/my");
   redirect("/my");
 }
