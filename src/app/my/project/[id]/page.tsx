@@ -99,6 +99,10 @@ export default async function ProjectPage({
   };
   const { data: meRow } = await supabase.rpc("me");
   const myContactId: string | null = meRow?.contact_id ?? null;
+  // God mode: a superadmin on a project they hold no seat on. RLS already
+  // grants full access; this only makes it visible on the page.
+  const godMode = !!meRow?.is_superadmin &&
+    !(((memberRows ?? []) as unknown as MemberRow[]).some((m) => !!m.contact_id && m.contact_id === myContactId));
   const projectTasks: TableTask[] = (((taskData ?? []) as PortalTask[])).map((t) => ({
     id: t.id, action: t.action, status: t.status, priority: t.priority,
     target_date: t.target_date, last_updated: t.last_updated, notes: t.notes,
@@ -216,6 +220,12 @@ export default async function ProjectPage({
       <p className="small" style={{ margin: "0 0 6px" }}>
         <Link href="/my">← Your projects</Link>
       </p>
+      {godMode && (
+        <p className="banner" style={{ background: "#7a1f2b", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span>⚡ <strong>God mode</strong> — you hold no seat on this project; you&apos;re acting with full admin rights.</span>
+          <Link href="/admin/projects" style={{ color: "#fff", whiteSpace: "nowrap" }}>All projects →</Link>
+        </p>
+      )}
       <span className="kicker">{project.parent_project_id ? "Job" : "Home"}</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 2px" }}>{project.project_name}</h1>
 
