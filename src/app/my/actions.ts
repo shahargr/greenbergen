@@ -465,35 +465,33 @@ export async function commentPayment(formData: FormData) {
   redirect(error ? `${back}error=${encodeURIComponent(error.message)}` : `${back}ok=${encodeURIComponent("Comment added ✓")}`);
 }
 
-// The quota line becomes actionable: one tap files an extension request
-// with the office (a system task on Shahar's desk) and emails admin.
+// The quota line self-serves: the first extension is granted on the spot
+// (agreement raised to 2 homes, logged); beyond 2 files a request with
+// the office and emails admin.
 export async function requestMoreHomes() {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
-  if (!me?.app_user_id) redirect("/login");
-
-  await supabase.from("actions").insert({
-    action: `Agreement extension: ${me.full_name ?? me.email} wants another home`,
-    domain: "system",
-    status: "Not Started",
-    priority: "High",
-    source: "side_interface",
-    created_by: "portal:quota-request",
-    assigned_to_contact_id: "8ad2f713-b57d-4b28-9127-55f724ca688f",
-    notes: `Requested from the portal quota banner.\nUser: ${me.full_name ?? "?"} <${me.email}>\nAction: raise assets_allowed on their customer agreement (contracts) by one, or discuss.`,
-  });
-  try {
-    const { sendMail } = await import("@/lib/mailer");
-    if (process.env.MAIL_ADMIN) {
-      await sendMail(
-        process.env.MAIL_ADMIN,
-        `Agreement extension request — ${me.full_name ?? me.email}`,
-        `${me.full_name ?? me.email} asked to add another home beyond their agreement quota.\nHandle it in the portal task queue (system domain).`
-      );
+  const { data, error } = await supabase.rpc("request_additional_home");
+  if (error || !data?.ok) {
+    redirect(`/my?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not process the request.")}`);
+  }
+  if (!data.granted) {
+    try {
+      const { sendMail } = await import("@/lib/mailer");
+      const { data: me } = await supabase.rpc("me");
+      if (process.env.MAIL_ADMIN) {
+        await sendMail(
+          process.env.MAIL_ADMIN,
+          `Agreement extension request — ${me?.full_name ?? me?.email}`,
+          `${me?.full_name ?? me?.email} asked to manage more than 2 homes.
+Handle it in the portal task queue (system domain).`
+        );
+      }
+    } catch {
+      // The task is the record; a failed email never blocks the request.
     }
-  } catch {
-    // The task is the record; a failed email never blocks the request.
+    revalidatePath("/my");
+    redirect(`/my?ok=${encodeURIComponent("Request sent — we'll get back to you about additional homes.")}`);
   }
   revalidatePath("/my");
-  redirect(`/my?ok=${encodeURIComponent("Request sent — we'll extend your agreement shortly.")}`);
+  redirect(`/my?ok=${encodeURIComponent("Done — your agreement now covers 2 homes. Claim the next address from Settings.")}`);
 }
