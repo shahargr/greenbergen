@@ -3,7 +3,6 @@
 import { useMemo, useState, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { TradeIcon } from "@/components/TradeIcon";
 
 export type TableTask = {
   id: string;
@@ -23,6 +22,27 @@ export type TableTask = {
 };
 
 const PRIORITY_ORDER = ["High", "Medium", "Low", "No Priority"];
+
+// Construction phases, and which trade falls in each (tasks have no phase
+// field, so phase is derived from the task's trade).
+const PHASES = ["Site prep", "Rough", "Systems", "Appliance", "Finish", "Outside"] as const;
+const PHASE_OF: Record<string, string> = {
+  Excavation: "Site prep", Demolition: "Site prep", Masonry: "Site prep", "Portable toilet": "Site prep",
+  Framing: "Rough", Insulation: "Rough",
+  Plumbing: "Systems", Electrical: "Systems", HVAC: "Systems",
+  Appliances: "Appliance", "Water Systems": "Appliance", "Water Heater": "Appliance",
+  Drywall: "Finish", Painting: "Finish", Flooring: "Finish", "Interior Design": "Finish", Windows: "Finish", Tile: "Finish", Trim: "Finish", Cabinets: "Finish",
+  Landscaping: "Outside", Hardscaping: "Outside", Roofing: "Outside", Gutters: "Outside", Driveway: "Outside", Pools: "Outside", Fencing: "Outside",
+};
+const phaseOf = (trade: string | null) => (trade ? PHASE_OF[trade] ?? null : null);
+const PHASE_ICON: Record<string, React.ReactNode> = {
+  "Site prep": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 20h18" /><path d="M4 20V9l6-3 6 3v11" /><path d="M9 20v-5h2v5" /><path d="m14 6 3-2 3 6-3 1z" /></svg>,
+  "Rough": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21V8l8-4 8 4v13" /><path d="M8 21v-7h8v7" /><path d="M12 4v6M4 12h16" /></svg>,
+  "Systems": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6" /><path d="M18 21v-6a3 3 0 0 0-3-3H9" /><circle cx="6" cy="3" r="1.5" /><circle cx="18" cy="21" r="1.5" /></svg>,
+  "Appliance": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6" /><circle cx="12" cy="14" r="3" /></svg>,
+  "Finish": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="3" width="14" height="6" rx="1" /><path d="M19 5h2v5H12v4" /><rect x="10.5" y="14" width="3" height="7" rx="1" /></svg>,
+  "Outside": <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 7 11h3l-4 7h12l-4-7h3z" /><path d="M12 18v3" /></svg>,
+};
 
 // Filterable task table: state (open/closed), scope, project, trade, and
 // person - so "what do Javier and I have, open and closed, latest first"
@@ -49,6 +69,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const [trade, setTrade] = useState("all");
   const [person, setPerson] = useState("all");
   const [priority, setPriority] = useState("all");
+  const [phase, setPhase] = useState("all");
   const [sort, setSort] = useState<"due" | "updated">("due");
   const [open, setOpen] = useState<string | null>(null);
 
@@ -67,21 +88,19 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     [tasks]
   );
 
-  // Trade tiles: open/overdue/total per trade within the selected project.
-  const tradeStats = useMemo(() => {
-    const m = new Map<string, { open: number; overdue: number; total: number }>();
+  // Phase panels: open per phase within the current filters (not phase).
+  const phaseStats = useMemo(() => {
+    const m = new Map<string, { open: number; late: number }>();
     for (const t of tasks) {
       if (project !== "all" && (t.project ?? "No project") !== project) continue;
-      if (!t.trade) continue;
-      const s0 = m.get(t.trade) ?? { open: 0, overdue: 0, total: 0 };
-      s0.total += 1;
-      if (t.state === "open") {
-        s0.open += 1;
-        if (t.target_date && t.target_date < todayIso) s0.overdue += 1;
-      }
-      m.set(t.trade, s0);
+      const ph = phaseOf(t.trade);
+      if (!ph || t.state !== "open") continue;
+      const s0 = m.get(ph) ?? { open: 0, late: 0 };
+      s0.open += 1;
+      if (t.target_date && t.target_date < todayIso) s0.late += 1;
+      m.set(ph, s0);
     }
-    return [...m.entries()].filter(([, st]) => st.open > 0).sort((a, b) => b[1].open - a[1].open);
+    return m;
   }, [tasks, project, todayIso]);
 
   const shown = tasks
@@ -94,7 +113,8 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         (person === "all" || t.assignee === person) &&
         (priority === "all" || (t.priority ?? "No Priority") === priority) &&
         (view !== "mine" || t.who === "you") &&
-        (view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso))
+        (view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso)) &&
+        (phase === "all" || phaseOf(t.trade) === phase)
     )
     .sort((a, b) =>
       view === "late"
@@ -154,8 +174,12 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                 <option value="all">Any priority</option>
                 {PRIORITY_ORDER.map((p) => <option key={p}>{p}</option>)}
               </select>
+              <select value={trade} onChange={(e) => { pick(setTrade)(e); setView("all"); }}>
+                <option value="all">All trades</option>
+                {[...new Set(tasks.map((t) => t.trade).filter((x): x is string => !!x))].sort().map((tr) => <option key={tr}>{tr}</option>)}
+              </select>
               <select value={sort} onChange={pick(setSort)}>
-                <option value="due">By due date</option>
+                <option value="due">By due (late first)</option>
                 <option value="updated">By last update</option>
               </select>
             </div>
@@ -210,25 +234,23 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
       </div>
       )}
 
-      {showTradeTiles && tradeStats.length > 0 && (
-        <div className="tradestat-grid">
-          {tradeStats.map(([tr, st]) => (
-            <button
-              key={tr}
-              type="button"
-              className={trade === tr ? "tradestat on" : "tradestat"}
-              onClick={() => { setTrade(trade === tr ? "all" : tr); if (trade === tr) setView(compact ? "none" : view); else setView("all"); setOpen(null); }}
-            >
-              <span className="tradestat-icon"><TradeIcon trade={tr} /></span>
-              <span className="tradestat-text">
-                <span className="tradestat-name">{tr}</span>
-                <span className="tradestat-nums">
+      {showTradeTiles && (
+        <div className="phase-grid">
+          {PHASES.map((ph) => {
+            const st = phaseStats.get(ph) ?? { open: 0, late: 0 };
+            const on = phase === ph;
+            return (
+              <button key={ph} type="button" className={on ? "phase-tile on" : "phase-tile"}
+                onClick={() => { setPhase(on ? "all" : ph); setView("all"); setOpen(null); }}>
+                <span className="phase-icon">{PHASE_ICON[ph]}</span>
+                <span className="phase-name">{ph}</span>
+                <span className="phase-nums">
                   <strong>{st.open}</strong> open
-                  {st.overdue > 0 && <span className="tradestat-late"> · {st.overdue} late</span>}
+                  {st.late > 0 && <span className="tradestat-late"> · {st.late} late</span>}
                 </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
 
