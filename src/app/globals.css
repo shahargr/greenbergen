@@ -862,3 +862,17 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 /* Three invite type cards */
 .typecards.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 @media (max-width: 520px) { .typecards.trio { grid-template-columns: 1fr; } }
+
+/* Personal saved-filter slots */
+.slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.slot { position: relative; }
+.slot-apply, .slot-empty {
+  width: 100%; border: 1px solid var(--line, #e5e7eb); border-radius: 10px; background: #fff;
+  display: grid; justify-items: center; gap: 4px; padding: 10px 8px; font: inherit; cursor: pointer; text-align: center;
+}
+.slot-apply { border-color: var(--brand, #1f6b45); background: #eef6f0; }
+.slot-apply:hover, .slot-empty:hover { background: #f4f8f5; }
+.slot-empty { border-style: dashed; }
+.slot-num { width: 20px; height: 20px; border-radius: 50%; background: #eef6f0; color: var(--brand, #1f6b45); font-size: 12px; font-weight: 800; display: grid; place-items: center; }
+.slot-label { font-size: 12px; font-weight: 700; line-height: 1.2; }
+.slot-x { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line,#e5e7eb); background: #fff; cursor: pointer; font-size: 13px; line-height: 1; color: #c0262d; }

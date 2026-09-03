@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, Fragment } from "react";
+import { useMemo, useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -48,7 +48,7 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, savedFilters = false, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
@@ -58,6 +58,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   compact?: boolean;
   addTaskSlot?: React.ReactNode;
   domainOptions?: string[];
+  savedFilters?: boolean;
   todayIso: string;
 }) {
   const router = useRouter();
@@ -72,6 +73,43 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const [phase, setPhase] = useState("all");
   const [sort, setSort] = useState<"due" | "updated">("due");
   const [open, setOpen] = useState<string | null>(null);
+
+  // Three personal saved filters, per browser.
+  type Slot = { label: string; project: string; person: string; priority: string; phase: string; view: string } | null;
+  const [slots, setSlots] = useState<Slot[]>([null, null, null]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("gb_task_slots");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (raw) { const v = JSON.parse(raw); if (Array.isArray(v) && v.length === 3) setSlots(v); }
+    } catch {}
+  }, []);
+  const persist = (next: Slot[]) => {
+    setSlots(next);
+    try { localStorage.setItem("gb_task_slots", JSON.stringify(next)); } catch {}
+  };
+  const autoLabel = () => {
+    const parts: string[] = [];
+    if (phase !== "all") parts.push(phase);
+    if (person !== "all") parts.push(person.split(" ")[0]);
+    if (priority !== "all") parts.push(priority);
+    if (view === "mine") parts.push("Mine");
+    if (view === "late") parts.push("Late");
+    if (project !== "all") parts.push(project.split(" ")[0]);
+    return parts.length ? parts.join(" · ") : "All open";
+  };
+  const saveSlot = (i: number) => {
+    const label = typeof window !== "undefined" ? (window.prompt("Name this filter", autoLabel()) ?? "").trim() : "";
+    if (!label) return;
+    const next = [...slots];
+    next[i] = { label, project, person, priority, phase, view };
+    persist(next);
+  };
+  const applySlot = (sl: NonNullable<Slot>) => {
+    setProject(sl.project); setPerson(sl.person); setPriority(sl.priority);
+    setPhase(sl.phase); setView(sl.view as typeof view); setOpen(null);
+  };
+  const clearSlot = (i: number) => { const next = [...slots]; next[i] = null; persist(next); };
 
   const projects = useMemo(
     () => [...new Set(tasks.map((t) => t.project ?? "No project"))].sort(),
@@ -251,6 +289,29 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
               </button>
             );
           })}
+        </div>
+      )}
+
+      {savedFilters && (
+        <div className="slot-grid">
+          {slots.map((sl, i) => (
+            <div key={i} className="slot">
+              {sl ? (
+                <>
+                  <button type="button" className="slot-apply" onClick={() => applySlot(sl)}>
+                    <span className="slot-num">{i + 1}</span>
+                    <span className="slot-label">{sl.label}</span>
+                  </button>
+                  <button type="button" className="slot-x" title="Clear" onClick={() => clearSlot(i)}>×</button>
+                </>
+              ) : (
+                <button type="button" className="slot-empty" onClick={() => saveSlot(i)}>
+                  <span className="slot-num">{i + 1}</span>
+                  <span className="muted small">Save filter</span>
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
