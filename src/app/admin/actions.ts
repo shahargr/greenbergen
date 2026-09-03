@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 // Saves the community banner (dashboard headline + link). One live banner:
@@ -50,4 +51,14 @@ export async function saveTips(formData: FormData) {
   }
   revalidatePath("/my");
   revalidatePath("/admin");
+}
+
+// Recycle-bin policy: how long deleted projects stay restorable.
+export async function saveTrashRetention(formData: FormData) {
+  const supabase = await createClient();
+  const days = Number(String(formData.get("days") ?? "").trim());
+  const { data, error } = await supabase.rpc("set_trash_retention_days", { p_days: days });
+  redirect(error || !data?.ok
+    ? `/admin?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save.")}`
+    : `/admin?saved=1`);
 }

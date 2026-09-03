@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { saveBanner, saveTips } from "./actions";
+import { saveBanner, saveTips, saveTrashRetention } from "./actions";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -16,6 +16,8 @@ const SECTIONS = [
 export default async function AdminHome() {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
+  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days").maybeSingle();
+  const trashDays = cfgRow?.trash_retention_days ?? 14;
   const { data: bannerRows } = await supabase
     .from("community_banners")
     .select("text, url, is_active")
@@ -49,6 +51,17 @@ export default async function AdminHome() {
             {!s.live && <span className="small" style={{ color: "var(--brand)" }}>To be developed</span>}
           </Link>
         ))}
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 8 }}>
+        <h2 className="section-title">Recycle bin policy</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          Deleted projects stay restorable this many days, then purge automatically (nightly).
+        </p>
+        <form action={saveTrashRetention} className="btn-row">
+          <input name="days" className="input" inputMode="numeric" defaultValue={String(trashDays)} style={{ maxWidth: 100 }} />
+          <button className="btn">Save</button>
+        </form>
       </div>
 
       <div className="card" style={{ marginTop: 18, padding: "18px 20px", maxWidth: 560 }}>
