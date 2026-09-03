@@ -598,6 +598,11 @@ export default async function MyPage({
           <p className="small" style={{ margin: "2px 0 0" }}>
             <Link href="/my/new-project" style={{ fontWeight: 700 }}>＋ Create a project</Link>
           </p>
+          {bandOverviewAll.length > 0 && (
+            <p className="small" style={{ margin: "2px 0 0" }}>
+              <Link href="/my/invite" style={{ fontWeight: 700 }}>＋ Invite friends &amp; contractors to your project</Link>
+            </p>
+          )}
         </section>
       )}
 
