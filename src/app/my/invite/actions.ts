@@ -27,27 +27,34 @@ export async function emailInvitation(to: string, messageText: string) {
 // Revoke a pending invitation of your own - the link stops working
 // immediately (redeem checks status). RLS already scopes updates to the
 // inviter (or an admin).
+// Only a PENDING invitation can be cancelled - an accepted one is already a
+// seat and is untouched here. The page's project context rides along so
+// the list you were looking at is still there afterwards.
 export async function cancelInvitation(formData: FormData) {
   const supabase = await createClient();
   const id = String(formData.get("id") ?? "");
-  if (!id) redirect("/my/invite");
+  const project = String(formData.get("project") ?? "").trim();
+  const base = project ? `/my/invite?project=${project}&` : "/my/invite?";
+  if (!id) redirect(base.replace(/[?&]$/, ""));
   const { error } = await supabase
     .from("app_invitations")
     .update({ status: "revoked" })
     .eq("id", id)
     .eq("status", "pending");
   revalidatePath("/my/invite");
-  redirect(error ? `/my/invite?error=${encodeURIComponent(error.message)}` : "/my/invite");
+  redirect(error ? `${base}error=${encodeURIComponent(error.message)}` : `${base}ok=${encodeURIComponent("Invitation cancelled.")}`);
 }
 
 // Permanently remove all of the caller's revoked invitations.
-export async function clearRevokedInvitations() {
+export async function clearRevokedInvitations(formData: FormData) {
   const supabase = await createClient();
+  const project = String(formData.get("project") ?? "").trim();
+  const base = project ? `/my/invite?project=${project}&` : "/my/invite?";
   const { data, error } = await supabase.rpc("clear_revoked_invitations");
   revalidatePath("/my/invite");
   redirect(error || !data?.ok
-    ? `/my/invite?status=revoked&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not clear.")}`
-    : `/my/invite?ok=${encodeURIComponent(`Cleared ${data.cleared} revoked invitation${data.cleared === 1 ? "" : "s"} ✓`)}`);
+    ? `${base}status=revoked&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not clear.")}`
+    : `${base}ok=${encodeURIComponent(`Cleared ${data.cleared} revoked invitation${data.cleared === 1 ? "" : "s"} ✓`)}`);
 }
 
 // Invite an existing account to a project by email or phone. The RPC finds

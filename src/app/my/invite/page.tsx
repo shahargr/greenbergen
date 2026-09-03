@@ -163,6 +163,7 @@ export default async function InvitePage({
           </div>
           {(counts.get("revoked") ?? 0) > 0 && (filter === "revoked" || filter === null) && (
             <form action={clearRevokedInvitations}>
+              {projectId && <input type="hidden" name="project" value={projectId} />}
               <button className="btn ghost small">🗑 Clear all revoked ({counts.get("revoked")})</button>
             </form>
           )}
@@ -209,6 +210,7 @@ export default async function InvitePage({
                   <span className="muted small">Waiting — not accepted yet.</span>
                   <form action={cancelInvitation}>
                     <input type="hidden" name="id" value={i.id} />
+                    {projectId && <input type="hidden" name="project" value={projectId} />}
                     <button className="btn ghost small">Cancel invitation</button>
                   </form>
                 </span>
