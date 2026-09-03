@@ -66,13 +66,15 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, avatars, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
   initialState?: "open" | "closed" | "all";
   initialView?: "all" | "mine" | "late" | "stuck" | "urgent";
   showLatePanels?: boolean;
+  // Display name -> public photo URL; people without one keep the icon.
+  avatars?: Record<string, string>;
   syncUrl?: boolean;
   showTradeTiles?: boolean;
   compact?: boolean;
@@ -300,9 +302,15 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                   if (on) { setPerson("all"); setView("all"); } else { setPerson(key); setView("late"); }
                   setOpen(null);
                 }}>
-                <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d" }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
-                </span>
+                {avatars?.[who] ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatars[who]} alt="" className="phase-icon"
+                    style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", padding: 0 }} />
+                ) : (
+                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d" }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
+                  </span>
+                )}
                 <span className="phase-name" style={{ fontSize: 11 }}>{who}</span>
                 <span className="tradestat-late"><strong>{n}</strong> late</span>
               </button>

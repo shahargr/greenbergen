@@ -30,7 +30,7 @@ export default async function SettingsPage({
   const { data: contact } = me?.contact_id
     ? await supabase
         .from("contacts")
-        .select("phone, address")
+        .select("phone, address, avatar_path")
         .eq("id", me.contact_id)
         .maybeSingle()
     : { data: null };
@@ -73,9 +73,18 @@ export default async function SettingsPage({
 
       <div style={{ display: "grid", gap: 14 }}>
         <div className="card" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="tile-icon" aria-hidden style={{ width: 42, height: 42 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
-          </span>
+          {contact?.avatar_path ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={supabase.storage.from("public-media").getPublicUrl(contact.avatar_path).data.publicUrl}
+              alt="" width={42} height={42}
+              style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", flex: "none" }}
+            />
+          ) : (
+            <span className="tile-icon" aria-hidden style={{ width: 42, height: 42 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
+            </span>
+          )}
           <span>
             <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
             <div className="muted small">
@@ -96,6 +105,13 @@ export default async function SettingsPage({
               <label htmlFor="st-phone">Phone</label>
               <input id="st-phone" name="phone" className="input" type="tel" defaultValue={contact?.phone ?? ""} />
             </div>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="st-avatar">Profile photo (optional)</label>
+            <input id="st-avatar" name="avatar" type="file" accept="image/*" className="small" />
+            <p className="muted small" style={{ margin: "4px 0 0" }}>
+              Shows on your task panels. Leave empty to keep {contact?.avatar_path ? "your current photo" : "the icon"}.
+            </p>
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="st-address">Home address</label>

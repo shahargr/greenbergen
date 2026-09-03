@@ -31,18 +31,42 @@ export async function saveProfile(formData: FormData) {
     if (standardized) finalAddress = standardized;
   }
 
+  // Optional profile photo: into the PUBLIC bucket at a stable per-contact
+  // path (upsert), so task panels can use a plain URL. No file = keep what's
+  // there (the icon if none). RLS only lets a user write their own avatar.
+  let avatarPath: string | null = null;
+  let avatarErr: string | null = null;
+  const avatar = formData.get("avatar");
+  if (me.contact_id && avatar instanceof File && avatar.size > 0) {
+    if (!avatar.type.startsWith("image/")) {
+      avatarErr = "The profile photo must be an image.";
+    } else if (avatar.size > 5 * 1024 * 1024) {
+      avatarErr = "Profile photo must be under 5 MB.";
+    } else {
+      const ext = (avatar.name.match(/\.[a-z0-9]+$/i)?.[0] ?? ".jpg").toLowerCase();
+      const path = `avatars/${me.contact_id}${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("public-media")
+        .upload(path, await avatar.arrayBuffer(), { contentType: avatar.type, upsert: true });
+      if (upErr) avatarErr = `Photo upload failed: ${upErr.message}`;
+      else avatarPath = path;
+    }
+  }
+
   if (me.contact_id) {
     await supabase
       .from("contacts")
       .update({
         phone: phone || null,
         address: finalAddress,
+        ...(avatarPath ? { avatar_path: avatarPath } : {}),
         last_modified_by: "portal:settings",
       })
       .eq("id", me.contact_id);
   }
 
   revalidatePath("/my/settings");
+  if (avatarErr) redirect(`/my/settings?error=${encodeURIComponent(avatarErr)}`);
   redirect(
     `/my/settings?saved=profile${verified === null ? "" : verified ? "&verified=1" : "&verified=0"}`,
   );
