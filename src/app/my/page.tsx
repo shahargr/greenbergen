@@ -95,6 +95,19 @@ export default async function MyPage({
   const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
   const { data: boot, error: bootErr } = await rpcRetry(supabase, "portal_home");
+
+  // Middleware only lets authenticated sessions reach /my - so a null
+  // identity here is a transient auth-settling moment (first load right
+  // after sign-in), never a real anonymous. Hold and retry instead of
+  // rendering the misleading "no agreement" state.
+  if (!boot?.me && !bootErr) {
+    return (
+      <main className="wrap" style={{ paddingTop: 48, maxWidth: 560, textAlign: "center" }}>
+        <meta httpEquiv="refresh" content="1" />
+        <p className="muted">Setting up your account…</p>
+      </main>
+    );
+  }
   const home = boot?.home ?? null;
   const meErr = bootErr;
   const homeErr = null as { message: string } | null;
