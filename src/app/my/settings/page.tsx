@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { saveProfile, saveAskingPrice, renameHome } from "./actions";
 import { createHome } from "../actions";
-import { restoreProject, deleteProjectNow } from "../project/[id]/actions";
+import { restoreProject, deleteProjectNow, updateContact } from "../project/[id]/actions";
 
 type HomeAsset = {
   projectId: string;
@@ -20,10 +20,15 @@ export default async function SettingsPage({
 }) {
   const { saved, error, verified } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: trashData }] = await Promise.all([
+  const [{ data: me }, { data: trashData }, { data: contactsData }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("my_trash"),
+    supabase.rpc("portal_my_contacts"),
   ]);
+  // Every house / project you own or manage, with its approved people.
+  type ContactPerson = { contact_id: string; name: string; phone: string | null; email: string | null; notes: string | null; role: string; trade: string | null };
+  type ContactHouse = { project_id: string; project_name: string; address: string | null; people: ContactPerson[] };
+  const contactHouses = ((contactsData ?? []) as ContactHouse[]);
   const trashDays: number = trashData?.days ?? 14;
   const trashItems = ((trashData?.items ?? []) as { id: string; name: string; trashed_at: string; expires_on: string }[]);
 
@@ -169,6 +174,63 @@ export default async function SettingsPage({
             </p>
           </div>
         )}
+
+        {/* Contacts: every house's approved people, editable in place. */}
+        {contactHouses.map((h) => (
+          <div key={h.project_id} className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Contacts · {h.project_name} · {h.people.length}</h2>
+            {h.people.length === 0 && <p className="muted small" style={{ margin: 0 }}>No approved people on this project yet.</p>}
+            {h.people.length > 0 && (
+              <div className="muted" style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1.2fr 0.8fr", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                <span>Trade</span><span>Name</span><span>Phone</span><span>Email</span><span>Role</span>
+              </div>
+            )}
+            {h.people.map((p) => (
+              <details key={p.contact_id} style={{ borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0 }}>
+                <summary className="small" style={{ cursor: "pointer", listStyle: "none", display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1.2fr 0.8fr", gap: 8, alignItems: "center", minWidth: 0 }}>
+                  <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.trade ?? "—"}</span>
+                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {p.phone ? <a href={`tel:${p.phone}`} style={{ textDecoration: "none" }}>{p.phone}</a> : <span className="muted">—</span>}
+                  </span>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {p.email ? <a href={`mailto:${p.email}`} style={{ textDecoration: "none" }}>{p.email}</a> : <span className="muted">—</span>}
+                  </span>
+                  <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.role} ✏️</span>
+                </summary>
+                <form action={updateContact} style={{ display: "grid", gap: 6, padding: "6px 0 4px" }}>
+                  <input type="hidden" name="contact" value={p.contact_id} />
+                  <input type="hidden" name="back" value="/my/settings" />
+                  <div className="form-2col">
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label>Name</label>
+                      <input name="name" className="input" defaultValue={p.name} />
+                    </div>
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label>Trade</label>
+                      <input name="trade" className="input" defaultValue={p.trade ?? ""} placeholder="e.g. Plumbing" />
+                    </div>
+                  </div>
+                  <div className="form-2col">
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label>Phone</label>
+                      <input name="phone" className="input" type="tel" defaultValue={p.phone ?? ""} />
+                    </div>
+                    <div className="field" style={{ marginBottom: 0 }}>
+                      <label>Email</label>
+                      <input name="email" className="input" type="email" defaultValue={p.email ?? ""} />
+                    </div>
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label>Notes</label>
+                    <input name="notes" className="input" defaultValue={p.notes ?? ""} />
+                  </div>
+                  <div><button className="btn small">Save contact</button></div>
+                </form>
+              </details>
+            ))}
+          </div>
+        ))}
 
         <details className="card">
           <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>

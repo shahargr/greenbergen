@@ -5,6 +5,32 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+// Edit a person's contact record (name / phone / email / trade / notes) from
+// the People table or Settings → Contacts. The permission gate lives in the
+// portal_update_contact RPC (superadmin, your own record, or owner/manager on
+// a shared project). Returns to `back`: Settings or a project page only.
+export async function updateContact(formData: FormData) {
+  const supabase = await createClient();
+  const contactId = String(formData.get("contact") ?? "");
+  const rawBack = String(formData.get("back") ?? "/my/settings");
+  const back = rawBack === "/my/settings" || /^\/my\/project\/[0-9a-f-]{36}$/.test(rawBack) ? rawBack : "/my/settings";
+  if (!contactId) redirect(`${back}?error=${encodeURIComponent("Missing contact.")}`);
+  const { data, error } = await supabase.rpc("portal_update_contact", {
+    p_contact: contactId,
+    p_name: String(formData.get("name") ?? "").trim() || null,
+    p_phone: formData.has("phone") ? String(formData.get("phone") ?? "").trim() : null,
+    p_email: formData.has("email") ? String(formData.get("email") ?? "").trim() : null,
+    p_trade: String(formData.get("trade") ?? "").trim() || null,
+    p_notes: formData.has("notes") ? String(formData.get("notes") ?? "").trim() : null,
+  });
+  revalidatePath(back);
+  revalidatePath("/my");
+  if (error || !data?.ok) {
+    redirect(`${back}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save the contact.")}`);
+  }
+  redirect(`${back}?saved=1`);
+}
+
 // Server-side permission matrix for projects, in the spirit of the task
 // matrix. The UI hides what you cannot edit; THIS drops disallowed fields
 // on every save, and the projects RLS update policy is the final backstop.

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor } from "./ProjectEditor";
-import { projectPerms } from "./actions";
+import { projectPerms, updateContact } from "./actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
@@ -14,7 +14,7 @@ type MemberRow = {
   role: string;
   project_role: string | null;
   contact_id: string | null;
-  contacts: { name: string; person_name?: string | null; phone?: string | null; avatar_path?: string | null } | null;
+  contacts: { name: string; person_name?: string | null; phone?: string | null; email_a?: string | null; avatar_path?: string | null } | null;
 };
 
 // Project drill-down: details (unlock-to-edit per rank), the people on it,
@@ -56,7 +56,7 @@ export default async function ProjectPage({
       projectPerms(id),
       supabase
         .from("project_members")
-        .select("role, project_role, contact_id, contacts(name, person_name, phone, avatar_path)")
+        .select("role, project_role, contact_id, contacts(name, person_name, phone, email_a, avatar_path)")
         .eq("project_id", id)
         .eq("status", "active"),
       supabase.rpc("portal_tasks", { p_project_id: id, p_open_limit: 200, p_closed_limit: 200 }),
@@ -150,7 +150,7 @@ export default async function ProjectPage({
   }
   const allPortal = ((taskData ?? []) as PortalTask[]);
   type PersonTask = { id: string; action: string; state: "open" | "closed"; target_date: string | null; status: string };
-  type PersonRow = { contactId: string; name: string; phone: string | null; trade: string | null; open: number; balance: number; paid: number; tasks: PersonTask[] };
+  type PersonRow = { contactId: string; name: string; phone: string | null; email: string | null; trade: string | null; open: number; balance: number; paid: number; tasks: PersonTask[] };
   const peopleRows: PersonRow[] = [];
   const seenPerson = new Set<string>();
   for (const m of memberList) {
@@ -165,6 +165,7 @@ export default async function ProjectPage({
       contactId: m.contact_id,
       name: m.contacts.person_name ?? m.contacts.name,
       phone: m.contacts.phone ?? null,
+      email: m.contacts.email_a ?? null,
       trade: personTrade.get(m.contact_id) ?? null,
       open: mine.filter((t) => t.state === "open").length,
       balance: owed.get(m.contact_id) ?? 0,
@@ -336,6 +337,37 @@ export default async function ProjectPage({
                   </span>
                 </summary>
                 <div style={{ display: "grid", gap: 3, padding: "6px 0 4px", minWidth: 0 }}>
+                  {/* Edit the person's contact record in place (gated server-side). */}
+                  {perms.rank >= 50 && (
+                    <details style={{ marginBottom: 4 }}>
+                      <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>✏️ Edit contact</summary>
+                      <form action={updateContact} style={{ display: "grid", gap: 6, padding: "6px 0 2px" }}>
+                        <input type="hidden" name="contact" value={p.contactId} />
+                        <input type="hidden" name="back" value={`/my/project/${project.id}`} />
+                        <div className="form-2col">
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Name</label>
+                            <input name="name" className="input" defaultValue={p.name} />
+                          </div>
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Trade</label>
+                            <input name="trade" className="input" defaultValue={p.trade ?? ""} placeholder="e.g. Plumbing" />
+                          </div>
+                        </div>
+                        <div className="form-2col">
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Phone</label>
+                            <input name="phone" className="input" type="tel" defaultValue={p.phone ?? ""} />
+                          </div>
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Email</label>
+                            <input name="email" className="input" type="email" defaultValue={p.email ?? ""} />
+                          </div>
+                        </div>
+                        <div><button className="btn small">Save contact</button></div>
+                      </form>
+                    </details>
+                  )}
                   {p.tasks.length === 0 && <span className="muted small">No tasks connected.</span>}
                   {p.tasks.map((t) => (
                     <Link key={t.id} href={`/my/task/${t.id}`} className="small"
