@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { saveProfile, saveAskingPrice, renameHome } from "./actions";
+import { saveProfile } from "./actions";
 import { createHome } from "../actions";
-import { restoreProject, deleteProjectNow, updateContact } from "../project/[id]/actions";
+import { restoreProject, deleteProjectNow } from "../project/[id]/actions";
 import { PhotoPick } from "@/components/PhotoPick";
 
 type HomeAsset = {
@@ -166,48 +166,6 @@ export default async function SettingsPage({
           </form>
         </details>
 
-        {homes.map((h) => (
-          <details key={h.assetId} className="card">
-            <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>
-              Sell your home — {h.projectName}
-            </summary>
-            <form action={renameHome.bind(null, h.projectId)} className="btn-row" style={{ marginTop: 10 }}>
-              <input name="name" className="input" defaultValue={h.projectName} style={{ maxWidth: 240 }} />
-              <button className="btn ghost">Rename</button>
-            </form>
-            <form action={saveAskingPrice} style={{ display: "grid", gap: 10, marginTop: 10 }}>
-            <p className="muted small" style={{ margin: 0 }}>
-              Name your price and sell direct — no realtors, no commission.
-              {h.askingPrice
-                ? ` Currently listed at $${Number(h.askingPrice).toLocaleString()}.`
-                : " Leave empty to keep it off the market."}
-            </p>
-            <input type="hidden" name="asset" value={h.assetId} />
-            <div className="btn-row">
-              <input
-                name="price"
-                className="input"
-                inputMode="numeric"
-                placeholder="e.g. 1,850,000"
-                defaultValue={h.askingPrice ? String(h.askingPrice) : ""}
-                style={{ maxWidth: 200 }}
-              />
-              <button className="btn">{h.askingPrice ? "Update price" : "List it"}</button>
-            </div>
-            {h.address && <p className="muted small" style={{ margin: 0 }}>{h.address}</p>}
-            </form>
-          </details>
-        ))}
-        {homes.length === 0 && (
-          <div className="card">
-            <h2 className="section-title">Sell your home</h2>
-            <p className="muted small" style={{ margin: 0 }}>
-              Claim your address on the home page first — then you can name a
-              direct-sale price here.
-            </p>
-          </div>
-        )}
-
         {/* Your houses & projects: every seat you hold. A house opens its own page. */}
         <div className="card" style={{ display: "grid", gap: 6 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Your houses &amp; projects · {memProjects.size}</h2>
@@ -229,62 +187,8 @@ export default async function SettingsPage({
           ))}
         </div>
 
-        {/* Contacts: every house's approved people, editable in place. */}
-        {contactHouses.map((h) => (
-          <div key={h.project_id} className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
-            <h2 className="section-title" style={{ margin: 0 }}>Contacts · {h.project_name} · {h.people.length}</h2>
-            {h.people.length === 0 && <p className="muted small" style={{ margin: 0 }}>No approved people on this project yet.</p>}
-            {h.people.length > 0 && (
-              <div className="muted" style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1.2fr 0.8fr", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
-                <span>Trade</span><span>Name</span><span>Phone</span><span>Email</span><span>Role</span>
-              </div>
-            )}
-            {h.people.map((p) => (
-              <details key={p.contact_id} style={{ borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0 }}>
-                <summary className="small" style={{ cursor: "pointer", listStyle: "none", display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr 1.2fr 0.8fr", gap: 8, alignItems: "center", minWidth: 0 }}>
-                  <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.trade ?? "—"}</span>
-                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {p.phone ? <a href={`tel:${p.phone}`} style={{ textDecoration: "none" }}>{p.phone}</a> : <span className="muted">—</span>}
-                  </span>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {p.email ? <a href={`mailto:${p.email}`} style={{ textDecoration: "none" }}>{p.email}</a> : <span className="muted">—</span>}
-                  </span>
-                  <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.role} ✏️</span>
-                </summary>
-                <form action={updateContact} style={{ display: "grid", gap: 6, padding: "6px 0 4px" }}>
-                  <input type="hidden" name="contact" value={p.contact_id} />
-                  <input type="hidden" name="back" value="/my/settings" />
-                  <div className="form-2col">
-                    <div className="field" style={{ marginBottom: 0 }}>
-                      <label>Name</label>
-                      <input name="name" className="input" defaultValue={p.name} />
-                    </div>
-                    <div className="field" style={{ marginBottom: 0 }}>
-                      <label>Trade</label>
-                      <input name="trade" className="input" defaultValue={p.trade ?? ""} placeholder="e.g. Plumbing" />
-                    </div>
-                  </div>
-                  <div className="form-2col">
-                    <div className="field" style={{ marginBottom: 0 }}>
-                      <label>Phone</label>
-                      <input name="phone" className="input" type="tel" defaultValue={p.phone ?? ""} />
-                    </div>
-                    <div className="field" style={{ marginBottom: 0 }}>
-                      <label>Email</label>
-                      <input name="email" className="input" type="email" defaultValue={p.email ?? ""} />
-                    </div>
-                  </div>
-                  <div className="field" style={{ marginBottom: 0 }}>
-                    <label>Notes</label>
-                    <input name="notes" className="input" defaultValue={p.notes ?? ""} />
-                  </div>
-                  <div><button className="btn small">Save contact</button></div>
-                </form>
-              </details>
-            ))}
-          </div>
-        ))}
+        {/* People per house live on the house page (click a house above);
+            per-project people on the project page. Not repeated here. */}
 
         <details className="card">
           <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>
