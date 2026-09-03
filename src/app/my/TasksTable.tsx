@@ -27,16 +27,20 @@ const PRIORITY_ORDER = ["High", "Medium", "Low", "No Priority"];
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
   initialState?: "open" | "closed" | "all";
   syncUrl?: boolean;
   showTradeTiles?: boolean;
+  compact?: boolean;
+  addTaskSlot?: React.ReactNode;
   todayIso: string;
 }) {
   const router = useRouter();
+  // compact mode: the table stays hidden until a view is picked.
+  const [view, setView] = useState<"none" | "mine" | "late" | "all">(compact ? "none" : "all");
   const [state, setState] = useState<"open" | "closed" | "all">(initialState ?? "open");
   const [domain, setDomain] = useState(initialDomain ?? "construction");
   const [project, setProject] = useState(initialProject ?? "all");
@@ -85,13 +89,18 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         (project === "all" || (t.project ?? "No project") === project) &&
         (trade === "all" || t.trade === trade) &&
         (person === "all" || t.assignee === person) &&
-        (priority === "all" || (t.priority ?? "No Priority") === priority)
+        (priority === "all" || (t.priority ?? "No Priority") === priority) &&
+        (view !== "mine" || t.who === "you") &&
+        (view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso))
     )
     .sort((a, b) =>
-      sort === "updated"
-        ? (b.last_updated ?? "").localeCompare(a.last_updated ?? "")
-        : (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
+      view === "late"
+        ? (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
+        : sort === "updated"
+          ? (b.last_updated ?? "").localeCompare(a.last_updated ?? "")
+          : (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
     );
+  const tableVisible = !compact || view !== "none" || trade !== "all";
 
   const pick = (setter: (v: never) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     (setter as (v: string) => void)(e.target.value);
@@ -110,8 +119,63 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
+      {compact && (
+        <div className="halfrow">
+          <details className="card" style={{ margin: 0 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add a task</summary>
+            <div style={{ marginTop: 10 }}>{addTaskSlot}</div>
+          </details>
+          <details className="card" style={{ margin: 0 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 700 }}>Filters</summary>
+            <div className="filterbar" style={{ marginTop: 10 }}>
+              <select value={project} onChange={(e) => { pick(setProject)(e); setView("all"); }}>
+                <option value="all">All projects</option>
+                {projects.map((p) => <option key={p}>{p}</option>)}
+              </select>
+              <select value={domain} onChange={pickServer("domain")}>
+                <option value="all">All domains</option>
+                {domains.map((d) => <option key={d}>{d}</option>)}
+              </select>
+              <select value={state} onChange={pickServer("state")}>
+                <option value="open">Open</option>
+                <option value="closed">Closed</option>
+                <option value="all">All</option>
+              </select>
+              <select value={person} onChange={(e) => { pick(setPerson)(e); setView("all"); }}>
+                <option value="all">Anyone</option>
+                {people.map((p) => <option key={p}>{p}</option>)}
+              </select>
+              <select value={priority} onChange={(e) => { pick(setPriority)(e); setView("all"); }}>
+                <option value="all">Any priority</option>
+                {PRIORITY_ORDER.map((p) => <option key={p}>{p}</option>)}
+              </select>
+              <select value={sort} onChange={pick(setSort)}>
+                <option value="due">By due date</option>
+                <option value="updated">By last update</option>
+              </select>
+            </div>
+          </details>
+        </div>
+      )}
+
+      <div className="btn-row" style={{ gap: 6 }}>
+        <button type="button" className={view === "mine" ? "btn small" : "btn ghost small"}
+          onClick={() => { setView(view === "mine" ? "none" : "mine"); setOpen(null); }}>
+          My tasks
+        </button>
+        <button type="button" className={view === "late" ? "btn small" : "btn ghost small"}
+          onClick={() => { setView(view === "late" ? "none" : "late"); setOpen(null); }}>
+          Late tasks
+        </button>
+        <button type="button" className={view === "all" ? "btn small" : "btn ghost small"}
+          onClick={() => { setView(view === "all" ? "none" : "all"); setOpen(null); }}>
+          Full list
+        </button>
+      </div>
+
+      {!compact && (
       <div className="filterbar">
-        <select value={project} onChange={pick(setProject)} style={{ maxWidth: 190 }}>
+        <select value={project} onChange={pick(setProject)}>
           <option value="all">All projects</option>
           {projects.map((p) => <option key={p}>{p}</option>)}
         </select>
@@ -124,19 +188,20 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
           <option value="closed">Closed</option>
           <option value="all">All</option>
         </select>
-        <select value={person} onChange={pick(setPerson)} style={{ maxWidth: 170 }}>
+        <select value={person} onChange={pick(setPerson)}>
           <option value="all">Anyone</option>
           {people.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select value={priority} onChange={pick(setPriority)} style={{ maxWidth: 135 }}>
+        <select value={priority} onChange={pick(setPriority)}>
           <option value="all">Any priority</option>
           {PRIORITY_ORDER.map((p) => <option key={p}>{p}</option>)}
         </select>
-        <select value={sort} onChange={pick(setSort)} style={{ maxWidth: 150 }}>
+        <select value={sort} onChange={pick(setSort)}>
           <option value="due">By due date</option>
           <option value="updated">By last update</option>
         </select>
       </div>
+      )}
 
       {showTradeTiles && tradeStats.length > 0 && (
         <div className="tradestat-grid">
@@ -145,7 +210,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
               key={tr}
               type="button"
               className={trade === tr ? "tradestat on" : "tradestat"}
-              onClick={() => { setTrade(trade === tr ? "all" : tr); setOpen(null); }}
+              onClick={() => { setTrade(trade === tr ? "all" : tr); if (trade === tr) setView(compact ? "none" : view); else setView("all"); setOpen(null); }}
             >
               <span className="tradestat-icon"><TradeIcon trade={tr} /></span>
               <span className="tradestat-text">
@@ -160,7 +225,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
-      {shown.length === 0 ? (
+      {!tableVisible ? null : shown.length === 0 ? (
         <p className="muted small" style={{ margin: 0 }}>Nothing matches these filters.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>

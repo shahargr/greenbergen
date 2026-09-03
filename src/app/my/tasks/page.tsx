@@ -71,6 +71,11 @@ export default async function TasksPage({
     state: t.state, trade: t.trade, assignee: t.assignee,
   }));
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const openCount = tableTasks.filter((t) => t.state === "open").length;
+  const lateCount = tableTasks.filter((t) => t.state === "open" && t.target_date && t.target_date < todayIso).length;
+  const mineCount = tableTasks.filter((t) => t.state === "open" && t.who === "you").length;
+
   // Data for the create form: projects by activity, people by recency.
   let taskProjects: { id: string; name: string }[] = [];
   let taskMembers: { projectId: string; contactId: string; name: string; canPay: boolean }[] = [];
@@ -119,19 +124,18 @@ export default async function TasksPage({
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 96, maxWidth: 720 }}>
       <p className="small" style={{ margin: "0 0 6px" }}><Link href="/my">← Home</Link></p>
-      <h1 style={{ fontSize: 26, margin: "0 0 12px" }}>Tasks</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <h1 style={{ fontSize: 26, margin: 0 }}>Tasks</h1>
+        <span className="small" style={{ display: "inline-flex", gap: 10 }}>
+          <span><strong>{openCount}</strong> open</span>
+          <span style={{ color: lateCount > 0 ? "#c0262d" : "inherit" }}><strong>{lateCount}</strong> late</span>
+          <span><strong>{mineCount}</strong> on you</span>
+        </span>
+      </div>
 
       {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
 
-      {pmProjects.length > 0 && (
-        <details className="card" style={{ marginBottom: 14 }}>
-          <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add a task</summary>
-          <div style={{ marginTop: 12 }}>
-            <AddTaskForm projects={taskProjects} members={taskMembers} />
-          </div>
-        </details>
-      )}
 
       {leads.length > 0 && (
         <>
@@ -160,7 +164,9 @@ export default async function TasksPage({
         initialDomain={domain}
         initialState={state}
         syncUrl
-        todayIso={new Date().toISOString().slice(0, 10)}
+        compact
+        addTaskSlot={pmProjects.length > 0 ? <AddTaskForm projects={taskProjects} members={taskMembers} /> : <p className="muted small">Task creation is for project managers and above.</p>}
+        todayIso={todayIso}
       />
     </main>
   );

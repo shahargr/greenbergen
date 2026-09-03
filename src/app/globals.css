@@ -814,3 +814,7 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 
 /* Owner action square - 2x2 */
 .youband.square { grid-template-columns: repeat(2, 1fr); max-width: 460px; }
+
+/* Half-width paired cards */
+.halfrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .halfrow { grid-template-columns: 1fr; } }

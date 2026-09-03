@@ -67,3 +67,17 @@ export async function saveAskingPrice(formData: FormData) {
   revalidatePath("/my/settings");
   redirect(error ? `/my/settings?error=${encodeURIComponent("Could not save the price — try again.")}` : "/my/settings?saved=price");
 }
+
+// Rename a home - RLS (can_edit_project) is the boundary.
+export async function renameHome(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) redirect("/my/settings?error=" + encodeURIComponent("Give the home a name."));
+  const { error } = await supabase
+    .from("projects")
+    .update({ project_name: name, last_modified_by: "portal:settings" })
+    .eq("id", projectId);
+  revalidatePath("/my/settings");
+  revalidatePath("/my");
+  redirect(error ? "/my/settings?error=" + encodeURIComponent(error.message) : "/my/settings?saved=1");
+}

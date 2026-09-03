@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { saveProfile, saveAskingPrice } from "./actions";
+import { saveProfile, saveAskingPrice, renameHome } from "./actions";
 import { createHome } from "../actions";
 import { restoreProject, deleteProjectNow } from "../project/[id]/actions";
 
 type HomeAsset = {
+  projectId: string;
   projectName: string;
   address: string | null;
   assetId: string;
@@ -36,9 +37,11 @@ export default async function SettingsPage({
 
   const { data: homeProjects } = await supabase
     .from("projects")
-    .select("project_name, address, asset_id")
+    .select("id, project_name, address, asset_id")
     .not("asset_id", "is", null)
-    .is("parent_project_id", null);
+    .is("parent_project_id", null)
+    .is("trashed_at", null)
+    .eq("owner_user_id", me?.app_user_id ?? "00000000-0000-0000-0000-000000000000");
 
   const assetIds = (homeProjects ?? []).map((p) => p.asset_id as string);
   const { data: assets } = assetIds.length
@@ -46,6 +49,7 @@ export default async function SettingsPage({
     : { data: [] };
 
   const homes: HomeAsset[] = (homeProjects ?? []).map((p) => ({
+    projectId: p.id as string,
     projectName: p.project_name as string,
     address: (p.address as string) ?? null,
     assetId: p.asset_id as string,
@@ -113,6 +117,10 @@ export default async function SettingsPage({
             <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>
               Sell your home — {h.projectName}
             </summary>
+            <form action={renameHome.bind(null, h.projectId)} className="btn-row" style={{ marginTop: 10 }}>
+              <input name="name" className="input" defaultValue={h.projectName} style={{ maxWidth: 240 }} />
+              <button className="btn ghost">Rename</button>
+            </form>
             <form action={saveAskingPrice} style={{ display: "grid", gap: 10, marginTop: 10 }}>
             <p className="muted small" style={{ margin: 0 }}>
               Name your price and sell direct — no realtors, no commission.
