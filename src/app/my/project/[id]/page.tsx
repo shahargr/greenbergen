@@ -5,13 +5,15 @@ import { projectPerms } from "./actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
+import { AddTaskForm } from "../../AddTaskForm";
 
 export const dynamic = "force-dynamic";
 
 type MemberRow = {
   role: string;
   project_role: string | null;
-  contacts: { name: string } | null;
+  contact_id: string | null;
+  contacts: { name: string; person_name?: string | null } | null;
 };
 
 // Project drill-down: details (unlock-to-edit per rank), the people on it,
@@ -47,7 +49,7 @@ export default async function ProjectPage({
       projectPerms(id),
       supabase
         .from("project_members")
-        .select("role, project_role, contacts(name)")
+        .select("role, project_role, contact_id, contacts(name, person_name)")
         .eq("project_id", id)
         .eq("status", "active"),
       supabase.rpc("portal_tasks", { p_project_id: id, p_open_limit: 200, p_closed_limit: 200 }),
@@ -73,6 +75,12 @@ export default async function ProjectPage({
     if (!seats.includes(seat)) seats.push(seat);
     people.set(name, seats);
   }
+  // Assignees for the add-task form on this project.
+  const taskMembers = (((memberRows ?? []) as unknown as { contact_id: string | null; contacts: { name: string | null; person_name: string | null } | null }[]))
+    .filter((m) => m.contact_id && m.contacts)
+    .map((m) => ({ projectId: id, contactId: m.contact_id as string, name: m.contacts!.person_name ?? m.contacts!.name ?? "Unnamed", canPay: false }))
+    .filter((m, i, arr) => arr.findIndex((x) => x.contactId === m.contactId) === i)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   type PortalTask = {
     id: string; action: string; status: string; priority: string | null;
@@ -199,7 +207,15 @@ export default async function ProjectPage({
         )}
 
         <div className="card">
-          <h2 className="section-title">Tasks · {openCount} open · {doneCount} done</h2>
+          <h2 className="section-title" style={{ margin: 0 }}>Tasks · {openCount} open · {doneCount} done</h2>
+          {perms.rank >= 50 && (
+            <details className="card" style={{ marginBottom: 4 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add a task</summary>
+              <div style={{ marginTop: 10 }}>
+                <AddTaskForm projects={[{ id: project.id, name: project.project_name }]} members={taskMembers} />
+              </div>
+            </details>
+          )}
           {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
           {latePeople.length > 0 && (
             <div className="phase-grid" style={{ marginBottom: 4 }}>
