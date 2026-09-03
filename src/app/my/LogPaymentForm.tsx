@@ -185,7 +185,7 @@ export function LogPaymentForm({
       </div>
       {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
       <div className="btn-row">
-        <button className="btn" disabled={busy}>{busy ? "Logging..." : "Log payment"}</button>
+        <button className="btn" disabled={busy}>{busy ? "Logging..." : "Log transaction"}</button>
         <Link className="btn ghost" href="/my">Cancel</Link>
       </div>
     </form>

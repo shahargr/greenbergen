@@ -172,7 +172,7 @@ export function PaymentsList({ payments, methods, statuses = [], accounts = GENE
           )}
         </div>
       ))}
-      {payments.length === 0 && <p className="muted small" style={{ margin: 0 }}>No payments logged yet.</p>}
+      {payments.length === 0 && <p className="muted small" style={{ margin: 0 }}>No transactions yet.</p>}
     </div>
   );
 }

@@ -170,7 +170,7 @@ export default async function PaymentsPage({
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 96, maxWidth: 640 }}>
       <p className="small" style={{ margin: "0 0 6px" }}><Link href="/my">← Home</Link></p>
-      <h1 style={{ fontSize: 26, margin: "0 0 12px" }}>Payments</h1>
+      <h1 style={{ fontSize: 26, margin: "0 0 12px" }}>Transactions</h1>
 
       {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
@@ -179,7 +179,7 @@ export default async function PaymentsPage({
         <div className="tile" style={{ cursor: "default" }}>
           <span className="tile-label">Logged</span>
           <span style={{ fontSize: 20, fontWeight: 800 }}>${Math.round(paidTotal).toLocaleString()}</span>
-          <span className="tile-sub">{paidRows2.length} payment{paidRows2.length === 1 ? "" : "s"} paid</span>
+          <span className="tile-sub">{paidRows2.length} paid</span>
         </div>
         <div className="tile" style={{ cursor: "default" }}>
           <span className="tile-label">Outstanding</span>
@@ -193,7 +193,7 @@ export default async function PaymentsPage({
       </div>
 
       <details className="card" style={{ marginBottom: 14 }} open={!!error}>
-        <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Log a payment</summary>
+        <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Log a transaction</summary>
         <div style={{ marginTop: 12 }}>
           <LogPaymentForm
             projects={payProjects}
@@ -207,7 +207,7 @@ export default async function PaymentsPage({
       </details>
 
       <form action="/my/payments" method="get" className="btn-row" style={{ marginBottom: 12 }}>
-        <input name="q" className="input" defaultValue={q ?? ""} placeholder="Search payments — payee, notes, account"
+        <input name="q" className="input" defaultValue={q ?? ""} placeholder="Search transactions — payee, notes, account"
           style={{ maxWidth: 320 }} />
         <button className="btn ghost">Search</button>
         {(q || showAll) && <Link className="btn ghost" href="/my/payments">Clear</Link>}
