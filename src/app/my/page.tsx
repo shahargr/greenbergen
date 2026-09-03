@@ -280,13 +280,16 @@ export default async function MyPage({
 
   // Landing view: one tile per project, four to a row; the tile itself opens
   // the project. Counts are plain text (no nested links inside the tile).
-  const projectTile = (p: ProjectOverviewRow, isRoot: boolean) => {
+  // Two kinds of tile, kept visibly apart: a HOUSE (green, the address is
+  // the point, shows how many projects sit under it) and a PROJECT (amber,
+  // names the house it belongs to).
+  const projectTile = (p: ProjectOverviewRow, isRoot: boolean, parentName?: string | null, childCount?: number) => {
     const c = cardsById.get(p.id);
     const urgent = c?.urgent[0];
     const starred = priority.has(p.id);
     return (
-      <div key={p.id} className="card ptile"
-        style={{ position: "relative", borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c", borderColor: starred ? "var(--brand)" : undefined }}>
+      <div key={p.id} className={`card ptile ${isRoot ? "ptile-house" : "ptile-project"}`}
+        style={{ position: "relative", borderLeft: isRoot ? "4px solid var(--brand)" : "4px solid #a8842c", borderColor: starred ? (isRoot ? "var(--brand)" : "#a8842c") : undefined }}>
         {/* Priority star: mine only, sits outside the link so the tile stays one click. */}
         <form action={setProjectPriority} style={{ position: "absolute", top: 6, right: 8 }}>
           <input type="hidden" name="project" value={p.id} />
@@ -303,7 +306,9 @@ export default async function MyPage({
           <strong style={{ fontSize: 15, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{p.project_name}</strong>
         </div>
         <div className="muted small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {isRoot ? (p.address ?? "Home") : "Project"} · {p.status}
+          {isRoot
+            ? <>{p.address ?? "Portfolio"} · {p.status}{childCount != null && childCount > 0 ? ` · ${childCount} project${childCount === 1 ? "" : "s"}` : ""}</>
+            : <>{parentName ? <>at <strong style={{ color: "var(--ink)" }}>{parentName}</strong> · </> : null}{p.status}</>}
         </div>
         <div className="muted small">
           {fmtDate(c?.start_date ?? null)} → <span style={{ color: "var(--ink)" }}>{fmtDate(c?.est_complete ?? null)}</span>
@@ -947,28 +952,44 @@ export default async function MyPage({
         // searchParams change).
         <section key={`${flashOk ?? ""}|${flashError ?? ""}`} style={{ display: "grid", gap: 8, marginBottom: 18 }}>
           {(() => {
-            // Single portfolio root with projects under it: the root is a
-            // heading line and the tiles are its projects. Otherwise every
-            // project in the list gets a tile, roots first.
-            const singleRoot = bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0 ? bandRoots[0] : null;
-            const flatten = (list: ProjectOverviewRow[]): ProjectOverviewRow[] =>
-              list.flatMap((p) => [p, ...flatten(bandChildren.get(p.id) ?? [])]);
-            const inOrder = singleRoot ? flatten(bandChildren.get(singleRoot.id) ?? []) : flatten(bandRoots);
-            // Priority tiles first, each group keeping its usual order.
-            const tiles = [...inOrder.filter((p) => priority.has(p.id)), ...inOrder.filter((p) => !priority.has(p.id))];
+            // HOUSES vs PROJECTS. A house has no parent, or its parent is a
+            // portfolio (a container with no address). Anything under a house
+            // is a project. Parents are looked up in the unfiltered list so a
+            // closed house still classifies its jobs correctly.
+            const byId = new Map(bandOverviewAll.map((p) => [p.id, p]));
+            const isHouse = (p: ProjectOverviewRow) => {
+              if (!p.parent_project_id) return true;
+              const parent = byId.get(p.parent_project_id);
+              return !!parent && !parent.address;
+            };
+            const byPriority = (list: ProjectOverviewRow[]) => [...list.filter((p) => priority.has(p.id)), ...list.filter((p) => !priority.has(p.id))];
+            const visible = bandOverview.filter((p) => p.address || p.parent_project_id || (bandChildren.get(p.id) ?? []).length > 0);
+            const houses = byPriority(visible.filter(isHouse));
+            const jobs = byPriority(visible.filter((p) => !isHouse(p)));
+            const childCount = new Map<string, number>();
+            for (const j of jobs) if (j.parent_project_id) childCount.set(j.parent_project_id, (childCount.get(j.parent_project_id) ?? 0) + 1);
+            const houseName = (j: ProjectOverviewRow) => {
+              const h = j.parent_project_id ? byId.get(j.parent_project_id) : null;
+              return h ? fmtRoot(h.project_name) : null;
+            };
             return (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
-                  {singleRoot ? (
-                    <Link href={`/my/project/${singleRoot.id}`} className="muted" style={{ fontWeight: 600 }}>
-                      🏠 {fmtRoot(singleRoot.project_name)}
-                      {singleRoot.address && <> · {singleRoot.address}</>}
-                    </Link>
-                  ) : <span />}
+                  <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
+                  <Link href="/my/settings" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Claim another address</Link>
+                </div>
+                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — claim your address on the settings page.</p>}
+                <div className="ptiles">
+                  {houses.map((p) => projectTile(p, true, null, childCount.get(p.id) ?? 0))}
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
+                  <h2 className="section-title" style={{ margin: 0, color: "#a8842c" }}>🔧 Projects · {jobs.length}</h2>
                   <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
                 </div>
+                {jobs.length === 0 && <p className="muted small" style={{ margin: 0 }}>No projects yet — a generator, a water heater, a leak: describe it once and it becomes a project under your house.</p>}
                 <div className="ptiles">
-                  {tiles.map((p) => projectTile(p, !p.parent_project_id || !bandIds.has(p.parent_project_id)))}
+                  {jobs.map((p) => projectTile(p, false, houseName(p)))}
                 </div>
               </>
             );
