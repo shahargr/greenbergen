@@ -69,6 +69,19 @@ export function TaskEditor({
   const [closeReason, setCloseReason] = useState("");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busyEvidence, setBusyEvidence] = useState(false);
+  const [uploadFailed, setUploadFailed] = useState("");
+
+  async function guarded(run: () => Promise<void>) {
+    setBusyEvidence(true);
+    setUploadFailed("");
+    try {
+      await run();
+    } catch (err) {
+      if (err && typeof err === "object" && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) throw err;
+      setBusyEvidence(false);
+      setUploadFailed(err instanceof Error ? err.message : "Failed — try smaller files.");
+    }
+  }
 
   async function submitPhotos(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,8 +89,7 @@ export function TaskEditor({
     const fd = new FormData();
     for (const f of Array.from(input?.files ?? [])) fd.append("files", f);
     if (![...fd.keys()].length) return;
-    setBusyEvidence(true);
-    await uploadEvidence(task.id, fd);
+    await guarded(() => uploadEvidence(task.id, fd));
   }
 
   async function submitVoice() {
@@ -85,19 +97,17 @@ export function TaskEditor({
     const fd = new FormData();
     const ext = voiceBlob.type.includes("mp4") ? "m4a" : "webm";
     fd.append("files", new File([voiceBlob], `voice-note.${ext}`, { type: voiceBlob.type }));
-    setBusyEvidence(true);
-    await uploadEvidence(task.id, fd);
+    await guarded(() => uploadEvidence(task.id, fd));
   }
 
   async function applyMove() {
     const fd = new FormData();
-    setBusyEvidence(true);
     if (moveTo === "Completed") {
       if (closeReason.trim()) fd.append("reason", closeReason.trim());
-      await completeTask(task.id, fd);
+      await guarded(() => completeTask(task.id, fd));
     } else {
       fd.append("status", moveTo);
-      await setTaskStatus(task.id, fd);
+      await guarded(() => setTaskStatus(task.id, fd));
     }
   }
 
@@ -133,6 +143,7 @@ export function TaskEditor({
 
       {isOpen && (
         <div className="card" style={{ display: "grid", gap: 10 }}>
+          {uploadFailed && <p className="error small" style={{ margin: 0 }}>{uploadFailed}</p>}
           <div className="btn-row">
             <button type="button" className={quick === "comment" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "comment" ? "none" : "comment")}>
               💬 Add comment

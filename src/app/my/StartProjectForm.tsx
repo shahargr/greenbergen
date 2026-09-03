@@ -22,6 +22,7 @@ export function StartProjectForm({
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,8 +32,23 @@ export function StartProjectForm({
       const ext = voiceBlob.type.includes("mp4") ? "m4a" : "webm";
       fd.append("audio", new File([voiceBlob], `project-description.${ext}`, { type: voiceBlob.type }));
     }
+    // Total upload size guard - the server rejects huge bodies without a
+    // useful error, so say it here first.
+    let totalMb = 0;
+    for (const [, v] of fd.entries()) if (v instanceof File) totalMb += v.size / (1024 * 1024);
+    if (totalMb > 45) {
+      setFailed(`Attachments total ${Math.round(totalMb)}MB — keep under 45MB, or add the rest from the project page after creating.`);
+      return;
+    }
     setBusy(true);
-    await createJob(fd);
+    setFailed("");
+    try {
+      await createJob(fd);
+    } catch (err) {
+      if (err && typeof err === "object" && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) throw err;
+      setBusy(false);
+      setFailed(err instanceof Error ? err.message : "Creating failed — try fewer or smaller files.");
+    }
   }
 
   return (
@@ -86,8 +102,15 @@ export function StartProjectForm({
           <label>Or just say it (optional)</label>
           <VoiceRecorder onReady={setVoiceBlob} />
         </div>
+        {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
+        {busy && (
+          <p className="muted small" style={{ margin: 0 }}>
+            Uploading your files and creating the project — on cellular this
+            can take a minute. You&apos;ll land back home when it&apos;s done.
+          </p>
+        )}
         <div className="btn-row">
-          <button className="btn" disabled={busy}>{busy ? "Creating..." : "Create project"}</button>
+          <button className="btn" disabled={busy}>{busy ? "Creating…" : "Create & close"}</button>
           <Link className="btn ghost" href="/my">Cancel</Link>
         </div>
       </form>

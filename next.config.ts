@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
       // Receipt photos and voice/video notes ride through server actions;
       // the 1MB default rejected any real photo and left forms stuck on
       // "Saving...".
-      bodySizeLimit: "25mb",
+      bodySizeLimit: "50mb",
     },
   },
 };

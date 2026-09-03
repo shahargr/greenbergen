@@ -79,6 +79,7 @@ export async function createJob(formData: FormData) {
     const ext = audio.type.includes("mp4") ? ".m4a" : ".webm";
     const path = `${data.project_id}/description-${Date.now()}${ext}`;
     const bytes = await audio.arrayBuffer();
+    after(async () => {
     const { error: upErr } = await supabase.storage
       .from("project-media")
       .upload(path, bytes, { contentType: audio.type || undefined, upsert: true });
@@ -114,6 +115,7 @@ export async function createJob(formData: FormData) {
           .eq("id", projectId);
       });
     }
+    });
     // A failed voice upload never blocks the project itself.
   }
 
