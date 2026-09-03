@@ -7,6 +7,10 @@ import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { FilePick } from "@/components/FilePick";
 
 type WizardField = { key: string; label: string; options?: string[]; number?: boolean; unit?: string };
+// Jobs that want photos up front say so here.
+const WIZARD_PHOTOS: Record<string, string> = {
+  "Water heater replacement": "Photos of the existing heater that needs to be removed — the unit, its label/plate, and the connections around it.",
+};
 const WIZARDS: Record<string, WizardField[]> = {
   "Emergency generator": [
     { key: "service_size", label: "Current electric service", options: ["100 amp", "200 amp", "300 amp", "Not sure"] },
@@ -167,6 +171,15 @@ export function StartProjectForm({
                 </div>
               ))}
             </div>
+            {WIZARD_PHOTOS[name] && (
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label>{WIZARD_PHOTOS[name]}</label>
+                <div className="btn-row" style={{ alignItems: "flex-start" }}>
+                  <FilePick name="photos" label="🖼 Add photo" accept="image/*" />
+                  <FilePick name="photos" label="📷 Take photo" accept="image/*" capture="environment" multiple={false} />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
