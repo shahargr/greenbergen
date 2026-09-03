@@ -39,3 +39,13 @@ export async function cancelInvitation(formData: FormData) {
   revalidatePath("/my/invite");
   redirect(error ? `/my/invite?error=${encodeURIComponent(error.message)}` : "/my/invite");
 }
+
+// Permanently remove all of the caller's revoked invitations.
+export async function clearRevokedInvitations() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("clear_revoked_invitations");
+  revalidatePath("/my/invite");
+  redirect(error || !data?.ok
+    ? `/my/invite?status=revoked&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not clear.")}`
+    : `/my/invite?ok=${encodeURIComponent(`Cleared ${data.cleared} revoked invitation${data.cleared === 1 ? "" : "s"} ✓`)}`);
+}

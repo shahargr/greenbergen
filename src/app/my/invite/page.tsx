@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { InviteBuilder } from "./InviteBuilder";
-import { cancelInvitation } from "./actions";
+import { cancelInvitation, clearRevokedInvitations } from "./actions";
 
 type Acceptor = {
   name: string;
@@ -31,9 +31,9 @@ type SentInvitation = {
 export default async function InvitePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; error?: string }>;
+  searchParams: Promise<{ status?: string; error?: string; ok?: string }>;
 }) {
-  const { status: statusFilter, error } = await searchParams;
+  const { status: statusFilter, error, ok } = await searchParams;
   const supabase = await createClient();
   const [{ data: me }, { data: sentData }] = await Promise.all([
     supabase.rpc("me"),
@@ -55,6 +55,7 @@ export default async function InvitePage({
         Create an invitation link and send it however you like.
       </p>
       {error && <p className="error small">{error}</p>}
+      {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
       <InviteBuilder
         isSuperadmin={me?.is_superadmin ?? false}
         senderName={me?.full_name ?? "Someone"}
@@ -79,6 +80,11 @@ export default async function InvitePage({
               );
             })}
           </div>
+          {(counts.get("revoked") ?? 0) > 0 && (filter === "revoked" || filter === null) && (
+            <form action={clearRevokedInvitations}>
+              <button className="btn ghost small">🗑 Clear all revoked ({counts.get("revoked")})</button>
+            </form>
+          )}
           {sent.length === 0 && <p className="muted small" style={{ margin: 0 }}>None with this status.</p>}
           {sent.map((i) => (
             <div key={i.id} className="card" style={{ padding: "12px 14px", display: "grid", gap: 6 }}>
