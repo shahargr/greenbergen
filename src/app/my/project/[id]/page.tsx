@@ -231,7 +231,7 @@ export default async function ProjectPage({
             </div>
           )}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} />
+            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters />
           )}
         </div>
 

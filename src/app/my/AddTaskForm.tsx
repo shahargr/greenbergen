@@ -21,6 +21,9 @@ export function AddTaskForm({
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState("");
+  // Logging work that's already finished (e.g. a project opened after the
+  // fact): the task is created straight into a Completed state.
+  const [done, setDone] = useState(false);
 
   const people = useMemo(
     () => members.filter((m) => m.projectId === projectId),
@@ -74,8 +77,12 @@ export function AddTaskForm({
           </select>
         </div>
       </div>
+      <label className="small" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+        <input type="checkbox" name="done" checked={done} onChange={(e) => setDone(e.target.checked)} />
+        <span>Already done — log it as completed</span>
+      </label>
       <div className="field" style={{ marginBottom: 0 }}>
-        <label htmlFor="nt-date">Target date (optional)</label>
+        <label htmlFor="nt-date">{done ? "Completed on (optional)" : "Target date (optional)"}</label>
         <input id="nt-date" name="target_date" type="date" className="input" style={{ maxWidth: 220 }} />
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
@@ -94,7 +101,7 @@ export function AddTaskForm({
       </div>
       {failed && <p className="error small" style={{ margin: 0 }}>{failed}</p>}
       <div className="btn-row">
-        <button className="btn" disabled={busy}>{busy ? "Creating..." : "Create task"}</button>
+        <button className="btn" disabled={busy}>{busy ? "Creating..." : done ? "Log completed task" : "Create task"}</button>
         <Link className="btn ghost" href="/my">Cancel</Link>
       </div>
     </form>

@@ -371,6 +371,9 @@ export async function createTask(formData: FormData) {
   }
   const assignee = String(formData.get("assigned_to") ?? "").trim() || null;
   const priority = String(formData.get("priority") ?? "Medium");
+  // Retroactive logging: a task can be created straight into a completed
+  // state (a project opened late, where the work is already done).
+  const done = formData.get("done") != null;
   const { data: me } = await supabase.rpc("me");
 
   // Since v104 the assigned_to / assigned_by NAME columns hold personas
@@ -380,9 +383,10 @@ export async function createTask(formData: FormData) {
     .insert({
       action: title,
       domain: "construction",
-      status: "Not Started",
+      status: done ? "Completed" : "Not Started",
       priority: ["No Priority", "Low", "Medium", "High"].includes(priority) ? priority : "Medium",
       target_date: String(formData.get("target_date") ?? "").trim() || null,
+      last_updated: done ? new Date().toISOString() : null,
       project_id: projectId,
       assigned_to_contact_id: assignee,
       assigned_by_contact_id: me?.contact_id ?? null,
