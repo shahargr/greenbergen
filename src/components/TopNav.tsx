@@ -66,6 +66,24 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   // Things waiting on you: invitations to answer, and answers to yours.
   const inbound = ((invites?.incoming ?? []) as unknown[]).length + ((invites?.outcomes ?? []) as unknown[]).length;
 
+  // Who you are, under the logo: email, then your highest seat (by the
+  // authority ladder) or your trade - with "(N roles)" when you hold more.
+  const [{ data: seatRows }, { data: tradeRows }, { data: rankRows }] = await Promise.all([
+    me?.app_user_id
+      ? supabase.from("project_members").select("role, project_role").eq("app_user_id", me.app_user_id).eq("status", "active")
+      : Promise.resolve({ data: [] as { role: string; project_role: string | null }[] }),
+    me?.contact_id
+      ? supabase.from("contact_trade_roles").select("trade").eq("contact_id", me.contact_id)
+      : Promise.resolve({ data: [] as { trade: string }[] }),
+    supabase.from("project_roles").select("role, authority_rank"),
+  ]);
+  const rankOf = new Map(((rankRows ?? []) as { role: string; authority_rank: number | null }[]).map((r) => [r.role, r.authority_rank ?? 0]));
+  const seatNames = [...new Set(((seatRows ?? []) as { role: string; project_role: string | null }[]).map((s) => s.project_role ?? s.role))];
+  const tradeNames = [...new Set(((tradeRows ?? []) as { trade: string }[]).map((t) => t.trade))];
+  const topSeat = [...seatNames].sort((a, b) => (rankOf.get(b) ?? 0) - (rankOf.get(a) ?? 0))[0];
+  const roleCount = new Set([...seatNames, ...tradeNames]).size;
+  const whoLabel = (topSeat ?? tradeNames[0] ?? role) + (roleCount > 1 ? ` (${roleCount} roles)` : "");
+
   // The label under the logo: the picked hat, as long as it lives on this
   // surface; otherwise the surface's own name.
   const isAdmin: boolean = me?.is_superadmin ?? false;
@@ -79,7 +97,11 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
         <div className="topnav-left">
           <span className="brandstack">
             <Wordmark small href={ROLE_HOME[role]} />
-            <span className="brand-viewfor">{viewLabel}</span>
+            {me?.email
+              ? <span className="brand-viewfor" title={`${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}`} style={{ textTransform: "none", letterSpacing: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(60vw, 420px)" }}>
+                  {me.email} / {whoLabel}
+                </span>
+              : <span className="brand-viewfor">{viewLabel}</span>}
           </span>
         </div>
         <div className="topnav-right">
