@@ -77,10 +77,20 @@ export default async function InvitePage({
         Create an invitation link and send it however you like.
       </p>
       {error && <p className="error small">{error}</p>}
-      {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
-      {forName && (
-        <p className="small" style={{ margin: "0 0 10px" }}>
+      {ok && (
+        <p className="banner" style={{ background: "#2f6b4f", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span>{ok}</span>
+          {forProject && (
+            <Link href={`/my/project/${forProject.id}`} className="btn small" style={{ background: "#fff", color: "#2f6b4f", whiteSpace: "nowrap" }}>
+              Done — back to {forName} →
+            </Link>
+          )}
+        </p>
+      )}
+      {forName && forProject && (
+        <p className="small" style={{ margin: "0 0 10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span className="extra-chip">For <strong>{forName}</strong></span>
+          <Link href={`/my/project/${forProject.id}`} className="btn ghost small">← Back to the project</Link>
         </p>
       )}
       {/* Invite an account already on the platform, by email or phone. They
