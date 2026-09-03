@@ -91,18 +91,31 @@ export default async function PaymentsPage({
   const rollup = (rollupData ?? { projects: [], totals: { budget: 0, agreed: 0, actual_paid: 0, open_committed: 0 } }) as Rollup;
 
   const PAID_SET = ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"];
-  const [{ data: paidAgg }, { data: openAgg }, { data: statusRows }] = await Promise.all([
+  const [{ data: paidAgg }, { data: openAgg }, { data: statusRows }, { data: acctRows }] = await Promise.all([
     supabase.from("transactions").select("amount").eq("direction", "out").in("status", PAID_SET),
     supabase.from("transactions").select("amount").eq("direction", "out")
       .in("status", ["forecast", "scheduled", "invoice received", "approved", "disputed"]),
     supabase.from("transaction_statuses").select("status"),
+    supabase.from("transactions").select("paid_from_account").eq("direction", "out")
+      .not("paid_from_account", "is", null).limit(500),
   ]);
   const paidRows2 = (paidAgg ?? []) as { amount: number | null }[];
   const openRows2 = (openAgg ?? []) as { amount: number | null }[];
   const paidTotal = paidRows2.reduce((t, r) => t + Number(r.amount ?? 0), 0);
   const openTotal = openRows2.reduce((t, r) => t + Number(r.amount ?? 0), 0);
   const statuses = ((statusRows ?? []) as { status: string }[]).map((r) => r.status);
-  const accounts = me?.is_superadmin ? ORG_ACCOUNTS : GENERIC_ACCOUNTS;
+  // Suggest the accounts money has ACTUALLY left from (this user's own
+  // transactions, RLS-scoped), most-used first — not a hardcoded guess. Fall
+  // back to the generic list only when there's no history yet.
+  const acctCount = new Map<string, number>();
+  for (const r of ((acctRows ?? []) as { paid_from_account: string | null }[])) {
+    const a = (r.paid_from_account ?? "").trim();
+    if (a) acctCount.set(a, (acctCount.get(a) ?? 0) + 1);
+  }
+  const realAccounts = [...acctCount.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a);
+  const accounts = realAccounts.length > 0
+    ? realAccounts
+    : (me?.is_superadmin ? ORG_ACCOUNTS : GENERIC_ACCOUNTS);
 
   const methods = ((methodRows ?? []) as { id: string; name: string }[]);
   const preferred = ["Cash", "Check", "ACH", "Credit card"];
@@ -214,6 +227,7 @@ export default async function PaymentsPage({
             contracts={payContracts}
             methods={methods}
             payees={payPayees}
+            accounts={accounts}
             meName={me?.full_name ?? me?.email ?? ""}
           />
         </div>
