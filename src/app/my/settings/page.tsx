@@ -34,7 +34,7 @@ export default async function SettingsPage({
   type ContactHouse = { project_id: string; project_name: string; address: string | null; people: ContactPerson[] };
   const contactHouses = ((contactsData ?? []) as ContactHouse[]);
   // Everyone ever added to one of my projects, at any role.
-  type MyContractor = { id: string; name: string; company: string | null; trade: string | null; stage: string | null; phone: string | null; email: string | null; seats: string[] | null; projects: number; awarded: number; vendor_status: string | null };
+  type MyContractor = { id: string; name: string; company: string | null; trade: string | null; stage: string | null; phone: string | null; email: string | null; seats: string[] | null; is_owner?: boolean; projects: number; awarded: number; vendor_status: string | null };
   const { data: contractorsData } = await supabase.rpc("portal_my_contractors");
   const contractors = ((contractorsData ?? []) as MyContractor[]);
   // God mode (superadmins): the same cookie the Admin overview toggles.
@@ -213,8 +213,17 @@ export default async function SettingsPage({
         {/* Your contractors: anyone ever added to a project of yours, at any
             role. Each row opens the person's page. */}
         <div className="card" style={{ display: "grid", gap: 6, overflowX: "auto" }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Your contractors · {contractors.length}</h2>
-          {contractors.length === 0 && <p className="muted small" style={{ margin: 0 }}>No one added to your projects yet.</p>}
+          {/* Owners and contractors are different people: title by what the
+              list actually holds, and mark owners so nobody reads a landlord
+              as a tradesman. */}
+          <h2 className="section-title" style={{ margin: 0 }}>
+            {contractors.some((c) => !c.is_owner) && contractors.some((c) => c.is_owner)
+              ? "People on your projects"
+              : contractors.every((c) => c.is_owner) && contractors.length > 0
+                ? "Owners you work with"
+                : "Your contractors"} · {contractors.length}
+          </h2>
+          {contractors.length === 0 && <p className="muted small" style={{ margin: 0 }}>No one on your projects yet.</p>}
           {contractors.length > 0 && (
             // Ordered by the project phase the trade belongs to. Phone and
             // text are icons: tap to call or message. (Recording those
@@ -227,8 +236,8 @@ export default async function SettingsPage({
                   return (
                     <tr key={c.id}>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        {c.trade ?? <span className="muted">—</span>}
-                        {newStage && c.stage && <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>{c.stage}</div>}
+                        {c.is_owner ? <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>🏠 Owner</span> : (c.trade ?? <span className="muted">—</span>)}
+                        {newStage && c.stage && !c.is_owner && <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>{c.stage}</div>}
                       </td>
                       <td>
                         <Link href={`/my/contractor/${c.id}`} style={{ fontWeight: 600 }}>{c.name}</Link>
