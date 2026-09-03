@@ -34,6 +34,17 @@ export type CommentView = { id: string; author_name: string; body: string; creat
 
 const PRIORITIES = ["No Priority", "Low", "Medium", "High"];
 
+// A long body (notes, learnings) shows at most four lines and scrolls
+// inside its own box, so one wordy field cannot push the page apart.
+function LongText({ value }: { value: string | null | undefined }) {
+  if (!value) return <>—</>;
+  return (
+    <span style={{ display: "block", whiteSpace: "pre-line", maxHeight: "5.8em", overflowY: "auto", overscrollBehavior: "contain" }}>
+      {value}
+    </span>
+  );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="task-row">
@@ -325,9 +336,9 @@ export function TaskEditor({
 
         <Row label="Desired outcome">
           {unlocked && perms.outcome ? (
-            <textarea name="desired_outcome" className="input" rows={2} defaultValue={task.desired_outcome ?? ""} />
+            <textarea name="desired_outcome" className="input" rows={4} defaultValue={task.desired_outcome ?? ""} />
           ) : (
-            task.desired_outcome ?? "—"
+            <LongText value={task.desired_outcome} />
           )}
         </Row>
 
@@ -335,16 +346,16 @@ export function TaskEditor({
           {unlocked && perms.notes ? (
             <textarea name="notes" className="input" rows={4} defaultValue={task.notes ?? ""} />
           ) : (
-            <span style={{ whiteSpace: "pre-line" }}>{task.notes ?? "—"}</span>
+            <LongText value={task.notes} />
           )}
         </Row>
 
         {perms.dependencies && (
           <Row label="Dependencies">
             {unlocked ? (
-              <textarea name="dependencies" className="input" rows={2} defaultValue={task.dependencies ?? ""} />
+              <textarea name="dependencies" className="input" rows={4} defaultValue={task.dependencies ?? ""} />
             ) : (
-              task.dependencies ?? "—"
+              <LongText value={task.dependencies} />
             )}
           </Row>
         )}
@@ -352,9 +363,9 @@ export function TaskEditor({
         {perms.learnings && (
           <Row label="Learnings (admin)">
             {unlocked ? (
-              <textarea name="learnings" className="input" rows={2} defaultValue={task.learnings ?? ""} />
+              <textarea name="learnings" className="input" rows={4} defaultValue={task.learnings ?? ""} />
             ) : (
-              task.learnings ?? "—"
+              <LongText value={task.learnings} />
             )}
           </Row>
         )}

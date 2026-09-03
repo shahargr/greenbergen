@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TaskEditor, type TaskView, type MemberOption, type CommentView } from "./TaskEditor";
-import { TaskTransactions, type TaskTx } from "./TaskTransactions";
+import { TaskTransactions, type TaskTx, type PayMethod } from "./TaskTransactions";
+import { SubtaskRow, type Subtask } from "./SubtaskRow";
 import { taskPerms } from "./actions";
 
 export const maxDuration = 60;
@@ -80,12 +81,12 @@ export default async function TaskPage({
       // Open subtasks: they block closing the parent, so link to them here.
       supabase
         .from("actions")
-        .select("id, action, status, target_date")
+        .select("id, action, status, priority, target_date, notes")
         .eq("parent_action_id", id)
         .not("status", "in", '("Completed","Cancelled","Force Cancelled","Superseded")')
         .order("target_date", { ascending: true, nullsFirst: false }),
     ]);
-  const openChildren = ((childRows ?? []) as { id: string; action: string | null; status: string; target_date: string | null }[]);
+  const openChildren = ((childRows ?? []) as Subtask[]);
   const comments = (commentRows ?? []) as CommentView[];
 
   const allTrades = ((tradeRows ?? []) as { trade: string; is_construction: boolean | null; is_worker_trade: boolean | null }[]);
@@ -146,7 +147,7 @@ export default async function TaskPage({
   // Transactions clubbed under this task, plus the project's unattached ones
   // to search/attach from. A transaction carries one action_id (many per task).
   const TX_COLS = "id, description, amount, paid_on, status, paid_from_account";
-  const [{ data: attachedTxRows }, { data: candidateTxRows }] = await Promise.all([
+  const [{ data: attachedTxRows }, { data: candidateTxRows }, { data: methodRows }] = await Promise.all([
     supabase.from("transactions").select(TX_COLS)
       .eq("action_id", t.id).eq("direction", "out")
       .order("paid_on", { ascending: false, nullsFirst: false }),
@@ -155,9 +156,16 @@ export default async function TaskPage({
           .eq("project_id", t.project_id).eq("direction", "out").is("action_id", null)
           .order("created_at", { ascending: false }).limit(200)
       : Promise.resolve({ data: [] }),
+    supabase.from("payment_methods").select("id, name").eq("is_active", true)
+      .order("display_order", { ascending: true, nullsFirst: false }),
   ]);
   const attachedTx = (attachedTxRows ?? []) as TaskTx[];
   const candidateTx = (candidateTxRows ?? []) as TaskTx[];
+  const payMethods = (methodRows ?? []) as PayMethod[];
+  // Suggestions for the create form: people on the project, and the accounts
+  // this project has actually paid from.
+  const payeeNames = members.map((m) => m.name);
+  const accountNames = [...new Set(candidateTx.map((x) => x.paid_from_account).filter((a): a is string => !!a))].sort();
 
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 64, maxWidth: 680 }}>
@@ -170,13 +178,9 @@ export default async function TaskPage({
       {openChildren.length > 0 && (
         <div className="card" style={{ display: "grid", gap: 6, marginBottom: 12 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Open subtasks · {openChildren.length}</h2>
-          <p className="muted small" style={{ margin: 0 }}>These must be closed before this task can be completed.</p>
+          <p className="muted small" style={{ margin: 0 }}>These must be closed before this task can be completed. Edit any of them right here.</p>
           {openChildren.map((ch) => (
-            <Link key={ch.id} href={`/my/task/${ch.id}`} className="small"
-              style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", minWidth: 0 }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{ch.action ?? "(untitled)"} →</span>
-              <span className="muted" style={{ whiteSpace: "nowrap", flex: "none" }}>{ch.status}{ch.target_date ? ` · ${ch.target_date}` : ""}</span>
-            </Link>
+            <SubtaskRow key={`${ch.id}|${saved ?? ""}|${error ?? ""}`} task={ch} parentId={t.id} />
           ))}
         </div>
       )}
@@ -185,7 +189,11 @@ export default async function TaskPage({
           error (Next keeps client state across a same-route searchParams change). */}
       <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
       <div style={{ marginTop: 14 }}>
-        <TaskTransactions taskId={t.id} attached={attachedTx} candidates={candidateTx} canEdit={perms.status} />
+        <TaskTransactions
+          key={`tx|${saved ?? ""}|${error ?? ""}`}
+          taskId={t.id} attached={attachedTx} candidates={candidateTx} canEdit={perms.status}
+          methods={payMethods} payees={payeeNames} accounts={accountNames}
+        />
       </div>
     </main>
   );

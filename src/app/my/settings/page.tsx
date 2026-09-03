@@ -133,14 +133,22 @@ export default async function SettingsPage({
               <strong>⚡ God mode · {godOn ? "ON" : "off"}</strong>
               <div className="muted small">ON: every project on the platform, full admin rights, red banner on each page. OFF: only projects you hold a seat on.</div>
             </span>
-            <span className="btn-row" style={{ gap: 8 }}>
-              <form action={setGodMode}>
-                <input type="hidden" name="back" value="/my/settings" />
-                <input type="hidden" name="on" value={godOn ? "0" : "1"} />
-                <button className="btn small" style={godOn ? undefined : { background: "#7a1f2b" }}>{godOn ? "Turn off" : "Turn on"}</button>
-              </form>
-              <Link href="/admin" className="btn ghost small">Admin console →</Link>
+            <form action={setGodMode}>
+              <input type="hidden" name="back" value="/my/settings" />
+              <input type="hidden" name="on" value={godOn ? "0" : "1"} />
+              <button className="btn small" style={godOn ? undefined : { background: "#7a1f2b" }}>{godOn ? "Turn off" : "Turn on"}</button>
+            </form>
+          </div>
+        )}
+
+        {/* The console is its own door, not part of the god-mode switch. */}
+        {me?.is_superadmin && (
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span>
+              <strong>Admin console</strong>
+              <div className="muted small">Users, projects, storage, deals and the rest of the platform.</div>
             </span>
+            <Link href="/admin" className="btn ghost small">Open console →</Link>
           </div>
         )}
 

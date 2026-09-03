@@ -10,7 +10,11 @@ import { transcribeAudio } from "@/lib/transcribe";
 // when the form was submitted from a card there (back="/my"). Only known
 // in-app paths are honored (no open redirect).
 function backOf(formData: FormData, taskId: string) {
-  return formData.get("back") === "/my" ? "/my" : `/my/task/${taskId}`;
+  const back = String(formData.get("back") ?? "");
+  if (back === "/my") return "/my";
+  // A subtask edited from its parent's page returns to that parent.
+  if (/^\/my\/task\/[0-9a-fA-F-]{36}$/.test(back)) return back;
+  return `/my/task/${taskId}`;
 }
 function doneUrl(back: string) {
   return back === "/my" ? `/my?ok=${encodeURIComponent("Saved ✓")}` : `${back}?saved=1`;
@@ -519,4 +523,54 @@ export async function detachTransaction(taskId: string, txId: string) {
     .eq("action_id", taskId);
   revalidatePath(`/my/task/${taskId}`);
   redirect(error ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}` : `/my/task/${taskId}?saved=1`);
+}
+
+// Create a transaction and club it under this task in one step - the
+// alternative to searching for one that already exists. Same permission
+// gate as attaching; the row is written as the signed-in user so RLS on
+// transactions still decides.
+export async function createTaskTransaction(taskId: string, formData: FormData) {
+  const { supabase, projectId } = await txPermitted(taskId);
+  const back = `/my/task/${taskId}`;
+  const paidTo = String(formData.get("paid_to") ?? "").trim();
+  const amount = Number(String(formData.get("amount") ?? "").replace(/[$,\s]/g, ""));
+  if (!paidTo) redirect(`${back}?error=${encodeURIComponent("Who was paid?")}`);
+  if (!Number.isFinite(amount) || amount <= 0) redirect(`${back}?error=${encodeURIComponent("Enter the amount.")}`);
+
+  const methodId = String(formData.get("method") ?? "").trim() || null;
+  const [{ data: methodRow }, { data: payeeRows }] = await Promise.all([
+    methodId
+      ? supabase.from("payment_methods").select("name").eq("id", methodId).maybeSingle()
+      : Promise.resolve({ data: null as { name: string } | null }),
+    supabase.from("project_members").select("contact_id, contacts(name, person_name)")
+      .eq("project_id", projectId).eq("status", "active").not("contact_id", "is", null),
+  ]);
+  // The row's contact is the PAYEE. Match "Paid to" against people on this
+  // project; no match simply leaves it unlinked rather than guessing.
+  const want = paidTo.toLowerCase();
+  const payeeId = (((payeeRows ?? []) as unknown as { contact_id: string; contacts: { name: string | null; person_name: string | null } | null }[]))
+    .find((m) => [m.contacts?.person_name, m.contacts?.name].some((n) => (n ?? "").trim().toLowerCase() === want))
+    ?.contact_id ?? null;
+
+  const status = String(formData.get("status") ?? "paid").trim() || "paid";
+  const { error } = await supabase.from("transactions").insert({
+    description: `Payment to ${paidTo}`,
+    amount,
+    direction: "out",
+    status,
+    paid_on: String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10),
+    paid_via: methodRow?.name ?? null,
+    payment_method_id: methodId,
+    paid_from_account: String(formData.get("paid_from") ?? "").trim() || null,
+    project_id: projectId,
+    action_id: taskId,
+    contractor_id: payeeId,
+    notes: String(formData.get("notes") ?? "").trim() || null,
+    created_by: "portal:task",
+    last_modified_by: "portal:task",
+  });
+  revalidatePath(back);
+  redirect(error
+    ? `${back}?error=${encodeURIComponent(error.message.includes("row-level security") ? "Logging a transaction on this project is not yours to do." : error.message)}`
+    : `${back}?saved=1`);
 }
