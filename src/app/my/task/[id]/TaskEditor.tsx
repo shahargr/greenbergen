@@ -69,16 +69,20 @@ export function TaskEditor({
   const [closeReason, setCloseReason] = useState("");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [busyEvidence, setBusyEvidence] = useState(false);
+  const [busyMove, setBusyMove] = useState(false);
   const [uploadFailed, setUploadFailed] = useState("");
 
-  async function guarded(run: () => Promise<void>) {
-    setBusyEvidence(true);
+  // Upload and Move are independent actions with independent busy states -
+  // sharing one flag made the Apply button show "Applying..." and stay
+  // disabled after a photo upload, so a task could never be moved on.
+  async function guarded(setBusy: (b: boolean) => void, run: () => Promise<void>) {
+    setBusy(true);
     setUploadFailed("");
     try {
       await run();
     } catch (err) {
       if (err && typeof err === "object" && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) throw err;
-      setBusyEvidence(false);
+      setBusy(false);
       setUploadFailed(err instanceof Error ? err.message : "Failed — try smaller files.");
     }
   }
@@ -89,7 +93,7 @@ export function TaskEditor({
     const fd = new FormData();
     for (const f of Array.from(input?.files ?? [])) fd.append("files", f);
     if (![...fd.keys()].length) return;
-    await guarded(() => uploadEvidence(task.id, fd));
+    await guarded(setBusyEvidence, () => uploadEvidence(task.id, fd));
   }
 
   async function submitVoice() {
@@ -97,17 +101,17 @@ export function TaskEditor({
     const fd = new FormData();
     const ext = voiceBlob.type.includes("mp4") ? "m4a" : "webm";
     fd.append("files", new File([voiceBlob], `voice-note.${ext}`, { type: voiceBlob.type }));
-    await guarded(() => uploadEvidence(task.id, fd));
+    await guarded(setBusyEvidence, () => uploadEvidence(task.id, fd));
   }
 
   async function applyMove() {
     const fd = new FormData();
     if (moveTo === "Completed") {
       if (closeReason.trim()) fd.append("reason", closeReason.trim());
-      await guarded(() => completeTask(task.id, fd));
+      await guarded(setBusyMove, () => completeTask(task.id, fd));
     } else {
       fd.append("status", moveTo);
-      await guarded(() => setTaskStatus(task.id, fd));
+      await guarded(setBusyMove, () => setTaskStatus(task.id, fd));
     }
   }
 
@@ -209,10 +213,10 @@ export function TaskEditor({
                   <button
                     type="button"
                     className="btn"
-                    disabled={moveTo === task.status || busyEvidence}
+                    disabled={moveTo === task.status || busyMove}
                     onClick={applyMove}
                   >
-                    {busyEvidence ? "Applying..." : "Apply"}
+                    {busyMove ? "Applying..." : "Apply"}
                   </button>
                 </div>
               </div>
