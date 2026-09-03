@@ -583,3 +583,22 @@ export async function leaveClusterDeal(promotionId: string) {
     ? `/my?panel=deals&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not withdraw.")}`
     : `/my?panel=deals&ok=${encodeURIComponent("You're out — no charge, your neighbours' quote was recomputed.")}`);
 }
+
+// Flag (or unflag) a project as a priority for ME: its tile floats to the
+// top of my home page. Purely personal - RLS on user_project_prefs keeps it
+// to the caller's own rows and the project is untouched.
+export async function setProjectPriority(formData: FormData) {
+  const supabase = await createClient();
+  const projectId = String(formData.get("project") ?? "");
+  const on = String(formData.get("on") ?? "") === "1";
+  const back = String(formData.get("back") ?? "/my");
+  const safeBack = /^\/my(\?[a-z0-9=&]*)?$/i.test(back) ? back : "/my";
+  const { data: me } = await supabase.rpc("me");
+  if (!projectId || !me?.app_user_id) redirect(safeBack);
+  await supabase.from("user_project_prefs").upsert(
+    { app_user_id: me.app_user_id, project_id: projectId, is_priority: on, updated_at: new Date().toISOString() },
+    { onConflict: "app_user_id,project_id" },
+  );
+  revalidatePath("/my");
+  redirect(safeBack);
+}

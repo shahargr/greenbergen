@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { setGodMode } from "../admin/actions";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal } from "./actions";
+import { createHome, setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal, setProjectPriority } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
@@ -239,13 +239,16 @@ export default async function MyPage({
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
   // Card bundle plus the status / method lists the inline transaction editor needs.
-  const [{ data: cardData }, { data: txStatusRows }, { data: txMethodRows }, { data: invitesData }] = await Promise.all([
+  const [{ data: cardData }, { data: txStatusRows }, { data: txMethodRows }, { data: invitesData }, { data: prefRows }] = await Promise.all([
     supabase.rpc("portal_project_cards", { p_all: godMode }),
     supabase.from("transaction_statuses").select("status"),
     supabase.from("payment_methods").select("id, name").eq("is_active", true)
       .order("display_order", { ascending: true, nullsFirst: false }),
     supabase.rpc("portal_my_invites"),
+    supabase.from("user_project_prefs").select("project_id").eq("is_priority", true),
   ]);
+  // Tiles I flagged as priority sort first (RLS returns only my rows).
+  const priority = new Set(((prefRows ?? []) as { project_id: string }[]).map((r) => r.project_id));
   const txStatuses = ((txStatusRows ?? []) as { status: string }[]).map((r) => r.status);
   const txMethods = ((txMethodRows ?? []) as { id: string; name: string }[]);
   // Project invitations addressed to me (answer here) and answers to the ones
@@ -280,10 +283,22 @@ export default async function MyPage({
   const projectTile = (p: ProjectOverviewRow, isRoot: boolean) => {
     const c = cardsById.get(p.id);
     const urgent = c?.urgent[0];
+    const starred = priority.has(p.id);
     return (
-      <Link key={p.id} href={`/my/project/${p.id}`} className="card ptile"
-        style={{ borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+      <div key={p.id} className="card ptile"
+        style={{ position: "relative", borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c", borderColor: starred ? "var(--brand)" : undefined }}>
+        {/* Priority star: mine only, sits outside the link so the tile stays one click. */}
+        <form action={setProjectPriority} style={{ position: "absolute", top: 6, right: 8 }}>
+          <input type="hidden" name="project" value={p.id} />
+          <input type="hidden" name="on" value={starred ? "0" : "1"} />
+          <input type="hidden" name="back" value={showClosedProjects ? "/my?allp=1" : "/my"} />
+          <button title={starred ? "Priority — click to unflag" : "Flag as priority (moves it up)"} aria-label={starred ? "Unflag priority" : "Flag as priority"}
+            style={{ border: 0, background: "none", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 2, color: starred ? "#d4a017" : "#c9ccc4" }}>
+            {starred ? "★" : "☆"}
+          </button>
+        </form>
+      <Link href={`/my/project/${p.id}`} style={{ display: "grid", gap: 6, textDecoration: "none", color: "inherit", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0, paddingRight: 22 }}>
           {isRoot ? homeGlyph : jobGlyph}
           <strong style={{ fontSize: 15, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{p.project_name}</strong>
         </div>
@@ -304,6 +319,7 @@ export default async function MyPage({
           </div>
         )}
       </Link>
+      </div>
     );
   };
 
@@ -937,7 +953,9 @@ export default async function MyPage({
             const singleRoot = bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0 ? bandRoots[0] : null;
             const flatten = (list: ProjectOverviewRow[]): ProjectOverviewRow[] =>
               list.flatMap((p) => [p, ...flatten(bandChildren.get(p.id) ?? [])]);
-            const tiles = singleRoot ? flatten(bandChildren.get(singleRoot.id) ?? []) : flatten(bandRoots);
+            const inOrder = singleRoot ? flatten(bandChildren.get(singleRoot.id) ?? []) : flatten(bandRoots);
+            // Priority tiles first, each group keeping its usual order.
+            const tiles = [...inOrder.filter((p) => priority.has(p.id)), ...inOrder.filter((p) => !priority.has(p.id))];
             return (
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
