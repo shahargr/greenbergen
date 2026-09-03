@@ -229,6 +229,17 @@ export default async function ProjectPage({
     done: c.status === "Completed",
     photos: cfgPhotos.get(c.id) ?? [],
   }));
+  // Projects under this one: the delete guard refuses while any exist, so
+  // name them with links instead of leaving the user to hunt.
+  const { data: childProjectRows } = await supabase
+    .from("projects")
+    .select("id, project_name, status")
+    .eq("parent_project_id", id)
+    .is("trashed_at", null)
+    .eq("is_template", false)
+    .order("project_name");
+  const childProjects = ((childProjectRows ?? []) as { id: string; project_name: string; status: string }[]);
+
   const configValues: Record<string, string> = {};
   for (const r of (configValueRows ?? []) as { key: string; value: string | null }[]) {
     if (r.value != null) configValues[r.key] = r.value;
@@ -251,6 +262,16 @@ export default async function ProjectPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f" }}>{flashOk}</p>}
       {error && <p className="error small">{error}</p>}
+      {childProjects.length > 0 && (
+        <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
+          <span className="muted">Under this project:</span>
+          {childProjects.map((cp) => (
+            <Link key={cp.id} href={`/my/project/${cp.id}`} className="extra-chip" style={{ textDecoration: "none" }}>
+              ↳ {cp.project_name} <span className="muted">· {cp.status}</span>
+            </Link>
+          ))}
+        </p>
+      )}
 
       <div style={{ display: "grid", gap: 14, marginTop: 10 }}>
         <ProjectEditor
