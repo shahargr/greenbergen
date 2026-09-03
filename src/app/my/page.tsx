@@ -130,7 +130,7 @@ export default async function MyPage({
   };
 
   const openFilter = `(${CLOSED_STATUSES.join(",")})`;
-  const [{ data: membershipRows }, weather, { data: bandOverviewData }, onMe, total] = await Promise.all([
+  const [{ data: membershipRows }, weather, { data: bandOverviewData }, { data: countData }] = await Promise.all([
     me?.app_user_id
       ? supabase
           .from("project_members")
@@ -140,22 +140,10 @@ export default async function MyPage({
       : Promise.resolve({ data: [] }),
     hasHome ? Promise.resolve(null) : getWeather(town),
     hasHome ? supabase.rpc("portal_projects_overview") : Promise.resolve({ data: [] }),
-    myContact
-      ? supabase
-          .from("actions")
-          .select("id", { count: "exact", head: true })
-          .not("status", "in", openFilter)
-          .eq("domain", "construction")
-          .eq("assigned_to_contact_id", myContact)
-          .then((r) => r.count ?? 0)
-      : Promise.resolve(0),
-    supabase
-      .from("actions")
-      .select("id", { count: "exact", head: true })
-      .not("status", "in", openFilter)
-      .eq("domain", "construction")
-      .then((r) => r.count ?? 0),
+    supabase.rpc("my_task_counts"),
   ]);
+  const onMe: number = countData?.on_me ?? 0;
+  const total: number = countData?.total ?? 0;
   const myMemberships = ((membershipRows ?? []) as unknown as Membership[])
     .filter((m) => m.projects && !(m.projects as { trashed_at?: string | null }).trashed_at);
   const ownerProjects = myMemberships
