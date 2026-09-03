@@ -62,30 +62,41 @@ function AttachedRow({ t, taskId, canEdit }: { t: TaskTx; taskId: string; canEdi
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<TxDetail | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
+  // "loading" | "done" | "denied" | "failed" — kept OUT of the effect's
+  // dependencies: re-running the effect on its own state change would fire
+  // the cleanup and cancel the fetch it had just started (the "Loading…
+  // forever" bug).
+  const [state, setState] = useState<"idle" | "loading" | "done" | "denied" | "failed">("idle");
 
   useEffect(() => {
-    if (!open || detail || loading) return;
+    if (!open || state !== "idle") return;
     let cancelled = false;
-    setLoading(true);
+    setState("loading");
     (async () => {
-      const supabase = createBrowserClient();
-      const { data } = await supabase.rpc("portal_transaction_detail", { p_tx: t.id });
-      if (cancelled) return;
-      const d = (data ?? null) as TxDetail | null;
-      setDetail(d);
-      if (d?.attachments?.length) {
-        const signed: Record<string, string> = {};
-        await Promise.all(d.attachments.map(async (a) => {
-          const { data: s } = await supabase.storage.from(a.bucket).createSignedUrl(a.path, 3600);
-          if (s?.signedUrl) signed[a.id] = s.signedUrl;
-        }));
-        if (!cancelled) setUrls(signed);
+      try {
+        const supabase = createBrowserClient();
+        const { data, error } = await supabase.rpc("portal_transaction_detail", { p_tx: t.id });
+        if (cancelled) return;
+        if (error) { setState("failed"); return; }
+        const d = (data ?? null) as TxDetail | null;
+        if (!d) { setState("denied"); return; }
+        setDetail(d);
+        if (d.attachments?.length) {
+          const signed: Record<string, string> = {};
+          await Promise.all(d.attachments.map(async (a) => {
+            const { data: s } = await supabase.storage.from(a.bucket).createSignedUrl(a.path, 3600);
+            if (s?.signedUrl) signed[a.id] = s.signedUrl;
+          }));
+          if (!cancelled) setUrls(signed);
+        }
+        if (!cancelled) setState("done");
+      } catch {
+        if (!cancelled) setState("failed");
       }
-      setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [open, detail, loading, t.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, t.id]);
 
   return (
     <div style={{ display: "grid", gap: 6, borderTop: "1px solid #f0f1ee", paddingTop: 8, minWidth: 0 }}>
@@ -106,7 +117,11 @@ function AttachedRow({ t, taskId, canEdit }: { t: TaskTx; taskId: string; canEdi
       </div>
       {open && (
         <div className="small" style={{ display: "grid", gap: 4, padding: "6px 10px", background: "#f7f8f5", borderRadius: 8, minWidth: 0 }}>
-          {loading && !detail && <span className="muted">Loading…</span>}
+          {state === "loading" && <span className="muted">Loading…</span>}
+          {state === "denied" && (
+            <span className="muted">Status: {t.status}{t.paid_from_account ? ` · from ${t.paid_from_account}` : ""}. The full detail (payee, references, receipts) is only shown to seats that see money on this project.</span>
+          )}
+          {state === "failed" && <span className="error">Could not load the detail — try again.</span>}
           {detail && (
             <>
               <div><span className="muted">Status:</span> {t.status}{detail.paid_via ? ` · via ${detail.paid_via}` : ""}{t.paid_from_account ? ` · from ${t.paid_from_account}` : ""}</div>
@@ -130,7 +145,6 @@ function AttachedRow({ t, taskId, canEdit }: { t: TaskTx; taskId: string; canEdi
               </div>
             </>
           )}
-          {!loading && !detail && <span className="muted">Details are not available for this transaction.</span>}
         </div>
       )}
     </div>
