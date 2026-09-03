@@ -9,7 +9,6 @@ import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 
 export const maxDuration = 60;
 
-const CLOSED_STATUSES = ["Completed", "Cancelled", "Force Cancelled"];
 
 type Vendor = {
   id: string;
@@ -95,17 +94,13 @@ export default async function MyPage({
 }) {
   const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me, error: meErr }, { data: home, error: homeErr }, { data: banners }, { data: leadData }] = await Promise.all([
-    rpcRetry(supabase, "me"),
-    rpcRetry(supabase, "consumer_home"),
-    supabase
-      .from("community_banners")
-      .select("text, url")
-      .order("created_at", { ascending: false })
-      .limit(1),
-    supabase.rpc("my_lead_actions"),
-  ]);
-  const leads: Lead[] = (leadData as Lead[]) ?? [];
+  const { data: boot, error: bootErr } = await rpcRetry(supabase, "portal_home");
+  const me = boot?.me ?? null;
+  const home = boot?.home ?? null;
+  const meErr = bootErr;
+  const homeErr = null as { message: string } | null;
+  const banner0 = (boot?.banner ?? null) as { text: string; url: string | null } | null;
+  const leads: Lead[] = (boot?.leads as Lead[]) ?? [];
 
   const town: string | null = home?.town_name ?? null;
   const townServices = home?.town ?? null;
@@ -113,8 +108,7 @@ export default async function MyPage({
   const deals: Deal[] = (home?.promotions as Deal[]) ?? [];
   const projects: HomeProject[] = (home?.projects as HomeProject[]) ?? [];
   const hasHome = projects.length > 0;
-  const myContact: string | null = me?.contact_id ?? null;
-  const banner = banners?.[0] ?? null;
+  const banner = banner0;
   const canCreate: boolean = home?.can_create ?? false;
 
   // Projects this user holds a seat on, with the seat itself.
@@ -129,21 +123,11 @@ export default async function MyPage({
     open_count: number; last_activity: string;
   };
 
-  const openFilter = `(${CLOSED_STATUSES.join(",")})`;
-  const [{ data: membershipRows }, weather, { data: bandOverviewData }, { data: countData }] = await Promise.all([
-    me?.app_user_id
-      ? supabase
-          .from("project_members")
-          .select("role, project_role, projects(id, project_name, address, status, parent_project_id, is_template, asset_id, trashed_at)")
-          .eq("app_user_id", me.app_user_id)
-          .eq("status", "active")
-      : Promise.resolve({ data: [] }),
-    hasHome ? Promise.resolve(null) : getWeather(town),
-    hasHome ? supabase.rpc("portal_projects_overview") : Promise.resolve({ data: [] }),
-    supabase.rpc("my_task_counts"),
-  ]);
-  const onMe: number = countData?.on_me ?? 0;
-  const total: number = countData?.total ?? 0;
+  const membershipRows = boot?.memberships ?? [];
+  const bandOverviewData = boot?.overview ?? [];
+  const weather = hasHome ? null : await getWeather(town);
+  const onMe: number = boot?.counts?.on_me ?? 0;
+  const total: number = boot?.counts?.total ?? 0;
   const myMemberships = ((membershipRows ?? []) as unknown as Membership[])
     .filter((m) => m.projects && !(m.projects as { trashed_at?: string | null }).trashed_at);
   const ownerProjects = myMemberships

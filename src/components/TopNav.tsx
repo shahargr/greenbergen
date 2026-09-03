@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { Wordmark } from "@/components/SiteHeader";
 import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
@@ -49,8 +50,8 @@ const ALL_VIEWS = ["Owner", "Contractor", "PM", "GC", "Buyer", "Developer", "Vie
 // put on a different hat.
 export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const supabase = await createClient();
-  const [{ data: me }, { data: borrowed }, jar] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data: borrowed }, jar] = await Promise.all([
+    getMe(),
     supabase.rpc("borrowed_seat"),
     cookies(),
   ]);
