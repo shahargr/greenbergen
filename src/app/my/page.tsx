@@ -197,7 +197,7 @@ export default async function MyPage({
     id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null;
     start_date: string | null; est_complete: string | null;
     open: number; done: number; stuck: number;
-    transactions: { id: string; description: string; amount: number | null; paid_on: string | null; status: string }[];
+    transactions: { id: string; paid_to: string; amount: number | null; on_date: string | null; status: string }[];
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
   const { data: cardData } = await supabase.rpc("portal_project_cards");
@@ -248,53 +248,64 @@ export default async function MyPage({
 
         {/* Task status counts */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link href={`/my/project/${p.id}`} className="extra-chip" style={{ textDecoration: "none" }}>
+          {/* Each count opens the project's task list pre-filtered to that bucket. */}
+          <Link href={`/my/project/${p.id}?tasks=open`} className="extra-chip" style={{ textDecoration: "none" }}>
             <strong>{c?.open ?? p.open_count}</strong> open
           </Link>
-          <span className="extra-chip"><strong>{c?.done ?? 0}</strong> done</span>
+          <Link href={`/my/project/${p.id}?tasks=done`} className="extra-chip" style={{ textDecoration: "none" }}>
+            <strong>{c?.done ?? 0}</strong> done
+          </Link>
           {(c?.stuck ?? 0) > 0 && (
-            <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>
+            <Link href={`/my/project/${p.id}?tasks=stuck`} className="extra-chip"
+              style={{ background: "#fdecec", color: "#c0262d", textDecoration: "none" }}>
+              <strong>{c?.stuck}</strong> stuck
+            </Link>
           )}
         </div>
 
-        {/* Last 5 transactions (shown inline) */}
+        {/* Most urgent tasks — visible, part of the bird's-eye view. */}
+        {c && c.urgent.length > 0 && (
+          <div style={{ display: "grid", gap: 3 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span className="small" style={{ fontWeight: 700 }}>Most urgent tasks</span>
+              <Link href={`/my/project/${p.id}?tasks=open`} className="small">All →</Link>
+            </div>
+            {c.urgent.map((u) => (
+              <Link key={u.id} href={`/my/task/${u.id}`} className="small"
+                style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                  {u.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{u.action}
+                </span>
+                <span className="muted" style={{ whiteSpace: "nowrap" }}>{u.target_date ?? "—"}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* Recent 10 transactions: date · amount · paid to, newest first.
+            Pending (scheduled/forecast) rows are included and flagged. */}
         {c && c.transactions.length > 0 && (
           <div style={{ display: "grid", gap: 3 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <span className="small" style={{ fontWeight: 700 }}>Recent transactions</span>
               <Link href="/my/payments" className="small">All →</Link>
             </div>
-            {c.transactions.map((t) => (
-              <div key={t.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                  {t.description || "(payment)"}
-                </span>
-                <span className="muted" style={{ whiteSpace: "nowrap" }}>
-                  {money(t.amount)}{t.paid_on ? ` · ${t.paid_on}` : ""}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* 5 most urgent tasks — behind an expand */}
-        {c && c.urgent.length > 0 && (
-          <details>
-            <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
-              {c.urgent.length} most urgent task{c.urgent.length > 1 ? "s" : ""}
-            </summary>
-            <div style={{ display: "grid", gap: 3, marginTop: 6 }}>
-              {c.urgent.map((u) => (
-                <Link key={u.id} href={`/my/task/${u.id}`} className="small"
-                  style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit" }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                    {u.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{u.action}
+            {c.transactions.map((t) => {
+              const paid = ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"].includes(t.status);
+              return (
+                <div key={t.id} className="small" style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                  <span className="muted" style={{ whiteSpace: "nowrap", minWidth: 84 }}>{t.on_date ?? "—"}</span>
+                  <span style={{ whiteSpace: "nowrap", minWidth: 72, fontWeight: 600, color: paid ? "inherit" : "#a8842c" }}>
+                    {money(t.amount)}
                   </span>
-                  <span className="muted" style={{ whiteSpace: "nowrap" }}>{u.target_date ?? "—"}</span>
-                </Link>
-              ))}
-            </div>
-          </details>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                    {t.paid_to}
+                    {!paid && <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>pending</span>}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     );

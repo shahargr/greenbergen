@@ -23,10 +23,14 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; tasks?: string }>;
 }) {
   const { id } = await params;
-  const { saved, error } = await searchParams;
+  const { saved, error, tasks: tasksBucket } = await searchParams;
+  // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
+  // three counts link here).
+  const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
+  const initialTaskView: "all" | "stuck" = tasksBucket === "stuck" ? "stuck" : "all";
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -248,7 +252,8 @@ export default async function ProjectPage({
             </div>
           )}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters stageTiles={stageTiles} />
+            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters stageTiles={stageTiles}
+              initialState={initialTaskState} initialView={initialTaskView} />
           )}
         </div>
 

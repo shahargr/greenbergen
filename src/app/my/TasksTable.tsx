@@ -66,11 +66,12 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, syncUrl = false, showTradeTiles = true, compact = false, addTaskSlot, domainOptions, savedFilters = false, stageTiles, todayIso }: {
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
   initialState?: "open" | "closed" | "all";
+  initialView?: "all" | "mine" | "late" | "stuck";
   syncUrl?: boolean;
   showTradeTiles?: boolean;
   compact?: boolean;
@@ -100,7 +101,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const stageOf = (trade: string | null) => (trade ? tradeStage[trade] ?? null : null);
   const router = useRouter();
   // compact mode: the table stays hidden until a view is picked.
-  const [view, setView] = useState<"none" | "mine" | "late" | "all">(compact ? "none" : "all");
+  const [view, setView] = useState<"none" | "mine" | "late" | "stuck" | "all">(compact ? "none" : (initialView ?? "all"));
   const [state, setState] = useState<"open" | "closed" | "all">(initialState ?? "open");
   const [domain, setDomain] = useState(initialDomain ?? "construction");
   const [project, setProject] = useState(initialProject ?? "all");
@@ -190,10 +191,14 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         (priority === "all" || (t.priority ?? "No Priority") === priority) &&
         (view !== "mine" || t.who === "you") &&
         (view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso)) &&
+        // Stuck = open and not moving: overdue, waiting on someone, or parked.
+        // Mirrors the homepage card's "stuck" count.
+        (view !== "stuck" || (t.state === "open" &&
+          ((!!t.target_date && t.target_date < todayIso) || /pending/i.test(t.status) || t.status === "Parked"))) &&
         (phase === "all" || (stageMode ? stageOf(t.trade) : phaseOf(t.trade)) === phase)
     )
     .sort((a, b) =>
-      view === "late"
+      view === "late" || view === "stuck"
         ? (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
         : sort === "updated"
           ? (b.last_updated ?? "").localeCompare(a.last_updated ?? "")
@@ -271,6 +276,10 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         <button type="button" className={view === "late" ? "btn small" : "btn ghost small"}
           onClick={() => { setView(view === "late" ? "none" : "late"); setOpen(null); }}>
           Late tasks
+        </button>
+        <button type="button" className={view === "stuck" ? "btn small" : "btn ghost small"}
+          onClick={() => { setView(view === "stuck" ? "none" : "stuck"); setOpen(null); }}>
+          Stuck
         </button>
         <button type="button" className={view === "all" ? "btn small" : "btn ghost small"}
           onClick={() => { setView(view === "all" ? "none" : "all"); setOpen(null); }}>
