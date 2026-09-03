@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { transcribeAudio } from "@/lib/transcribe";
+import { geocodeUsAddress } from "@/lib/geocode";
 
 // Adds a home: create_home_asset() writes the real-estate asset and its
 // container project together, governed by the customer agreement (v103+).
@@ -534,4 +535,51 @@ export async function dismissInviteOutcome(formData: FormData) {
   await supabase.rpc("portal_invite_outcome_seen", { p_id: String(formData.get("id") ?? "") });
   revalidatePath("/my");
   redirect("/my");
+}
+
+// Clustered deal: sign up with a house and a date window. The address is
+// geocoded so the system can tell which signups are genuinely neighbours;
+// without coordinates the database falls back to matching the street name.
+export async function joinClusterDeal(formData: FormData) {
+  const supabase = await createClient();
+  const promotionId = String(formData.get("promotion") ?? "");
+  const projectId = String(formData.get("project") ?? "").trim() || null;
+  let address = String(formData.get("address") ?? "").trim() || null;
+  const back = "/my?panel=deals";
+  if (!promotionId) redirect(`${back}&error=${encodeURIComponent("Which deal?")}`);
+  if (formData.get("consent") !== "on") {
+    redirect(`${back}&error=${encodeURIComponent("Please tick the box — it says what you are agreeing to.")}`);
+  }
+  if (projectId && !address) {
+    const { data: p } = await supabase.from("projects").select("address").eq("id", projectId).maybeSingle();
+    address = p?.address ?? null;
+  }
+  if (!address) redirect(`${back}&error=${encodeURIComponent("Tell us which house this is for.")}`);
+  const geo = await geocodeUsAddress(address);
+  const { data, error } = await supabase.rpc("deal_cluster_signup", {
+    p_promotion: promotionId,
+    p_project: projectId,
+    p_address: geo?.matched ?? address,
+    p_lat: geo?.lat ?? null,
+    p_lng: geo?.lng ?? null,
+    p_window_start: String(formData.get("window_start") ?? "").trim() || null,
+    p_window_end: String(formData.get("window_end") ?? "").trim() || null,
+    p_note: String(formData.get("note") ?? "").trim() || null,
+  });
+  revalidatePath("/my");
+  if (error || !data?.ok) redirect(`${back}&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not sign you up.")}`);
+  const tier = data.tier as { label: string | null; price_cents: number } | null;
+  const msg = `You're in — ${data.houses} house${data.houses === 1 ? "" : "s"} in your run so far` +
+    (tier ? `, quoted at $${(tier.price_cents / 100).toLocaleString()} (${tier.label ?? "tier"})` : "") +
+    `. Price is final when the run locks; it only goes down from list.`;
+  redirect(`${back}&ok=${encodeURIComponent(msg)}`);
+}
+
+export async function leaveClusterDeal(promotionId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("deal_withdraw", { p_promotion: promotionId });
+  revalidatePath("/my");
+  redirect(error || !data?.ok
+    ? `/my?panel=deals&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not withdraw.")}`
+    : `/my?panel=deals&ok=${encodeURIComponent("You're out — no charge, your neighbours' quote was recomputed.")}`);
 }

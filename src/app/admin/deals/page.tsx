@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { createDeal, updateDeal, markBookingPaid } from "./actions";
+import { createDeal, updateDeal, markBookingPaid, lockCluster } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,13 @@ type Deal = {
   view_count: number;
   click_count: number;
   order_count: number;
+  pricing_mode: "flat" | "cluster";
+  radius_miles: number;
+  window_days: number;
+  tiers?: Tier[];
 };
+type Tier = { id: string; min_houses: number; price_cents: number; label: string | null };
+type Cluster = { id: string; promotion_id: string; status: string; tier_id: string | null; street_key: string | null; scheduled_start: string | null; created_at: string };
 
 type Booking = {
   id: string;
@@ -83,6 +89,32 @@ function DealForm({ deal, trades }: { deal?: Deal; trades: string[] }) {
         <label>Service dates — YYYY-MM-DD, comma separated</label>
         <input name="dates" className="input" defaultValue={(deal?.service_dates ?? []).join(", ")} placeholder="2026-09-20, 2026-10-18" />
       </div>
+      {/* Clustered pricing: the contractual ladder, proximity and window. */}
+      <div className="form-2col">
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Pricing</label>
+          <select name="pricing_mode" className="input" defaultValue={deal?.pricing_mode ?? "flat"}>
+            <option value="flat">Flat — one price per booking</option>
+            <option value="cluster">Clustered — price drops as nearby houses book back-to-back</option>
+          </select>
+        </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Cluster radius (miles) · run window (days)</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input name="radius" className="input" inputMode="decimal" defaultValue={String(deal?.radius_miles ?? 0.5)} style={{ maxWidth: 110 }} />
+            <input name="window_days" className="input" inputMode="numeric" defaultValue={String(deal?.window_days ?? 3)} style={{ maxWidth: 110 }} />
+          </div>
+        </div>
+      </div>
+      <div className="field" style={{ marginBottom: 0 }}>
+        <label>Ladder — one tier per line: houses, price per house, label (clustered deals)</label>
+        <textarea name="ladder" className="input" rows={4}
+          defaultValue={(deal?.tiers ?? []).map((t) => `${t.min_houses}, ${(t.price_cents / 100).toFixed(0)}${t.label ? `, ${t.label}` : ""}`).join("\n")}
+          placeholder={"1, 249, list\n2, 219, back-to-back\n4, 189, street run"} />
+        <p className="muted small" style={{ margin: "4px 0 0" }}>
+          Agreed with the vendor up front: two identical jobs on neighbouring houses, one trip. Each house pays the tier its cluster reaches — never more than list.
+        </p>
+      </div>
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Terms (optional)</label>
@@ -109,14 +141,22 @@ export default async function AdminDealsPage({
 }) {
   const { saved, error } = await searchParams;
   const supabase = await createClient();
-  const [{ data: dealRows }, { data: bookingRows }, { data: tradeRows }] = await Promise.all([
-    supabase.from("promotions").select("id, title, summary, detail, trade, town, state_cd, price_cents, offer_terms, service_dates, max_signups, status, view_count, click_count, order_count").order("created_at", { ascending: false }),
-    supabase.from("promotion_signups").select("id, promotion_id, status, service_date, amount_cents, paid_at, app_users(email, full_name)").order("created_at", { ascending: false }),
+  const [{ data: dealRows }, { data: bookingRows }, { data: tradeRows }, { data: tierRows }, { data: clusterRows }] = await Promise.all([
+    supabase.from("promotions").select("id, title, summary, detail, trade, town, state_cd, price_cents, offer_terms, service_dates, max_signups, status, view_count, click_count, order_count, pricing_mode, radius_miles, window_days").order("created_at", { ascending: false }),
+    supabase.from("promotion_signups").select("id, promotion_id, status, service_date, amount_cents, paid_at, address, window_start, window_end, cluster_id, app_users(email, full_name)").order("created_at", { ascending: false }),
     supabase.from("trades").select("trade").order("sort_order"),
+    supabase.from("promotion_tiers").select("id, promotion_id, min_houses, price_cents, label").order("min_houses"),
+    supabase.from("promotion_clusters").select("id, promotion_id, status, tier_id, street_key, scheduled_start, created_at").neq("status", "dissolved").order("created_at"),
   ]);
-  const deals = (dealRows ?? []) as unknown as Deal[];
-  const bookings = (bookingRows ?? []) as unknown as Booking[];
+  const tiersByDeal = new Map<string, Tier[]>();
+  for (const t of ((tierRows ?? []) as (Tier & { promotion_id: string })[])) {
+    tiersByDeal.set(t.promotion_id, [...(tiersByDeal.get(t.promotion_id) ?? []), t]);
+  }
+  const deals = ((dealRows ?? []) as unknown as Deal[]).map((d) => ({ ...d, tiers: tiersByDeal.get(d.id) ?? [] }));
+  const bookings = (bookingRows ?? []) as unknown as (Booking & { address: string | null; window_start: string | null; window_end: string | null; cluster_id: string | null })[];
+  const clusters = (clusterRows ?? []) as Cluster[];
   const trades = ((tradeRows ?? []) as { trade: string }[]).map((t) => t.trade);
+  const tierLabel = (t?: Tier | null) => (t ? `${t.label ?? `${t.min_houses}+`} · ${dollars(t.price_cents)}/house` : "no tier yet");
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -136,7 +176,7 @@ export default async function AdminDealsPage({
           <div key={d.id} className="card" style={{ display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
               <h2 className="section-title" style={{ margin: 0 }}>
-                {d.title} <span className="muted small">· {d.status} · {dollars(d.price_cents)}</span>
+                {d.title} <span className="muted small">· {d.status} · {d.pricing_mode === "cluster" ? `ladder ${(d.tiers ?? []).map((t) => `${t.min_houses}→${dollars(t.price_cents)}`).join(" · ") || "(empty)"}` : dollars(d.price_cents)}</span>
               </h2>
               <span className="muted small">
                 {d.view_count} views · {d.click_count} clicks · {d.order_count} orders · {active.length} active booking{active.length === 1 ? "" : "s"}
@@ -148,6 +188,32 @@ export default async function AdminDealsPage({
                 <DealForm deal={d} trades={trades} />
               </div>
             </details>
+            {/* Clusters forming on this deal: who is in each run, the tier it
+                has reached, and the Lock that commits it to the vendor. */}
+            {d.pricing_mode === "cluster" && clusters.filter((c) => c.promotion_id === d.id).map((c) => {
+              const members = bookings.filter((b) => b.cluster_id === c.id && b.status !== "withdrawn");
+              const tier = (d.tiers ?? []).find((t) => t.id === c.tier_id) ?? null;
+              return (
+                <div key={c.id} className="small" style={{ display: "grid", gap: 4, padding: "8px 10px", background: c.status === "forming" ? "#f7f8f5" : "#eef5f0", borderRadius: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <span>
+                      <strong>Run · {c.street_key ?? "nearby"}</strong> · {members.length} house{members.length === 1 ? "" : "s"} · {c.status} · {tierLabel(tier)}
+                      {c.scheduled_start && <> · starts {c.scheduled_start}</>}
+                    </span>
+                    {c.status === "forming" && members.length > 0 && (
+                      <form action={lockCluster.bind(null, c.id)}>
+                        <button className="btn small">Lock run at {tierLabel(tier)}</button>
+                      </form>
+                    )}
+                  </div>
+                  {members.map((m) => (
+                    <div key={m.id} className="muted">
+                      {m.app_users?.full_name ?? m.app_users?.email ?? "?"} · {m.address ?? "—"} · {m.window_start ?? "?"} → {m.window_end ?? "?"} · {m.status}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
             {dealBookings.length > 0 && (
               <div style={{ display: "grid", gap: 6 }}>
                 {dealBookings.map((b) => (

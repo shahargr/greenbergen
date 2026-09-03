@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { setGodMode } from "../admin/actions";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, setTown, toggleDeal, requestMoreHomes , respondInvite, dismissInviteOutcome } from "./actions";
+import { createHome, setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
@@ -50,6 +50,16 @@ type Deal = {
   joined: boolean;
   closing_soon: boolean;
   ends_on: string | null;
+  // Clustered pricing: the ladder, and where my signup stands in its run.
+  pricing_mode?: "flat" | "cluster";
+  window_days?: number;
+  radius_miles?: number;
+  tiers?: { id: string; min_houses: number; price_cents: number; label: string | null }[];
+  mine?: {
+    address: string | null; window_start: string | null; window_end: string | null; status: string;
+    cluster_status: string | null; houses: number; scheduled_start: string | null;
+    tier: { label: string | null; min_houses: number; price_cents: number } | null;
+  } | null;
 };
 
 type HomeProject = {
@@ -609,17 +619,80 @@ export default async function MyPage({
               </div>
               {d.summary && <p className="small" style={{ margin: "0 0 6px" }}>{d.summary}</p>}
               {d.offer_terms && <p className="muted small" style={{ margin: "0 0 8px" }}>{d.offer_terms}</p>}
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <span className="small">
-                  <strong>{d.signups}</strong> of {d.min_signups} neighbors in
-                  {d.max_signups ? ` · ${d.max_signups} spots total` : ""}
-                </span>
-                <form action={toggleDeal.bind(null, d.id, !d.joined)}>
-                  <button className={d.joined ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>
-                    {d.joined ? "Leave" : "Count me in"}
-                  </button>
-                </form>
-              </div>
+              {d.pricing_mode === "cluster" ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  {/* The ladder: what each house pays as the run grows. */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    {(d.tiers ?? []).map((t) => (
+                      <span key={t.id} className="extra-chip"
+                        style={d.mine?.tier && d.mine.tier.min_houses === t.min_houses ? { background: "#2f6b4f", color: "#fff" } : undefined}>
+                        {t.min_houses === 1 ? "1 house" : `${t.min_houses}+ houses`} · ${(t.price_cents / 100).toLocaleString()}{t.label ? ` · ${t.label}` : ""}
+                      </span>
+                    ))}
+                    <span className="muted small">back-to-back, within {d.radius_miles ?? 0.5} mi</span>
+                  </div>
+                  {d.mine ? (
+                    <div className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "8px 10px", background: "#eef5f0", borderRadius: 8 }}>
+                      <span>
+                        ✅ You&apos;re in for <strong>{d.mine.address}</strong> · window {d.mine.window_start} → {d.mine.window_end}
+                        <br />
+                        Your run: <strong>{d.mine.houses}</strong> house{d.mine.houses === 1 ? "" : "s"}
+                        {d.mine.tier ? <> · quoted <strong>${(d.mine.tier.price_cents / 100).toLocaleString()}</strong>{d.mine.tier.label ? ` (${d.mine.tier.label})` : ""}</> : " · no tier yet"}
+                        {d.mine.cluster_status === "locked" || d.mine.cluster_status === "scheduled"
+                          ? <> · <strong>locked</strong>{d.mine.scheduled_start ? `, starts ${d.mine.scheduled_start}` : ""}</>
+                          : " · price final when the run locks"}
+                      </span>
+                      {d.mine.cluster_status !== "locked" && d.mine.cluster_status !== "scheduled" && (
+                        <form action={leaveClusterDeal.bind(null, d.id)}>
+                          <button className="btn ghost small">Withdraw</button>
+                        </form>
+                      )}
+                    </div>
+                  ) : (
+                    <form action={joinClusterDeal} style={{ display: "grid", gap: 8 }}>
+                      <input type="hidden" name="promotion" value={d.id} />
+                      <div className="form-2col">
+                        <div className="field" style={{ marginBottom: 0 }}>
+                          <label>Which house</label>
+                          {ownerProjects.filter((p) => !p.parent_project_id && p.address).length > 0 ? (
+                            <select name="project" className="input" defaultValue={ownerProjects.filter((p) => !p.parent_project_id && p.address)[0]?.id ?? ""}>
+                              {ownerProjects.filter((p) => !p.parent_project_id && p.address).map((p) => (
+                                <option key={p.id} value={p.id}>{p.address}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input name="address" className="input" required placeholder="Street address" />
+                          )}
+                        </div>
+                        <div className="field" style={{ marginBottom: 0 }}>
+                          <label>Dates that work (window)</label>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input name="window_start" type="date" className="input" defaultValue={new Date().toISOString().slice(0, 10)} />
+                            <input name="window_end" type="date" className="input" defaultValue={new Date(Date.now() + (d.window_days ?? 3) * 86400000).toISOString().slice(0, 10)} />
+                          </div>
+                        </div>
+                      </div>
+                      <label className="radio-opt small">
+                        <input type="checkbox" name="consent" required />{" "}
+                        Book me with neighbours in one run. I pay the tier my run reaches — never more than the 1-house price — and the price is final only when the run locks. I can withdraw free until then.
+                      </label>
+                      <div><button className="btn" style={{ padding: "6px 12px" }}>Count me in</button></div>
+                    </form>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span className="small">
+                    <strong>{d.signups}</strong> of {d.min_signups} neighbors in
+                    {d.max_signups ? ` · ${d.max_signups} spots total` : ""}
+                  </span>
+                  <form action={toggleDeal.bind(null, d.id, !d.joined)}>
+                    <button className={d.joined ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>
+                      {d.joined ? "Leave" : "Count me in"}
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           ))}
         </div>

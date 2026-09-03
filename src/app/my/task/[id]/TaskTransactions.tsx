@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
 import { attachTransaction, detachTransaction, createTaskTransaction } from "./actions";
 
 export type TaskTx = {
@@ -34,6 +36,106 @@ const DESC: React.CSSProperties = {
   whiteSpace: "nowrap",
   minWidth: 0,
 };
+
+type TxDetail = {
+  payment_reference: string | null;
+  invoice_reference: string | null;
+  paid_via: string | null;
+  created_at: string | null;
+  created_by: string | null;
+  contractor: { id: string; name: string } | null;
+  contract: { id: string; title: string } | null;
+  attachments: { id: string; file_name: string; kind: string | null; bucket: string; path: string }[];
+  payees: { id: string; name: string }[];
+};
+
+const chipStyle = (status: string): React.CSSProperties =>
+  status === "paid"
+    ? { background: "#e6f2ea", color: "#1f6b45" }
+    : status === "planned" || status === "scheduled"
+      ? { background: "#fdf4e3", color: "#a8842c" }
+      : { background: "#f0f1ee", color: "#555" };
+
+// One attached transaction: status shown on the row, click the description
+// to open its detail (looked up on open, never on page load).
+function AttachedRow({ t, taskId, canEdit }: { t: TaskTx; taskId: string; canEdit: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<TxDetail | null>(null);
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || detail || loading) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const supabase = createBrowserClient();
+      const { data } = await supabase.rpc("portal_transaction_detail", { p_tx: t.id });
+      if (cancelled) return;
+      const d = (data ?? null) as TxDetail | null;
+      setDetail(d);
+      if (d?.attachments?.length) {
+        const signed: Record<string, string> = {};
+        await Promise.all(d.attachments.map(async (a) => {
+          const { data: s } = await supabase.storage.from(a.bucket).createSignedUrl(a.path, 3600);
+          if (s?.signedUrl) signed[a.id] = s.signedUrl;
+        }));
+        if (!cancelled) setUrls(signed);
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [open, detail, loading, t.id]);
+
+  return (
+    <div style={{ display: "grid", gap: 6, borderTop: "1px solid #f0f1ee", paddingTop: 8, minWidth: 0 }}>
+      <div className="small" style={ROW}>
+        <button type="button" onClick={() => setOpen(!open)} title={open ? "Hide details" : "Show details"}
+          style={{ ...DESC, background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left" }}>
+          <span style={{ textDecoration: "underline dotted" }}>{t.description || "(payment)"}</span>
+          <span className="extra-chip" style={{ ...chipStyle(t.status), marginLeft: 8 }}>{t.status}</span>
+        </button>
+        <span className="muted" style={{ whiteSpace: "nowrap" }}>
+          {money(t.amount)}{t.paid_on ? ` · ${t.paid_on}` : ""}
+        </span>
+        {canEdit ? (
+          <form action={detachTransaction.bind(null, taskId, t.id)}>
+            <button className="btn ghost small" style={{ padding: "2px 8px" }}>Detach</button>
+          </form>
+        ) : <span />}
+      </div>
+      {open && (
+        <div className="small" style={{ display: "grid", gap: 4, padding: "6px 10px", background: "#f7f8f5", borderRadius: 8, minWidth: 0 }}>
+          {loading && !detail && <span className="muted">Loading…</span>}
+          {detail && (
+            <>
+              <div><span className="muted">Status:</span> {t.status}{detail.paid_via ? ` · via ${detail.paid_via}` : ""}{t.paid_from_account ? ` · from ${t.paid_from_account}` : ""}</div>
+              {(detail.contractor || detail.payees.length > 0) && (
+                <div><span className="muted">Paid to:</span> {detail.contractor?.name ?? detail.payees.map((p) => p.name).join(", ")}</div>
+              )}
+              {detail.contract && <div><span className="muted">Contract:</span> {detail.contract.title}</div>}
+              {(detail.payment_reference || detail.invoice_reference) && (
+                <div><span className="muted">Reference:</span> {[detail.payment_reference, detail.invoice_reference].filter(Boolean).join(" · ")}</div>
+              )}
+              {detail.attachments.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {detail.attachments.map((a) => urls[a.id]
+                    ? <a key={a.id} href={urls[a.id]} target="_blank" rel="noreferrer" className="extra-chip" style={{ textDecoration: "none" }}>{a.kind === "photo" ? "🖼" : "📄"} {a.file_name}</a>
+                    : <span key={a.id} className="extra-chip">{a.file_name}</span>)}
+                </div>
+              )}
+              <div className="muted">
+                Logged {detail.created_at ? new Date(detail.created_at).toLocaleDateString() : "—"}{detail.created_by ? ` by ${detail.created_by}` : ""}
+                {" · "}<Link href="/my/payments">All payments →</Link>
+              </div>
+            </>
+          )}
+          {!loading && !detail && <span className="muted">Details are not available for this transaction.</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Club transactions under a task: attached ones with a detach control, a
 // search over the project's unattached ones, and - when the transaction
@@ -80,17 +182,7 @@ export function TaskTransactions({
         <p className="muted small" style={{ margin: 0 }}>No transactions clubbed under this task yet.</p>
       )}
       {attached.map((t) => (
-        <div key={t.id} className="small" style={{ ...ROW, borderTop: "1px solid #f0f1ee", paddingTop: 8 }}>
-          <span style={DESC}>{t.description || "(payment)"}</span>
-          <span className="muted" style={{ whiteSpace: "nowrap" }}>
-            {money(t.amount)}{t.paid_on ? ` · ${t.paid_on}` : ""}
-          </span>
-          {canEdit ? (
-            <form action={detachTransaction.bind(null, taskId, t.id)}>
-              <button className="btn ghost small" style={{ padding: "2px 8px" }}>Detach</button>
-            </form>
-          ) : <span />}
-        </div>
+        <AttachedRow key={t.id} t={t} taskId={taskId} canEdit={canEdit} />
       ))}
 
       {canEdit && (
