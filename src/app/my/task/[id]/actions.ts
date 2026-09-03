@@ -242,59 +242,49 @@ export async function uploadEvidence(taskId: string, formData: FormData) {
     redirect(`/my/task/${taskId}?error=${encodeURIComponent("Pick at least one photo or record audio first.")}`);
   }
 
+  // Record file metadata + link NOW (fast DB ops, so the evidence gate
+  // sees them immediately), then upload the bytes AFTER the response - a
+  // slow cellular upload can no longer hang the button or hit the
+  // function time limit.
+  const projectId = task.project_id;
+  const pending: { path: string; bytes: ArrayBuffer; mime: string | null; isImage: boolean; fileId: string; name: string }[] = [];
   let stored = 0;
   for (const file of files) {
     const isImage = file.type.startsWith("image/");
     const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
-    const path = `${task.project_id}/actions/${taskId}/evidence-${Date.now()}-${stored}${ext}`;
+    const path = `${projectId}/actions/${taskId}/evidence-${Date.now()}-${stored}${ext}`;
     const bytes = await file.arrayBuffer();
-    const { error: upErr } = await supabase.storage
-      .from("project-media")
-      .upload(path, bytes, { contentType: file.type || undefined, upsert: true });
-    if (upErr) {
-      redirect(`/my/task/${taskId}?error=${encodeURIComponent(`Upload failed on ${file.name}: ${upErr.message}`)}`);
-    }
-    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
-      p_project_id: task.project_id,
-      p_path: path,
-      p_file_name: file.name || `evidence${ext}`,
-      p_mime: file.type || null,
-      p_size: file.size,
-      p_caption: "Task evidence",
+    const { data: fileId } = await supabase.rpc("record_project_file", {
+      p_project_id: projectId, p_path: path, p_file_name: file.name || `evidence${ext}`,
+      p_mime: file.type || null, p_size: file.size, p_caption: "Task evidence",
       p_kind: isImage ? "photo" : "audio",
     });
-    if (recErr || !fileId) {
-      redirect(`/my/task/${taskId}?error=${encodeURIComponent("Uploaded, but could not record a file — try again.")}`);
-    }
-    await supabase.rpc("file_attach", {
-      p_file_id: fileId,
-      p_action_id: taskId,
-      p_contract_id: null,
-      p_role: isImage ? "after" : "evidence",
-    });
-    if (!isImage) {
-      // Voice evidence gets transcribed after the response is sent; the
-      // text lands on the file's ai_metadata and as a task comment.
-      const audioName = file.name || `evidence${ext}`;
-      const audioMime = file.type || null;
-      after(async () => {
-        const t = await transcribeAudio(bytes, audioName, audioMime);
-        if (!t.ok) return;
-        await supabase
-          .from("files")
-          .update({ ai_metadata: { transcript: t.text, transcribed_by: t.provider } })
-          .eq("id", fileId);
-        const { data: me } = await supabase.rpc("me");
-        await supabase.from("task_comments").insert({
-          action_id: taskId,
-          author_contact_id: me?.contact_id ?? null,
-          author_name: me?.full_name ?? me?.email ?? "Someone",
-          body: `🎙 Voice note transcription:\n${t.text}`,
-        });
-      });
+    if (fileId) {
+      await supabase.rpc("file_attach", { p_file_id: fileId, p_action_id: taskId, p_contract_id: null, p_role: isImage ? "after" : "evidence" });
+      pending.push({ path, bytes, mime: file.type || null, isImage, fileId: fileId as string, name: file.name || `evidence${ext}` });
     }
     stored += 1;
   }
+
+  after(async () => {
+    for (const f of pending) {
+      const { error: upErr } = await supabase.storage
+        .from("project-media")
+        .upload(f.path, f.bytes, { contentType: f.mime || undefined, upsert: true });
+      if (upErr) continue;
+      if (!f.isImage) {
+        const t = await transcribeAudio(f.bytes, f.name, f.mime);
+        if (!t.ok) continue;
+        await supabase.from("files").update({ ai_metadata: { transcript: t.text, transcribed_by: t.provider } }).eq("id", f.fileId);
+        const { data: me } = await supabase.rpc("me");
+        await supabase.from("task_comments").insert({
+          action_id: taskId, author_contact_id: me?.contact_id ?? null,
+          author_name: me?.full_name ?? me?.email ?? "Someone",
+          body: `🎙 Voice note transcription:\n${t.text}`,
+        });
+      }
+    }
+  });
 
   revalidatePath(`/my/task/${taskId}`);
   redirect(`/my/task/${taskId}?saved=1`);
