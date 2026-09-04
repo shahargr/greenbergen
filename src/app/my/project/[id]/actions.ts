@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { PROJECT_STAGES } from "@/lib/stages";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -83,6 +84,9 @@ export async function saveProject(projectId: string, formData: FormData) {
   if (p.status) {
     const st = String(formData.get("status") ?? "");
     if (PROJECT_STATUSES.includes(st)) updates.status = st;
+    // Stage is the definition-panel field; the same authority governs both.
+    const sg = String(formData.get("stage") ?? "");
+    if (PROJECT_STAGES.includes(sg)) updates.stage = sg;
   }
   if (p.address) {
     const v = String(formData.get("address") ?? "").trim();
@@ -321,4 +325,42 @@ export async function logSiteVisit(formData: FormData) {
   revalidatePath(`/my/project/${projectId}`);
   if (failures.length) redirect(`${back}&error=${encodeURIComponent(`Visit logged; ${failures.length} file(s) refused: ${failures.join(" · ")}`)}`);
   redirect(`${back}&ok=${encodeURIComponent(`Visit logged${pending.length ? ` with ${pending.length} file${pending.length === 1 ? "" : "s"}` : ""} ✓`)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Bids needed: the list of trades, permits and purchases a project has to line
+// up. Seeded from the trade blueprint, then edited by hand (v185 / v186).
+
+const backSetup = (projectId: string, msg: string, isError = false) =>
+  `/my/project/${projectId}?tab=setup&${isError ? "error" : "ok"}=${encodeURIComponent(msg)}#bid-needs`;
+
+export async function seedBidNeeds(projectId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("portal_bid_needs_seed", { p_project: projectId });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error
+    ? backSetup(projectId, error.message, true)
+    : backSetup(projectId, "Bid list filled from the trade blueprint."));
+}
+
+export async function addBidNeed(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const label = String(formData.get("label") ?? "").trim();
+  if (!label) redirect(backSetup(projectId, "Say what is needed.", true));
+  const { error } = await supabase.rpc("portal_bid_need_add", {
+    p_project: projectId,
+    p_label: label,
+    p_trade: String(formData.get("trade") ?? "").trim() || null,
+    p_note: String(formData.get("note") ?? "").trim() || null,
+    p_kind: String(formData.get("kind") ?? "trade"),
+  });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error ? backSetup(projectId, error.message, true) : backSetup(projectId, `Added ${label}.`));
+}
+
+export async function removeBidNeed(projectId: string, needId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("portal_bid_need_remove", { p_id: needId });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error ? backSetup(projectId, error.message, true) : backSetup(projectId, "Line removed."));
 }

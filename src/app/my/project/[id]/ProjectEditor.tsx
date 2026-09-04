@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { saveProject, deleteProject, type ProjectPerms } from "./actions";
+import { PROJECT_STAGES, STAGE_LABEL } from "@/lib/stages";
 
 type ProjectView = {
   id: string;
   project_name: string;
   status: string | null;
+  stage: string | null;
   address: string | null;
   notes: string | null;
 };
 
-const PROJECT_STATUSES = ["In Progress", "Closed - Completed", "Closed - Incomplete"];
+// The definition panel edits the stage; status (open / closed) is a record
+// fact and lives on the Admin tab.
 
 // Unlock-to-edit, same contract as the task editor: everything reads as
 // text until unlocked; unlocked, only the fields your rank allows become
@@ -88,7 +91,7 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultO
         </div>
         <Hierarchy crumbs={crumbs} maskOwner={maskOwner} />
         <div className="small" style={{ display: "grid", gap: 4 }}>
-          <span><span className="muted">Status:</span> {project.status ?? "—"}</span>
+          <span><span className="muted">Stage:</span> {project.stage ? (STAGE_LABEL[project.stage] ?? project.stage) : "not set"}</span>
           <span><span className="muted">Address:</span> {project.address ?? "—"}</span>
         </div>
       </div>
@@ -117,10 +120,13 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultO
           )}
           {perms.status && (
             <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="pe-status">Status</label>
-              <select id="pe-status" name="status" className="input" defaultValue={project.status ?? "In Progress"}>
-                {PROJECT_STATUSES.map((s) => <option key={s}>{s}</option>)}
+              <label htmlFor="pe-stage">Stage</label>
+              <select id="pe-stage" name="stage" className="input" defaultValue={project.stage ?? "active"}>
+                {PROJECT_STAGES.map((s) => <option key={s} value={s}>{STAGE_LABEL[s] ?? s}</option>)}
               </select>
+              <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>
+                Where the work stands. Whether the project is open or closed is a record fact, on the Admin tab.
+              </p>
             </div>
           )}
           {perms.address && (
