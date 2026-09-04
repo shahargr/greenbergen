@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
 import { BidNeeds } from "./BidNeeds";
+import { VisitTasks } from "./VisitTasks";
 import { projectPerms, updateContact, setSiteRoster, logSiteVisit } from "./actions";
 import { FileDrop } from "@/components/FileDrop";
 import { getCaps, acceptFor, capsHint } from "@/lib/caps";
@@ -792,6 +793,11 @@ export default async function ProjectPage({
                 <p className="muted small" style={{ margin: 0 }}>Evidence uploads are not included in your plan.</p>
               )}
               <p className="muted small" style={{ margin: 0 }}>{capsHint(caps)}</p>
+
+              {/* What you saw, turned into work: each row becomes a task under
+                  this visit, optionally carrying the visit's evidence. */}
+              <VisitTasks members={taskMembers.map((m) => ({ contactId: m.contactId, name: m.name }))} />
+
               <div><button className="btn small">Log visit</button></div>
             </form>
 

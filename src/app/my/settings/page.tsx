@@ -130,18 +130,13 @@ export default async function SettingsPage({
 
       <div style={{ display: "grid", gap: 14 }}>
         {/* Account, two columns: who you are on the left, dates on the right. */}
-        <div className="card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "start" }}>
+        <div className="card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, auto)", gap: 12, alignItems: "start" }}>
           <span style={{ minWidth: 0 }}>
             <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
-            <div className="muted small" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-              Signed in as <strong>{me?.email}</strong>
-              {me?.is_superadmin && <span className="extra-chip" style={{ marginLeft: 8 }}>admin</span>}
-            </div>
-            <div className="muted small">
-              {contact?.phone ? <a href={`tel:${contact.phone}`} style={{ textDecoration: "none" }}>📞 {contact.phone}</a> : <span>📞 no phone yet</span>}
-            </div>
+            {me?.is_superadmin && <span className="extra-chip" style={{ marginLeft: 8 }}>admin</span>}
           </span>
-          <span className="small" style={{ display: "grid", gap: 2, textAlign: "right", whiteSpace: "nowrap" }}>
+          <span className="small" style={{ display: "grid", gap: 2, textAlign: "right", whiteSpace: "nowrap", minWidth: 0 }}>
+            <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Signed in as <strong style={{ color: "var(--ink)" }}>{me?.email}</strong></span>
             <span><span className="muted">Member since</span> {fmtD(acct?.created_at)}</span>
             <span><span className="muted">Last updated</span> {fmtD(acct?.last_modified_at ?? acct?.created_at)}</span>
             {acct?.last_login_at && <span><span className="muted">Last login</span> {fmtD(acct.last_login_at)}</span>}

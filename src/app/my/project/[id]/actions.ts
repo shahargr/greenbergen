@@ -298,6 +298,7 @@ export async function logSiteVisit(formData: FormData) {
     .filter((f): f is File => f instanceof File && f.size > 0);
   const failures: string[] = [];
   const pending: { path: string; bytes: ArrayBuffer; mime: string | null }[] = [];
+  const recorded: string[] = [];
   let i = 0;
   for (const file of files) {
     const isImage = file.type.startsWith("image/");
@@ -314,6 +315,7 @@ export async function logSiteVisit(formData: FormData) {
     });
     if (recErr || !fileId) { failures.push(`${file.name}: ${recErr?.message ?? "not recorded"}`); i += 1; continue; }
     await supabase.rpc("file_attach", { p_file_id: fileId, p_action_id: visitId, p_contract_id: null, p_role: "progress" });
+    recorded.push(fileId as string);
     pending.push({ path, bytes, mime: file.type || null });
     i += 1;
   }
@@ -322,9 +324,45 @@ export async function logSiteVisit(formData: FormData) {
       await supabase.storage.from("project-media").upload(f.path, f.bytes, { contentType: f.mime || undefined, upsert: true });
     }
   });
+
+  // What you saw, turned into work: one open task per row, hanging under the
+  // visit log so the note that prompted it is always one click away.
+  const whats = formData.getAll("task_what").map((v) => String(v).trim());
+  const whos = formData.getAll("task_who").map((v) => String(v).trim());
+  const rowIds = formData.getAll("task_row").map((v) => String(v));
+  const attachRows = new Set(formData.getAll("task_attach").map((v) => String(v)));
+  let made = 0;
+  for (let k = 0; k < whats.length; k += 1) {
+    const what = whats[k];
+    if (!what) continue;
+    const { data: t, error: tErr } = await supabase.from("actions").insert({
+      action: what,
+      domain: "construction",
+      status: "Not Started",
+      priority: "Medium",
+      project_id: projectId,
+      parent_action_id: visitId,
+      assigned_to_contact_id: whos[k] || null,
+      assigned_by_contact_id: me?.contact_id ?? null,
+      notes: `From the site visit on ${date}${headline ? ` — ${headline}` : ""}.`,
+      source: "manual",
+      created_by: "portal:site-visit",
+      last_modified_by: "portal:site-visit",
+    }).select("id").maybeSingle();
+    if (tErr || !t) { failures.push(`task "${what}": ${tErr?.message ?? "not created"}`); continue; }
+    made += 1;
+    // The visit's photos ride along when the row asked for them.
+    if (attachRows.has(rowIds[k] ?? String(k))) {
+      for (const fid of recorded) {
+        await supabase.rpc("file_attach", { p_file_id: fid, p_action_id: t.id, p_contract_id: null, p_role: "reference" });
+      }
+    }
+  }
+
   revalidatePath(`/my/project/${projectId}`);
-  if (failures.length) redirect(`${back}&error=${encodeURIComponent(`Visit logged; ${failures.length} file(s) refused: ${failures.join(" · ")}`)}`);
-  redirect(`${back}&ok=${encodeURIComponent(`Visit logged${pending.length ? ` with ${pending.length} file${pending.length === 1 ? "" : "s"}` : ""} ✓`)}`);
+  const madeNote = made ? ` · ${made} task${made === 1 ? "" : "s"} created` : "";
+  if (failures.length) redirect(`${back}&error=${encodeURIComponent(`Visit logged${madeNote}; ${failures.length} file(s) refused: ${failures.join(" · ")}`)}`);
+  redirect(`${back}&ok=${encodeURIComponent(`Visit logged${pending.length ? ` with ${pending.length} file${pending.length === 1 ? "" : "s"}` : ""}${madeNote} ✓`)}`);
 }
 
 // ---------------------------------------------------------------------------
