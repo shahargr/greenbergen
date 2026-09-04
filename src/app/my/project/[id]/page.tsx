@@ -387,9 +387,11 @@ export default async function ProjectPage({
                     {dayLabel(d)}{isToday ? " · today" : ""}
                   </Link>
                   {dayTasks.length === 0 && dayPay.length === 0 && dayGates.length === 0 && dayDone.length === 0 && <div className="muted" style={{ fontSize: 11 }}>—</div>}
-                  {dayGates.map((g) => (
-                    <Link key={g.id} href={`/my/task/${g.id}`} className={`weekitem gate ${g.closed ? "done" : "open"}`} title={`Gate · ${g.status} · ${g.action ?? ""}`}>
-                      {gateIcon(g.closed)}{g.action ?? "(gate)"}
+                  {/* Order inside a day: open gates, open tasks, payments, then
+                      everything finished at the bottom. */}
+                  {dayGates.filter((g) => !g.closed).map((g) => (
+                    <Link key={g.id} href={`/my/task/${g.id}`} className="weekitem gate open" title={`Gate · ${g.status} · ${g.action ?? ""}`}>
+                      {gateIcon(false)}{g.action ?? "(gate)"}
                     </Link>
                   ))}
                   {dayTasks.map((t) => (
@@ -397,14 +399,23 @@ export default async function ProjectPage({
                       {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
                     </Link>
                   ))}
+                  {dayPay.map((p) => (
+                    <span key={p.id} className="weekitem pay" title={p.description ?? "payment"}>💵 {money(p.amount)} {p.description ?? ""}</span>
+                  ))}
+                  {dayGates.filter((g) => g.closed).map((g) => (
+                    <Link key={g.id} href={`/my/task/${g.id}`} className="weekitem gate done" title={`Gate · ${g.status} · ${g.action ?? ""}`}>
+                      {gateIcon(true)}{g.action ?? "(gate)"}
+                    </Link>
+                  ))}
                   {dayDone.map((a) => (
                     <Link key={a.id} href={`/my/task/${a.id}`} className="weekitem done" title={`Completed · ${a.action ?? ""}`}>
                       ✓ {a.action ?? "(untitled)"}
                     </Link>
                   ))}
-                  {dayPay.map((p) => (
-                    <span key={p.id} className="weekitem pay" title={p.description ?? "payment"}>💵 {money(p.amount)} {p.description ?? ""}</span>
-                  ))}
+                  {/* Any day opens its own table below the calendar. */}
+                  <Link href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`} className="weekday-open">
+                    {selectedDay === d ? "close ▴" : "details ▾"}
+                  </Link>
                 </div>
               );
             })}
