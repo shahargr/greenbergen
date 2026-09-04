@@ -239,6 +239,14 @@ export default async function MyPage({
     ? bandOverviewAll
     : bandOverviewAll.filter((p) => p.status === "In Progress")
   ).filter((p) => inView(p.id));
+  // The house above a project, whether or not you hold a seat on it. A
+  // contractor is invited to the project only; the house is context, and
+  // without it the project reads as if it were a home of its own.
+  const parentNameOf = (row: { id: string; parent_project_id: string | null }) => {
+    if (!row.parent_project_id) return null;
+    const inList = bandOverviewAll.find((x) => x.id === row.parent_project_id);
+    return inList ? inList.project_name : (workById.get(row.id)?.parent_name ?? null);
+  };
   const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length;
   const bandIds = new Set(bandOverview.map((p) => p.id));
   // Full tree: roots are projects whose parent is absent from the list;
@@ -434,7 +442,9 @@ export default async function MyPage({
             style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
             <strong style={{ fontSize: 16 }}>{p.project_name}</strong>
             <div className="muted small">
-              {isRoot ? (p.address ? "Your home" : "Portfolio") : "Project"}
+              {isRoot
+                ? (p.address ? "Your home" : "Portfolio")
+                : (parentNameOf(p) ? <>at <strong style={{ color: "var(--ink)" }}>{fmtRoot(parentNameOf(p)!)}</strong></> : "Project")}
               {p.address && depth === 0 && <> · {p.address}</>} · {p.status}
             </div>
           </Link>
@@ -569,7 +579,7 @@ export default async function MyPage({
   };
   const renderTree = (p: ProjectOverviewRow, depth: number): React.ReactNode => (
     <div key={p.id} style={{ display: "grid", gap: 8 }}>
-      {overviewCard(p, depth === 0, depth)}
+      {overviewCard(p, !p.parent_project_id, depth)}
       {(bandChildren.get(p.id) ?? []).map((c) => renderTree(c, depth + 1))}
     </div>
   );
@@ -1079,18 +1089,24 @@ export default async function MyPage({
             for (const p of bandOverview) if (p.parent_project_id) childCount.set(p.parent_project_id, (childCount.get(p.parent_project_id) ?? 0) + 1);
             const houseName = (j: ProjectOverviewRow) => {
               const h = j.parent_project_id ? byId.get(j.parent_project_id) : null;
-              return h ? fmtRoot(h.project_name) : null;
+              if (h) return fmtRoot(h.project_name);
+              const n = parentNameOf(j);
+              return n ? fmtRoot(n) : null;
             };
             return (
               <>
+                {/* A contractor holds no house; the section would only be an
+                    empty box telling them to claim an address they do not own. */}
+                {(houses.length > 0 || !isContractorish) && (<>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
                   <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
                   <Link href="/my/settings" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
                 </div>
-                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — claim your address on the settings page.</p>}
+                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — add your property on the settings page.</p>}
                 <div className="ptiles ptiles-even">
                   {houses.map((p) => projectTile(p, "house", null, childCount.get(p.id) ?? 0, jobs.filter((j) => j.parent_project_id === p.id && !String(j.status).startsWith("Closed"))))}
                 </div>
+                </>)}
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
                   <h2 className="section-title" style={{ margin: 0, color: "#a8842c" }}>🔧 Projects · {jobs.length}</h2>
