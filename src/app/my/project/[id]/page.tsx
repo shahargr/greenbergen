@@ -323,10 +323,9 @@ export default async function ProjectPage({
     .filter((a) => a.is_gate)
     .map((a) => ({ ...a, on: (a.status === "Completed" ? (a.completed_on ?? a.target_date) : a.target_date) ?? null, closed: ["Completed", "Cancelled", "Force Cancelled"].includes(a.status) }))
     .filter((a) => a.on && a.on >= weekDays[0] && a.on <= weekEndIso);
+  // Gantt milestone sign: a diamond. Red while the gate is open, green once closed.
   const gateIcon = (closed: boolean) => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={closed ? "#1f6b45" : "#c0262d"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ verticalAlign: "-2px", marginRight: 3 }}>
-      <path d="M3 21V7M21 21V7" /><path d="M3 9h18M3 13h18M3 17h18" /><path d="M8 7v14M12 7v14M16 7v14" />
-    </svg>
+    <span aria-hidden style={{ display: "inline-block", width: 9, height: 9, background: closed ? "#1f6b45" : "#c0262d", transform: "rotate(45deg)", marginRight: 6, verticalAlign: "0px" }} />
   );
   const overdueTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date < todayIso);
   const todayTasks = weekTasks.filter((t) => t.target_date === todayIso);
@@ -421,7 +420,7 @@ export default async function ProjectPage({
                   ))}
                   {dayDone.map((a) => (
                     <Link key={a.id} href={`/my/task/${a.id}`} className="weekitem done" title={`Completed · ${a.action ?? ""}`}>
-                      ✓ {a.action ?? "(untitled)"}
+                      {a.action ?? "(untitled)"}
                     </Link>
                   ))}
                   {/* Any day opens its own table below the calendar. */}
