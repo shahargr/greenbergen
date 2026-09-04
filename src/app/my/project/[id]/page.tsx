@@ -328,6 +328,35 @@ export default async function ProjectPage({
     : { data: [] };
   const hasTwin = ((twinRows ?? []) as { id: string }[]).length > 0;
 
+  // The projects this one may be moved under. RLS returns only what the
+  // caller is a member of; this project and everything beneath it are then
+  // dropped, so the tree can never be folded into itself.
+  const { data: parentOptionRows } = tab === "setup" && perms.parent
+    ? await supabase
+        .from("projects")
+        .select("id, project_name, address, parent_project_id")
+        .is("trashed_at", null)
+        .eq("is_template", false)
+        .order("project_name")
+        .limit(200)
+    : { data: [] };
+  type OptionRow = { id: string; project_name: string; address: string | null; parent_project_id: string | null };
+  const optionRows = ((parentOptionRows ?? []) as OptionRow[]);
+  const descendants = new Set<string>([project.id]);
+  for (let pass = 0; pass < 8; pass += 1) {
+    let grew = false;
+    for (const o of optionRows) {
+      if (o.parent_project_id && descendants.has(o.parent_project_id) && !descendants.has(o.id)) {
+        descendants.add(o.id);
+        grew = true;
+      }
+    }
+    if (!grew) break;
+  }
+  const parentOptions = optionRows
+    .filter((o) => !descendants.has(o.id))
+    .map((o) => ({ id: o.id, name: o.project_name, address: o.address }));
+
   const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
   const { data: ownerRow } = ownerId
     ? await supabase.from("app_users").select("full_name, email").eq("id", ownerId).maybeSingle()
@@ -729,9 +758,10 @@ export default async function ProjectPage({
         {tab === "setup" && (
           <>
             <ProjectEditor
-              project={{ id: project.id, project_name: project.project_name, status: project.status, stage: project.stage, address: project.address, notes: project.notes }}
+              project={{ id: project.id, project_name: project.project_name, status: project.status, stage: project.stage, address: project.address, notes: project.notes, parent_project_id: project.parent_project_id }}
               perms={perms}
               crumbs={crumbs}
+              parentOptions={parentOptions}
               briefSlot={project.parent_project_id ? <ProjectBrief projectId={project.id} /> : null}
               defaultOpen
               showDelete={false}
