@@ -1036,7 +1036,7 @@ export default async function MyPage({
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
                   <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
-                  <Link href="/my/settings" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Claim another address</Link>
+                  <Link href="/my/settings" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
                 </div>
                 {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — claim your address on the settings page.</p>}
                 <div className="ptiles ptiles-even">

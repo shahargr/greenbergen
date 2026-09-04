@@ -172,7 +172,11 @@ export default async function SettingsPage({
             </span>
           </div>
 
-          <details style={{ borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+            <span className="muted small">The details you change often are here; everything else, including trades and licences, is on the full form.</span>
+            <Link href="/my/profile" className="btn ghost small" style={{ whiteSpace: "nowrap" }}>Full details →</Link>
+          </div>
+          <details>
             <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>✏️ Edit your details</summary>
           <form action={saveProfile} style={{ display: "grid", gap: 10, marginTop: 10 }}>
           <div className="form-2col">
@@ -363,19 +367,26 @@ export default async function SettingsPage({
           )}
         </div>
 
-        <details className="card">
-          <summary className="section-title" style={{ cursor: "pointer", marginBottom: 0 }}>
-            Claim another address
-          </summary>
-          <p className="muted small" style={{ margin: "10px 0 8px" }}>
+        {/* Add property: the action sits on the card's own top bar. */}
+        <form action={createHome} className="card" style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Add property</h2>
+            <button className="btn small">Save</button>
+          </div>
+          <p className="muted small" style={{ margin: 0 }}>
             Another property you own gets its own home page, projects and paperwork.
           </p>
-          <form action={createHome} style={{ display: "grid", gap: 8, maxWidth: 380 }}>
-            <input name="name" className="input" required autoComplete="off" placeholder="What should we call it?" />
-            <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
-            <div><button className="btn">Claim it</button></div>
-          </form>
-        </details>
+          <div className="form-2col">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="ap-name">What should we call it?</label>
+              <input id="ap-name" name="name" className="input" required autoComplete="off" placeholder="The Tenafly house" />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="ap-address">Address</label>
+              <input id="ap-address" name="address" className="input" required placeholder="12 Maple Ave, Tenafly NJ" />
+            </div>
+          </div>
+        </form>
 
         {trashItems.length > 0 && (
           <div className="card" style={{ display: "grid", gap: 8 }}>
