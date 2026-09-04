@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { mapsHref } from "@/lib/maps";
-import { MapCarIcon } from "@/components/MapCarIcon";
+import { CarIcon } from "@/components/CarIcon";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
@@ -8,6 +8,8 @@ import { BidNeeds } from "./BidNeeds";
 import { ScopeWizard } from "./ScopeWizard";
 import { ScopeEvidence } from "./ScopeEvidence";
 import { ScopeBrief } from "./ScopeBrief";
+import { OwnerScope } from "./OwnerScope";
+import { ShareBid } from "./ShareBid";
 import { CrewSite } from "./CrewSite";
 import { ContractorView } from "./ContractorView";
 import { VisitTasks } from "./VisitTasks";
@@ -178,6 +180,10 @@ export default async function ProjectPage({
     : tabParam === "scope" ? "scope"
     : (tabParam === "site" || tabParam === "manage" || peopleMode === "all" || (!tabParam && (tasksBucket || parentTask))) ? "site"
     : "overview";
+  const { data: scopeTradeRows } = tab === "scope" && perms.rank >= 50
+    ? await supabase.from("project_bid_needs").select("trade").eq("project_id", id).not("trade", "is", null)
+    : { data: [] };
+  const scopeTrades = [...new Set(((scopeTradeRows ?? []) as { trade: string }[]).map((t) => t.trade))];
   const { data: wonRows } = perms.rank >= 50
     ? await supabase.from("bids").select("id, package_id, amount, contacts(name, person_name)").eq("project_id", id).eq("won", true)
     : { data: [] };
@@ -435,7 +441,7 @@ export default async function ProjectPage({
               <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small"
                 title={`Navigate to ${navAddress}`}
                 style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, flex: "none" }}>
-                <MapCarIcon /> Navigate
+                <CarIcon /> Navigate
               </a>
             )}
           </div>
@@ -484,8 +490,6 @@ export default async function ProjectPage({
         {tab === "contract" && <ContractorView projectId={project.id} show="contract" />}
 
 
-        {/* A bidder or contractor sees the scope here; owner details stay masked until awarded. */}
-        {tab === "overview" && perms.rank < 50 && project.parent_project_id && <ProjectBrief projectId={project.id} title="Scope" collapsible />}
 
         {tab === "overview" && (<>
         {/* The landing view: what is planned this week, day by day, then
@@ -704,8 +708,13 @@ export default async function ProjectPage({
         {tab === "scope" && (
           <ScopeBrief projectId={project.id} description={briefDescription} caps={caps} canEdit={perms.notes} />
         )}
-        {tab === "scope" && perms.rank < 50 && project.parent_project_id && (
-          <ProjectBrief projectId={project.id} title="Scope" collapsible />
+        {/* The owner's own words come first; the trade's checklist follows
+            on the contractor's side of the same scope. */}
+        {tab === "scope" && (
+          <OwnerScope projectId={project.id} canEdit={perms.notes} />
+        )}
+        {tab === "scope" && perms.rank >= 50 && (
+          <ShareBid projectId={project.id} trades={scopeTrades} />
         )}
         {tab === "scope" && (
           <ScopeEvidence projectId={project.id} caps={caps} canAdd={perms.rank > 0 || perms.admin} />

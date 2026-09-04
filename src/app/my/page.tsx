@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { mapsHref } from "@/lib/maps";
 import { WorkFilters, type Bucket } from "./WorkFilters";
-import { MapCarIcon } from "@/components/MapCarIcon";
+import { CarIcon } from "@/components/CarIcon";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { setGodMode } from "../admin/actions";
@@ -374,7 +374,7 @@ export default async function MyPage({
         </form>
         {kind === "house" && p.address && (
           <a href={mapsHref(p.address)} target="_blank" rel="noreferrer" title={`Navigate to ${p.address}`} aria-label="Navigate"
-            style={{ position: "absolute", top: 7, right: 30, textDecoration: "none", lineHeight: 1, color: "var(--brand)" }}><MapCarIcon size={15} /></a>
+            style={{ position: "absolute", top: 7, right: 30, textDecoration: "none", lineHeight: 1, color: "var(--brand)" }}><CarIcon size={15} /></a>
         )}
       <Link href={`/my/project/${p.id}`} style={{ display: "grid", gap: 6, textDecoration: "none", color: "inherit", minWidth: 0 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0, paddingRight: kind === "house" ? 48 : 22 }}>

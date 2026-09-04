@@ -19,8 +19,13 @@ export async function ScopeBrief({ projectId, description, caps, canEdit }: {
   projectId: string; description: string | null; caps: Caps; canEdit: boolean;
 }) {
   const supabase = await createClient();
-  const { data } = await supabase.rpc("portal_brief_files", { p_project: projectId });
+  const [{ data }, { data: specRows }] = await Promise.all([
+    supabase.rpc("portal_brief_files", { p_project: projectId }),
+    supabase.from("project_config_values").select("key, label, value")
+      .eq("project_id", projectId).not("value", "is", null).order("created_at"),
+  ]);
   const files = ((data ?? []) as BriefFile[]);
+  const specs = ((specRows ?? []) as { key: string; label: string; value: string }[]);
   const urls = new Map<string, string>();
   await Promise.all(files.map(async (f) => {
     const { data: s } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
@@ -47,6 +52,22 @@ export async function ScopeBrief({ projectId, description, caps, canEdit }: {
         <p className="small" style={{ margin: 0, whiteSpace: "pre-wrap" }}>
           {description ?? <span className="muted">No description written yet.</span>}
         </p>
+      )}
+
+      {specs.length > 0 && (
+        <div style={{ display: "grid", gap: 6, borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+          <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>
+            Specs · {specs.length}
+          </div>
+          <div className="small" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
+            {specs.map((sp) => (
+              <div key={sp.key}>
+                <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>{sp.label}</div>
+                <div style={{ fontWeight: 600 }}>{sp.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {canEdit && (caps.image || caps.video || caps.document) && (

@@ -88,14 +88,14 @@ export async function ScopeWizard({ projectId, step, canEdit }: { projectId: str
 
       {/* Step 2 — the scope lines for those trades. */}
       <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
-        <Head n="2" title="Scope lines" done={`${totalScope} in scope`} hint={chosen.length ? "change" : "pick trades first"} />
+        <Head n="2" title="Proposal line items" done={`${totalScope} the trade will price`} hint={chosen.length ? "change" : "pick trades first"} />
         {at === "2" && chosen.length === 0 && (
           <p className="muted small" style={{ margin: 0 }}>Choose the trades in step 1 first.</p>
         )}
         {at === "2" && chosen.length > 0 && (
           <form action={scopeCopyLines.bind(null, projectId)} style={{ display: "grid", gap: 10 }}>
             <p className="muted small" style={{ margin: 0 }}>
-              The blueprint&apos;s knowledge for these trades. What you keep becomes this project&apos;s scope of work, and every bidder prices the same list.
+              The blueprint&apos;s knowledge for these trades, written in their language. What you keep becomes the line items on the contractor&apos;s proposal, so every bidder prices the same list. Your own words live above, under &ldquo;What you want&rdquo;.
             </p>
             {chosen.map((t) => {
               const rows = candidates.filter((c) => c.trade === t.trade);

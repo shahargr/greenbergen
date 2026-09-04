@@ -625,3 +625,55 @@ export async function deleteScopeFile(projectId: string, fileId: string) {
   revalidatePath(back);
   redirect(`${back}&ok=${encodeURIComponent("File deleted.")}#brief`);
 }
+
+// ---------------------------------------------------------------------------
+// The owner's own scope lines, and handing the brief to contractors (v202/v203).
+
+export async function saveScopeItem(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}?tab=scope`;
+  const { error } = await supabase.rpc("portal_scope_item_save", {
+    p: {
+      id: String(formData.get("id") ?? "").trim() || null,
+      project_id: projectId,
+      owner_summary: String(formData.get("owner_summary") ?? "").trim(),
+      item: String(formData.get("item") ?? "").trim() || null,
+      trade: String(formData.get("trade") ?? "").trim() || null,
+    },
+  });
+  revalidatePath(back);
+  redirect(error
+    ? `${back}&error=${encodeURIComponent(error.message)}#owner-scope`
+    : `${back}&ok=${encodeURIComponent("Added to your scope.")}#owner-scope`);
+}
+
+export async function deleteScopeItem(projectId: string, itemId: string) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}?tab=scope`;
+  const { error } = await supabase.rpc("portal_scope_item_delete", { p_id: itemId });
+  revalidatePath(back);
+  redirect(error
+    ? `${back}&error=${encodeURIComponent(error.message)}#owner-scope`
+    : `${back}&ok=${encodeURIComponent("Line removed.")}#owner-scope`);
+}
+
+export async function shareBid(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}?tab=scope`;
+  const contacts = formData.getAll("contact").map((v) => String(v));
+  if (contacts.length === 0) {
+    redirect(`${back}&error=${encodeURIComponent("Pick at least one contractor.")}#share`);
+  }
+  const { data, error } = await supabase.rpc("portal_bid_share", {
+    p_project: projectId,
+    p_contacts: contacts,
+    p_trade: String(formData.get("trade") ?? "").trim() || null,
+    p_reply_by: String(formData.get("reply_by") ?? "").trim() || null,
+  });
+  revalidatePath(back);
+  if (error) redirect(`${back}&error=${encodeURIComponent(error.message)}#share`);
+  const n = (data as { invited?: number } | null)?.invited ?? 0;
+  redirect(`${back}&ok=${encodeURIComponent(n === 0
+    ? "They were already invited — nothing sent twice."
+    : `Sent to ${n} contractor${n === 1 ? "" : "s"}. It is in their inbox now.`)}#share`);
+}
