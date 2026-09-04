@@ -71,12 +71,15 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, stageTiles, avatars, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, startEmpty = false, stageTiles, avatars, todayIso }: {
   // Project page: the filter dropdowns live behind each saved slot's ⚙, not
   // on the page. Three slot buttons stay; setup picks the filters + a name.
   filtersInSetup?: boolean;
   // Hide the five quick views (Urgent / My tasks / Late / Stuck / Full list).
   showViews?: boolean;
+  // Start with an empty list; it fills when a late-person tile or a saved
+  // filter is clicked (project page).
+  startEmpty?: boolean;
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
@@ -116,7 +119,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const stageOf = (trade: string | null) => (trade ? tradeStage[trade] ?? null : null);
   const router = useRouter();
   // compact mode: the table stays hidden until a view is picked.
-  const [view, setView] = useState<"none" | "mine" | "late" | "stuck" | "urgent" | "all">(compact ? "none" : (initialView ?? "all"));
+  const [view, setView] = useState<"none" | "mine" | "late" | "stuck" | "urgent" | "all">(compact || startEmpty ? "none" : (initialView ?? "all"));
   const [state, setState] = useState<"open" | "closed" | "all">(initialState ?? "open");
   const [domain, setDomain] = useState(initialDomain ?? "construction");
   const [project, setProject] = useState(initialProject ?? "all");
@@ -259,7 +262,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   // (When filtered to a parent's subtasks, show all of them — no urgent cap.)
   const shown = view === "urgent" && parentOf === null ? shownAll.slice(0, 10) : shownAll;
   const parentTitle = parentOf ? (tasks.find((t) => t.id === parentOf)?.action ?? tasks.find((t) => t.parent_id === parentOf)?.parent ?? "this task") : null;
-  const tableVisible = !compact || view !== "none" || trade !== "all";
+  const tableVisible = (!compact && !startEmpty) || view !== "none" || trade !== "all" || parentOf !== null;
 
   const pick = (setter: (v: never) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     (setter as (v: string) => void)(e.target.value);
@@ -541,7 +544,9 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
-      {!tableVisible ? null : shown.length === 0 ? (
+      {!tableVisible ? (
+        startEmpty ? <p className="muted small" style={{ margin: 0 }}>Pick a person above, or a filter, to list tasks.</p> : null
+      ) : shown.length === 0 ? (
         <p className="muted small" style={{ margin: 0 }}>Nothing matches these filters.</p>
       ) : (
         <div style={{ overflowX: "auto" }}>

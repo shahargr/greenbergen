@@ -626,7 +626,7 @@ export default async function ProjectPage({
           )}
           {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showViews={false} showTradeTiles={false} showLatePanels avatars={avatars}
+            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showViews={false} startEmpty={!tasksBucket && !parentTask} showTradeTiles={false} showLatePanels avatars={avatars}
               initialParent={parentTask ?? null}
               initialState={initialTaskState} initialView={initialTaskView} />
           )}
