@@ -34,8 +34,15 @@ export default async function ProjectPage({
   const selectedItem = itemParam && /^[0-9a-f-]{36}$/i.test(itemParam) ? itemParam : null;
   // Two tabs: Overview (schedule, tasks) and Manage project (bids, bidders,
   // award, people). Anything that opens the people list lands on Manage.
-  const tab: "overview" | "site" | "setup" =
-    tabParam === "site" ? "site" : (tabParam === "setup" || tabParam === "manage" || peopleMode === "all") ? "setup" : "overview";
+  // Four tabs, one job each:
+  //   overview - look: details, schedule, today
+  //   site     - Manage: roster, tasks, bids, award, people
+  //   setup    - define: brief, details, configuration, invitations
+  //   admin    - sensitive: facts about the record, delete
+  const tab: "overview" | "site" | "setup" | "admin" =
+    tabParam === "admin" ? "admin"
+    : (tabParam === "site" || tabParam === "manage" || peopleMode === "all") ? "site"
+    : tabParam === "setup" ? "setup" : "overview";
   // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
   const selectedDay = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
   const showAllPeople = peopleMode === "all";
@@ -390,6 +397,7 @@ export default async function ProjectPage({
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
           <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Manage</Link>
           {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
+          {(perms.rank >= 70 || perms.admin) && <Link href={`/my/project/${project.id}?tab=admin`} className={tab === "admin" ? "btn small" : "btn ghost small"}>Admin</Link>}
         </div>
 
         {tab === "overview" && (
@@ -750,7 +758,7 @@ export default async function ProjectPage({
 
         )}
 
-        {tab === "setup" && perms.rank >= 50 && (
+        {tab === "site" && perms.rank >= 50 && (
           <>
             {/* Manage project: four compact tiles in one line, each jumping
                 to its full card below. */}
@@ -838,7 +846,7 @@ export default async function ProjectPage({
 
         {/* Inviting lives on the top bar (＋ Invite by Setup), not here. */}
 
-        {tab === "setup" && peopleRows.length > 0 && (
+        {tab === "site" && peopleRows.length > 0 && (
           // minWidth 0 + overflow hidden at every level so a long task title
           // truncates instead of widening the page.
           <div id="people" className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -846,7 +854,7 @@ export default async function ProjectPage({
               <h2 className="section-title" style={{ margin: 0 }}>People · {visiblePeople.length}{!showAllPeople && visiblePeople.length < peopleRows.length ? ` of ${peopleRows.length}` : ""}</h2>
               {peopleRows.length > activePeople.length && (
                 showAllPeople
-                  ? <Link href={`/my/project/${project.id}?tab=setup`} className="small">Active only</Link>
+                  ? <Link href={`/my/project/${project.id}?tab=site`} className="small">Active only</Link>
                   : <Link href={`/my/project/${project.id}?people=all`} className="small">Show all {peopleRows.length}</Link>
               )}
             </div>
@@ -923,8 +931,26 @@ export default async function ProjectPage({
           </div>
         )}
 
-        {/* Dead last on Setup: the delete zone. */}
-        {tab === "setup" && (
+        {/* Admin: the record itself, and the one destructive action. */}
+        {tab === "admin" && (
+          <div className="card" style={{ display: "grid", gap: 6 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Record</h2>
+            <div className="small" style={{ display: "grid", gridTemplateColumns: "110px minmax(0, 1fr)", gap: "4px 10px" }}>
+              <span className="muted">Project id</span><code style={{ fontSize: 12, wordBreak: "break-all" }}>{project.id}</code>
+              <span className="muted">Owner</span><span>{crumbs[0]?.href === null ? crumbs[0]?.name : "—"}</span>
+              <span className="muted">Parent</span><span>{crumbs.length > 2 ? crumbs[crumbs.length - 2].name : "— (top level)"}</span>
+              <span className="muted">Created</span><span>{new Date(project.created_at).toLocaleDateString()}</span>
+              <span className="muted">Status</span><span>{project.status ?? "—"}</span>
+            </div>
+            {perms.admin && (
+              <div className="btn-row" style={{ gap: 8 }}>
+                <Link href="/admin/projects" className="btn ghost small">All projects (admin) →</Link>
+                <Link href="/admin/storage" className="btn ghost small">Storage &amp; plans →</Link>
+              </div>
+            )}
+          </div>
+        )}
+        {tab === "admin" && (
           <DeleteProjectZone project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }} perms={perms} />
         )}
       </div>
