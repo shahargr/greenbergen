@@ -19,7 +19,7 @@ const PROJECT_STATUSES = ["In Progress", "Closed - Completed", "Closed - Incompl
 type Crumb = { id: string; name: string; href: string | null };
 
 // Owner › parent › … › this project. Parents link; the ends are plain.
-function Hierarchy({ crumbs }: { crumbs: Crumb[] }) {
+function Hierarchy({ crumbs, maskOwner = false }: { crumbs: Crumb[]; maskOwner?: boolean }) {
   if (crumbs.length === 0) return null;
   return (
     <div className="small" style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 4, minWidth: 0 }}>
@@ -28,7 +28,8 @@ function Hierarchy({ crumbs }: { crumbs: Crumb[] }) {
           {i > 0 && <span className="muted">›</span>}
           {c.href
             ? <a href={c.href} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</a>
-            : <span style={{ fontWeight: i === crumbs.length - 1 ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>}
+            : <span title={maskOwner && c.id === "owner" ? "Owner details are shown once the work is awarded" : undefined}
+                style={{ fontWeight: i === crumbs.length - 1 ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", filter: maskOwner && c.id === "owner" ? "blur(4px)" : undefined, userSelect: maskOwner && c.id === "owner" ? "none" : undefined }}>{c.name}</span>}
         </span>
       ))}
     </div>
@@ -63,7 +64,7 @@ export function DeleteProjectZone({ project, perms }: { project: ProjectView; pe
   );
 }
 
-export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultOpen = false, showActions = true, showDelete = true }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode; defaultOpen?: boolean; showActions?: boolean; showDelete?: boolean }) {
+export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultOpen = false, showActions = true, showDelete = true, maskOwner = false }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode; defaultOpen?: boolean; showActions?: boolean; showDelete?: boolean; maskOwner?: boolean }) {
   const [setup, setSetup] = useState(defaultOpen);
   const [confirmName, setConfirmName] = useState("");
   const canEditAnything = perms.name || perms.notes || perms.status || perms.address;
@@ -85,7 +86,7 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultO
             )}
           </span>}
         </div>
-        <Hierarchy crumbs={crumbs} />
+        <Hierarchy crumbs={crumbs} maskOwner={maskOwner} />
         <div className="small" style={{ display: "grid", gap: 4 }}>
           <span><span className="muted">Status:</span> {project.status ?? "—"}</span>
           <span><span className="muted">Address:</span> {project.address ?? "—"}</span>

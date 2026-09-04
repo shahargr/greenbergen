@@ -105,3 +105,25 @@ export async function renameHome(projectId: string, formData: FormData) {
   revalidatePath("/my");
   redirect(error ? "/my/settings?error=" + encodeURIComponent(error.message) : "/my/settings?saved=1");
 }
+
+// Recycle bin: purge everything of mine that is in it, files included.
+export async function emptyRecycleBin() {
+  const supabase = await createClient();
+  const { data: trash } = await supabase.rpc("my_trash");
+  const items = ((trash?.items ?? []) as { id: string }[]);
+  let purged = 0;
+  for (const t of items) {
+    const { data: fileRows } = await supabase.from("files").select("bucket, path").eq("project_id", t.id);
+    const byBucket = new Map<string, string[]>();
+    for (const f of (fileRows ?? []) as { bucket: string; path: string }[]) {
+      byBucket.set(f.bucket, [...(byBucket.get(f.bucket) ?? []), f.path]);
+    }
+    const { data, error } = await supabase.rpc("delete_own_project", { p_project_id: t.id });
+    if (error || !data?.ok) continue;
+    for (const [bucket, paths] of byBucket) await supabase.storage.from(bucket).remove(paths);
+    purged += 1;
+  }
+  revalidatePath("/my");
+  revalidatePath("/my/settings");
+  redirect(`/my/settings?ok=${encodeURIComponent(`Recycle bin emptied — ${purged} project${purged === 1 ? "" : "s"} purged.`)}`);
+}

@@ -433,8 +433,12 @@ export default async function ProjectPage({
             perms={perms}
             crumbs={crumbs}
             showActions={false}
+            maskOwner={perms.rank < 50}
           />
         )}
+
+        {/* A bidder or contractor sees the scope here; owner details stay masked until awarded. */}
+        {tab === "overview" && perms.rank < 50 && project.parent_project_id && <ProjectBrief projectId={project.id} title="Scope" collapsible />}
 
         {tab === "overview" && (<>
         {/* The landing view: what is planned this week, day by day, then

@@ -44,16 +44,22 @@ export async function ProjectBrief({ projectId, title = "Project brief", collaps
         </div>
       )}
       {photos.length > 0 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {photos.map((f) => {
-            const u = urls.get(f.id);
-            return u ? (
-              <a key={f.id} href={u} target="_blank" rel="noreferrer" title={f.caption ?? f.file_name}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={u} alt={f.caption ?? f.file_name} style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: "1px solid #e7e9e4" }} />
-              </a>
-            ) : <span key={f.id} className="extra-chip">{f.file_name}</span>;
-          })}
+        <div style={{ display: "grid", gap: 6 }}>
+          <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Media · {photos.length}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+            {photos.map((f) => {
+              const u = urls.get(f.id);
+              return (
+                <a key={f.id} href={u ?? "#"} target="_blank" rel="noreferrer" title={f.caption ?? f.file_name} style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", minWidth: 0 }}>
+                  {u
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={u} alt={f.caption ?? f.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
+                    : <span className="extra-chip">{f.file_name}</span>}
+                  <span className="muted" style={{ fontSize: 10, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.caption ?? f.file_name}</span>
+                </a>
+              );
+            })}
+          </div>
         </div>
       )}
       {others.length > 0 && (

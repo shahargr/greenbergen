@@ -220,18 +220,19 @@ export default async function TaskPage({
   // Rendered inside the editor, directly under the comment / photo card.
   const evidencePanel = evidence.length > 0 ? (
     <div className="card" style={{ display: "grid", gap: 8 }}>
-      <h2 className="section-title" style={{ margin: 0 }}>Evidence · {evidence.length}</h2>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <h2 className="section-title" style={{ margin: 0 }}>Media · {evidence.length}</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
         {evidence.map((e) => {
           const f = e.files!;
           const u = evidenceUrls.get(e.id);
           const isImg = (f.mime_type ?? "").startsWith("image/") || f.kind === "photo";
           if (isImg && u) {
             return (
-              <a key={e.id} href={u} target="_blank" rel="noreferrer" title={`${f.file_name} · ${e.role} · ${new Date(e.created_at).toLocaleDateString()}`}>
+              <a key={e.id} href={u} target="_blank" rel="noreferrer" title={`${f.file_name} · ${e.role} · ${new Date(e.created_at).toLocaleDateString()}`} style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", minWidth: 0 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={u} alt={f.file_name} style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 10, border: "1px solid #e7e9e4" }} />
-                <div className="muted" style={{ fontSize: 10, textAlign: "center", marginTop: 2 }}>{e.role}</div>
+                <img src={u} alt={f.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
+                <span style={{ fontSize: 10, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</span>
+                <span className="muted" style={{ fontSize: 10, lineHeight: 1.2 }}>{e.role} · {new Date(e.created_at).toLocaleDateString()}</span>
               </a>
             );
           }
