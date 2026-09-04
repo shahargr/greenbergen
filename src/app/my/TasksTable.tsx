@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { TradeIcon } from "@/components/TradeIcon";
 
 export type TableTask = {
   id: string;
@@ -228,6 +229,21 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [tasks, todayIso]);
+  // The trade to draw for a person with no photo: the one most of their
+  // late tasks belong to.
+  const lateTrade = useMemo(() => {
+    const counts = new Map<string, Map<string, number>>();
+    for (const t of tasks) {
+      if (!(t.state === "open" && t.target_date && t.target_date < todayIso) || !t.trade) continue;
+      const who = t.assignee ?? "Unassigned";
+      const c = counts.get(who) ?? new Map<string, number>();
+      c.set(t.trade, (c.get(t.trade) ?? 0) + 1);
+      counts.set(who, c);
+    }
+    const best = new Map<string, string>();
+    for (const [who, c] of counts) best.set(who, [...c.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+    return best;
+  }, [tasks, todayIso]);
 
   const prioRank = (p: string | null) => (p === "High" ? 0 : p === "Medium" ? 1 : p === "Low" ? 2 : 3);
   const shownAll = tasks
@@ -386,8 +402,8 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                   <img src={avatars[who]} alt="" className="phase-icon"
                     style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", padding: 0 }} />
                 ) : (
-                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d", width: 26, height: 26 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
+                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d", width: 26, height: 26 }} title={lateTrade.get(who) ?? "No trade"}>
+                    <span style={{ display: "inline-flex", transform: "scale(0.62)" }}><TradeIcon trade={lateTrade.get(who) ?? ""} /></span>
                   </span>
                 )}
                 <span className="phase-name">{short}</span>
