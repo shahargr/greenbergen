@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { mapsHref } from "@/lib/maps";
+import { MapCarIcon } from "@/components/MapCarIcon";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
@@ -409,9 +410,15 @@ export default async function ProjectPage({
       {(() => {
         const navAddress = project.address ?? [...ancestors].reverse().find((a) => a.address)?.address ?? null;
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
-            <h1 style={{ fontSize: 26, margin: 0 }}>{project.project_name}</h1>
-            {navAddress && <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small" title={`Navigate to ${navAddress}`} style={{ whiteSpace: "nowrap" }}>🧭 Navigate</a>}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
+            <h1 style={{ fontSize: 26, margin: 0, minWidth: 0 }}>{project.project_name}</h1>
+            {navAddress && (
+              <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small"
+                title={`Navigate to ${navAddress}`}
+                style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, flex: "none" }}>
+                <MapCarIcon /> Navigate
+              </a>
+            )}
           </div>
         );
       })()}

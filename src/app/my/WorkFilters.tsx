@@ -57,34 +57,43 @@ export function WorkFilters({ view, counts }: { view: Bucket; counts: Record<str
 
   return (
     <div style={{ display: "grid", gap: 6, margin: "0 0 10px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 6 }}>
+      {/* Five buttons across a phone: no cog on each one, so the labels have
+          the room to read in full. One cog at the end sets any of them up. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 6 }}>
         <button type="button" className={view === "active" ? "btn small" : "btn ghost small"}
-          onClick={() => go("active")} title="Open projects you are on">
-          Active {counts.active ? <strong>· {counts.active}</strong> : null}
+          onClick={() => go("active")} title="Open projects you are on"
+          style={{ padding: "5px 6px", fontSize: 11, lineHeight: 1.2, whiteSpace: "normal", minWidth: 0 }}>
+          Active{counts.active ? <strong> · {counts.active}</strong> : null}
         </button>
         {slots.map((sl, i) => (
-          <span key={i} style={{ display: "flex", alignItems: "stretch", minWidth: 0 }}>
-            <button type="button"
-              className={view === sl.bucket ? "btn small" : "btn ghost small"}
-              onClick={() => go(sl.bucket)}
-              title={BUCKETS.find((b) => b.key === sl.bucket)?.hint}
-              style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                       borderTopRightRadius: 0, borderBottomRightRadius: 0, padding: "4px 6px", fontSize: 11 }}>
-              {sl.label}{counts[sl.bucket] ? <strong> · {counts[sl.bucket]}</strong> : null}
-            </button>
-            <button type="button" className="btn ghost small" aria-label={`Set up filter ${i + 1}`}
-              title="Point this filter somewhere else"
-              onClick={() => open(i)}
-              style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 0, padding: "2px 6px", flex: "none" }}>
-              ⚙
-            </button>
-          </span>
+          <button key={i} type="button"
+            className={view === sl.bucket ? "btn small" : "btn ghost small"}
+            onClick={() => go(sl.bucket)}
+            title={BUCKETS.find((b) => b.key === sl.bucket)?.hint}
+            style={{ padding: "5px 6px", fontSize: 11, lineHeight: 1.2, whiteSpace: "normal", minWidth: 0 }}>
+            {sl.label}{counts[sl.bucket] ? <strong> · {counts[sl.bucket]}</strong> : null}
+          </button>
         ))}
+        <button type="button" className="btn ghost small" aria-label="Set up the filters"
+          title="Point a filter somewhere else, or rename it"
+          onClick={() => (setup === null ? open(0) : setSetup(null))}
+          style={{ padding: "5px 6px", fontSize: 11, flex: "none", maxWidth: 44, justifySelf: "start" }}>
+          ⚙
+        </button>
       </div>
 
       {setup !== null && (
         <div className="card" style={{ display: "grid", gap: 8, padding: "10px 12px" }}>
-          <div className="small" style={{ fontWeight: 700 }}>Filter {setup + 1}</div>
+          <div className="small" style={{ fontWeight: 700 }}>Set up a filter</div>
+          <div className="btn-row" style={{ gap: 6 }}>
+            {slots.map((sl, i) => (
+              <button key={i} type="button" className={setup === i ? "btn small" : "btn ghost small"}
+                style={{ padding: "3px 8px", fontSize: 11 }}
+                onClick={() => open(i)}>
+                {i + 1} · {sl.label}
+              </button>
+            ))}
+          </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="wf-bucket">Show</label>
             <select id="wf-bucket" className="input" value={draft.bucket}
