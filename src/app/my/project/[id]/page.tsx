@@ -466,10 +466,13 @@ export default async function ProjectPage({
         {/* The strip each person gets: none for crew, three for a contractor,
             the full set for site management and above. */}
         {isContractorSide && (
-          <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
-            <Link href={`/my/project/${project.id}`} className={tab === "contractor" ? "btn small" : "btn ghost small"}>Payments</Link>
-            <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "btn small" : "btn ghost small"}>Scope</Link>
-            <Link href={`/my/project/${project.id}?tab=contract`} className={tab === "contract" ? "btn small" : "btn ghost small"}>Contract</Link>
+          <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, padding: "8px 10px" }}>
+            <Link href={`/my/project/${project.id}`} style={{ justifySelf: "start" }}
+              className={tab === "contractor" ? "btn small" : "btn ghost small"}>Payments</Link>
+            <Link href={`/my/project/${project.id}?tab=scope`} style={{ justifySelf: "center" }}
+              className={tab === "scope" ? "btn small" : "btn ghost small"}>Scope</Link>
+            <Link href={`/my/project/${project.id}?tab=contract`} style={{ justifySelf: "end" }}
+              className={tab === "contract" ? "btn small" : "btn ghost small"}>Contract</Link>
           </div>
         )}
         {!isCrew && !isContractorSide && (
