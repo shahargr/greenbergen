@@ -118,12 +118,8 @@ export default async function TaskPage({
     taskCrumbs.unshift({ key: pa.id, label: pa.action ?? "(untitled)", href: `/my/task/${pa.id}` });
     taskCursor = pa.parent_action_id as string | null;
   }
-  const crumbs: Crumb[] = [
-    { key: "home", label: "Home", href: "/my" },
-    ...projectCrumbs,
-    ...taskCrumbs,
-    { key: t.id, label: t.action ?? "(untitled)", href: null },
-  ];
+  const crumbs: Crumb[] = [{ key: "home", label: "Home", href: "/my" }, ...projectCrumbs];
+  const parentCrumb = taskCrumbs.length > 0 ? taskCrumbs[taskCrumbs.length - 1] : null;
   const comments = (commentRows ?? []) as CommentView[];
 
   const allTrades = ((tradeRows ?? []) as { trade: string; is_construction: boolean | null; is_worker_trade: boolean | null }[]);
@@ -256,7 +252,21 @@ export default async function TaskPage({
           </span>
         ))}
       </nav>
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
+      {/* Where this task sits: its parent (if any) and itself, named as such. */}
+      <div className="small" style={{ margin: "0 0 8px", display: "grid", gap: 2, minWidth: 0 }}>
+        {parentCrumb && (
+          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>Parent</span>{" "}
+            <Link href={parentCrumb.href ?? "#"}>{parentCrumb.label}</Link>
+          </div>
+        )}
+        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingLeft: parentCrumb ? 14 : 0 }}>
+          {parentCrumb && <span className="muted">↳ </span>}
+          <span className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>{parentCrumb ? "Child" : openChildren.length > 0 ? "Parent" : "Task"}</span>{" "}
+          <strong>{t.action ?? "(untitled)"}</strong>
+          {openChildren.length > 0 && <span className="muted"> · {openChildren.length} open subtask{openChildren.length === 1 ? "" : "s"}</span>}
+        </div>
+      </div>
       {error && <p className="error small">{error}</p>}
       {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
       {(chainPrev || chainNext.length > 0) && (
@@ -281,7 +291,7 @@ export default async function TaskPage({
       {/* Keyed on saved/error so the editor remounts after a redirect back to
           this page — otherwise a client-side "Applying..." can stick after an
           error (Next keeps client state across a same-route searchParams change). */}
-      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} evidenceSlot={evidencePanel} />
+      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} parentName={parentCrumb?.label ?? null} childCount={openChildren.length} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} evidenceSlot={evidencePanel} />
       <div style={{ marginTop: 14 }}>
         <TaskTransactions
           key={`tx|${saved ?? ""}|${error ?? ""}`}

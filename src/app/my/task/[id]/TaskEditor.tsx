@@ -67,6 +67,8 @@ export function TaskEditor({
   isOpen,
   evidenceCount,
   evidenceSlot,
+  parentName = null,
+  childCount = 0,
 }: {
   task: TaskView;
   perms: TaskPerms;
@@ -78,6 +80,9 @@ export function TaskEditor({
   // The evidence gallery, rendered by the page; sits right under the
   // comment / photo / audio card.
   evidenceSlot?: React.ReactNode;
+  // Parent / child facts for the header badge.
+  parentName?: string | null;
+  childCount?: number;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
@@ -168,11 +173,24 @@ export function TaskEditor({
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div>
-        <h1 style={{ fontSize: 18, margin: "0 0 2px", lineHeight: 1.25 }}>{task.action}</h1>
-        <div className="muted small" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          <span style={{ color: /pending/i.test(task.status) ? "#a8842c" : task.status === "In Progress" ? "var(--brand)" : undefined, fontWeight: 600 }}>{task.status}</span>
-          {task.priority && task.priority !== "Missing" && <> · <span style={task.priority === "High" ? { color: "#c0262d", fontWeight: 600 } : undefined}>{task.priority}</span></>}
-          {task.target_date && <> · due {task.target_date}</>}
+        <h1 style={{ fontSize: 16, margin: "0 0 2px", lineHeight: 1.3 }}>{task.action}</h1>
+        {/* Stage and priority as icons (hover for the words); due date; the
+            parent / child badge. */}
+        <div className="small" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
+          <span title={`Stage: ${task.status}`} aria-label={`Stage: ${task.status}`}
+            style={{ fontWeight: 700, color: /pending/i.test(task.status) ? "#a8842c" : task.status === "In Progress" ? "var(--brand)" : task.status === "Parked" ? "#7b857e" : task.status === "Completed" ? "#1f6b45" : "#555" }}>
+            {task.status === "In Progress" ? "◐" : /pending/i.test(task.status) ? "⏳" : task.status === "Parked" ? "⏸" : task.status === "Completed" ? "●" : task.status === "Cancelled" ? "⊘" : "○"}
+          </span>
+          {task.priority && task.priority !== "Missing" && task.priority !== "No Priority" && (
+            <span title={`Priority: ${task.priority}`} aria-label={`Priority: ${task.priority}`}
+              style={{ fontWeight: 700, color: task.priority === "High" ? "#c0262d" : task.priority === "Medium" ? "#a8842c" : "#7b857e" }}>
+              {task.priority === "High" ? "▲" : task.priority === "Medium" ? "▲" : "▽"}
+            </span>
+          )}
+          {task.target_date && <span className="muted">due {task.target_date}</span>}
+          {parentName
+            ? <span className="extra-chip" title={`Subtask of ${parentName}`}>↳ child</span>
+            : childCount > 0 ? <span className="extra-chip" title={`${childCount} open subtasks`}>parent · {childCount}</span> : null}
         </div>
       </div>
 
@@ -349,6 +367,7 @@ export function TaskEditor({
           </>
         )}
 
+        {unlocked && (
         <Row label="Priority">
           {unlocked && perms.status ? (
             <select name="priority" className="input" defaultValue={task.priority ?? "No Priority"} style={{ maxWidth: 220 }}>
@@ -358,8 +377,9 @@ export function TaskEditor({
             task.priority ?? "—"
           )}
         </Row>
+        )}
 
-        {(unlocked || task.target_date) && (
+        {unlocked && (
         <Row label="Target date">
           {unlocked && perms.status ? (
             <input name="target_date" type="date" className="input" defaultValue={task.target_date ?? ""} style={{ maxWidth: 220 }} />
