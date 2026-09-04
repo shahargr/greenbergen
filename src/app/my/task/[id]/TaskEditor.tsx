@@ -359,6 +359,7 @@ export function TaskEditor({
           )}
         </Row>
 
+        {(unlocked || task.target_date) && (
         <Row label="Target date">
           {unlocked && perms.status ? (
             <input name="target_date" type="date" className="input" defaultValue={task.target_date ?? ""} style={{ maxWidth: 220 }} />
@@ -366,7 +367,9 @@ export function TaskEditor({
             task.target_date ?? "—"
           )}
         </Row>
+        )}
 
+        {(unlocked || task.desired_outcome) && (
         <Row label="Desired outcome">
           {unlocked && perms.outcome ? (
             <textarea name="desired_outcome" className="input" rows={4} defaultValue={task.desired_outcome ?? ""} />
@@ -374,6 +377,7 @@ export function TaskEditor({
             <LongText value={task.desired_outcome} />
           )}
         </Row>
+        )}
 
         <Row label="Notes">
           {unlocked && perms.notes ? (
@@ -383,7 +387,7 @@ export function TaskEditor({
           )}
         </Row>
 
-        {perms.dependencies && (
+        {perms.dependencies && (unlocked || task.dependencies) && (
           <Row label="Dependencies">
             {unlocked ? (
               <textarea name="dependencies" className="input" rows={4} defaultValue={task.dependencies ?? ""} />
@@ -393,7 +397,7 @@ export function TaskEditor({
           </Row>
         )}
 
-        {perms.learnings && (
+        {perms.learnings && (unlocked || task.learnings) && (
           <Row label="Learnings (admin)">
             {unlocked ? (
               <textarea name="learnings" className="input" rows={4} defaultValue={task.learnings ?? ""} />
@@ -440,7 +444,7 @@ export function TaskEditor({
         </Row>
 
         <Row label="Project">{task.projectName ?? "—"}</Row>
-        <Row label="Assigned by">{task.assignedByName ?? "—"}</Row>
+        {task.assignedByName && <Row label="Assigned by">{task.assignedByName}</Row>}
         <Row label="Created">
           {new Date(task.created_at).toLocaleDateString()} {task.created_by ? `by ${task.created_by}` : ""}
           {task.source ? ` · via ${task.source}` : ""}
