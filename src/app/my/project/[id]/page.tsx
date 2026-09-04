@@ -34,7 +34,8 @@ export default async function ProjectPage({
   const selectedItem = itemParam && /^[0-9a-f-]{36}$/i.test(itemParam) ? itemParam : null;
   // Two tabs: Overview (schedule, tasks) and Manage project (bids, bidders,
   // award, people). Anything that opens the people list lands on Manage.
-  const tab: "overview" | "manage" = tabParam === "manage" || peopleMode === "all" ? "manage" : "overview";
+  const tab: "overview" | "site" | "setup" =
+    tabParam === "site" ? "site" : (tabParam === "setup" || tabParam === "manage" || peopleMode === "all") ? "setup" : "overview";
   // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
   const selectedDay = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
   const showAllPeople = peopleMode === "all";
@@ -380,18 +381,20 @@ export default async function ProjectPage({
       )}
 
       <div style={{ display: "grid", gap: 14, marginTop: 10 }}>
-        <ProjectEditor
-          project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
-          perms={perms}
-          crumbs={crumbs}
-          briefSlot={project.parent_project_id ? <ProjectBrief projectId={project.id} /> : null}
-        />
+        {/* Three tabs on the details panel; the page below follows the tab. */}
+        <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
+          <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
+          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Site visit</Link>
+          {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
+        </div>
 
-        {perms.rank >= 50 && (
-          <div className="btn-row" style={{ gap: 6 }}>
-            <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
-            <Link href={`/my/project/${project.id}?tab=manage`} className={tab === "manage" ? "btn small" : "btn ghost small"}>Manage project</Link>
-          </div>
+        {tab === "overview" && (
+          <ProjectEditor
+            project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
+            perms={perms}
+            crumbs={crumbs}
+            showActions={false}
+          />
         )}
 
         {tab === "overview" && (<>
@@ -591,11 +594,51 @@ export default async function ProjectPage({
           ))}
         </div>
 
-        {/* The project brief now lives in Setup (Details → ⚙️ Setup). */}
+        </>)}
 
-        {/* On a job the brief carries the specs; the configurator folds away
-            underneath it and is only opened to change them. */}
-        {config.length > 0 && (
+        {tab === "setup" && (
+          <>
+            {/* Invite someone into this project. They accept or decline on
+                their next login; the answer shows on the inviter's home page. */}
+            <details className="card" style={{ display: "grid", gap: 8 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>➕ Invite someone to this {project.parent_project_id ? "project" : "home"}</summary>
+              <form action={inviteToProject} style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                <input type="hidden" name="project" value={project.id} />
+                <input type="hidden" name="back" value={`/my/project/${project.id}?tab=setup`} />
+                <div className="form-2col">
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor="inv-contact">Their email or phone</label>
+                    <input id="inv-contact" name="contact" className="input" required autoComplete="off" placeholder="name@example.com or 201-555-0100" />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor="inv-note">Note (optional)</label>
+                    <input id="inv-note" name="note" className="input" defaultValue={`Please join ${project.project_name} to assist with `} />
+                  </div>
+                </div>
+                <div className="radio-row" style={{ minHeight: 0 }}>
+                  <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>
+                  <label className="radio-opt"><input type="radio" name="seat" value="viewer" /> Viewer</label>
+                  <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Co-owner</label>
+                </div>
+                <div className="btn-row" style={{ alignItems: "center" }}>
+                  <button className="btn small">Invite user</button>
+                  <Link href={`/my/invite?project=${project.id}`} className="small muted">Not on the platform yet? Send a signup link →</Link>
+                </div>
+              </form>
+            </details>
+
+            <ProjectEditor
+              project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
+              perms={perms}
+              crumbs={crumbs}
+              briefSlot={project.parent_project_id ? <ProjectBrief projectId={project.id} /> : null}
+              defaultOpen
+            />
+          </>
+        )}
+
+        {/* Task setup: the configurator and its checklist. */}
+        {tab === "setup" && config.length > 0 && (
           <details className="card" style={{ display: "grid", gap: 8 }} open={!project.parent_project_id}>
             <summary className="section-title" style={{ margin: 0, cursor: "pointer", listStyle: "revert" }}>
               Configuration · {configDone} of {config.length} done
@@ -616,7 +659,7 @@ export default async function ProjectPage({
           </details>
         )}
 
-        {perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
+        {tab === "overview" && perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
           <div className="card">
             <h2 className="section-title">Purchase &amp; sale</h2>
             <div className="small" style={{ display: "grid", gap: 4 }}>
@@ -639,7 +682,7 @@ export default async function ProjectPage({
         )}
 
         {/* Bids the caller was invited to answer (bidders, not managers). */}
-        {myBids.length > 0 && (
+        {tab === "site" && myBids.length > 0 && (
           <div className="card" style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <h2 className="section-title" style={{ margin: 0 }}>Bids to answer · {myBids.length}</h2>
             {myBids.map((b) => (
@@ -654,7 +697,8 @@ export default async function ProjectPage({
           </div>
         )}
 
-        {/* The job ladder: tasks → create a bid → invite bidders → award. */}
+        {/* Site visit: the tasks to review, and where work gets logged. */}
+        {tab === "site" && (
         <div className="card">
           <h2 className="section-title" style={{ margin: 0 }}>Tasks · {openCount} open · {doneCount} done</h2>
           {perms.rank >= 50 && (
@@ -674,9 +718,9 @@ export default async function ProjectPage({
           )}
         </div>
 
-        </>)}
+        )}
 
-        {tab === "manage" && perms.rank >= 50 && (
+        {tab === "setup" && perms.rank >= 50 && (
           <>
             {/* Manage project: four compact tiles in one line, each jumping
                 to its full card below. */}
@@ -764,7 +808,7 @@ export default async function ProjectPage({
 
         {/* Inviting lives on the top bar (＋ Invite by Setup), not here. */}
 
-        {tab === "manage" && peopleRows.length > 0 && (
+        {tab === "setup" && peopleRows.length > 0 && (
           // minWidth 0 + overflow hidden at every level so a long task title
           // truncates instead of widening the page.
           <div id="people" className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
@@ -772,7 +816,7 @@ export default async function ProjectPage({
               <h2 className="section-title" style={{ margin: 0 }}>People · {visiblePeople.length}{!showAllPeople && visiblePeople.length < peopleRows.length ? ` of ${peopleRows.length}` : ""}</h2>
               {peopleRows.length > activePeople.length && (
                 showAllPeople
-                  ? <Link href={`/my/project/${project.id}?tab=manage`} className="small">Active only</Link>
+                  ? <Link href={`/my/project/${project.id}?tab=setup`} className="small">Active only</Link>
                   : <Link href={`/my/project/${project.id}?people=all`} className="small">Show all {peopleRows.length}</Link>
               )}
             </div>

@@ -35,8 +35,8 @@ function Hierarchy({ crumbs }: { crumbs: Crumb[] }) {
   );
 }
 
-export function ProjectEditor({ project, perms, crumbs = [], briefSlot }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode }) {
-  const [setup, setSetup] = useState(false);
+export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultOpen = false, showActions = true }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode; defaultOpen?: boolean; showActions?: boolean }) {
+  const [setup, setSetup] = useState(defaultOpen);
   const [confirmName, setConfirmName] = useState("");
   const canEditAnything = perms.name || perms.notes || perms.status || perms.address;
   const canDelete = perms.rank >= 70;
@@ -48,14 +48,14 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot }: { proj
       <div className="card" style={{ display: "grid", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
           <h2 className="section-title" style={{ margin: 0 }}>Details</h2>
-          <span className="btn-row" style={{ gap: 6 }}>
+          {showActions && <span className="btn-row" style={{ gap: 6 }}>
             {canEditAnything && (
               <a href={`/my/invite?project=${project.id}`} className="btn ghost small" title="Invite someone to this space">➕ Invite</a>
             )}
             {(canEditAnything || canDelete) && (
               <button className="btn ghost small" onClick={() => setSetup(true)}>⚙️ Setup</button>
             )}
-          </span>
+          </span>}
         </div>
         <Hierarchy crumbs={crumbs} />
         <div className="small" style={{ display: "grid", gap: 4 }}>
