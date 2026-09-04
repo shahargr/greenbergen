@@ -44,7 +44,7 @@ export default async function ProjectPage({
   const tab: "overview" | "site" | "visit" | "setup" | "admin" =
     tabParam === "admin" ? "admin"
     : tabParam === "visit" ? "visit"
-    : (tabParam === "site" || tabParam === "manage" || peopleMode === "all") ? "site"
+    : (tabParam === "site" || tabParam === "manage" || peopleMode === "all" || (!tabParam && (tasksBucket || parentTask))) ? "site"
     : tabParam === "setup" ? "setup" : "overview";
   // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
   const selectedDay = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
@@ -534,7 +534,7 @@ export default async function ProjectPage({
           </div>
           {overdueTasks.length > 0 && (
             <p className="small" style={{ margin: 0, color: "#c0262d" }}>
-              {overdueTasks.length} overdue from before this week — <Link href={`/my/project/${project.id}?tasks=stuck`} style={{ color: "inherit" }}>see them</Link>
+              {overdueTasks.length} overdue from before this week — <Link href={`/my/project/${project.id}?tab=site&tasks=stuck`} style={{ color: "inherit" }}>see them</Link>
             </p>
           )}
         </div>
