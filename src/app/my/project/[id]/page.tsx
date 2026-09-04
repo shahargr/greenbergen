@@ -302,6 +302,27 @@ export default async function ProjectPage({
     .map((t) => ({ ...t, on: t.paid_on ?? t.target_date }))
     .filter((t) => t.on && t.on >= weekDays[0] && t.on <= weekEndIso);
   const weekTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date >= weekDays[0] && t.target_date <= weekEndIso);
+  // Completed this week (on the day they closed) and every gate on the
+  // project (on its due day): both belong on the calendar.
+  type WeekExtra = { id: string; action: string | null; status: string; is_gate: boolean | null; target_date: string | null; completed_on: string | null };
+  const { data: extraRows } = await supabase
+    .from("actions").select("id, action, status, is_gate, target_date, completed_on")
+    .eq("project_id", id)
+    .or(`is_gate.eq.true,and(status.eq.Completed,completed_on.gte.${weekDays[0]},completed_on.lte.${weekEndIso})`)
+    .limit(200);
+  const extras = ((extraRows ?? []) as WeekExtra[]);
+  const doneThisWeek = extras
+    .filter((a) => a.status === "Completed" && !a.is_gate && a.completed_on && a.completed_on >= weekDays[0] && a.completed_on <= weekEndIso)
+    .map((a) => ({ ...a, on: a.completed_on as string }));
+  const weekGates = extras
+    .filter((a) => a.is_gate)
+    .map((a) => ({ ...a, on: (a.status === "Completed" ? (a.completed_on ?? a.target_date) : a.target_date) ?? null, closed: ["Completed", "Cancelled", "Force Cancelled"].includes(a.status) }))
+    .filter((a) => a.on && a.on >= weekDays[0] && a.on <= weekEndIso);
+  const gateIcon = (closed: boolean) => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={closed ? "#1f6b45" : "#c0262d"} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ verticalAlign: "-2px", marginRight: 3 }}>
+      <path d="M3 21V7M21 21V7" /><path d="M3 9h18M3 13h18M3 17h18" /><path d="M8 7v14M12 7v14M16 7v14" />
+    </svg>
+  );
   const overdueTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date < todayIso);
   const todayTasks = weekTasks.filter((t) => t.target_date === todayIso);
   const restOfWeekTasks = weekTasks.filter((t) => t.target_date! > todayIso).sort((a, b) => a.target_date!.localeCompare(b.target_date!));
@@ -353,15 +374,27 @@ export default async function ProjectPage({
           <div className="weekgrid">
             {weekDays.map((d) => {
               const isToday = d === todayIso;
-              const dayTasks = weekTasks.filter((t) => t.target_date === d);
+              const dayTasks = weekTasks.filter((t) => t.target_date === d && !weekGates.some((g) => g.id === t.id));
               const dayPay = weekPayments.filter((t) => t.on === d);
+              const dayGates = weekGates.filter((g) => g.on === d);
+              const dayDone = doneThisWeek.filter((a) => a.on === d);
               return (
                 <div key={d} className={`weekday${isToday ? " today" : ""}`}>
                   <div className="weekday-head">{dayLabel(d)}{isToday ? " · today" : ""}</div>
-                  {dayTasks.length === 0 && dayPay.length === 0 && <div className="muted" style={{ fontSize: 11 }}>—</div>}
+                  {dayTasks.length === 0 && dayPay.length === 0 && dayGates.length === 0 && dayDone.length === 0 && <div className="muted" style={{ fontSize: 11 }}>—</div>}
+                  {dayGates.map((g) => (
+                    <Link key={g.id} href={`/my/task/${g.id}`} className={`weekitem gate ${g.closed ? "done" : "open"}`} title={`Gate · ${g.status} · ${g.action ?? ""}`}>
+                      {gateIcon(g.closed)}{g.action ?? "(gate)"}
+                    </Link>
+                  ))}
                   {dayTasks.map((t) => (
                     <Link key={t.id} href={`/my/task/${t.id}`} className="weekitem" title={t.action}>
                       {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                    </Link>
+                  ))}
+                  {dayDone.map((a) => (
+                    <Link key={a.id} href={`/my/task/${a.id}`} className="weekitem done" title={`Completed · ${a.action ?? ""}`}>
+                      ✓ {a.action ?? "(untitled)"}
                     </Link>
                   ))}
                   {dayPay.map((p) => (
