@@ -6,7 +6,11 @@ import { useState } from "react";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { FileDrop } from "@/components/FileDrop";
 
-type WizardField = { key: string; label: string; options?: string[]; number?: boolean; unit?: string };
+type WizardField = {
+  key: string; label: string; options?: string[]; number?: boolean; unit?: string;
+  // Ask this only when an earlier answer says so.
+  showIf?: { key: string; equals: string };
+};
 // Jobs that want photos up front say so here.
 const WIZARD_PHOTOS: Record<string, string> = {
   "Water heater replacement": "Photos of the existing heater that needs to be removed — the unit, its label/plate, and the connections around it.",
@@ -14,6 +18,9 @@ const WIZARD_PHOTOS: Record<string, string> = {
 const WIZARDS: Record<string, WizardField[]> = {
   "Emergency generator": [
     { key: "service_size", label: "Current electric service", options: ["100 amp", "200 amp", "300 amp", "Not sure"] },
+    // Nobody reads their panel label, but everyone knows how many AC units
+    // they have — and the compressors are the load that decides the sizing.
+    { key: "ac_units", label: "How many AC units in the house?", number: true, showIf: { key: "service_size", equals: "Not sure" } },
     { key: "fuel", label: "Fuel available", options: ["Natural gas", "Propane", "Not sure"] },
     { key: "location", label: "Where would it sit?", options: ["Attached to house", "Detached / standalone", "Not sure"] },
     { key: "routing", label: "Wires & gas pipe routing", options: ["In-ground", "Above-ground", "Not sure"] },
@@ -23,6 +30,7 @@ const WIZARDS: Record<string, WizardField[]> = {
   "EV charger installation": [
     { key: "charger_type", label: "Charger type", options: ["Level 2 hardwired", "Level 2 plug (NEMA 14-50)", "Not sure"] },
     { key: "service_size", label: "Current electric service", options: ["100 amp", "200 amp", "300 amp", "Not sure"] },
+    { key: "ac_units", label: "How many AC units in the house?", number: true, showIf: { key: "service_size", equals: "Not sure" } },
     { key: "panel_distance_ft", label: "Distance from electrical panel", number: true, unit: "ft" },
     { key: "parking", label: "Where does the car park?", options: ["Garage", "Driveway / outdoor"] },
   ],
@@ -48,6 +56,8 @@ export function StartProjectForm({
   error?: string;
 }) {
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  // Wizard answers, kept so a conditional question can appear as it is earned.
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState("");
@@ -168,11 +178,13 @@ export function StartProjectForm({
               </div>
             )}
             <div className="form-2col">
-              {WIZARDS[name].map((f) => (
+              {WIZARDS[name].filter((f) => !f.showIf || answers[f.showIf.key] === f.showIf.equals).map((f) => (
                 <div key={f.key} className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor={`wz-${f.key}`}>{f.label}{f.unit ? ` (${f.unit})` : ""}</label>
+                  <input type="hidden" name={`cfglabel_${f.key}`} value={f.unit ? `${f.label} (${f.unit})` : f.label} />
                   {f.options ? (
-                    <select id={`wz-${f.key}`} name={`cfg_${f.key}`} className="input" defaultValue="">
+                    <select id={`wz-${f.key}`} name={`cfg_${f.key}`} className="input" defaultValue=""
+                      onChange={(e) => setAnswers((a) => ({ ...a, [f.key]: e.target.value }))}>
                       <option value="">—</option>
                       {f.options.map((o) => <option key={o}>{o}</option>)}
                     </select>

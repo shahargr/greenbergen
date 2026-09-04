@@ -112,10 +112,19 @@ export async function saveConfigValues(projectId: string, formData: FormData) {
   const { data: me } = await supabase.rpc("me");
   const who = me?.full_name ?? me?.email ?? "portal user";
 
+  // Each field posts its own label; fall back to the key only if it did not.
+  const labels: Record<string, string> = {};
+  for (const [key, raw] of formData.entries()) {
+    if (key.startsWith("label__") && typeof raw === "string") labels[key.slice(7)] = raw;
+  }
   const rows: { project_id: string; key: string; label: string; value: string | null; updated_by: string }[] = [];
   for (const [key, raw] of formData.entries()) {
-    if (typeof raw !== "string") continue;
-    rows.push({ project_id: projectId, key, label: key.replace(/_/g, " "), value: raw.trim() || null, updated_by: who });
+    if (typeof raw !== "string" || key.startsWith("label__")) continue;
+    rows.push({
+      project_id: projectId, key,
+      label: labels[key] ?? key.replace(/_/g, " "),
+      value: raw.trim() || null, updated_by: who,
+    });
   }
   const { error } = await supabase
     .from("project_config_values")

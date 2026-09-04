@@ -153,10 +153,11 @@ export async function createJob(formData: FormData) {
 
   // Wizard answers become structured config values on the new project.
   const cfg: { key: string; value: string }[] = [];
+  const cfgLabels: Record<string, string> = {};
   for (const [k, v] of formData.entries()) {
-    if (k.startsWith("cfg_") && typeof v === "string" && v.trim()) {
-      cfg.push({ key: k.slice(4), value: v.trim() });
-    }
+    if (typeof v !== "string") continue;
+    if (k.startsWith("cfglabel_")) { cfgLabels[k.slice(9)] = v; continue; }
+    if (k.startsWith("cfg_") && v.trim()) cfg.push({ key: k.slice(4), value: v.trim() });
   }
   if (cfg.length && data.project_id) {
     const cfgProjectId = data.project_id as string;
@@ -165,7 +166,7 @@ export async function createJob(formData: FormData) {
         cfg.map((c) => ({
           project_id: cfgProjectId,
           key: c.key,
-          label: c.key.replace(/_/g, " "),
+          label: cfgLabels[c.key] ?? c.key.replace(/_/g, " "),
           value: c.value,
           updated_by: "portal:new-project wizard",
         })),
