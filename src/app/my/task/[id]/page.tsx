@@ -5,6 +5,7 @@ import { TaskEditor, type TaskView, type MemberOption, type CommentView } from "
 import { TaskTransactions, type TaskTx, type PayMethod } from "./TaskTransactions";
 import { SubtaskRow, type Subtask } from "./SubtaskRow";
 import { taskPerms } from "./actions";
+import { getCaps, acceptFor } from "@/lib/caps";
 
 export const maxDuration = 60;
 
@@ -35,6 +36,7 @@ export default async function TaskPage({
   const { id } = await params;
   const { saved, error } = await searchParams;
   const supabase = await createClient();
+  const caps = await getCaps();
 
   const { data: rawTask } = await supabase
     .from("actions")
@@ -291,7 +293,7 @@ export default async function TaskPage({
       {/* Keyed on saved/error so the editor remounts after a redirect back to
           this page — otherwise a client-side "Applying..." can stick after an
           error (Next keeps client state across a same-route searchParams change). */}
-      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} parentName={parentCrumb?.label ?? null} childCount={openChildren.length} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} evidenceSlot={evidencePanel} />
+      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} parentName={parentCrumb?.label ?? null} childCount={openChildren.length} caps={{ ...caps, accept: acceptFor(caps) }} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} evidenceSlot={evidencePanel} />
       <div style={{ marginTop: 14 }}>
         <TaskTransactions
           key={`tx|${saved ?? ""}|${error ?? ""}`}

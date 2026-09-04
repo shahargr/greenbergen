@@ -69,6 +69,7 @@ export function TaskEditor({
   evidenceSlot,
   parentName = null,
   childCount = 0,
+  caps = { image: true, video: false, voice: true, document: true, accept: "image/*,application/pdf" },
 }: {
   task: TaskView;
   perms: TaskPerms;
@@ -83,6 +84,8 @@ export function TaskEditor({
   // Parent / child facts for the header badge.
   parentName?: string | null;
   childCount?: number;
+  // What the plan lets this person upload; the buttons follow it.
+  caps?: { image: boolean; video: boolean; voice: boolean; document: boolean; accept: string };
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
@@ -202,12 +205,12 @@ export function TaskEditor({
             <button type="button" className={quick === "comment" ? "btn small" : "btn ghost small"} onClick={() => setQuick(quick === "comment" ? "none" : "comment")}>
               💬 Comment
             </button>
-            {canAttach && (
+            {canAttach && (caps.image || caps.video || caps.document) && (
               <button type="button" className={quick === "photo" ? "btn small" : "btn ghost small"} onClick={() => setQuick(quick === "photo" ? "none" : "photo")}>
                 📷 Photo
               </button>
             )}
-            {canAttach && (
+            {canAttach && caps.voice && (
               <button type="button" className={quick === "audio" ? "btn small" : "btn ghost small"} onClick={() => setQuick(quick === "audio" ? "none" : "audio")}>
                 🎙 Audio
               </button>
@@ -219,7 +222,7 @@ export function TaskEditor({
 
           {quick === "photo" && (
             <form onSubmit={submitPhotos} style={{ display: "grid", gap: 8 }}>
-              <FileDrop name="photos" accept="image/*,video/*,application/pdf" label="Add photos / files" />
+              <FileDrop name="photos" accept={caps.accept} label={caps.video ? "Add photos / video / files" : "Add photos / files"} camera={caps.image} />
               <div className="btn-row">
                 <button className="btn" disabled={busyEvidence}>{busyEvidence ? "Uploading..." : "Upload"}</button>
               </div>

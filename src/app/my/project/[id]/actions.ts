@@ -221,10 +221,71 @@ export async function setSiteRoster(formData: FormData) {
   const projectId = String(formData.get("project") ?? "");
   const date = String(formData.get("date") ?? "").trim() || new Date().toISOString().slice(0, 10);
   const contacts = formData.getAll("contact").map(String).filter(Boolean);
-  const back = `/my/project/${projectId}?tab=site`;
+  const back = `/my/project/${projectId}?tab=visit`;
   const { data, error } = await supabase.rpc("portal_site_roster_set", { p_project: projectId, p_date: date, p_contacts: contacts });
   revalidatePath(`/my/project/${projectId}`);
   redirect(error || !data?.ok
     ? `${back}&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save the roster.")}`
     : `${back}&ok=${encodeURIComponent(`${data.on_site} on site ${date === new Date().toISOString().slice(0, 10) ? "today" : date} ✓`)}`);
+}
+
+// Site visit tab: log a visit as a completed "Site visit log" task on the
+// project, with its evidence attached (role progress). Metadata now, bytes
+// after the response, same pattern as task evidence.
+export async function logSiteVisit(formData: FormData) {
+  const supabase = await createClient();
+  const projectId = String(formData.get("project") ?? "");
+  const date = String(formData.get("date") ?? "").trim() || new Date().toISOString().slice(0, 10);
+  const headline = String(formData.get("headline") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const back = `/my/project/${projectId}?tab=visit`;
+  if (!projectId) redirect("/my");
+  if (!headline && !note) redirect(`${back}&error=${encodeURIComponent("Write what you saw - a headline or a note.")}`);
+  const dow = new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
+  const { data: me } = await supabase.rpc("me");
+  const { data: row, error } = await supabase.from("actions").insert({
+    project_id: projectId,
+    action: `Site visit log - ${date} (${dow})${headline ? ` - ${headline}` : ""}`,
+    status: "Completed",
+    completed_on: date,
+    domain: "construction",
+    notes: note || null,
+    priority: "No Priority",
+    created_by: me?.full_name ?? me?.email ?? "portal:site-visit",
+    source: "manual",
+  }).select("id").maybeSingle();
+  if (error || !row) redirect(`${back}&error=${encodeURIComponent(error?.message ?? "Could not log the visit.")}`);
+  const visitId = row.id as string;
+
+  const files = [...formData.getAll("files"), ...formData.getAll("videos"), ...formData.getAll("docs")]
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  const failures: string[] = [];
+  const pending: { path: string; bytes: ArrayBuffer; mime: string | null }[] = [];
+  let i = 0;
+  for (const file of files) {
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    const isAudio = file.type.startsWith("audio/");
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const kind = isImage ? "photo" : isVideo ? "video" : isAudio ? "audio" : isPdf ? "document" : "other";
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? "").toLowerCase();
+    const path = `${projectId}/actions/${visitId}/visit-${Date.now()}-${i}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
+      p_project_id: projectId, p_path: path, p_file_name: file.name || `visit${ext}`,
+      p_mime: file.type || null, p_size: file.size, p_caption: `Site visit ${date}`, p_kind: kind,
+    });
+    if (recErr || !fileId) { failures.push(`${file.name}: ${recErr?.message ?? "not recorded"}`); i += 1; continue; }
+    await supabase.rpc("file_attach", { p_file_id: fileId, p_action_id: visitId, p_contract_id: null, p_role: "progress" });
+    pending.push({ path, bytes, mime: file.type || null });
+    i += 1;
+  }
+  after(async () => {
+    for (const f of pending) {
+      await supabase.storage.from("project-media").upload(f.path, f.bytes, { contentType: f.mime || undefined, upsert: true });
+    }
+  });
+  revalidatePath(`/my/project/${projectId}`);
+  if (failures.length) redirect(`${back}&error=${encodeURIComponent(`Visit logged; ${failures.length} file(s) refused: ${failures.join(" · ")}`)}`);
+  redirect(`${back}&ok=${encodeURIComponent(`Visit logged${pending.length ? ` with ${pending.length} file${pending.length === 1 ? "" : "s"}` : ""} ✓`)}`);
 }

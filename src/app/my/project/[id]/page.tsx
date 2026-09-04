@@ -2,7 +2,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
-import { projectPerms, updateContact, setSiteRoster } from "./actions";
+import { projectPerms, updateContact, setSiteRoster, logSiteVisit } from "./actions";
+import { FileDrop } from "@/components/FileDrop";
+import { getCaps, acceptFor, capsHint } from "@/lib/caps";
 import { inviteToProject } from "../../invite/actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
@@ -39,8 +41,9 @@ export default async function ProjectPage({
   //   site     - Manage: roster, tasks, bids, award, people
   //   setup    - define: brief, details, configuration, invitations
   //   admin    - sensitive: facts about the record, delete
-  const tab: "overview" | "site" | "setup" | "admin" =
+  const tab: "overview" | "site" | "visit" | "setup" | "admin" =
     tabParam === "admin" ? "admin"
+    : tabParam === "visit" ? "visit"
     : (tabParam === "site" || tabParam === "manage" || peopleMode === "all") ? "site"
     : tabParam === "setup" ? "setup" : "overview";
   // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
@@ -291,7 +294,29 @@ export default async function ProjectPage({
     if (r.value != null) configValues[r.key] = r.value;
   }
 
-  // Who is marked on site today (Manage tab roster).
+  // What this person may upload (plan), and the visits already logged.
+  const caps = await getCaps();
+  type VisitRow = { id: string; action: string; completed_on: string | null; notes: string | null; created_by: string | null; n_files: number };
+  const { data: visitRows } = tab === "visit"
+    ? await supabase.from("actions").select("id, action, completed_on, notes, created_by, file_links(count)")
+        .eq("project_id", id).like("action", "Site visit log - %").order("completed_on", { ascending: false }).limit(30)
+    : { data: [] };
+  const visits: VisitRow[] = ((visitRows ?? []) as unknown as (Omit<VisitRow, "n_files"> & { file_links: { count: number }[] })[])
+    .map((v) => ({ id: v.id, action: v.action, completed_on: v.completed_on, notes: v.notes, created_by: v.created_by, n_files: v.file_links?.[0]?.count ?? 0 }));
+
+  // Days on site per person, from the roster (site_roster: one row per
+  // person per day) - the answer to "how many days did each trade spend here".
+  const { data: rosterAll } = tab === "visit"
+    ? await supabase.from("site_roster").select("contact_id, on_date").eq("project_id", id)
+    : { data: [] };
+  const daysByContact = new Map<string, Set<string>>();
+  for (const r of ((rosterAll ?? []) as { contact_id: string; on_date: string }[])) {
+    const s = daysByContact.get(r.contact_id) ?? new Set<string>();
+    s.add(r.on_date);
+    daysByContact.set(r.contact_id, s);
+  }
+
+  // Who is marked on site today (roster).
   const { data: rosterRows } = await supabase.from("site_roster").select("contact_id").eq("project_id", id).eq("on_date", todayIso);
   const onSiteToday = new Set(((rosterRows ?? []) as { contact_id: string }[]).map((r) => r.contact_id));
 
@@ -396,6 +421,7 @@ export default async function ProjectPage({
         <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
           <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Manage</Link>
+          <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "btn small" : "btn ghost small"}>Site visit</Link>
           {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
           {(perms.rank >= 70 || perms.admin) && <Link href={`/my/project/${project.id}?tab=admin`} className={tab === "admin" ? "btn small" : "btn ghost small"}>Admin</Link>}
         </div>
@@ -695,8 +721,53 @@ export default async function ProjectPage({
         )}
 
         {/* Bids the caller was invited to answer (bidders, not managers). */}
-        {/* Manage: who is on site today - tick the people present. */}
-        {tab === "site" && (perms.admin || perms.name || perms.status) && (
+        {/* Site visit: log what you saw, with evidence the plan allows. */}
+        {tab === "visit" && (
+          <>
+            <form action={logSiteVisit} className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+              <input type="hidden" name="project" value={project.id} />
+              <h2 className="section-title" style={{ margin: 0 }}>Log a site visit</h2>
+              <div className="form-2col">
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="sv-date">Date</label>
+                  <input id="sv-date" name="date" type="date" className="input" defaultValue={todayIso} />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="sv-head">Headline</label>
+                  <input id="sv-head" name="headline" className="input" placeholder="e.g. trench open for inspection; Javier crew on site" />
+                </div>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="sv-note">What you saw</label>
+                <textarea id="sv-note" name="note" className="input" rows={4} placeholder="Progress, problems, decisions, who was there…" />
+              </div>
+              {(caps.image || caps.video || caps.document) ? (
+                <FileDrop name="files" videoName="videos" docName="docs" accept={acceptFor(caps)} label="Add evidence" camera={caps.image} />
+              ) : (
+                <p className="muted small" style={{ margin: 0 }}>Evidence uploads are not included in your plan.</p>
+              )}
+              <p className="muted small" style={{ margin: 0 }}>{capsHint(caps)}</p>
+              <div><button className="btn small">Log visit</button></div>
+            </form>
+
+            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+              <h2 className="section-title" style={{ margin: 0 }}>Visits · {visits.length}</h2>
+              {visits.length === 0 && <p className="muted small" style={{ margin: 0 }}>No visits logged yet.</p>}
+              {visits.map((v) => (
+                <Link key={v.id} href={`/my/task/${v.id}`} className="small" style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+                  <span style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v.action.replace(/^Site visit log - /, "")}</strong>
+                    <span className="muted" style={{ whiteSpace: "nowrap" }}>{v.n_files ? `${v.n_files} file${v.n_files === 1 ? "" : "s"}` : ""}{v.created_by ? ` · ${v.created_by}` : ""}</span>
+                  </span>
+                  {v.notes && <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.notes}</span>}
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Site visit: who is on site today - tick the people present. */}
+        {tab === "visit" && (perms.admin || perms.name || perms.status) && (
           <form action={setSiteRoster} className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
             <input type="hidden" name="project" value={project.id} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -718,6 +789,29 @@ export default async function ProjectPage({
               ))}
             </div>
           </form>
+        )}
+
+        {tab === "visit" && daysByContact.size > 0 && (
+          <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflowX: "auto" }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Days on site · by person and trade</h2>
+            <table className="tasktable" style={{ width: "100%" }}>
+              <thead><tr><th>Person</th><th>Trade</th><th style={{ textAlign: "right" }}>Days</th><th>Last on site</th></tr></thead>
+              <tbody>
+                {[...daysByContact.entries()]
+                  .map(([cid, days]) => ({ cid, days: days.size, last: [...days].sort().slice(-1)[0], p: peopleRows.find((x) => x.contactId === cid) }))
+                  .sort((x, y) => y.days - x.days)
+                  .map((r) => (
+                    <tr key={r.cid}>
+                      <td style={{ fontWeight: 600 }}>{r.p?.name ?? "—"}</td>
+                      <td className="muted">{r.p?.trade ?? "—"}</td>
+                      <td style={{ textAlign: "right" }}>{r.days}</td>
+                      <td className="muted" style={{ whiteSpace: "nowrap" }}>{r.last}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            <p className="muted small" style={{ margin: 0 }}>One row per person per day in the roster. Trade totals are the sum of their people.</p>
+          </div>
         )}
 
         {tab === "site" && myBids.length > 0 && (
