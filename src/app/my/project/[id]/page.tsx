@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
 import { BidNeeds } from "./BidNeeds";
 import { ScopeWizard } from "./ScopeWizard";
+import { ScopeEvidence } from "./ScopeEvidence";
 import { VisitTasks } from "./VisitTasks";
 import { projectPerms, updateContact, setSiteRoster, logSiteVisit } from "./actions";
 import { FileDrop } from "@/components/FileDrop";
@@ -443,7 +444,7 @@ export default async function ProjectPage({
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
           <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Tasks</Link>
           <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "btn small" : "btn ghost small"}>Site visit</Link>
-          {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "btn small" : "btn ghost small"}>Project scope</Link>}
+          <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "btn small" : "btn ghost small"}>Project scope</Link>
           {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
         </div>
 
@@ -661,6 +662,15 @@ export default async function ProjectPage({
             />
 
           </>
+        )}
+
+        {/* Scope and evidence: everyone on the project reads the lines the
+            work was priced from, and anyone on it can add the proof. */}
+        {tab === "scope" && perms.rank < 50 && project.parent_project_id && (
+          <ProjectBrief projectId={project.id} title="Scope" collapsible />
+        )}
+        {tab === "scope" && (
+          <ScopeEvidence projectId={project.id} caps={caps} canAdd={perms.rank > 0 || perms.admin} />
         )}
 
         {/* Project scope: three steps that end in bid packages. */}

@@ -440,3 +440,52 @@ export async function scopeMakePackages(projectId: string) {
       ? "Every trade already has a package."
       : `${made} bid package${made === 1 ? "" : "s"} created from the scope.`));
 }
+
+// ---------------------------------------------------------------------------
+// Evidence against a scope line (v198): the contractor who did the work and
+// the owner who wrote the scope add to the same place.
+
+export async function addScopeEvidence(projectId: string, scopeItemId: string, formData: FormData) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}?tab=scope`;
+  const files = [...formData.getAll("files"), ...formData.getAll("videos"), ...formData.getAll("docs")]
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) {
+    redirect(`${back}&error=${encodeURIComponent("Pick a photo or a file first.")}#scope-evidence`);
+  }
+
+  const role = String(formData.get("role") ?? "after");
+  const failures: string[] = [];
+  const pending: { path: string; bytes: ArrayBuffer; mime: string | null }[] = [];
+  let i = 0;
+  for (const file of files) {
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    const isAudio = file.type.startsWith("audio/");
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const kind = isImage ? "photo" : isVideo ? "video" : isAudio ? "audio" : isPdf ? "document" : "other";
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? "").toLowerCase();
+    const path = `${projectId}/scope/${scopeItemId}/${Date.now()}-${i}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
+      p_project_id: projectId, p_path: path, p_file_name: file.name || `evidence${ext}`,
+      p_mime: file.type || null, p_size: file.size, p_caption: "Scope evidence", p_kind: kind,
+    });
+    if (recErr || !fileId) { failures.push(`${file.name}: ${recErr?.message ?? "not recorded"}`); i += 1; continue; }
+    const { error: linkErr } = await supabase.rpc("portal_scope_evidence_attach", {
+      p_file_id: fileId, p_scope_item: scopeItemId, p_role: role,
+    });
+    if (linkErr) { failures.push(`${file.name}: ${linkErr.message}`); i += 1; continue; }
+    pending.push({ path, bytes, mime: file.type || null });
+    i += 1;
+  }
+  after(async () => {
+    for (const f of pending) {
+      await supabase.storage.from("project-media").upload(f.path, f.bytes, { contentType: f.mime || undefined, upsert: true });
+    }
+  });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(failures.length
+    ? `${back}&error=${encodeURIComponent(`${failures.length} file(s) refused: ${failures.join(" · ")}`)}#scope-evidence`
+    : `${back}&ok=${encodeURIComponent(`${pending.length} file${pending.length === 1 ? "" : "s"} added to the scope line.`)}#scope-evidence`);
+}
