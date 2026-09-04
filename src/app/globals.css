@@ -1058,3 +1058,18 @@ html, body { max-width: 100%; overflow-x: clip; }
   .tasktable .col-amount { width: 62px; }
   .tasktable .col-date { width: 64px; }
 }
+
+/* Page tabs and preset filters: plain text laid out as a transparent table -
+   no buttons, no card behind them. Three cells to a row for the tabs, four
+   for the filter presets. */
+.tabtable { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
+.tabtable > * {
+  padding: 8px 0; font-size: 14px; text-align: left; color: #4a5a50; text-decoration: none;
+  border: 0; border-bottom: 1px solid var(--line, #e3e6e2); background: none; font-family: inherit;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.tabtable > *:hover { color: var(--brand, #1f6b45); text-decoration: none; }
+.tabtable > .on { color: var(--brand, #1f6b45); font-weight: 700; border-bottom-color: var(--brand, #1f6b45); }
+.tabtable.quad { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 10px; }
+.tabtable.quad > * { font-size: 13px; }
+@media (max-width: 380px) { .tabtable.quad > * { font-size: 12px; } }
