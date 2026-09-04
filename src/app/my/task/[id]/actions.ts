@@ -283,21 +283,36 @@ export async function uploadEvidence(taskId: string, formData: FormData) {
   const projectId = task.project_id;
   const pending: { path: string; bytes: ArrayBuffer; mime: string | null; isImage: boolean; fileId: string; name: string }[] = [];
   let stored = 0;
+  const failures: string[] = [];
   for (const file of files) {
     const isImage = file.type.startsWith("image/");
-    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
+    const isAudio = file.type.startsWith("audio/") || /\.(m4a|webm|mp3|wav|ogg)$/i.test(file.name);
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const kind = isImage ? "photo" : isAudio ? "audio" : isPdf ? "document" : "other";
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : isAudio ? ".m4a" : ".bin")).toLowerCase();
     const path = `${projectId}/actions/${taskId}/evidence-${Date.now()}-${stored}${ext}`;
     const bytes = await file.arrayBuffer();
-    const { data: fileId } = await supabase.rpc("record_project_file", {
+    // A refusal here (plan, quota, permission) must reach the user - a
+    // silent skip used to leave "Saved ✓" on screen with nothing recorded.
+    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
       p_project_id: projectId, p_path: path, p_file_name: file.name || `evidence${ext}`,
       p_mime: file.type || null, p_size: file.size, p_caption: "Task evidence",
-      p_kind: isImage ? "photo" : "audio",
+      p_kind: kind,
     });
-    if (fileId) {
-      await supabase.rpc("file_attach", { p_file_id: fileId, p_action_id: taskId, p_contract_id: null, p_role: isImage ? "after" : "evidence" });
-      pending.push({ path, bytes, mime: file.type || null, isImage, fileId: fileId as string, name: file.name || `evidence${ext}` });
+    if (recErr || !fileId) {
+      failures.push(`${file.name || "file"}: ${recErr?.message ?? "not recorded"}`);
+      stored += 1;
+      continue;
     }
+    const { error: linkErr } = await supabase.rpc("file_attach", {
+      p_file_id: fileId, p_action_id: taskId, p_contract_id: null, p_role: isImage ? "after" : "evidence",
+    });
+    if (linkErr) failures.push(`${file.name || "file"}: recorded but not linked — ${linkErr.message}`);
+    pending.push({ path, bytes, mime: file.type || null, isImage: !isAudio, fileId: fileId as string, name: file.name || `evidence${ext}` });
     stored += 1;
+  }
+  if (failures.length > 0 && pending.length === 0) {
+    redirect(`${back}?error=${encodeURIComponent(`Nothing was attached. ${failures.join(" · ")}`)}`);
   }
 
   after(async () => {
@@ -322,6 +337,9 @@ export async function uploadEvidence(taskId: string, formData: FormData) {
 
   revalidatePath(`/my/task/${taskId}`);
   revalidatePath("/my");
+  if (failures.length > 0) {
+    redirect(`${back}?error=${encodeURIComponent(`${pending.length} attached, ${failures.length} refused: ${failures.join(" · ")}`)}`);
+  }
   redirect(doneUrl(back));
 }
 
