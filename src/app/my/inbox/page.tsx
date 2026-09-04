@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { markMessage } from "./actions";
+import { markMessage, setMessage, removeMessage, messageToTask } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +27,9 @@ const when = (t: string) => new Date(t).toLocaleString(undefined, { month: "shor
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string; show?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; show?: string; task?: string }>;
 }) {
-  const { ok, error, show } = await searchParams;
+  const { ok, error, show, task: taskFor } = await searchParams;
   const supabase = await createClient();
   const [{ data: msgData }, { data: invData }] = await Promise.all([
     supabase.rpc("portal_my_messages", { p_limit: 100 }),
@@ -116,17 +116,60 @@ export default async function InboxPage({
               </p>
               <div className="small" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 {m.project_id && <Link href={`/my/project/${m.project_id}`} className="extra-chip" style={{ textDecoration: "none" }}>{m.project_name}</Link>}
-                {m.action_id && <Link href={`/my/task/${m.action_id}`} className="extra-chip" style={{ textDecoration: "none" }}>{m.action ?? "task"}</Link>}
-                {m.pending ? (
-                  <>
-                    <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}>needs review</span>
-                    <form action={markMessage.bind(null, m.id, false)}><button className="btn ghost small" style={{ padding: "1px 8px" }}>Mark read</button></form>
-                    <form action={markMessage.bind(null, m.id, true)}><button className="btn ghost small" style={{ padding: "1px 8px" }}>Done</button></form>
-                  </>
-                ) : (
-                  <span className="muted" style={{ fontSize: 11 }}>{m.status}</span>
+                {/* The task this call became: one click from the message to the work. */}
+                {m.action_id && (
+                  <Link href={`/my/task/${m.action_id}`} className="extra-chip"
+                    style={{ textDecoration: "none", background: "#e6f2ea", color: "#1f6b45" }}>
+                    ✓ {m.action ?? "task"}
+                  </Link>
                 )}
+                {m.pending
+                  ? <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}>needs review</span>
+                  : <span className="muted" style={{ fontSize: 11 }}>{m.status}</span>}
               </div>
+
+              {/* What you can do with it. */}
+              <div className="btn-row" style={{ gap: 6, flexWrap: "wrap" }}>
+                {!m.action_id && (
+                  <Link href={taskFor === m.id ? "/my/inbox" : `/my/inbox?task=${m.id}`}
+                    className="btn ghost small" style={{ padding: "1px 8px" }}>
+                    {taskFor === m.id ? "Cancel" : "＋ Task"}
+                  </Link>
+                )}
+                {m.status !== "done" && (
+                  <form action={setMessage.bind(null, m.id, "done")}>
+                    <button className="btn ghost small" style={{ padding: "1px 8px" }}>Complete</button>
+                  </form>
+                )}
+                {m.status !== "dismissed" && (
+                  <form action={setMessage.bind(null, m.id, "dismissed")}>
+                    <button className="btn ghost small" style={{ padding: "1px 8px" }}>Archive</button>
+                  </form>
+                )}
+                {m.pending && (
+                  <form action={markMessage.bind(null, m.id, false)}>
+                    <button className="btn ghost small" style={{ padding: "1px 8px" }}>Mark read</button>
+                  </form>
+                )}
+                <form action={removeMessage.bind(null, m.id)}>
+                  <button className="btn ghost small" style={{ padding: "1px 8px", color: "#c0262d" }}>Delete</button>
+                </form>
+              </div>
+
+              {taskFor === m.id && !m.action_id && (
+                <form action={messageToTask.bind(null, m.id)} style={{ display: "grid", gap: 6, background: "#fafbfa", padding: "8px 10px", borderRadius: 8 }}>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor={`t-${m.id}`}>What has to be done</label>
+                    <input id={`t-${m.id}`} name="action" className="input" required
+                      defaultValue={m.body.split(/[.\n]/)[0].slice(0, 90)} />
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor={`d-${m.id}`}>Due (optional)</label>
+                    <input id={`d-${m.id}`} name="due" className="input" type="date" />
+                  </div>
+                  <div><button className="btn small">Create the task</button></div>
+                </form>
+              )}
             </div>
           ))}
         </div>
