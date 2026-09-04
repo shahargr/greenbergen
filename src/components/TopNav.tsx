@@ -7,6 +7,7 @@ import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
 import { MaskMenu } from "@/components/MaskMenu";
 import { BackNav } from "@/components/BackNav";
+import { NavRole } from "@/components/NavRole";
 import { endViewAs } from "@/components/viewas";
 
 const InviteIcon = () => (
@@ -83,6 +84,8 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const topSeat = [...seatNames].sort((a, b) => (rankOf.get(b) ?? 0) - (rankOf.get(a) ?? 0))[0];
   const roleCount = new Set([...seatNames, ...tradeNames]).size;
   const whoLabel = (topSeat ?? tradeNames[0] ?? role) + (roleCount > 1 ? ` (${roleCount} roles)` : "");
+  const firstName = (me?.full_name?.trim().split(/\s+/)[0]) || (me?.email ? me.email.split("@")[0] : "You");
+  const ranksObj = Object.fromEntries(rankOf);
 
   // The label under the logo: the picked hat, as long as it lives on this
   // surface; otherwise the surface's own name.
@@ -98,9 +101,8 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           <span className="brandstack">
             <Wordmark small href={ROLE_HOME[role]} />
             {me?.email
-              ? <span className="brand-viewfor" title={`${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}`} style={{ textTransform: "none", letterSpacing: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(60vw, 420px)" }}>
-                  {whoLabel}
-                </span>
+              ? <NavRole first={firstName} appUserId={me?.app_user_id ?? null} fallback={whoLabel} ranks={ranksObj}
+                  title={`${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}`} />
               : <span className="brand-viewfor">{viewLabel}</span>}
           </span>
         </div>
