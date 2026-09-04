@@ -512,10 +512,10 @@ export default async function MyPage({
               <table className="tasktable" style={{ width: "100%", tableLayout: "fixed" }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 82 }}>Day</th>
+                    <th className="col-day">Day</th>
                     <th>What</th>
-                    <th className="col-who" style={{ width: 96 }}>Who</th>
-                    <th style={{ width: 84, textAlign: "right" }}>Amount</th>
+                    <th className="col-who">Who</th>
+                    <th className="col-amount" style={{ textAlign: "right" }}>Amount</th>
                   </tr>
                 </thead>
                 <tbody>

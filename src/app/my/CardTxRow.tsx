@@ -47,11 +47,11 @@ export function CardTxHead() {
   return (
     <thead>
       <tr>
-        <th style={{ width: 92 }}>Date</th>
-        <th style={{ width: 84 }}>Amount</th>
+        <th className="col-date">Date</th>
+        <th className="col-amount">Amount</th>
         <th>Paid to</th>
-        <th className="col-status" style={{ width: 150 }}>Status</th>
-        <th style={{ width: 22 }} aria-label="Open" />
+        <th className="col-status">Status</th>
+        <th className="col-open" aria-label="Open" />
       </tr>
     </thead>
   );

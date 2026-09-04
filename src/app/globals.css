@@ -1026,3 +1026,35 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
   .topnav-right svg { width: 18px; height: 18px; }
   .wordmark-sm { font-size: 14px; }
 }
+
+
+/* Nothing may widen the page. A single wide table or a long unbroken string
+   otherwise forces the whole document sideways, and mobile Safari answers by
+   shrinking the page until it fits — which is why every screen goes tiny at
+   once rather than just the offending card. */
+html, body { max-width: 100%; overflow-x: clip; }
+
+/* The card tables carry fixed columns so the numbers line up. Those widths
+   are generous on a laptop and most of a phone, so they come down with the
+   screen and the text column keeps what is left. */
+.tasktable .col-day { width: 82px; }
+.tasktable .col-who { width: 96px; }
+.tasktable .col-amount { width: 84px; }
+.tasktable .col-date { width: 92px; }
+.tasktable .col-status { width: 150px; }
+.tasktable .col-open { width: 22px; }
+/* Long titles and pasted links break rather than push. */
+.tasktable td { overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .tasktable { font-size: 13px; }
+  .tasktable th, .tasktable td { padding-right: 6px; }
+  .tasktable .col-day { width: 60px; }
+  .tasktable .col-amount { width: 68px; }
+  .tasktable .col-date { width: 72px; }
+}
+@media (max-width: 390px) {
+  .tasktable .col-day { width: 52px; }
+  .tasktable .col-amount { width: 62px; }
+  .tasktable .col-date { width: 64px; }
+}
