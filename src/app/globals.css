@@ -1118,3 +1118,19 @@ html, body { max-width: 100%; overflow-x: clip; }
 .weekstrip .n { font-size: 13px; font-weight: 700; color: var(--brand); line-height: 1.1; }
 .weekstrip .n.high { color: #c0262d; }
 .weekstrip .n.zero { color: #c9ccc4; font-weight: 400; }
+
+
+/* A day's items on a phone: a list, not a five-column table. The table keeps
+   its columns on anything wide enough to hold them. */
+@media (max-width: 640px) { .tasktable.only-wide { display: none !important; } }
+.daylist { display: grid; gap: 0; }
+.daylist-row {
+  display: grid; gap: 2px; padding: 7px 0;
+  border-top: 1px solid #f0f1ee; text-decoration: none; color: inherit; min-width: 0;
+}
+.daylist-row:first-child { border-top: none; }
+.daylist-title { font-size: 13px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.daylist-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 11px;
+}
+.daylist-meta .extra-chip { font-size: 10px; white-space: nowrap; }

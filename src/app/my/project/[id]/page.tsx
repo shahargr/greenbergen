@@ -691,8 +691,33 @@ export default async function ProjectPage({
                 <Link href={`/my/project/${project.id}`} className="small">Close ✕</Link>
               </div>
               {rows.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing on the calendar for this day.</p>}
+              {/* Phone: five columns cannot share 390pt — the title ends up one
+                  word per line and "Gate" breaks in half. One row per item
+                  instead: what it is, then everything else on a second line. */}
               {rows.length > 0 && (
-                <table className="tasktable" style={{ width: "100%" }}>
+                <div className="daylist only-narrow">
+                  {rows.map((r) => {
+                    const inner = (
+                      <>
+                        <span className="daylist-title">{r.title}</span>
+                        <span className="daylist-meta">
+                          <span className="extra-chip" style={kindStyle(r.kind, r.status)}>
+                            {r.kind === "gate" ? <>{gateIcon(["Completed", "Cancelled", "Force Cancelled"].includes(r.status))}Gate</> : kindLabel[r.kind]}
+                          </span>
+                          {r.priority === "High" && <span style={{ color: "#c0262d", fontWeight: 600 }}>High</span>}
+                          {r.who && <span>{r.who}</span>}
+                          <span className="muted">{r.status}</span>
+                        </span>
+                      </>
+                    );
+                    return r.href
+                      ? <Link key={`m-${r.kind}-${r.id}`} href={r.href} className="daylist-row">{inner}</Link>
+                      : <div key={`m-${r.kind}-${r.id}`} className="daylist-row">{inner}</div>;
+                  })}
+                </div>
+              )}
+              {rows.length > 0 && (
+                <table className="tasktable only-wide" style={{ width: "100%" }}>
                   <thead><tr><th>Item</th><th>Type</th><th>Priority</th><th>Assigned to</th><th>Status</th></tr></thead>
                   <tbody>
                     {rows.map((r) => (
