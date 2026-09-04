@@ -630,8 +630,10 @@ export default async function ProjectPage({
               );
             })}
           </div>
+          {/* Wide only: on a phone the red strip above the week already says
+              this, and says it next to today's work where it belongs. */}
           {overdueTasks.length > 0 && (
-            <p className="small" style={{ margin: 0, color: "#c0262d" }}>
+            <p className="small only-wide" style={{ margin: 0, color: "#c0262d" }}>
               {overdueTasks.length} overdue from before this week — <Link href={`/my/project/${project.id}?tab=site&tasks=stuck`} style={{ color: "inherit" }}>see them</Link>
             </p>
           )}

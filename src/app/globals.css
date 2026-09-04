@@ -1122,7 +1122,10 @@ html, body { max-width: 100%; overflow-x: clip; }
 
 /* A day's items on a phone: a list, not a five-column table. The table keeps
    its columns on anything wide enough to hold them. */
-@media (max-width: 640px) { .tasktable.only-wide { display: none !important; } }
+@media (max-width: 640px) {
+  .tasktable.only-wide { display: none !important; }
+  p.only-wide { display: none !important; }
+}
 .daylist { display: grid; gap: 0; }
 .daylist-row {
   display: grid; gap: 2px; padding: 7px 0;
