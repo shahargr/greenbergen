@@ -83,6 +83,9 @@ export function TaskEditor({
   const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
   const [moveTo, setMoveTo] = useState(task.status);
   const [closeReason, setCloseReason] = useState("");
+  // A comment rides along with a stage move; mandatory for Pending on Others.
+  const [moveComment, setMoveComment] = useState("");
+  const [pendingOn, setPendingOn] = useState(task.pending_on ?? "");
   // Close-and-chain: name the next task and it is created as a follow-up
   // (a sibling that follows this one, never a child that would block the close).
   const [followUp, setFollowUp] = useState("");
@@ -132,7 +135,13 @@ export function TaskEditor({
       if (closeReason.trim()) fd.append("reason", closeReason.trim());
       await guarded(setBusyMove, () => completeTask(task.id, fd));
     } else {
+      if (/pending/i.test(moveTo) && !moveComment.trim()) {
+        setUploadFailed("Pending on Others needs a comment: who you are waiting on, and for what.");
+        return;
+      }
       fd.append("status", moveTo);
+      if (moveComment.trim()) fd.append("comment", moveComment.trim());
+      if (pendingOn.trim()) fd.append("pending_on", pendingOn.trim());
       await guarded(setBusyMove, () => setTaskStatus(task.id, fd));
     }
   }
@@ -159,32 +168,33 @@ export function TaskEditor({
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div>
-        <h1 style={{ fontSize: 22, margin: "0 0 6px", lineHeight: 1.25 }}>{task.action}</h1>
-        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
-          <span className="extra-chip">{task.status}</span>
-          {task.priority && task.priority !== "Missing" && <span className="extra-chip">{task.priority}</span>}
-          {task.target_date && <span className="extra-chip">due {task.target_date}</span>}
-        </span>
+        <h1 style={{ fontSize: 18, margin: "0 0 2px", lineHeight: 1.25 }}>{task.action}</h1>
+        <div className="muted small" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <span style={{ color: /pending/i.test(task.status) ? "#a8842c" : task.status === "In Progress" ? "var(--brand)" : undefined, fontWeight: 600 }}>{task.status}</span>
+          {task.priority && task.priority !== "Missing" && <> · <span style={task.priority === "High" ? { color: "#c0262d", fontWeight: 600 } : undefined}>{task.priority}</span></>}
+          {task.target_date && <> · due {task.target_date}</>}
+        </div>
       </div>
 
       {isOpen && (
         <div className="card" style={{ display: "grid", gap: 10 }}>
           {uploadFailed && <p className="error small" style={{ margin: 0 }}>{uploadFailed}</p>}
-          <div className="btn-row">
-            <button type="button" className={quick === "comment" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "comment" ? "none" : "comment")}>
-              💬 Add comment
+          {/* Three small buttons on one line - comment, photo, audio. */}
+          <div className="btn-row" style={{ gap: 6, flexWrap: "nowrap", alignItems: "center" }}>
+            <button type="button" className={quick === "comment" ? "btn small" : "btn ghost small"} onClick={() => setQuick(quick === "comment" ? "none" : "comment")}>
+              💬 Comment
             </button>
             {canAttach && (
-              <button type="button" className={quick === "photo" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "photo" ? "none" : "photo")}>
-                📷 Add photo
+              <button type="button" className={quick === "photo" ? "btn small" : "btn ghost small"} onClick={() => setQuick(quick === "photo" ? "none" : "photo")}>
+                📷 Photo
               </button>
             )}
             {canAttach && (
-              <button type="button" className={quick === "audio" ? "btn" : "btn ghost"} onClick={() => setQuick(quick === "audio" ? "none" : "audio")}>
-                🎙 Record audio
+              <button type="button" className={quick === "audio" ? "btn small" : "btn ghost small"} onClick={() => setQuick(quick === "audio" ? "none" : "audio")}>
+                🎙 Audio
               </button>
             )}
-            <span className="muted small" style={{ alignSelf: "center" }}>
+            <span className="muted small" style={{ alignSelf: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {evidenceCount > 0 ? `${evidenceCount} file${evidenceCount > 1 ? "s" : ""} attached` : ""}
             </span>
           </div>
@@ -220,28 +230,25 @@ export function TaskEditor({
 
           {perms.complete && (
             <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--line, #e5e7eb)", paddingTop: 10 }}>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="te-move">Move this task to</label>
-                <div className="btn-row">
-                  <select
-                    id="te-move"
-                    className="input"
-                    value={moveTo}
-                    onChange={(e) => setMoveTo(e.target.value)}
-                    style={{ maxWidth: 230 }}
-                  >
-                    {statusChoices.map((st) => <option key={st}>{st}</option>)}
-                  </select>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={moveTo === task.status || busyMove}
-                    onClick={applyMove}
-                  >
-                    {busyMove ? "Applying..." : "Apply"}
-                  </button>
-                </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <label htmlFor="te-move" className="small muted" style={{ whiteSpace: "nowrap", margin: 0 }}>Move to</label>
+                <select id="te-move" className="input" value={moveTo} onChange={(e) => setMoveTo(e.target.value)}
+                  style={{ flex: 1, minWidth: 0 }}>
+                  {statusChoices.map((st) => <option key={st}>{st}</option>)}
+                </select>
+                <button type="button" className="btn small" disabled={moveTo === task.status || busyMove} onClick={applyMove} style={{ whiteSpace: "nowrap" }}>
+                  {busyMove ? "Applying..." : "Apply"}
+                </button>
               </div>
+              {moveTo !== task.status && moveTo !== "Completed" && moveTo !== "Cancelled" && (
+                <div style={{ display: "grid", gap: 6 }}>
+                  {/pending/i.test(moveTo) && (
+                    <input className="input" value={pendingOn} onChange={(e) => setPendingOn(e.target.value)} placeholder="Waiting on whom? (e.g. PSE&G, the architect)" />
+                  )}
+                  <textarea className="input" rows={2} value={moveComment} onChange={(e) => setMoveComment(e.target.value)}
+                    placeholder={/pending/i.test(moveTo) ? "Comment (required): what are you waiting for?" : "Comment (optional) - saved with the move"} />
+                </div>
+              )}
               {moveTo === "Cancelled" && (
                 <p className="muted small" style={{ margin: 0 }}>
                   Cancelling closes this task for good — open subtasks must be

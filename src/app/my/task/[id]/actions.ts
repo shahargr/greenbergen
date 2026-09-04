@@ -241,10 +241,29 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
     redirect(`${back}?error=${encodeURIComponent("That is not a status this task can move to.")}`);
   }
 
-  const { error } = await supabase
-    .from("actions")
-    .update({ status: st, last_modified_by: "portal:task" })
-    .eq("id", taskId);
+  // A comment travels with the move. It is REQUIRED for Pending on Others
+  // (the database refuses a pending status without a reason) and becomes
+  // both the pending reason and a comment on the task.
+  const comment = String(formData.get("comment") ?? "").trim();
+  const isPending = /pending/i.test(st);
+  if (isPending && !comment) {
+    redirect(`${back}?error=${encodeURIComponent("Pending on Others needs a comment: who you are waiting on, and for what.")}`);
+  }
+  const updates: Record<string, unknown> = { status: st, last_modified_by: "portal:task" };
+  if (isPending) {
+    updates.pending_reason = comment;
+    const who = String(formData.get("pending_on") ?? "").trim();
+    if (who) updates.pending_on = who;
+  }
+  const { error } = await supabase.from("actions").update(updates).eq("id", taskId);
+  if (!error && comment) {
+    const { data: me } = await supabase.rpc("me");
+    await supabase.from("task_comments").insert({
+      action_id: taskId, author_contact_id: me?.contact_id ?? null,
+      author_name: me?.full_name ?? me?.email ?? "Someone",
+      body: `Moved to ${st}: ${comment}`,
+    });
+  }
   revalidatePath(`/my/task/${taskId}`);
   revalidatePath("/my");
   redirect(error
