@@ -26,10 +26,11 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode } = await searchParams;
+  const showAllPeople = peopleMode === "all";
   // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
   // three counts link here).
   const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
@@ -275,6 +276,38 @@ export default async function ProjectPage({
     if (r.value != null) configValues[r.key] = r.value;
   }
 
+  // People: most open work first; the idle ones fold away unless asked for.
+  const sortedPeople = [...peopleRows].sort((a, b) => (b.open - a.open) || a.name.localeCompare(b.name));
+  const activePeople = sortedPeople.filter((p) => p.open > 0);
+  const visiblePeople = showAllPeople || activePeople.length === 0 ? sortedPeople : activePeople;
+
+  // This week, Monday to Sunday, in the server's calendar.
+  const dayMs = 86400000;
+  const todayDate = new Date(todayIso + "T12:00:00");
+  const dow = (todayDate.getDay() + 6) % 7; // Monday = 0
+  const weekStart = new Date(todayDate.getTime() - dow * dayMs);
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart.getTime() + i * dayMs);
+    return d.toISOString().slice(0, 10);
+  });
+  const weekEndIso = weekDays[6];
+  const { data: weekTxRows } = await supabase
+    .from("transactions").select("id, description, amount, paid_on, target_date, status")
+    .eq("project_id", id).eq("direction", "out")
+    .in("status", ["scheduled", "forecast", "approved", "invoice received"])
+    .or(`paid_on.gte.${weekDays[0]},target_date.gte.${weekDays[0]}`)
+    .limit(100);
+  type WeekTx = { id: string; description: string | null; amount: number | null; paid_on: string | null; target_date: string | null; status: string };
+  const weekPayments = ((weekTxRows ?? []) as WeekTx[])
+    .map((t) => ({ ...t, on: t.paid_on ?? t.target_date }))
+    .filter((t) => t.on && t.on >= weekDays[0] && t.on <= weekEndIso);
+  const weekTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date >= weekDays[0] && t.target_date <= weekEndIso);
+  const overdueTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date < todayIso);
+  const todayTasks = weekTasks.filter((t) => t.target_date === todayIso);
+  const restOfWeekTasks = weekTasks.filter((t) => t.target_date! > todayIso).sort((a, b) => a.target_date!.localeCompare(b.target_date!));
+  const dayLabel = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+  const money = (n: number | null) => (n == null ? "" : `$${Math.round(n).toLocaleString()}`);
+
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
       <p className="small" style={{ margin: "0 0 6px" }}>
@@ -309,6 +342,60 @@ export default async function ProjectPage({
           perms={perms}
           crumbs={crumbs}
         />
+
+        {/* The landing view: what is planned this week, day by day, then
+            today's list and the rest of the week. */}
+        <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <h2 className="section-title" style={{ margin: 0 }}>This week · {weekTasks.length} task{weekTasks.length === 1 ? "" : "s"}{weekPayments.length ? ` · ${weekPayments.length} payment${weekPayments.length === 1 ? "" : "s"}` : ""}</h2>
+            <span className="muted small">{dayLabel(weekDays[0])} – {dayLabel(weekDays[6])}</span>
+          </div>
+          <div className="weekgrid">
+            {weekDays.map((d) => {
+              const isToday = d === todayIso;
+              const dayTasks = weekTasks.filter((t) => t.target_date === d);
+              const dayPay = weekPayments.filter((t) => t.on === d);
+              return (
+                <div key={d} className={`weekday${isToday ? " today" : ""}`}>
+                  <div className="weekday-head">{dayLabel(d)}{isToday ? " · today" : ""}</div>
+                  {dayTasks.length === 0 && dayPay.length === 0 && <div className="muted" style={{ fontSize: 11 }}>—</div>}
+                  {dayTasks.map((t) => (
+                    <Link key={t.id} href={`/my/task/${t.id}`} className="weekitem" title={t.action}>
+                      {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                    </Link>
+                  ))}
+                  {dayPay.map((p) => (
+                    <span key={p.id} className="weekitem pay" title={p.description ?? "payment"}>💵 {money(p.amount)} {p.description ?? ""}</span>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          {overdueTasks.length > 0 && (
+            <p className="small" style={{ margin: 0, color: "#c0262d" }}>
+              {overdueTasks.length} overdue from before this week — <Link href={`/my/project/${project.id}?tasks=stuck`} style={{ color: "inherit" }}>see them</Link>
+            </p>
+          )}
+        </div>
+
+        <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+          <h2 className="section-title" style={{ margin: 0 }}>Today · {todayTasks.length}</h2>
+          {todayTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing due today.</p>}
+          {todayTasks.map((t) => (
+            <Link key={t.id} href={`/my/task/${t.id}`} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}</span>
+              <span className="muted" style={{ whiteSpace: "nowrap" }}>{t.assignee ?? "unassigned"}</span>
+            </Link>
+          ))}
+          <h2 className="section-title" style={{ margin: "8px 0 0" }}>Rest of this week · {restOfWeekTasks.length}</h2>
+          {restOfWeekTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing else due this week.</p>}
+          {restOfWeekTasks.map((t) => (
+            <Link key={t.id} href={`/my/task/${t.id}`} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}</span>
+              <span className="muted" style={{ whiteSpace: "nowrap" }}>{dayLabel(t.target_date!)}{t.assignee ? ` · ${t.assignee}` : ""}</span>
+            </Link>
+          ))}
+        </div>
 
         {/* What the owner asked for: description, specs, photos. Travels
             with every bid package as the scope bidders price from. */}
@@ -389,7 +476,7 @@ export default async function ProjectPage({
           )}
           {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters showTradeTiles={false} showLatePanels avatars={avatars}
+            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showTradeTiles={false} showLatePanels avatars={avatars}
               initialParent={parentTask ?? null}
               initialState={initialTaskState} initialView={initialTaskView} />
           )}
@@ -460,48 +547,25 @@ export default async function ProjectPage({
         )}
 
 
-        {/* Invite someone into this space. They accept or decline on their
-            next login; the answer shows on the inviter's home page. */}
-        {(perms.admin || perms.name || perms.status || perms.address) && (
-          <details className="card" style={{ display: "grid", gap: 8 }}>
-            <summary style={{ cursor: "pointer", fontWeight: 700 }}>➕ Invite someone to this {project.parent_project_id ? "project" : "home"}</summary>
-            <form action={inviteToProject} style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <input type="hidden" name="project" value={project.id} />
-              <input type="hidden" name="back" value={`/my/project/${project.id}`} />
-              <div className="form-2col">
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="inv-contact">Their email or phone</label>
-                  <input id="inv-contact" name="contact" className="input" required autoComplete="off" placeholder="name@example.com or 201-555-0100" />
-                </div>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="inv-note">Note (optional)</label>
-                  <input id="inv-note" name="note" className="input" defaultValue={`Please join ${project.project_name} to assist with `} />
-                </div>
-              </div>
-              <div className="radio-row" style={{ minHeight: 0 }}>
-                <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>
-                <label className="radio-opt"><input type="radio" name="seat" value="viewer" /> Viewer</label>
-                <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Co-owner</label>
-              </div>
-              <p className="muted small" style={{ margin: 0 }}>Co-owner = runs the home with you: full authority, sees money. Viewer = read-only, no money.</p>
-              <div className="btn-row" style={{ alignItems: "center" }}>
-                <button className="btn small">Invite user</button>
-                <Link href={`/my/invite?project=${project.id}`} className="small muted">Not on the platform yet? Send a signup link →</Link>
-              </div>
-            </form>
-          </details>
-        )}
+        {/* Inviting lives on the top bar (＋ Invite by Setup), not here. */}
 
         {peopleRows.length > 0 && (
           // minWidth 0 + overflow hidden at every level so a long task title
           // truncates instead of widening the page.
           <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
-            <h2 className="section-title" style={{ margin: 0 }}>People · {peopleRows.length}</h2>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <h2 className="section-title" style={{ margin: 0 }}>People · {visiblePeople.length}{!showAllPeople && visiblePeople.length < peopleRows.length ? ` of ${peopleRows.length}` : ""}</h2>
+              {peopleRows.length > activePeople.length && (
+                showAllPeople
+                  ? <Link href={`/my/project/${project.id}`} className="small">Active only</Link>
+                  : <Link href={`/my/project/${project.id}?people=all`} className="small">Show all {peopleRows.length}</Link>
+              )}
+            </div>
             <div className="muted" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 0.55fr 0.9fr 0.9fr 0.45fr 0.45fr", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
               <span>Trade</span><span>Name</span><span>Open</span><span>Owed</span><span>Paid</span><span>Call</span><span>Task</span>
             </div>
             {/* Click a row to open the person's card: every task they're connected to. */}
-            {peopleRows.map((p) => (
+            {visiblePeople.map((p) => (
               <details key={p.contactId} style={{ borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0, overflow: "hidden" }}>
                 <summary className="small" style={{ cursor: "pointer", listStyle: "none", display: "grid", gridTemplateColumns: "1fr 1.6fr 0.55fr 0.9fr 0.9fr 0.45fr 0.45fr", gap: 8, alignItems: "center", minWidth: 0 }}>
                   <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.trade ?? "—"}</span>
