@@ -26,10 +26,12 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam } = await searchParams;
+  // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
+  const selectedDay = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
   const showAllPeople = peopleMode === "all";
   // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
   // three counts link here).
@@ -379,8 +381,11 @@ export default async function ProjectPage({
               const dayGates = weekGates.filter((g) => g.on === d);
               const dayDone = doneThisWeek.filter((a) => a.on === d);
               return (
-                <div key={d} className={`weekday${isToday ? " today" : ""}`}>
-                  <div className="weekday-head">{dayLabel(d)}{isToday ? " · today" : ""}</div>
+                <div key={d} className={`weekday${isToday ? " today" : ""}${selectedDay === d ? " selected" : ""}`}>
+                  <Link href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`} className="weekday-head"
+                    style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }} title={selectedDay === d ? "Close this day" : "Show this day's list"}>
+                    {dayLabel(d)}{isToday ? " · today" : ""}
+                  </Link>
                   {dayTasks.length === 0 && dayPay.length === 0 && dayGates.length === 0 && dayDone.length === 0 && <div className="muted" style={{ fontSize: 11 }}>—</div>}
                   {dayGates.map((g) => (
                     <Link key={g.id} href={`/my/task/${g.id}`} className={`weekitem gate ${g.closed ? "done" : "open"}`} title={`Gate · ${g.status} · ${g.action ?? ""}`}>
@@ -410,6 +415,50 @@ export default async function ProjectPage({
             </p>
           )}
         </div>
+
+        {/* The picked day, as a table: everything on the calendar for it. */}
+        {selectedDay && (() => {
+          type DayRow = { id: string; kind: "gate" | "task" | "done" | "payment"; title: string; priority: string | null; who: string | null; status: string; href: string | null };
+          const rows: DayRow[] = [
+            ...weekGates.filter((g) => g.on === selectedDay).map((g): DayRow => ({ id: g.id, kind: "gate", title: g.action ?? "(gate)", priority: null, who: null, status: g.status, href: `/my/task/${g.id}` })),
+            ...weekTasks.filter((t) => t.target_date === selectedDay && !weekGates.some((g) => g.id === t.id)).map((t): DayRow => ({ id: t.id, kind: "task", title: t.action, priority: t.priority, who: t.assignee, status: t.status, href: `/my/task/${t.id}` })),
+            ...doneThisWeek.filter((a) => a.on === selectedDay).map((a): DayRow => ({ id: a.id, kind: "done", title: a.action ?? "(untitled)", priority: null, who: null, status: "Completed", href: `/my/task/${a.id}` })),
+            ...weekPayments.filter((p) => p.on === selectedDay).map((p): DayRow => ({ id: p.id, kind: "payment", title: `${money(p.amount)} ${p.description ?? ""}`.trim(), priority: null, who: null, status: p.status, href: null })),
+          ];
+          const kindLabel = { gate: "Gate", task: "Task", done: "Completed", payment: "Payment" } as const;
+          const kindStyle = (k: DayRow["kind"], st: string): React.CSSProperties =>
+            k === "gate" ? (["Completed", "Cancelled", "Force Cancelled"].includes(st) ? { background: "#e6f2ea", color: "#1f6b45" } : { background: "#fdecec", color: "#c0262d" })
+            : k === "done" ? { background: "#e6f2ea", color: "#1f6b45" }
+            : k === "payment" ? { background: "#fdf4e3", color: "#a8842c" }
+            : { background: "#f0f1ee", color: "#555" };
+          return (
+            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflowX: "auto", borderLeft: "3px solid var(--brand)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  {new Date(selectedDay + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} · {rows.length} item{rows.length === 1 ? "" : "s"}
+                </h2>
+                <Link href={`/my/project/${project.id}`} className="small">Close ✕</Link>
+              </div>
+              {rows.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing on the calendar for this day.</p>}
+              {rows.length > 0 && (
+                <table className="tasktable" style={{ width: "100%" }}>
+                  <thead><tr><th>Item</th><th>Type</th><th>Priority</th><th>Assigned to</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={`${r.kind}-${r.id}`}>
+                        <td style={{ fontWeight: 600 }}>{r.href ? <Link href={r.href}>{r.title}</Link> : r.title}</td>
+                        <td><span className="extra-chip" style={kindStyle(r.kind, r.status)}>{r.kind === "gate" ? <>{gateIcon(["Completed", "Cancelled", "Force Cancelled"].includes(r.status))}Gate</> : kindLabel[r.kind]}</span></td>
+                        <td className="small">{r.priority === "High" ? <span style={{ color: "#c0262d", fontWeight: 600 }}>High</span> : (r.priority ?? <span className="muted">—</span>)}</td>
+                        <td className="small">{r.who ?? <span className="muted">—</span>}</td>
+                        <td className="muted small" style={{ whiteSpace: "nowrap" }}>{r.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Today · {todayTasks.length}</h2>

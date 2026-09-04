@@ -919,3 +919,5 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 .weekitem.done { background: #e6f2ea; border-color: #bfdccb; color: #1f6b45; }
 .weekitem.gate.open { background: #fdecec; border-color: #f0c2c4; color: #c0262d; font-weight: 600; }
 .weekitem.gate.done { background: #e6f2ea; border-color: #bfdccb; color: #1f6b45; font-weight: 600; }
+.weekday.selected { background: #fff; outline: 2px solid #a8842c; }
+.weekday-head:hover { text-decoration: underline; }
