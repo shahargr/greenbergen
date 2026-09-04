@@ -545,3 +545,74 @@ export async function crewUpload(projectId: string, formData: FormData) {
     ? `${back}?error=${encodeURIComponent(`${failures.length} refused: ${failures.join(" · ")}`)}`
     : `${back}?ok=${encodeURIComponent(`${pending.length} file${pending.length === 1 ? "" : "s"} sent from site ✓`)}`);
 }
+
+// ---------------------------------------------------------------------------
+// The project description and the files that travel with it (v201). These are
+// the brief: what a bidder reads and prices from.
+
+export async function saveScopeDescription(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}?tab=scope`;
+  const p = await projectPerms(projectId);
+  if (!p.notes) redirect(`${back}&error=${encodeURIComponent("Editing the description is not yours to do.")}#brief`);
+
+  const { error } = await supabase.from("projects")
+    .update({ notes: String(formData.get("description") ?? "").trim() || null, last_modified_by: "portal:scope" })
+    .eq("id", projectId);
+  revalidatePath(back);
+  redirect(error
+    ? `${back}&error=${encodeURIComponent(error.message)}#brief`
+    : `${back}&ok=${encodeURIComponent("Description saved.")}#brief`);
+}
+
+export async function uploadScopeFiles(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}?tab=scope`;
+  const files = [...formData.getAll("files"), ...formData.getAll("videos"), ...formData.getAll("docs")]
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) redirect(`${back}&error=${encodeURIComponent("Pick a file first.")}#brief`);
+
+  const failures: string[] = [];
+  const pending: { path: string; bytes: ArrayBuffer; mime: string | null }[] = [];
+  let i = 0;
+  for (const file of files) {
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    const isAudio = file.type.startsWith("audio/");
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const kind = isImage ? "photo" : isVideo ? "video" : isAudio ? "audio" : isPdf ? "document" : "other";
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? "").toLowerCase();
+    // The path carries "description-" so the brief picks it up wherever it is read.
+    const path = `${projectId}/description-${Date.now()}-${i}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
+      p_project_id: projectId, p_path: path, p_file_name: file.name || `description${ext}`,
+      p_mime: file.type || null, p_size: file.size, p_caption: "Project description", p_kind: kind,
+    });
+    if (recErr || !fileId) { failures.push(`${file.name}: ${recErr?.message ?? "not recorded"}`); i += 1; continue; }
+    pending.push({ path, bytes, mime: file.type || null });
+    i += 1;
+  }
+  after(async () => {
+    for (const f of pending) {
+      await supabase.storage.from("project-media").upload(f.path, f.bytes, { contentType: f.mime || undefined, upsert: true });
+    }
+  });
+  revalidatePath(back);
+  redirect(failures.length
+    ? `${back}&error=${encodeURIComponent(`${failures.length} refused: ${failures.join(" · ")}`)}#brief`
+    : `${back}&ok=${encodeURIComponent(`${pending.length} file${pending.length === 1 ? "" : "s"} added to the description.`)}#brief`);
+}
+
+export async function deleteScopeFile(projectId: string, fileId: string) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}?tab=scope`;
+  const { data, error } = await supabase.rpc("portal_project_file_delete", { p_file_id: fileId });
+  if (error) redirect(`${back}&error=${encodeURIComponent(error.message)}#brief`);
+  const gone = data as { bucket: string | null; path: string | null } | null;
+  if (gone?.bucket && gone.path) {
+    await supabase.storage.from(gone.bucket).remove([gone.path]);
+  }
+  revalidatePath(back);
+  redirect(`${back}&ok=${encodeURIComponent("File deleted.")}#brief`);
+}

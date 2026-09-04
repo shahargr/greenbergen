@@ -7,6 +7,7 @@ import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
 import { BidNeeds } from "./BidNeeds";
 import { ScopeWizard } from "./ScopeWizard";
 import { ScopeEvidence } from "./ScopeEvidence";
+import { ScopeBrief } from "./ScopeBrief";
 import { CrewSite } from "./CrewSite";
 import { ContractorView } from "./ContractorView";
 import { VisitTasks } from "./VisitTasks";
@@ -160,6 +161,12 @@ export default async function ProjectPage({
   // need to sign in, send a photo, and sign out. A contractor runs their side
   // from three things: the money, the scope, the contract. Everyone at site-PM
   // rank and above gets the full page.
+  // The same description the brief shows: the project notes, minus the two
+  // boilerplate openers the wizard writes.
+  const briefDescription = (project.notes ?? "")
+    .replace(/^Created by the homeowner through the portal\.\s*/, "")
+    .replace(/^Container project for the home at [^\n]*\(v102\)\.\s*/, "")
+    .trim() || null;
   const isCrew = perms.rank > 0 && perms.rank <= 5 && !perms.admin;
   const isContractorSide = !isCrew && perms.rank > 5 && perms.rank < 50 && !perms.admin;
   const tab: "overview" | "site" | "visit" | "scope" | "setup" | "crew" | "contractor" | "contract" =
@@ -693,8 +700,10 @@ export default async function ProjectPage({
           </>
         )}
 
-        {/* Scope and evidence: everyone on the project reads the lines the
-            work was priced from, and anyone on it can add the proof. */}
+        {/* Scope starts with the words and the files a bidder prices from. */}
+        {tab === "scope" && (
+          <ScopeBrief projectId={project.id} description={briefDescription} caps={caps} canEdit={perms.notes} />
+        )}
         {tab === "scope" && perms.rank < 50 && project.parent_project_id && (
           <ProjectBrief projectId={project.id} title="Scope" collapsible />
         )}
