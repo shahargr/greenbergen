@@ -402,7 +402,48 @@ export default async function ProjectPage({
             <h2 className="section-title" style={{ margin: 0 }}>This week · {weekTasks.length} task{weekTasks.length === 1 ? "" : "s"}{weekPayments.length ? ` · ${weekPayments.length} payment${weekPayments.length === 1 ? "" : "s"}` : ""}</h2>
             <span className="muted small">{dayLabel(weekDays[0])} – {dayLabel(weekDays[6])}</span>
           </div>
-          <div className="weekgrid">
+          {/* Phone: an agenda - today and the next days, one row per item,
+              like an inbox. Wide screens get the week grid below. */}
+          <div className="agenda only-narrow">
+            {(() => {
+              const fromIdx = Math.max(0, weekDays.indexOf(todayIso));
+              const days = weekDays.slice(fromIdx, fromIdx + 3);
+              const rowsFor = (d: string) => [
+                ...weekGates.filter((g) => g.on === d && !g.closed).map((g) => ({ key: `g${g.id}`, href: itemHref(g.id), cls: "gate open", title: g.action ?? "(gate)", sub: `Gate · ${g.status}`, mark: gateIcon(false) })),
+                ...weekTasks.filter((t) => t.target_date === d && !weekGates.some((g) => g.id === t.id)).map((t) => ({ key: `t${t.id}`, href: itemHref(t.id), cls: t.priority === "High" ? "high" : "", title: t.action, sub: [t.assignee ?? "unassigned", t.status].join(" · "), mark: t.priority === "High" ? <span style={{ color: "#c0262d" }}>● </span> : null })),
+                ...weekPayments.filter((p) => p.on === d).map((p) => ({ key: `p${p.id}`, href: null as string | null, cls: "pay", title: `${money(p.amount)} ${p.description ?? ""}`.trim(), sub: `Payment · ${p.status}`, mark: <span>💵 </span> })),
+                ...weekGates.filter((g) => g.on === d && g.closed).map((g) => ({ key: `gc${g.id}`, href: itemHref(g.id), cls: "gate done", title: g.action ?? "(gate)", sub: `Gate · ${g.status}`, mark: gateIcon(true) })),
+                ...doneThisWeek.filter((a) => a.on === d).map((a) => ({ key: `d${a.id}`, href: itemHref(a.id), cls: "done", title: a.action ?? "(untitled)", sub: "Completed", mark: null })),
+              ];
+              return days.map((d) => {
+                const rows = rowsFor(d);
+                const isToday = d === todayIso;
+                return (
+                  <div key={d} className={`agenda-day${isToday ? " today" : ""}`}>
+                    <Link href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`} className="agenda-head" style={{ textDecoration: "none", color: "inherit" }}>
+                      <span>{isToday ? "Today · " : ""}{new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</span>
+                      <span className="muted">{rows.length || "—"}</span>
+                    </Link>
+                    {rows.map((r) => r.href ? (
+                      <Link key={r.key} href={r.href} className={`agenda-row ${r.cls}${selectedItem && r.href.includes(selectedItem) ? " selected" : ""}`}>
+                        <span className="agenda-title">{r.mark}{r.title}</span>
+                        <span className="agenda-sub">{r.sub}</span>
+                      </Link>
+                    ) : (
+                      <div key={r.key} className={`agenda-row ${r.cls}`}>
+                        <span className="agenda-title">{r.mark}{r.title}</span>
+                        <span className="agenda-sub">{r.sub}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              });
+            })()}
+            {weekDays.indexOf(todayIso) < 0 && <p className="muted small" style={{ margin: 0 }}>Today is outside this week.</p>}
+            <Link href={`/my/project/${project.id}?day=${weekDays[0]}`} className="small muted" style={{ marginTop: 4 }}>Full week, day by day ▾</Link>
+          </div>
+
+          <div className="weekgrid only-wide">
             {weekDays.map((d) => {
               const isToday = d === todayIso;
               const dayTasks = weekTasks.filter((t) => t.target_date === d && !weekGates.some((g) => g.id === t.id));
@@ -530,7 +571,8 @@ export default async function ProjectPage({
           );
         })()}
 
-        <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+        {/* Wide screens only - on a phone the agenda above already is today. */}
+        <div className="card only-wide" style={{ display: "grid", gap: 6, minWidth: 0 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Today · {todayTasks.length}</h2>
           {todayTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing due today.</p>}
           {todayTasks.map((t) => (

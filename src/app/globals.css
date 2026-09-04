@@ -966,3 +966,26 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 .phase-tile.late-tile .phase-icon { width: 26px; height: 26px; }
 .phase-tile.late-tile .phase-name { font-size: 10px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .phase-tile.late-tile .tradestat-late { font-size: 11px; }
+
+/* Phone vs wide: the schedule is an agenda on phones, a week grid otherwise. */
+.only-narrow { display: none; }
+@media (max-width: 640px) {
+  .only-narrow { display: grid; }
+  .weekgrid.only-wide { display: none !important; }
+}
+.agenda { gap: 10px; min-width: 0; }
+.agenda-day { display: grid; gap: 0; min-width: 0; border: 1px solid #e7e9e4; border-radius: 10px; overflow: hidden; background: #fff; }
+.agenda-day.today { border-color: var(--brand); }
+.agenda-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 8px 10px; font-size: 12px; font-weight: 700; background: #f7f8f5; }
+.agenda-day.today .agenda-head { background: #eef5f0; color: var(--brand); }
+.agenda-row { display: grid; gap: 1px; padding: 8px 10px; border-top: 1px solid #f0f1ee; text-decoration: none; color: inherit; min-width: 0; }
+.agenda-row.selected { background: #fdf4e3; }
+.agenda-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.agenda-sub { font-size: 11px; color: #7b857e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-row.gate.open .agenda-title { color: #c0262d; }
+.agenda-row.gate.done .agenda-title, .agenda-row.done .agenda-title { color: #1f6b45; font-weight: 500; }
+.agenda-row.pay .agenda-title { color: #a8842c; }
+/* Wide-screen grid: never let a long title push the grid past the card. */
+.weekgrid .weekday { min-width: 0; overflow: hidden; }
+.weekgrid .weekday .weekitem { display: block; max-width: 100%; }
+@media (max-width: 640px) { .card.only-wide { display: none !important; } }
