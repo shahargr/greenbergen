@@ -819,7 +819,8 @@ export default async function ProjectPage({
           </details>
         )}
 
-        {tab === "site" && perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
+        {/* Purchase & sale: a record, not day-to-day work - it lives on Setup. */}
+        {tab === "setup" && perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
           <div className="card">
             <h2 className="section-title">Purchase &amp; sale</h2>
             <div className="small" style={{ display: "grid", gap: 4 }}>
