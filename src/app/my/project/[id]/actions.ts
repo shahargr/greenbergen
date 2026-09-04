@@ -489,3 +489,59 @@ export async function addScopeEvidence(projectId: string, scopeItemId: string, f
     ? `${back}&error=${encodeURIComponent(`${failures.length} file(s) refused: ${failures.join(" · ")}`)}#scope-evidence`
     : `${back}&ok=${encodeURIComponent(`${pending.length} file${pending.length === 1 ? "" : "s"} added to the scope line.`)}#scope-evidence`);
 }
+
+// ---------------------------------------------------------------------------
+// Crew on site (v199): arrive, leave, and the two things a hand carries —
+// a photo and a voice note.
+
+export async function siteCheck(projectId: string, kind: "arrive" | "leave", formData: FormData) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}`;
+  const { error } = await supabase.rpc("portal_site_check", {
+    p_project: projectId,
+    p_kind: kind,
+    p_note: String(formData.get("note") ?? "").trim() || null,
+  });
+  revalidatePath(back);
+  redirect(error
+    ? `${back}?error=${encodeURIComponent(error.message)}`
+    : `${back}?ok=${encodeURIComponent(kind === "arrive" ? "Signed in to site ✓" : "Signed out of site ✓")}`);
+}
+
+export async function crewUpload(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const back = `/my/project/${projectId}`;
+  const files = [...formData.getAll("files"), ...formData.getAll("videos"), ...formData.getAll("docs")]
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) redirect(`${back}?error=${encodeURIComponent("Pick a photo first.")}`);
+
+  const note = String(formData.get("note") ?? "").trim();
+  const failures: string[] = [];
+  const pending: { path: string; bytes: ArrayBuffer; mime: string | null }[] = [];
+  let i = 0;
+  for (const file of files) {
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    const isAudio = file.type.startsWith("audio/");
+    const kind = isImage ? "photo" : isVideo ? "video" : isAudio ? "audio" : "other";
+    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? "").toLowerCase();
+    const path = `${projectId}/site/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${i}${ext}`;
+    const bytes = await file.arrayBuffer();
+    const { data: fileId, error: recErr } = await supabase.rpc("record_project_file", {
+      p_project_id: projectId, p_path: path, p_file_name: file.name || `site${ext}`,
+      p_mime: file.type || null, p_size: file.size, p_caption: note || "From site", p_kind: kind,
+    });
+    if (recErr || !fileId) { failures.push(`${file.name}: ${recErr?.message ?? "not recorded"}`); i += 1; continue; }
+    pending.push({ path, bytes, mime: file.type || null });
+    i += 1;
+  }
+  after(async () => {
+    for (const f of pending) {
+      await supabase.storage.from("project-media").upload(f.path, f.bytes, { contentType: f.mime || undefined, upsert: true });
+    }
+  });
+  revalidatePath(back);
+  redirect(failures.length
+    ? `${back}?error=${encodeURIComponent(`${failures.length} refused: ${failures.join(" · ")}`)}`
+    : `${back}?ok=${encodeURIComponent(`${pending.length} file${pending.length === 1 ? "" : "s"} sent from site ✓`)}`);
+}

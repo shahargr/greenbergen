@@ -7,6 +7,8 @@ import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
 import { BidNeeds } from "./BidNeeds";
 import { ScopeWizard } from "./ScopeWizard";
 import { ScopeEvidence } from "./ScopeEvidence";
+import { CrewSite } from "./CrewSite";
+import { ContractorView } from "./ContractorView";
 import { VisitTasks } from "./VisitTasks";
 import { projectPerms, updateContact, setSiteRoster, logSiteVisit } from "./actions";
 import { FileDrop } from "@/components/FileDrop";
@@ -47,12 +49,6 @@ export default async function ProjectPage({
   //   scope    - Project scope: trades, scope lines, the bid process
   //   setup    - define and administer: details, configuration, invitations,
   //              the record itself and deletion (Admin merged in here)
-  const tab: "overview" | "site" | "visit" | "scope" | "setup" =
-    (tabParam === "setup" || tabParam === "admin") ? "setup"
-    : tabParam === "visit" ? "visit"
-    : tabParam === "scope" ? "scope"
-    : (tabParam === "site" || tabParam === "manage" || peopleMode === "all" || (!tabParam && (tasksBucket || parentTask))) ? "site"
-    : "overview";
   // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
   const selectedDay = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
   const showAllPeople = peopleMode === "all";
@@ -160,6 +156,21 @@ export default async function ProjectPage({
   const bidPkgs = ((bidPkgData ?? []) as BidPkg[]);
   const myBids = ((myBidData ?? []) as MyBid[]);
   // Awarded bids on this project, for the Award stage of the ladder.
+  // Who this page is for. A hand on site does not need a project page — they
+  // need to sign in, send a photo, and sign out. A contractor runs their side
+  // from three things: the money, the scope, the contract. Everyone at site-PM
+  // rank and above gets the full page.
+  const isCrew = perms.rank > 0 && perms.rank <= 5 && !perms.admin;
+  const isContractorSide = !isCrew && perms.rank > 5 && perms.rank < 50 && !perms.admin;
+  const tab: "overview" | "site" | "visit" | "scope" | "setup" | "crew" | "contractor" | "contract" =
+    isCrew ? "crew"
+    : isContractorSide
+      ? (tabParam === "scope" ? "scope" : tabParam === "contract" ? "contract" : "contractor")
+    : (tabParam === "setup" || tabParam === "admin") ? "setup"
+    : tabParam === "visit" ? "visit"
+    : tabParam === "scope" ? "scope"
+    : (tabParam === "site" || tabParam === "manage" || peopleMode === "all" || (!tabParam && (tasksBucket || parentTask))) ? "site"
+    : "overview";
   const { data: wonRows } = perms.rank >= 50
     ? await supabase.from("bids").select("id, package_id, amount, contacts(name, person_name)").eq("project_id", id).eq("won", true)
     : { data: [] };
@@ -439,7 +450,16 @@ export default async function ProjectPage({
       )}
 
       <div style={{ display: "grid", gap: 14, marginTop: 10 }}>
-        {/* Three tabs on the details panel; the page below follows the tab. */}
+        {/* The strip each person gets: none for crew, three for a contractor,
+            the full set for site management and above. */}
+        {isContractorSide && (
+          <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
+            <Link href={`/my/project/${project.id}`} className={tab === "contractor" ? "btn small" : "btn ghost small"}>Payments</Link>
+            <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "btn small" : "btn ghost small"}>Scope</Link>
+            <Link href={`/my/project/${project.id}?tab=contract`} className={tab === "contract" ? "btn small" : "btn ghost small"}>Contract</Link>
+          </div>
+        )}
+        {!isCrew && !isContractorSide && (
         <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
           <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Tasks</Link>
@@ -447,6 +467,15 @@ export default async function ProjectPage({
           <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "btn small" : "btn ghost small"}>Project scope</Link>
           {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
         </div>
+        )}
+
+        {/* A hand on site: arrive, photo, voice, leave. */}
+        {tab === "crew" && (
+          <CrewSite projectId={project.id} projectName={project.project_name} address={project.address} caps={caps} />
+        )}
+        {tab === "contractor" && <ContractorView projectId={project.id} show="payments" />}
+        {tab === "contract" && <ContractorView projectId={project.id} show="contract" />}
+
 
         {/* A bidder or contractor sees the scope here; owner details stay masked until awarded. */}
         {tab === "overview" && perms.rank < 50 && project.parent_project_id && <ProjectBrief projectId={project.id} title="Scope" collapsible />}
