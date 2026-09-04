@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { ProjectEditor } from "./ProjectEditor";
-import { projectPerms, updateContact } from "./actions";
+import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
+import { projectPerms, updateContact, setSiteRoster } from "./actions";
 import { inviteToProject } from "../../invite/actions";
 import { TasksTable, type TableTask } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
@@ -284,6 +284,10 @@ export default async function ProjectPage({
     if (r.value != null) configValues[r.key] = r.value;
   }
 
+  // Who is marked on site today (Manage tab roster).
+  const { data: rosterRows } = await supabase.from("site_roster").select("contact_id").eq("project_id", id).eq("on_date", todayIso);
+  const onSiteToday = new Set(((rosterRows ?? []) as { contact_id: string }[]).map((r) => r.contact_id));
+
   // People: most open work first; the idle ones fold away unless asked for.
   const sortedPeople = [...peopleRows].sort((a, b) => (b.open - a.open) || a.name.localeCompare(b.name));
   const activePeople = sortedPeople.filter((p) => p.open > 0);
@@ -384,7 +388,7 @@ export default async function ProjectPage({
         {/* Three tabs on the details panel; the page below follows the tab. */}
         <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
-          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Site visit</Link>
+          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Manage</Link>
           {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
         </div>
 
@@ -633,6 +637,7 @@ export default async function ProjectPage({
               crumbs={crumbs}
               briefSlot={project.parent_project_id ? <ProjectBrief projectId={project.id} /> : null}
               defaultOpen
+              showDelete={false}
             />
           </>
         )}
@@ -682,6 +687,31 @@ export default async function ProjectPage({
         )}
 
         {/* Bids the caller was invited to answer (bidders, not managers). */}
+        {/* Manage: who is on site today - tick the people present. */}
+        {tab === "site" && (perms.admin || perms.name || perms.status) && (
+          <form action={setSiteRoster} className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
+            <input type="hidden" name="project" value={project.id} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h2 className="section-title" style={{ margin: 0 }}>On site today · {onSiteToday.size}</h2>
+              <span className="btn-row" style={{ gap: 6, alignItems: "center" }}>
+                <input name="date" type="date" className="input" defaultValue={todayIso} style={{ padding: "4px 8px", fontSize: 12 }} />
+                <button className="btn small">Save</button>
+              </span>
+            </div>
+            {sortedPeople.length === 0 && <p className="muted small" style={{ margin: 0 }}>No one on this project yet.</p>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6 }}>
+              {sortedPeople.map((p) => (
+                <label key={p.contactId} className="small" style={{ display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", border: "1px solid #e7e9e4", borderRadius: 8, background: onSiteToday.has(p.contactId) ? "#eef5f0" : "#fff", minWidth: 0, cursor: "pointer" }}>
+                  <input type="checkbox" name="contact" value={p.contactId} defaultChecked={onSiteToday.has(p.contactId)} />
+                  <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <strong>{p.name}</strong>{p.trade && <span className="muted"> · {p.trade}</span>}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </form>
+        )}
+
         {tab === "site" && myBids.length > 0 && (
           <div className="card" style={{ display: "grid", gap: 4, minWidth: 0 }}>
             <h2 className="section-title" style={{ margin: 0 }}>Bids to answer · {myBids.length}</h2>
@@ -891,6 +921,11 @@ export default async function ProjectPage({
               </details>
             ))}
           </div>
+        )}
+
+        {/* Dead last on Setup: the delete zone. */}
+        {tab === "setup" && (
+          <DeleteProjectZone project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }} perms={perms} />
         )}
       </div>
     </main>

@@ -35,7 +35,34 @@ function Hierarchy({ crumbs }: { crumbs: Crumb[] }) {
   );
 }
 
-export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultOpen = false, showActions = true }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode; defaultOpen?: boolean; showActions?: boolean }) {
+// The delete zone, on its own so the page can put it dead last.
+export function DeleteProjectZone({ project, perms }: { project: ProjectView; perms: ProjectPerms }) {
+  const [confirmName, setConfirmName] = useState("");
+  if (perms.rank < 70) return null;
+  return (
+    <div className="card" style={{ borderLeft: "3px solid #c0262d", display: "grid", gap: 8 }}>
+      <strong className="small" style={{ color: "#c0262d" }}>Danger zone — delete project</strong>
+      <p className="muted small" style={{ margin: 0 }}>
+        Deleting moves this project — tasks, media and all — to the
+        recycle bin (restorable from Settings for the retention
+        window). Type the project name to confirm.
+      </p>
+      <form
+        action={deleteProject.bind(null, project.id)}
+        onSubmit={(e) => { if (confirmName !== project.project_name) e.preventDefault(); }}
+        className="btn-row"
+      >
+        <input className="input" value={confirmName} onChange={(e) => setConfirmName(e.target.value)}
+          placeholder={`Type "${project.project_name}"`} style={{ maxWidth: 260 }} />
+        <button className="btn" style={{ background: "#c0262d" }} disabled={confirmName !== project.project_name}>
+          Move to recycle bin
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultOpen = false, showActions = true, showDelete = true }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode; defaultOpen?: boolean; showActions?: boolean; showDelete?: boolean }) {
   const [setup, setSetup] = useState(defaultOpen);
   const [confirmName, setConfirmName] = useState("");
   const canEditAnything = perms.name || perms.notes || perms.status || perms.address;
@@ -114,7 +141,7 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultO
         <p className="muted small" style={{ margin: 0 }}>You don&apos;t have edit rights on this project&apos;s details.</p>
       )}
 
-      {canDelete && (
+      {showDelete && canDelete && (
         <div style={{ borderTop: "1px solid #e3b7ba", paddingTop: 12, display: "grid", gap: 8 }}>
           <strong className="small" style={{ color: "#c0262d" }}>Danger zone — delete project</strong>
           <p className="muted small" style={{ margin: 0 }}>

@@ -214,3 +214,17 @@ export async function configToggle(projectId: string, taskId: string, done: bool
   revalidatePath(`/my/project/${projectId}`);
   redirect(`/my/project/${projectId}?saved=1`);
 }
+
+// Manage tab: who is on site on a given day. Replaces that day's roster.
+export async function setSiteRoster(formData: FormData) {
+  const supabase = await createClient();
+  const projectId = String(formData.get("project") ?? "");
+  const date = String(formData.get("date") ?? "").trim() || new Date().toISOString().slice(0, 10);
+  const contacts = formData.getAll("contact").map(String).filter(Boolean);
+  const back = `/my/project/${projectId}?tab=site`;
+  const { data, error } = await supabase.rpc("portal_site_roster_set", { p_project: projectId, p_date: date, p_contacts: contacts });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error || !data?.ok
+    ? `${back}&error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save the roster.")}`
+    : `${back}&ok=${encodeURIComponent(`${data.on_site} on site ${date === new Date().toISOString().slice(0, 10) ? "today" : date} ✓`)}`);
+}
