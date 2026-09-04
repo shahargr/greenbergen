@@ -35,7 +35,7 @@ function Hierarchy({ crumbs }: { crumbs: Crumb[] }) {
   );
 }
 
-export function ProjectEditor({ project, perms, crumbs = [] }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[] }) {
+export function ProjectEditor({ project, perms, crumbs = [], briefSlot }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode }) {
   const [setup, setSetup] = useState(false);
   const [confirmName, setConfirmName] = useState("");
   const canEditAnything = perms.name || perms.notes || perms.status || perms.address;
@@ -74,6 +74,9 @@ export function ProjectEditor({ project, perms, crumbs = [] }: { project: Projec
         <h2 className="section-title" style={{ margin: 0 }}>Setup</h2>
         <button type="button" className="btn ghost small" onClick={() => setSetup(false)}>Close</button>
       </div>
+
+      {/* The project brief (description, specs, photos) lives here in Setup. */}
+      {briefSlot}
 
       {canEditAnything ? (
         <form action={save} style={{ display: "grid", gap: 10 }}>

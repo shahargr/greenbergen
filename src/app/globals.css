@@ -951,3 +951,11 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 .weekgrid .weekday .weekday-open { font-size: 10px; color: #7b857e; text-decoration: none; margin-top: auto; padding-top: 4px; }
 .weekgrid .weekday .weekday-open:hover { color: var(--brand); text-decoration: underline; }
 .weekgrid .weekday { display: flex; flex-direction: column; }
+
+/* Manage project: four compact tiles in one line. */
+.manage-tiles { gap: 8px; }
+.mtile { display: grid; gap: 2px; padding: 8px 10px; text-decoration: none; color: inherit; min-width: 0; align-content: start; }
+.mtile:hover { border-color: var(--brand); }
+.mtile-num { font-size: 20px; font-weight: 700; line-height: 1.1; color: var(--brand); }
+.mtile-label { font-size: 11px; color: #555; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 480px) { .manage-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

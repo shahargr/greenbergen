@@ -71,10 +71,12 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, filtersInSetup = false, stageTiles, avatars, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, stageTiles, avatars, todayIso }: {
   // Project page: the filter dropdowns live behind each saved slot's ⚙, not
   // on the page. Three slot buttons stay; setup picks the filters + a name.
   filtersInSetup?: boolean;
+  // Hide the five quick views (Urgent / My tasks / Late / Stuck / Full list).
+  showViews?: boolean;
   tasks: TableTask[];
   initialProject?: string;
   initialDomain?: string;
@@ -390,6 +392,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
+      {showViews && (
       <div className="btn-row" style={{ gap: 6 }}>
         <button type="button" className={view === "urgent" ? "btn small" : "btn ghost small"}
           onClick={() => { setView(view === "urgent" ? "none" : "urgent"); setOpen(null); }}>
@@ -412,6 +415,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
           Full list
         </button>
       </div>
+      )}
 
       {!compact && !filtersInSetup && filterControls}
 

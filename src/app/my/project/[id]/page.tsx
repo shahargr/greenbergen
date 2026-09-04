@@ -26,10 +26,13 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam } = await searchParams;
+  // Two tabs: Overview (schedule, tasks) and Manage project (bids, bidders,
+  // award, people). Anything that opens the people list lands on Manage.
+  const tab: "overview" | "manage" = tabParam === "manage" || peopleMode === "all" ? "manage" : "overview";
   // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
   const selectedDay = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
   const showAllPeople = peopleMode === "all";
@@ -38,7 +41,7 @@ export default async function ProjectPage({
   const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
   // Default on load: the 10 most urgent tasks. ?tasks=open|done|stuck override.
   const initialTaskView: "all" | "stuck" | "urgent" =
-    parentTask ? "all" : tasksBucket === "stuck" ? "stuck" : (tasksBucket === "done" || tasksBucket === "open") ? "all" : "urgent";
+    parentTask ? "all" : tasksBucket === "stuck" ? "stuck" : "all";
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -364,8 +367,17 @@ export default async function ProjectPage({
           project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
           perms={perms}
           crumbs={crumbs}
+          briefSlot={project.parent_project_id ? <ProjectBrief projectId={project.id} /> : null}
         />
 
+        {perms.rank >= 50 && (
+          <div className="btn-row" style={{ gap: 6 }}>
+            <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
+            <Link href={`/my/project/${project.id}?tab=manage`} className={tab === "manage" ? "btn small" : "btn ghost small"}>Manage project</Link>
+          </div>
+        )}
+
+        {tab === "overview" && (<>
         {/* The landing view: what is planned this week, day by day, then
             today's list and the rest of the week. */}
         <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
@@ -490,9 +502,7 @@ export default async function ProjectPage({
           ))}
         </div>
 
-        {/* What the owner asked for: description, specs, photos. Travels
-            with every bid package as the scope bidders price from. */}
-        {project.parent_project_id && <ProjectBrief projectId={project.id} collapsible />}
+        {/* The project brief now lives in Setup (Details → ⚙️ Setup). */}
 
         {/* On a job the brief carries the specs; the configurator folds away
             underneath it and is only opened to change them. */}
@@ -569,16 +579,39 @@ export default async function ProjectPage({
           )}
           {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
           {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showTradeTiles={false} showLatePanels avatars={avatars}
+            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showViews={false} showTradeTiles={false} showLatePanels avatars={avatars}
               initialParent={parentTask ?? null}
               initialState={initialTaskState} initialView={initialTaskView} />
           )}
         </div>
 
-        {perms.rank >= 50 && (
+        </>)}
+
+        {tab === "manage" && perms.rank >= 50 && (
           <>
+            {/* Manage project: four compact tiles in one line, each jumping
+                to its full card below. */}
+            <div className="ptiles manage-tiles">
+              <a href="#stage-bid" className="card mtile">
+                <span className="mtile-num">{bidPkgs.length}</span>
+                <span className="mtile-label">Bid package{bidPkgs.length === 1 ? "" : "s"}</span>
+              </a>
+              <a href="#stage-invite" className="card mtile">
+                <span className="mtile-num">{totalInvited}</span>
+                <span className="mtile-label">Bidders invited{totalReceived ? ` · ${totalReceived} replied` : ""}</span>
+              </a>
+              <a href="#stage-award" className="card mtile">
+                <span className="mtile-num">{wonBids.length}</span>
+                <span className="mtile-label">Awarded</span>
+              </a>
+              <a href="#people" className="card mtile">
+                <span className="mtile-num">{activePeople.length}<span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>/{peopleRows.length}</span></span>
+                <span className="mtile-label">People with open work</span>
+              </a>
+            </div>
+
             {/* Stage 1 — Create a bid */}
-            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+            <div id="stage-bid" className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                 <h2 className="section-title" style={{ margin: 0 }}>1 · Create a bid · {bidPkgs.length} package{bidPkgs.length === 1 ? "" : "s"}</h2>
                 <Link className={bidPkgs.length === 0 ? "btn small" : "btn ghost small"} href={`/my/project/${project.id}/bids`}>
@@ -599,7 +632,7 @@ export default async function ProjectPage({
             </div>
 
             {/* Stage 2 — Invite bidders */}
-            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+            <div id="stage-invite" className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
               <h2 className="section-title" style={{ margin: 0 }}>2 · Invite bidders · {totalInvited} invited · {totalReceived} replied</h2>
               {bidPkgs.length === 0
                 ? <p className="muted small" style={{ margin: 0 }}>Create a package first, then invite from the People on this project. Bidders reply through their portal account.</p>
@@ -616,7 +649,7 @@ export default async function ProjectPage({
             </div>
 
             {/* Stage 3 — Award */}
-            <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+            <div id="stage-award" className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
               <h2 className="section-title" style={{ margin: 0 }}>3 · Award project · {wonBids.length} awarded</h2>
               {bidPkgs.length === 0 && <p className="muted small" style={{ margin: 0 }}>Awarding opens once replies are in. Negotiate two rounds first — never after awarding.</p>}
               {bidPkgs.map((p) => {
@@ -642,15 +675,15 @@ export default async function ProjectPage({
 
         {/* Inviting lives on the top bar (＋ Invite by Setup), not here. */}
 
-        {peopleRows.length > 0 && (
+        {tab === "manage" && peopleRows.length > 0 && (
           // minWidth 0 + overflow hidden at every level so a long task title
           // truncates instead of widening the page.
-          <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
+          <div id="people" className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
               <h2 className="section-title" style={{ margin: 0 }}>People · {visiblePeople.length}{!showAllPeople && visiblePeople.length < peopleRows.length ? ` of ${peopleRows.length}` : ""}</h2>
               {peopleRows.length > activePeople.length && (
                 showAllPeople
-                  ? <Link href={`/my/project/${project.id}`} className="small">Active only</Link>
+                  ? <Link href={`/my/project/${project.id}?tab=manage`} className="small">Active only</Link>
                   : <Link href={`/my/project/${project.id}?people=all`} className="small">Show all {peopleRows.length}</Link>
               )}
             </div>
