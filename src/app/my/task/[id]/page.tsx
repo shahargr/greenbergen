@@ -31,10 +31,10 @@ export default async function TaskPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string; do?: string }>;
 }) {
   const { id } = await params;
-  const { saved, error } = await searchParams;
+  const { saved, error, do: quickDo } = await searchParams;
   const supabase = await createClient();
   const caps = await getCaps();
 
@@ -315,9 +315,10 @@ export default async function TaskPage({
       {/* Keyed on saved/error so the editor remounts after a redirect back to
           this page — otherwise a client-side "Applying..." can stick after an
           error (Next keeps client state across a same-route searchParams change). */}
-      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} parentName={parentCrumb?.label ?? null} childCount={openChildren.length} caps={{ ...caps, accept: acceptFor(caps) }} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} evidenceSlot={evidencePanel} />
+      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} parentName={parentCrumb?.label ?? null} childCount={openChildren.length} caps={{ ...caps, accept: acceptFor(caps) }} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} evidenceSlot={evidencePanel} initialQuick={quickDo} />
       <div style={{ marginTop: 14 }}>
         <TaskTransactions
+        openCreate={quickDo === "tx"}
           key={`tx|${saved ?? ""}|${error ?? ""}`}
           taskId={t.id} attached={attachedTx} candidates={candidateTx} canEdit={perms.status}
           methods={payMethods} payees={payeeNames} accounts={accountNames}

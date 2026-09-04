@@ -72,7 +72,7 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, startEmpty = false, stageTiles, avatars, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, addOpen = false, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, startEmpty = false, stageTiles, avatars, todayIso }: {
   // Project page: the filter dropdowns live behind each saved slot's ⚙, not
   // on the page. Three slot buttons stay; setup picks the filters + a name.
   filtersInSetup?: boolean;
@@ -95,6 +95,8 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   showTradeTiles?: boolean;
   compact?: boolean;
   addTaskSlot?: React.ReactNode;
+  // Start with the add-task panel unfolded (e.g. ?assign= landed here).
+  addOpen?: boolean;
   domainOptions?: string[];
   savedFilters?: boolean;
   stageTiles?: StageTile[];
@@ -133,14 +135,16 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   // Subtask filter: show only the children of this parent (chip / ?parent=).
   const [parentOf, setParentOf] = useState<string | null>(initialParent ?? null);
 
-  // Three personal saved filters, per browser.
+  // Four personal saved filters, per browser.
   type Slot = { label: string; project: string; person: string; priority: string; phase: string; view: string } | null;
-  const [slots, setSlots] = useState<Slot[]>([null, null, null]);
+  const [slots, setSlots] = useState<Slot[]>([null, null, null, null]);
+  // Add-task panel (the first tile on the project page) folds open here.
+  const [showAdd, setShowAdd] = useState(addOpen);
   useEffect(() => {
     try {
       const raw = localStorage.getItem("gb_task_slots");
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) { const v = JSON.parse(raw); if (Array.isArray(v) && v.length === 3) setSlots(v); }
+      if (raw) { const v = JSON.parse(raw); if (Array.isArray(v) && (v.length === 3 || v.length === 4)) setSlots([...v, null, null, null, null].slice(0, 4)); }
     } catch {}
   }, []);
   const persist = (next: Slot[]) => {
@@ -382,8 +386,16 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
-      {showLatePanels && latePeople.length > 0 && (
+      {showLatePanels && (latePeople.length > 0 || (!!addTaskSlot && !compact)) && (
         <div className="phase-grid late-grid" style={{ marginBottom: 4 }}>
+          {addTaskSlot && !compact && (
+            <button type="button" className={showAdd ? "phase-tile late-tile on" : "phase-tile late-tile"} title={showAdd ? "Close" : "Add a task to this project"}
+              onClick={() => setShowAdd((v) => !v)}>
+              <span className="phase-icon" style={{ background: "#dcefe2", color: "var(--brand)", width: 26, height: 26, fontSize: 18, fontWeight: 700 }}>＋</span>
+              <span className="phase-name">Add task</span>
+              <span className="tradestat-late" style={{ color: "var(--brand)" }}>new</span>
+            </button>
+          )}
           {latePeople.map(([who, n]) => {
             const key = who === "Unassigned" ? "__unassigned__" : who;
             const on = view === "late" && person === key;
@@ -411,6 +423,15 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
               </button>
             );
           })}
+        </div>
+      )}
+      {showAdd && addTaskSlot && !compact && (
+        <div className="card" style={{ padding: "10px 12px", marginBottom: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+            <strong className="small">New task</strong>
+            <button type="button" className="btn ghost small" onClick={() => setShowAdd(false)}>Close</button>
+          </div>
+          <div style={{ marginTop: 8 }}>{addTaskSlot}</div>
         </div>
       )}
 
@@ -492,19 +513,19 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
       {savedFilters && filtersInSetup && (
         <div style={{ display: "grid", gap: 8 }}>
           {/* Three filter buttons, each with its own setup. */}
-          <div className="btn-row" style={{ gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
             {slots.map((sl, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "stretch" }}>
+              <span key={i} style={{ display: "flex", alignItems: "stretch", minWidth: 0 }}>
                 <button type="button"
-                  className={sl ? "btn ghost small" : "btn ghost small"}
-                  style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0, opacity: sl ? 1 : 0.65 }}
+                  className="btn ghost small"
+                  style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0, opacity: sl ? 1 : 0.65, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "4px 6px", fontSize: 11 }}
                   title={sl ? `Apply: ${sl.label}` : "Set up this filter"}
                   onClick={() => (sl ? (applySlot(sl), setSetupSlot(null)) : openSetup(i))}>
-                  <span style={{ fontWeight: 700, marginRight: 6 }}>{i + 1}</span>{sl ? sl.label : "Filter"}
+                  <span style={{ fontWeight: 700, marginRight: 4 }}>{i + 1}</span>{sl ? sl.label : "Filter"}
                 </button>
                 <button type="button" className="btn ghost small" title="Setup: choose filters and a short name"
                   aria-label={`Set up filter ${i + 1}`}
-                  style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 0, padding: "2px 8px" }}
+                  style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 0, padding: "2px 6px", flex: "none" }}
                   onClick={() => (setupSlot === i ? setSetupSlot(null) : openSetup(i))}>
                   ⚙
                 </button>
@@ -625,8 +646,13 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                               {t.notes.length > 400 ? t.notes.slice(0, 400) + "…" : t.notes}
                             </span>
                           )}
-                          <span>
-                            <Link className="btn ghost small" href={`/my/task/${t.id}`}>Open task →</Link>
+                          {/* Quick access: each lands on the task with that action ready. */}
+                          <span className="btn-row" style={{ gap: 6, flexWrap: "wrap" }}>
+                            <Link className="btn ghost small" href={`/my/task/${t.id}?do=comment`}>💬 Log comment</Link>
+                            <Link className="btn ghost small" href={`/my/task/${t.id}?do=evidence`}>📷 Add evidence</Link>
+                            <Link className="btn ghost small" href={`/my/task/${t.id}?do=stage`}>⇢ Change stage</Link>
+                            <Link className="btn ghost small" href={`/my/task/${t.id}?do=tx`}>💵 Attach transaction</Link>
+                            <Link className="btn small" href={`/my/task/${t.id}`}>Open task →</Link>
                           </span>
                         </div>
                       </td>

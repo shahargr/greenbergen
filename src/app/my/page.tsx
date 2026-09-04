@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { mapsHref } from "@/lib/maps";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { setGodMode } from "../admin/actions";
@@ -232,6 +233,9 @@ export default async function MyPage({
     id: string; project_name: string; address: string | null; status: string; parent_project_id: string | null;
     start_date: string | null; est_complete: string | null;
     open: number; done: number; stuck: number;
+    // Open tasks by stage and contract counts (v184) — the house tile lists these per job.
+    stages: Record<string, number>;
+    contracts: { open: number; closed: number; to_sign: number };
     transactions: CardTx[];
     pending: CardTx[];
     week: WeekBlock;
@@ -299,7 +303,7 @@ export default async function MyPage({
     personal: { label: "Personal",        color: "#7a1f2b",      bg: "#f7e6e8", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg> },
     travel:   { label: "Travel",          color: "#1f6b8f",      bg: "#e3eff5", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M2 16l20-6-3-3-6 2-5-6-2 1 3 6-5 2-3-2-1 1z" /></svg> },
   };
-  const projectTile = (p: ProjectOverviewRow, kind: TileKind, parentName?: string | null, childCount?: number) => {
+  const projectTile = (p: ProjectOverviewRow, kind: TileKind, parentName?: string | null, childCount?: number, jobsUnder: ProjectOverviewRow[] = []) => {
     const c = cardsById.get(p.id);
     const urgent = c?.urgent[0];
     const starred = priority.has(p.id);
@@ -318,8 +322,12 @@ export default async function MyPage({
             {starred ? "★" : "☆"}
           </button>
         </form>
+        {kind === "house" && p.address && (
+          <a href={mapsHref(p.address)} target="_blank" rel="noreferrer" title={`Navigate to ${p.address}`} aria-label="Navigate"
+            style={{ position: "absolute", top: 7, right: 32, textDecoration: "none", fontSize: 15, lineHeight: 1 }}>🧭</a>
+        )}
       <Link href={`/my/project/${p.id}`} style={{ display: "grid", gap: 6, textDecoration: "none", color: "inherit", minWidth: 0 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0, paddingRight: 22 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0, paddingRight: kind === "house" ? 48 : 22 }}>
           <span className="tile-icon" style={{ width: 34, height: 34, flex: "none", background: k.bg, color: k.color }}>{k.glyph}</span>
           <strong style={{ fontSize: 15, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis" }}>{kind === "umbrella" ? fmtRoot(p.project_name) : p.project_name}</strong>
         </div>
@@ -329,15 +337,37 @@ export default async function MyPage({
           {kind === "umbrella" && <>Umbrella · {p.status}{childCount ? ` · ${childCount} house${childCount === 1 ? "" : "s"}` : ""}</>}
           {(kind === "tech" || kind === "system" || kind === "personal" || kind === "travel") && <>{k.label} · {p.status}</>}
         </div>
-        <div className="muted small">
+        {kind === "house" && (
+          jobsUnder.length === 0
+            ? <div className="muted small">No open projects</div>
+            : <ul style={{ margin: 0, paddingLeft: 16, display: "grid", gap: 4 }}>
+                {jobsUnder.map((j) => {
+                  const jc = cardsById.get(j.id);
+                  const st = Object.entries(jc?.stages ?? {}).sort((a, b) => b[1] - a[1]);
+                  const k = jc?.contracts;
+                  const anyK = !!k && (k.open + k.closed + k.to_sign) > 0;
+                  return (
+                    <li key={j.id} className="small" style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 600 }}>{j.project_name}</span>
+                      <div className="muted" style={{ fontSize: 11, lineHeight: 1.35, display: "flex", flexWrap: "wrap", gap: "0 8px" }}>
+                        {st.length === 0 && <span>no open tasks</span>}
+                        {st.map(([s, n]) => <span key={s}><strong style={{ color: "var(--ink)" }}>{n}</strong> {s.toLowerCase()}</span>)}
+                        {anyK && <span>contracts <strong style={{ color: "var(--ink)" }}>{k!.open}</strong> open · <strong style={{ color: "var(--ink)" }}>{k!.closed}</strong> closed · <strong style={{ color: k!.to_sign ? "#c0262d" : "var(--ink)" }}>{k!.to_sign}</strong> to sign</span>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+        )}
+        {kind !== "house" && <div className="muted small">
           {fmtDate(c?.start_date ?? null)} → <span style={{ color: "var(--ink)" }}>{fmtDate(c?.est_complete ?? null)}</span>
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        </div>}
+        {kind !== "house" && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <span className="extra-chip"><strong>{c?.open ?? p.open_count}</strong> open</span>
           <span className="extra-chip"><strong>{c?.done ?? 0}</strong> done</span>
           {(c?.stuck ?? 0) > 0 && <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
-        </div>
-        {urgent && (
+        </div>}
+        {kind !== "house" && urgent && (
           <div className="small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {urgent.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{urgent.action}
           </div>
@@ -1009,8 +1039,8 @@ export default async function MyPage({
                   <Link href="/my/settings" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Claim another address</Link>
                 </div>
                 {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — claim your address on the settings page.</p>}
-                <div className="ptiles">
-                  {houses.map((p) => projectTile(p, "house", null, childCount.get(p.id) ?? 0))}
+                <div className="ptiles ptiles-even">
+                  {houses.map((p) => projectTile(p, "house", null, childCount.get(p.id) ?? 0, jobs.filter((j) => j.parent_project_id === p.id && !String(j.status).startsWith("Closed"))))}
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>

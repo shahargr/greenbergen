@@ -117,7 +117,11 @@ export default async function ProjectPage({
         <h1 style={{ fontSize: "clamp(24px, 4vw, 32px)", margin: "8px 0 2px" }}>
           {about.project}
         </h1>
-        {about.address && <p className="muted" style={{ margin: "0 0 14px" }}>{about.address}</p>}
+        {about.address && <p className="muted" style={{ margin: "0 0 6px" }}>{about.address}</p>}
+        {/* People on the project sign in straight into it. */}
+        <p className="small" style={{ margin: "0 0 14px" }}>
+          <Link href={`/login?next=${encodeURIComponent(`/my/project/${data.project_id}`)}`} style={{ fontWeight: 700 }}>Working on this project? Log in →</Link>
+        </p>
 
         {hasScope && (
           <div className="card" style={{ marginBottom: 14, padding: "16px 20px" }}>

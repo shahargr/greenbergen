@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { mapsHref } from "@/lib/maps";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
@@ -271,12 +272,12 @@ export default async function ProjectPage({
   // Hierarchy for the Details card: owner › every parent › this project.
   // Parents are walked upward (a home is normally one level; a portfolio
   // root two), capped so a bad self-reference can never loop.
-  const ancestors: { id: string; project_name: string }[] = [];
+  const ancestors: { id: string; project_name: string; address: string | null }[] = [];
   let cursor: string | null = (project as { parent_project_id: string | null }).parent_project_id;
   for (let i = 0; cursor && i < 6; i += 1) {
-    const { data: up } = await supabase.from("projects").select("id, project_name, parent_project_id").eq("id", cursor).maybeSingle();
+    const { data: up } = await supabase.from("projects").select("id, project_name, parent_project_id, address").eq("id", cursor).maybeSingle();
     if (!up) break;
-    ancestors.unshift({ id: up.id, project_name: up.project_name });
+    ancestors.unshift({ id: up.id, project_name: up.project_name, address: (up.address as string | null) ?? null });
     cursor = up.parent_project_id as string | null;
   }
   const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
@@ -401,7 +402,15 @@ export default async function ProjectPage({
         </p>
       )}
       <span className="kicker">{project.parent_project_id ? "Job" : "Home"}</span>
-      <h1 style={{ fontSize: 26, margin: "6px 0 2px" }}>{project.project_name}</h1>
+      {(() => {
+        const navAddress = project.address ?? [...ancestors].reverse().find((a) => a.address)?.address ?? null;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
+            <h1 style={{ fontSize: 26, margin: 0 }}>{project.project_name}</h1>
+            {navAddress && <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small" title={`Navigate to ${navAddress}`} style={{ whiteSpace: "nowrap" }}>🧭 Navigate</a>}
+          </div>
+        );
+      })()}
 
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f" }}>{flashOk}</p>}
@@ -421,21 +430,11 @@ export default async function ProjectPage({
         {/* Three tabs on the details panel; the page below follows the tab. */}
         <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
-          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Manage</Link>
+          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Todo</Link>
           <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "btn small" : "btn ghost small"}>Site visit</Link>
           {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
           {(perms.rank >= 70 || perms.admin) && <Link href={`/my/project/${project.id}?tab=admin`} className={tab === "admin" ? "btn small" : "btn ghost small"}>Admin</Link>}
         </div>
-
-        {tab === "overview" && (
-          <ProjectEditor
-            project={{ id: project.id, project_name: project.project_name, status: project.status, address: project.address, notes: project.notes }}
-            perms={perms}
-            crumbs={crumbs}
-            showActions={false}
-            maskOwner={perms.rank < 50}
-          />
-        )}
 
         {/* A bidder or contractor sees the scope here; owner details stay masked until awarded. */}
         {tab === "overview" && perms.rank < 50 && project.parent_project_id && <ProjectBrief projectId={project.id} title="Scope" collapsible />}
@@ -838,21 +837,13 @@ export default async function ProjectPage({
         {tab === "site" && (
         <div className="card">
           <h2 className="section-title" style={{ margin: 0 }}>Tasks · {openCount} open · {doneCount} done</h2>
-          {perms.rank >= 50 && (
-            <details id="add-task" className="card" style={{ marginBottom: 4 }} open={!!assignContact}>
-              <summary style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add a task</summary>
-              <div style={{ marginTop: 10 }}>
-                <AddTaskForm projects={[{ id: project.id, name: project.project_name }]} members={taskMembers}
-                  defaultAssignee={assignContact} />
-              </div>
-            </details>
-          )}
-          {projectTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing here yet.</p>}
-          {projectTasks.length > 0 && (
-            <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showViews={false} startEmpty={!tasksBucket && !parentTask} showTradeTiles={false} showLatePanels avatars={avatars}
-              initialParent={parentTask ?? null}
-              initialState={initialTaskState} initialView={initialTaskView} />
-          )}
+          <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showViews={false} startEmpty={!tasksBucket && !parentTask} showTradeTiles={false} showLatePanels avatars={avatars}
+            initialParent={parentTask ?? null}
+            initialState={initialTaskState} initialView={initialTaskView}
+            addOpen={!!assignContact}
+            addTaskSlot={perms.rank >= 50 ? (
+              <AddTaskForm projects={[{ id: project.id, name: project.project_name }]} members={taskMembers} defaultAssignee={assignContact} />
+            ) : undefined} />
         </div>
 
         )}

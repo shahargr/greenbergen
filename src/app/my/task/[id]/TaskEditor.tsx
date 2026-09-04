@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { saveTask, completeTask, setTaskStatus, uploadEvidence, addComment, addContractor, type TaskPerms } from "./actions";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { FileDrop } from "@/components/FileDrop";
@@ -70,6 +70,7 @@ export function TaskEditor({
   parentName = null,
   childCount = 0,
   caps = { image: true, video: false, voice: true, document: true, accept: "image/*,application/pdf" },
+  initialQuick,
 }: {
   task: TaskView;
   perms: TaskPerms;
@@ -86,9 +87,17 @@ export function TaskEditor({
   childCount?: number;
   // What the plan lets this person upload; the buttons follow it.
   caps?: { image: boolean; video: boolean; voice: boolean; document: boolean; accept: string };
+  // Quick-access landing from a task list: comment, evidence, stage or tx.
+  initialQuick?: string;
 }) {
   const [unlocked, setUnlocked] = useState(false);
-  const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
+  const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">(initialQuick === "comment" ? "comment" : initialQuick === "evidence" ? "photo" : "none");
+  // "Change stage": scroll the Move-to row into view and focus it.
+  useEffect(() => {
+    if (initialQuick !== "stage") return;
+    const el = document.getElementById("te-move") as HTMLSelectElement | null;
+    el?.scrollIntoView({ block: "center" }); el?.focus();
+  }, [initialQuick]);
   const [moveTo, setMoveTo] = useState(task.status);
   const [closeReason, setCloseReason] = useState("");
   // A comment rides along with a stage move; mandatory for Pending on Others.

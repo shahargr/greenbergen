@@ -162,6 +162,7 @@ export function TaskTransactions({
   methods,
   payees,
   accounts,
+  openCreate = false,
 }: {
   taskId: string;
   attached: TaskTx[];
@@ -170,6 +171,8 @@ export function TaskTransactions({
   methods: PayMethod[];
   payees: string[];
   accounts: string[];
+  // Land with the create form open (quick access from a task list).
+  openCreate?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -228,7 +231,7 @@ export function TaskTransactions({
           ))}
 
           {/* Not logged yet: create it here, already attached to this task. */}
-          <details style={{ minWidth: 0 }}>
+          <details style={{ minWidth: 0 }} open={openCreate} id="tx-create">
             <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
               ＋ Create a transaction
             </summary>
