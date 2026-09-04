@@ -221,7 +221,7 @@ export async function setSiteRoster(formData: FormData) {
   const projectId = String(formData.get("project") ?? "");
   const date = String(formData.get("date") ?? "").trim() || new Date().toISOString().slice(0, 10);
   const contacts = formData.getAll("contact").map(String).filter(Boolean);
-  const back = `/my/project/${projectId}?tab=visit`;
+  const back = `/my/project/${projectId}?tab=visit&date=${date}`;
   const { data, error } = await supabase.rpc("portal_site_roster_set", { p_project: projectId, p_date: date, p_contacts: contacts });
   revalidatePath(`/my/project/${projectId}`);
   redirect(error || !data?.ok

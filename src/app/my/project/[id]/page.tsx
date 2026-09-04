@@ -28,10 +28,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string; date?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam, date: dateParam } = await searchParams;
   // A schedule item clicked open (?item=<task id>) unfolds under the calendar.
   const selectedItem = itemParam && /^[0-9a-f-]{36}$/i.test(itemParam) ? itemParam : null;
   // Two tabs: Overview (schedule, tasks) and Manage project (bids, bidders,
@@ -316,8 +316,9 @@ export default async function ProjectPage({
     daysByContact.set(r.contact_id, s);
   }
 
-  // Who is marked on site today (roster).
-  const { data: rosterRows } = await supabase.from("site_roster").select("contact_id").eq("project_id", id).eq("on_date", todayIso);
+  // The roster day: ?date= when given (after a save, or when browsing), else today.
+  const rosterDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayIso;
+  const { data: rosterRows } = await supabase.from("site_roster").select("contact_id").eq("project_id", id).eq("on_date", rosterDate);
   const onSiteToday = new Set(((rosterRows ?? []) as { contact_id: string }[]).map((r) => r.contact_id));
 
   // People: most open work first; the idle ones fold away unless asked for.
@@ -771,15 +772,15 @@ export default async function ProjectPage({
           <form action={setSiteRoster} className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
             <input type="hidden" name="project" value={project.id} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <h2 className="section-title" style={{ margin: 0 }}>On site today · {onSiteToday.size}</h2>
+              <h2 className="section-title" style={{ margin: 0 }}>On site {rosterDate === todayIso ? "today" : rosterDate} · {onSiteToday.size}</h2>
               <span className="btn-row" style={{ gap: 6, alignItems: "center" }}>
-                <input name="date" type="date" className="input" defaultValue={todayIso} style={{ padding: "4px 8px", fontSize: 12 }} />
+                <input name="date" type="date" className="input" defaultValue={rosterDate} style={{ padding: "4px 8px", fontSize: 12 }} />
                 <button className="btn small">Save</button>
               </span>
             </div>
             {sortedPeople.length === 0 && <p className="muted small" style={{ margin: 0 }}>No one on this project yet.</p>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6 }}>
-              {sortedPeople.map((p) => (
+              {[...sortedPeople].sort((x, y) => ((x.trade ? 0 : 1) - (y.trade ? 0 : 1)) || (x.trade ?? "").localeCompare(y.trade ?? "") || x.name.localeCompare(y.name)).map((p) => (
                 <label key={p.contactId} className="small" style={{ display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", border: "1px solid #e7e9e4", borderRadius: 8, background: onSiteToday.has(p.contactId) ? "#eef5f0" : "#fff", minWidth: 0, cursor: "pointer" }}>
                   <input type="checkbox" name="contact" value={p.contactId} defaultChecked={onSiteToday.has(p.contactId)} />
                   <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
