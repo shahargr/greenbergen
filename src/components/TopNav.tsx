@@ -99,7 +99,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
             <Wordmark small href={ROLE_HOME[role]} />
             {me?.email
               ? <span className="brand-viewfor" title={`${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}`} style={{ textTransform: "none", letterSpacing: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(60vw, 420px)" }}>
-                  {me.email} / {whoLabel}
+                  {whoLabel}
                 </span>
               : <span className="brand-viewfor">{viewLabel}</span>}
           </span>
