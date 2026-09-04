@@ -364,13 +364,16 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
       )}
 
       {showLatePanels && latePeople.length > 0 && (
-        <div className="phase-grid" style={{ marginBottom: 4 }}>
+        <div className="phase-grid late-grid" style={{ marginBottom: 4 }}>
           {latePeople.map(([who, n]) => {
             const key = who === "Unassigned" ? "__unassigned__" : who;
             const on = view === "late" && person === key;
+            // Short name for the tile: first word plus initial, full name on hover.
+            const parts = who.split(/\s+/);
+            const short = parts.length > 1 ? `${parts[0]} ${parts[1][0]}.` : who;
             return (
-              <button key={who} type="button" className={on ? "phase-tile on" : "phase-tile"}
-                title={on ? "Clear" : `Show ${who}'s late tasks`}
+              <button key={who} type="button" className={on ? "phase-tile late-tile on" : "phase-tile late-tile"}
+                title={on ? "Clear" : `${who} — show late tasks`}
                 onClick={() => {
                   if (on) { setPerson("all"); setView("all"); } else { setPerson(key); setView("late"); }
                   setOpen(null);
@@ -378,13 +381,13 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                 {avatars?.[who] ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatars[who]} alt="" className="phase-icon"
-                    style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover", padding: 0 }} />
+                    style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", padding: 0 }} />
                 ) : (
-                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d" }}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
+                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d", width: 26, height: 26 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.8 3.4-6.5 8-6.5s8 2.7 8 6.5" /></svg>
                   </span>
                 )}
-                <span className="phase-name" style={{ fontSize: 11 }}>{who}</span>
+                <span className="phase-name">{short}</span>
                 <span className="tradestat-late"><strong>{n}</strong> late</span>
               </button>
             );

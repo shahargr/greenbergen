@@ -959,3 +959,10 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
 .mtile-num { font-size: 20px; font-weight: 700; line-height: 1.1; color: var(--brand); }
 .mtile-label { font-size: 11px; color: #555; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 480px) { .manage-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Late-by-person tiles: four across, phone-sized. */
+.phase-grid.late-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.phase-tile.late-tile { padding: 6px 4px; gap: 2px; min-width: 0; }
+.phase-tile.late-tile .phase-icon { width: 26px; height: 26px; }
+.phase-tile.late-tile .phase-name { font-size: 10px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.phase-tile.late-tile .tradestat-late { font-size: 11px; }
