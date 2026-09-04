@@ -422,7 +422,7 @@ export default async function ProjectPage({
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
-      <p className="small" style={{ margin: "0 0 6px" }}>
+      <p className="small only-wide" style={{ margin: "0 0 6px" }}>
         <Link href="/my">← Your projects</Link>
       </p>
       {godMode && (
@@ -431,17 +431,17 @@ export default async function ProjectPage({
           <Link href="/admin/projects" style={{ color: "#fff", whiteSpace: "nowrap" }}>All projects →</Link>
         </p>
       )}
-      <span className="kicker">{project.parent_project_id ? "Job" : "Home"}</span>
+      <span className="kicker only-wide">{project.parent_project_id ? "Job" : "Home"}</span>
       {(() => {
         const navAddress = project.address ?? [...ancestors].reverse().find((a) => a.address)?.address ?? null;
         return (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
-            <h1 style={{ fontSize: 26, margin: 0, minWidth: 0 }}>{project.project_name}</h1>
+            <h1 className="page-title" style={{ margin: 0, minWidth: 0 }}>{project.project_name}</h1>
             {navAddress && (
               <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small"
                 title={`Navigate to ${navAddress}`}
                 style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, flex: "none" }}>
-                <CarIcon /> Navigate
+                <CarIcon /> <span className="only-wide">Navigate</span>
               </a>
             )}
           </div>
@@ -476,7 +476,7 @@ export default async function ProjectPage({
           </div>
         )}
         {!isCrew && !isContractorSide && (
-        <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
+        <div className="card tabstrip" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
           <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Tasks</Link>
           <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "btn small" : "btn ghost small"}>Site visit</Link>
@@ -495,6 +495,66 @@ export default async function ProjectPage({
 
 
         {tab === "overview" && (<>
+        {/* Phone opens on the work, not on the furniture: what is due today,
+            what has slipped, and the three things you came here to do. The
+            week is a strip below it, not the headline. Wide screens keep the
+            calendar first — there is room for it there. */}
+        <div className="only-narrow" style={{ display: "grid", gap: 10 }}>
+          {(() => {
+            const gatesToday = weekGates.filter((g) => g.on === todayIso);
+            const paysToday = weekPayments.filter((p) => p.on === todayIso);
+            const nextUp = restOfWeekTasks[0];
+            const count = todayTasks.length + gatesToday.length + paysToday.length;
+            return (
+              <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <h2 className="section-title" style={{ margin: 0 }}>Today · {count}</h2>
+                  <span className="muted small">{dayLabel(todayIso)}</span>
+                </div>
+                {count === 0 && (
+                  <p className="muted small" style={{ margin: 0 }}>
+                    Nothing due today.{nextUp ? <> Next: <Link href={itemHref(nextUp.id)}>{nextUp.action}</Link> on {dayLabel(nextUp.target_date!)}.</> : null}
+                  </p>
+                )}
+                {gatesToday.map((g) => (
+                  <Link key={g.id} href={itemHref(g.id)} className="phone-row">
+                    <span>{gateIcon(g.closed)} {g.action ?? "(gate)"}</span>
+                    <span className="muted">Gate</span>
+                  </Link>
+                ))}
+                {todayTasks.map((t) => (
+                  <Link key={t.id} href={itemHref(t.id)} className="phone-row">
+                    <span>{t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}</span>
+                    <span className="muted">{t.assignee ?? "unassigned"}</span>
+                  </Link>
+                ))}
+                {paysToday.map((p) => (
+                  <div key={p.id} className="phone-row">
+                    <span>💵 {money(p.amount)} {p.description ?? ""}</span>
+                    <span className="muted">{p.status}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {overdueTasks.length > 0 && (
+            <Link href={`/my/project/${project.id}?tab=site&tasks=stuck`} className="card"
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                       textDecoration: "none", color: "inherit", borderLeft: "4px solid #c0262d" }}>
+              <span className="small"><strong style={{ color: "#c0262d" }}>{overdueTasks.length} overdue</strong> · oldest {dayLabel(overdueTasks[0].target_date!)}</span>
+              <span className="muted small">See them →</span>
+            </Link>
+          )}
+
+          {/* The three things you open a project on a phone to do. */}
+          <div className="phone-actions">
+            {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=site#add-task`} className="btn ghost small">＋ Task</Link>}
+            <Link href={`/my/project/${project.id}?tab=visit`} className="btn ghost small">📋 Log visit</Link>
+            <Link href={`/my/project/${project.id}?tab=scope`} className="btn ghost small">📷 Scope</Link>
+          </div>
+        </div>
+
         {/* The landing view: what is planned this week, day by day, then
             today's list and the rest of the week. */}
         <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
@@ -504,43 +564,23 @@ export default async function ProjectPage({
           </div>
           {/* Phone: an agenda - today and the next days, one row per item,
               like an inbox. Wide screens get the week grid below. */}
-          <div className="agenda only-narrow">
-            {(() => {
-              const fromIdx = Math.max(0, weekDays.indexOf(todayIso));
-              const days = weekDays.slice(fromIdx, fromIdx + 3);
-              const rowsFor = (d: string) => [
-                ...weekGates.filter((g) => g.on === d && !g.closed).map((g) => ({ key: `g${g.id}`, href: itemHref(g.id), cls: "gate open", title: g.action ?? "(gate)", sub: `Gate · ${g.status}`, mark: gateIcon(false) })),
-                ...weekTasks.filter((t) => t.target_date === d && !weekGates.some((g) => g.id === t.id)).map((t) => ({ key: `t${t.id}`, href: itemHref(t.id), cls: t.priority === "High" ? "high" : "", title: t.action, sub: [t.assignee ?? "unassigned", t.status].join(" · "), mark: t.priority === "High" ? <span style={{ color: "#c0262d" }}>● </span> : null })),
-                ...weekPayments.filter((p) => p.on === d).map((p) => ({ key: `p${p.id}`, href: null as string | null, cls: "pay", title: `${money(p.amount)} ${p.description ?? ""}`.trim(), sub: `Payment · ${p.status}`, mark: <span>💵 </span> })),
-                ...weekGates.filter((g) => g.on === d && g.closed).map((g) => ({ key: `gc${g.id}`, href: itemHref(g.id), cls: "gate done", title: g.action ?? "(gate)", sub: `Gate · ${g.status}`, mark: gateIcon(true) })),
-                ...doneThisWeek.filter((a) => a.on === d).map((a) => ({ key: `d${a.id}`, href: itemHref(a.id), cls: "done", title: a.action ?? "(untitled)", sub: "Completed", mark: null })),
-              ];
-              return days.map((d) => {
-                const rows = rowsFor(d);
-                const isToday = d === todayIso;
-                return (
-                  <div key={d} className={`agenda-day${isToday ? " today" : ""}`}>
-                    <Link href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`} className="agenda-head" style={{ textDecoration: "none", color: "inherit" }}>
-                      <span>{isToday ? "Today · " : ""}{new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</span>
-                      <span className="muted">{rows.length || "—"}</span>
-                    </Link>
-                    {rows.map((r) => r.href ? (
-                      <Link key={r.key} href={r.href} className={`agenda-row ${r.cls}${selectedItem && r.href.includes(selectedItem) ? " selected" : ""}`}>
-                        <span className="agenda-title">{r.mark}{r.title}</span>
-                        <span className="agenda-sub">{r.sub}</span>
-                      </Link>
-                    ) : (
-                      <div key={r.key} className={`agenda-row ${r.cls}`}>
-                        <span className="agenda-title">{r.mark}{r.title}</span>
-                        <span className="agenda-sub">{r.sub}</span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              });
-            })()}
-            {weekDays.indexOf(todayIso) < 0 && <p className="muted small" style={{ margin: 0 }}>Today is outside this week.</p>}
-            <Link href={`/my/project/${project.id}?day=${weekDays[0]}`} className="small muted" style={{ marginTop: 4 }}>Full week, day by day ▾</Link>
+          {/* Phone: the whole week as one strip. A day is a tap, and its
+              list opens below — three stacked days that each say "—" cost a
+              third of the screen to tell you nothing. */}
+          <div className="weekstrip only-narrow">
+            {weekDays.map((d) => {
+              const n = weekTasks.filter((t) => t.target_date === d).length
+                + weekPayments.filter((x) => x.on === d).length
+                + weekGates.filter((g) => g.on === d).length;
+              const late = weekTasks.some((t) => t.target_date === d && t.priority === "High");
+              return (
+                <Link key={d} href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`}
+                  className={`${d === todayIso ? "today " : ""}${selectedDay === d ? "on" : ""}`}>
+                  <span>{new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "narrow" })}</span>
+                  <span className={n ? (late ? "n high" : "n") : "n zero"}>{n || "·"}</span>
+                </Link>
+              );
+            })}
           </div>
 
           <div className="weekgrid only-wide">

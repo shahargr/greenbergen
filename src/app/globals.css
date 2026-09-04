@@ -1058,3 +1058,63 @@ html, body { max-width: 100%; overflow-x: clip; }
   .tasktable .col-amount { width: 62px; }
   .tasktable .col-date { width: 64px; }
 }
+
+
+/* ---------------------------------------------------------------------------
+   Phone-first project page.
+
+   The desktop layout spent about 460 of an 800pt screen on chrome before any
+   content: a back link, a kicker, a 26pt title, a full-width Navigate button,
+   a card holding five tabs over two rows, and a schedule that gave 44pt to
+   each empty day. What follows takes that back and hands it to the work.
+   Wide screens are unaffected — every rule here sits behind a breakpoint. */
+
+.page-title { font-size: 26px; }
+
+@media (max-width: 640px) {
+  /* Header: name and the car on one line, nothing above them. */
+  .page-title { font-size: 20px; line-height: 1.2; }
+  main.wrap { padding-top: 16px; }
+
+  /* Tabs stop being a card and become one row of pills that scrolls if it
+     must. Five short labels fit a 390pt screen without scrolling. */
+  .card.tabstrip {
+    background: none; border: none; padding: 0;
+    flex-wrap: nowrap; overflow-x: auto; gap: 4px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .card.tabstrip::-webkit-scrollbar { display: none; }
+  .card.tabstrip .btn { padding: 5px 9px; font-size: 12px; flex: 0 0 auto; }
+
+  /* Cards give back the padding a mouse pointer needed and a thumb does not. */
+  .card { padding: 12px 14px; border-radius: 10px; }
+  .section-title { font-size: 12px; }
+}
+
+/* One line of the day's work: what it is on the left, who or what on the
+   right, truncating rather than wrapping to three lines. */
+.phone-row {
+  display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  border-top: 1px solid #f0f1ee; padding-top: 5px; font-size: 13px;
+  text-decoration: none; color: inherit; min-width: 0;
+}
+.phone-row:first-of-type { border-top: none; padding-top: 0; }
+.phone-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phone-row > span:last-child { flex: none; font-size: 11px; }
+
+/* The three things you open a project on a phone to do. */
+.phone-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.phone-actions .btn { justify-content: center; padding: 8px 4px; font-size: 12px; }
+
+/* The week as a strip: seven taps, a count under each. */
+.weekstrip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.weekstrip a {
+  display: grid; gap: 1px; justify-items: center; padding: 6px 2px;
+  border: 1px solid var(--line); border-radius: 8px;
+  text-decoration: none; color: inherit; font-size: 10px;
+}
+.weekstrip a.today { border-color: var(--brand); background: #f3f8f4; }
+.weekstrip a.on { border-color: var(--brand); background: #e4f0e9; }
+.weekstrip .n { font-size: 13px; font-weight: 700; color: var(--brand); line-height: 1.1; }
+.weekstrip .n.high { color: #c0262d; }
+.weekstrip .n.zero { color: #c9ccc4; font-weight: 400; }
