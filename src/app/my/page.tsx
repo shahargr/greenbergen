@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { mapsHref } from "@/lib/maps";
+import { WorkFilters, type Bucket } from "./WorkFilters";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { setGodMode } from "../admin/actions";
@@ -106,9 +107,9 @@ function WxIcon({ icon, size = 26 }: { icon: WeatherIcon; size?: number }) {
 export default async function MyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ panel?: string; error?: string; ok?: string; t?: string; all?: string; allp?: string }>;
+  searchParams: Promise<{ panel?: string; error?: string; ok?: string; t?: string; all?: string; allp?: string; view?: string }>;
 }) {
-  const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll, allp } = await searchParams;
+  const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll, allp, view: viewParam } = await searchParams;
   const showClosedProjects = allp === "1";
   // God mode cookie (set from Admin → Overview). Only honored for a superadmin.
   const godOn = (await cookies()).get("gb_god")?.value === "1";
@@ -180,9 +181,40 @@ export default async function MyPage({
   const onOthers = Math.max(0, total - onMe - leads.length);
   const pendingOnMe = onMe + leads.length;
 
+  // Every project this person touches — any active seat, any bid, any money
+  // booked to them — with the buckets each one belongs to. This is what makes
+  // a contractor's home page show anything at all: the seat that matters to
+  // them is rarely "owner".
+  type WorkRow = {
+    project_id: string; project_name: string; address: string | null; status: string;
+    stage: string | null; domain: string | null; parent_project_id: string | null;
+    parent_name: string | null; seat: string | null; rank: number; my_open_tasks: number;
+    bid_amount: number | null; latest_bid_id: string | null; owed: number; owed_count: number;
+    buckets: string[];
+  };
+  const { data: workData } = await supabase.rpc("portal_my_work");
+  const work = ((workData ?? []) as WorkRow[]);
+  const workById = new Map(work.map((w) => [w.project_id, w]));
+  const bucketCounts: Record<string, number> = { all: work.length };
+  for (const w of work) for (const b of (w.buckets ?? [])) bucketCounts[b] = (bucketCounts[b] ?? 0) + 1;
+  const view: Bucket = (["active", "lead", "decision", "payment", "done", "all"] as const)
+    .includes((viewParam ?? "active") as Bucket) ? ((viewParam ?? "active") as Bucket) : "active";
+  // Someone whose only seats are ownership does not need bid filters.
+  const isContractorish = work.some((w) => w.rank < 70 || w.latest_bid_id || w.owed_count > 0);
+
   const ownerIdSet = new Set(ownerProjects.map((p) => p.id));
   let bandOverviewAll = (((bandOverviewData ?? []) as ProjectOverviewRow[]))
-    .filter((p) => ownerIdSet.has(p.id) && !p.is_template);
+    .filter((p) => (ownerIdSet.has(p.id) || workById.has(p.id)) && !p.is_template);
+  // Anything I touch that the overview did not carry (a seat linked to my
+  // contact rather than my account, a project I only bid on) still gets a tile.
+  for (const w of work) {
+    if (bandOverviewAll.some((p) => p.id === w.project_id)) continue;
+    bandOverviewAll.push({
+      id: w.project_id, project_name: w.project_name, address: w.address,
+      status: w.status, parent_project_id: w.parent_project_id, is_template: false,
+      domain: w.domain, open_count: w.my_open_tasks, last_activity: "",
+    });
+  }
   if (godMode) {
     // God mode: every project on the platform, as if invited to all of them.
     // Counts come from the (p_all) cards; the overview rows just shape the tree.
@@ -195,9 +227,18 @@ export default async function MyPage({
     bandOverviewAll = (((allRows ?? []) as Omit<ProjectOverviewRow, "open_count" | "last_activity">[]))
       .map((p) => ({ ...p, open_count: 0, last_activity: "" }));
   }
-  const bandOverview = showClosedProjects
+  const inView = (id: string) => {
+    if (view === "all") return true;
+    const w = workById.get(id);
+    // A project the work query never saw (an owner's own, pre-bid) counts as
+    // active while it is open.
+    if (!w) return view === "active" ? true : false;
+    return (w.buckets ?? []).includes(view);
+  };
+  const bandOverview = (showClosedProjects || view === "done" || view === "all"
     ? bandOverviewAll
-    : bandOverviewAll.filter((p) => p.status === "In Progress");
+    : bandOverviewAll.filter((p) => p.status === "In Progress")
+  ).filter((p) => inView(p.id));
   const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length;
   const bandIds = new Set(bandOverview.map((p) => p.id));
   // Full tree: roots are projects whose parent is absent from the list;
@@ -1000,6 +1041,14 @@ export default async function MyPage({
         // would otherwise stick — Next keeps client state on a same-route
         // searchParams change).
         <section key={`${flashOk ?? ""}|${flashError ?? ""}`} style={{ display: "grid", gap: 8, marginBottom: 18 }}>
+          {/* Four filters over your work, plus the Active view the page opens
+              on. Only worth showing to someone who is not purely an owner. */}
+          {isContractorish && <WorkFilters view={view} counts={bucketCounts} />}
+          {isContractorish && view !== "active" && bandOverview.length === 0 && (
+            <p className="muted small" style={{ margin: "0 0 8px" }}>
+              Nothing in this filter right now.
+            </p>
+          )}
           {(() => {
             // HOUSES vs PROJECTS. A house has no parent, or its parent is a
             // portfolio (a container with no address). Anything under a house
