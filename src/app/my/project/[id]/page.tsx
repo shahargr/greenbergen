@@ -314,6 +314,20 @@ export default async function ProjectPage({
     ancestors.unshift({ id: up.id, project_name: up.project_name, address: (up.address as string | null) ?? null });
     cursor = up.parent_project_id as string | null;
   }
+  // Same name, same parent: two "Emergency generator" jobs under one home.
+  // When that happens the header adds the start date to tell them apart.
+  const { data: twinRows } = project.parent_project_id
+    ? await supabase
+        .from("projects")
+        .select("id")
+        .eq("parent_project_id", project.parent_project_id)
+        .eq("project_name", project.project_name)
+        .is("trashed_at", null)
+        .neq("id", project.id)
+        .limit(1)
+    : { data: [] };
+  const hasTwin = ((twinRows ?? []) as { id: string }[]).length > 0;
+
   const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
   const { data: ownerRow } = ownerId
     ? await supabase.from("app_users").select("full_name, email").eq("id", ownerId).maybeSingle()
@@ -438,17 +452,36 @@ export default async function ProjectPage({
       <span className="kicker">{project.parent_project_id ? "Job" : "Home"}</span>
       {(() => {
         const navAddress = project.address ?? [...ancestors].reverse().find((a) => a.address)?.address ?? null;
+        // The name on its own is not unique - two homes can each have an
+        // "Emergency generator". The line under it says which one: the home
+        // it hangs under, its address, and (for same-named siblings) the day
+        // it started. A contractor working five sites reads this first.
+        const startedOn = project.created_at ? String(project.created_at).slice(0, 10) : null;
         return (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
-            <h1 style={{ fontSize: 26, margin: 0, minWidth: 0 }}>{project.project_name}</h1>
-            {navAddress && (
-              <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small"
-                title={`Navigate to ${navAddress}`}
-                style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, flex: "none" }}>
-                <CarIcon /> Navigate
-              </a>
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
+              <h1 style={{ fontSize: 26, margin: 0, minWidth: 0 }}>{project.project_name}</h1>
+              {navAddress && (
+                <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small"
+                  title={`Navigate to ${navAddress}`}
+                  style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, flex: "none" }}>
+                  <CarIcon /> Navigate
+                </a>
+              )}
+            </div>
+            {(ancestors.length > 0 || navAddress) && (
+              <p className="small muted" style={{ margin: "0 0 10px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "baseline", minWidth: 0 }}>
+                {ancestors.map((a, i) => (
+                  <span key={a.id} style={{ minWidth: 0 }}>
+                    {i > 0 && <span aria-hidden>› </span>}
+                    <Link href={`/my/project/${a.id}`}>{a.project_name}</Link>
+                  </span>
+                ))}
+                {navAddress && <span>{ancestors.length > 0 ? "· " : ""}{navAddress}</span>}
+                {hasTwin && startedOn && <span>· started {startedOn}</span>}
+              </p>
             )}
-          </div>
+          </>
         );
       })()}
 
