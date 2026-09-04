@@ -34,10 +34,15 @@ export default async function SettingsPage({
   type ContactHouse = { project_id: string; project_name: string; address: string | null; people: ContactPerson[] };
   const contactHouses = ((contactsData ?? []) as ContactHouse[]);
   // Account facts for the right column; the contractor's bids by project.
-  const [{ data: acct }, { data: bidProjData }] = await Promise.all([
+  const [{ data: acct }, { data: bidProjData }, { data: myTradeRows }] = await Promise.all([
     me?.app_user_id ? supabase.from("app_users").select("created_at, last_modified_at, last_login_at").eq("id", me.app_user_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.rpc("portal_my_bid_projects"),
+    me?.contact_id
+      ? supabase.from("contact_trade_roles").select("trade").eq("contact_id", me.contact_id)
+      : Promise.resolve({ data: [] }),
   ]);
+  // The trades you offer, shown under your name.
+  const myTrades = [...new Set(((myTradeRows ?? []) as { trade: string }[]).map((t) => t.trade))].sort();
   type BidProj = { project_id: string; project_name: string; address: string | null; status: string; parent_name: string | null; kind: "awarded" | "bidding" | "not awarded"; bids: number; amount: number | null };
   const bidProjects = ((bidProjData ?? []) as BidProj[]);
   const fmtD = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
@@ -134,6 +139,12 @@ export default async function SettingsPage({
           <span style={{ minWidth: 0 }}>
             <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
             {me?.is_superadmin && <span className="extra-chip" style={{ marginLeft: 8 }}>admin</span>}
+            {myTrades.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                {myTrades.map((t) => <span key={t} className="extra-chip" style={{ fontSize: 11 }}>{t}</span>)}
+              </div>
+            )}
+            {myTrades.length === 0 && <div className="muted small" style={{ marginTop: 2 }}>No trades listed yet</div>}
           </span>
           <span className="small" style={{ display: "grid", gap: 2, textAlign: "right", whiteSpace: "nowrap", minWidth: 0 }}>
             <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Signed in as <strong style={{ color: "var(--ink)" }}>{me?.email}</strong></span>

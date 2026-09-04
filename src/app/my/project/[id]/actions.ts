@@ -402,3 +402,41 @@ export async function removeBidNeed(projectId: string, needId: string) {
   revalidatePath(`/my/project/${projectId}`);
   redirect(error ? backSetup(projectId, error.message, true) : backSetup(projectId, "Line removed."));
 }
+
+// ---------------------------------------------------------------------------
+// Project scope, three steps (v188): trades → scope lines → bid packages.
+
+const backScope = (projectId: string, step: string, msg: string, isError = false) =>
+  `/my/project/${projectId}?tab=scope&step=${step}&${isError ? "error" : "ok"}=${encodeURIComponent(msg)}#scope`;
+
+export async function scopeSetTrades(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const trades = formData.getAll("trade").map((v) => String(v));
+  const { error } = await supabase.rpc("portal_scope_trades_set", { p_project: projectId, p_trades: trades });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error
+    ? backScope(projectId, "1", error.message, true)
+    : backScope(projectId, "2", `${trades.length} trade${trades.length === 1 ? "" : "s"} on this job.`));
+}
+
+export async function scopeCopyLines(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const lines = formData.getAll("line").map((v) => String(v));
+  const { error } = await supabase.rpc("portal_scope_copy", { p_project: projectId, p_blueprint_ids: lines });
+  revalidatePath(`/my/project/${projectId}`);
+  redirect(error
+    ? backScope(projectId, "2", error.message, true)
+    : backScope(projectId, "3", `${lines.length} line${lines.length === 1 ? "" : "s"} in scope.`));
+}
+
+export async function scopeMakePackages(projectId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_scope_packages", { p_project: projectId });
+  revalidatePath(`/my/project/${projectId}`);
+  const made = (data as { created?: number } | null)?.created ?? 0;
+  redirect(error
+    ? backScope(projectId, "3", error.message, true)
+    : backScope(projectId, "3", made === 0
+      ? "Every trade already has a package."
+      : `${made} bid package${made === 1 ? "" : "s"} created from the scope.`));
+}

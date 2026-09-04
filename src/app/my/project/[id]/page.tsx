@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
 import { BidNeeds } from "./BidNeeds";
+import { ScopeWizard } from "./ScopeWizard";
 import { VisitTasks } from "./VisitTasks";
 import { projectPerms, updateContact, setSiteRoster, logSiteVisit } from "./actions";
 import { FileDrop } from "@/components/FileDrop";
@@ -31,24 +32,25 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string; date?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string; date?: string; step?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam, date: dateParam } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam, date: dateParam, step: stepParam } = await searchParams;
   // A schedule item clicked open (?item=<task id>) unfolds under the calendar.
   const selectedItem = itemParam && /^[0-9a-f-]{36}$/i.test(itemParam) ? itemParam : null;
-  // Two tabs: Overview (schedule, tasks) and Manage project (bids, bidders,
-  // award, people). Anything that opens the people list lands on Manage.
-  // Four tabs, one job each:
-  //   overview - look: details, schedule, today
-  //   site     - Manage: roster, tasks, bids, award, people
-  //   setup    - define: brief, details, configuration, invitations
-  //   admin    - sensitive: facts about the record, delete
-  const tab: "overview" | "site" | "visit" | "setup" | "admin" =
-    tabParam === "admin" ? "admin"
+  // Five tabs, one job each:
+  //   overview - look: schedule, today, purchase & sale
+  //   site     - Tasks: the day-to-day list, late panels, people
+  //   visit    - Site visit: roster, visit log, days on site
+  //   scope    - Project scope: trades, scope lines, the bid process
+  //   setup    - define and administer: details, configuration, invitations,
+  //              the record itself and deletion (Admin merged in here)
+  const tab: "overview" | "site" | "visit" | "scope" | "setup" =
+    (tabParam === "setup" || tabParam === "admin") ? "setup"
     : tabParam === "visit" ? "visit"
+    : tabParam === "scope" ? "scope"
     : (tabParam === "site" || tabParam === "manage" || peopleMode === "all" || (!tabParam && (tasksBucket || parentTask))) ? "site"
-    : tabParam === "setup" ? "setup" : "overview";
+    : "overview";
   // A day picked on the week calendar (?day=YYYY-MM-DD) opens its table.
   const selectedDay = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : null;
   const showAllPeople = peopleMode === "all";
@@ -432,10 +434,10 @@ export default async function ProjectPage({
         {/* Three tabs on the details panel; the page below follows the tab. */}
         <div className="card" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
           <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
-          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Todo</Link>
+          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Tasks</Link>
           <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "btn small" : "btn ghost small"}>Site visit</Link>
+          {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "btn small" : "btn ghost small"}>Project scope</Link>}
           {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
-          {(perms.rank >= 70 || perms.admin) && <Link href={`/my/project/${project.id}?tab=admin`} className={tab === "admin" ? "btn small" : "btn ghost small"}>Admin</Link>}
         </div>
 
         {/* A bidder or contractor sees the scope here; owner details stay masked until awarded. */}
@@ -651,14 +653,20 @@ export default async function ProjectPage({
               showDelete={false}
             />
 
+          </>
+        )}
+
+        {/* Project scope: three steps that end in bid packages. */}
+        {tab === "scope" && perms.rank >= 50 && (
+          <>
+            <ScopeWizard projectId={project.id} step={stepParam} canEdit={perms.rank >= 50} />
             {/* What this project has to line up: trades, permits, purchases. */}
             <BidNeeds projectId={project.id} canEdit={perms.rank >= 50} />
           </>
         )}
 
-        {/* The bid workflow is part of defining the project, so it lives here
-            on Setup rather than on the day-to-day Todo tab. */}
-        {tab === "setup" && perms.rank >= 50 && (
+        {/* The bid workflow: scope feeds it, so it lives on Project scope. */}
+        {tab === "scope" && perms.rank >= 50 && (
           <>
             {/* Stage 1 — Create a bid */}
             <div id="stage-bid" className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
@@ -900,15 +908,15 @@ export default async function ProjectPage({
             {/* Manage project: four compact tiles in one line, each jumping
                 to its full card below. */}
             <div className="ptiles manage-tiles">
-              <a href={`/my/project/${project.id}?tab=setup#bid-needs`} className="card mtile">
+              <a href={`/my/project/${project.id}?tab=scope#bid-needs`} className="card mtile">
                 <span className="mtile-num">{bidPkgs.length}</span>
-                <span className="mtile-label">Bid package{bidPkgs.length === 1 ? "" : "s"} · on Setup</span>
+                <span className="mtile-label">Bid package{bidPkgs.length === 1 ? "" : "s"} · on Project scope</span>
               </a>
-              <a href={`/my/project/${project.id}?tab=setup#stage-invite`} className="card mtile">
+              <a href={`/my/project/${project.id}?tab=scope#stage-invite`} className="card mtile">
                 <span className="mtile-num">{totalInvited}</span>
                 <span className="mtile-label">Bidders invited{totalReceived ? ` · ${totalReceived} replied` : ""}</span>
               </a>
-              <a href={`/my/project/${project.id}?tab=setup#stage-award`} className="card mtile">
+              <a href={`/my/project/${project.id}?tab=scope#stage-award`} className="card mtile">
                 <span className="mtile-num">{wonBids.length}</span>
                 <span className="mtile-label">Awarded</span>
               </a>
@@ -1009,8 +1017,9 @@ export default async function ProjectPage({
           </div>
         )}
 
-        {/* Admin: the record itself, and the one destructive action. */}
-        {tab === "admin" && (
+        {/* Administration, merged into Setup: the record itself and the one
+            destructive action. Owner or superadmin only. */}
+        {tab === "setup" && (perms.rank >= 70 || perms.admin) && (
           <div className="card" style={{ display: "grid", gap: 6 }}>
             <h2 className="section-title" style={{ margin: 0 }}>Record</h2>
             <div className="small" style={{ display: "grid", gridTemplateColumns: "110px minmax(0, 1fr)", gap: "4px 10px" }}>
@@ -1019,6 +1028,7 @@ export default async function ProjectPage({
               <span className="muted">Parent</span><span>{crumbs.length > 2 ? crumbs[crumbs.length - 2].name : "— (top level)"}</span>
               <span className="muted">Created</span><span>{new Date(project.created_at).toLocaleDateString()}</span>
               <span className="muted">Status</span><span>{project.status ?? "—"}</span>
+              <span className="muted">Stage</span><span>{project.stage ?? "not set"}</span>
             </div>
             {perms.admin && (
               <div className="btn-row" style={{ gap: 8 }}>
@@ -1028,7 +1038,7 @@ export default async function ProjectPage({
             )}
           </div>
         )}
-        {tab === "admin" && perms.rank >= 50 && (
+        {tab === "setup" && perms.rank >= 50 && (
           <>
           {/* Invite someone into this project. They accept or decline on
               their next login; the answer shows on the inviter's home page. */}
@@ -1061,7 +1071,7 @@ export default async function ProjectPage({
           </>
         )}
 
-        {tab === "admin" && (
+        {tab === "setup" && (
           <DeleteProjectZone project={{ id: project.id, project_name: project.project_name, status: project.status, stage: project.stage, address: project.address, notes: project.notes }} perms={perms} />
         )}
       </div>

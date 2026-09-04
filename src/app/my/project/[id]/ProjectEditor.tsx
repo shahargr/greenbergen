@@ -94,6 +94,9 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultO
           <span><span className="muted">Stage:</span> {project.stage ? (STAGE_LABEL[project.stage] ?? project.stage) : "not set"}</span>
           <span><span className="muted">Address:</span> {project.address ?? "—"}</span>
         </div>
+        {/* The brief and the files that came with it read here, on the
+            details panel, rather than only inside the Setup form. */}
+        {briefSlot}
       </div>
     );
   }

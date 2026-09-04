@@ -132,6 +132,10 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const [phase, setPhase] = useState("all");
   const [sort, setSort] = useState<"due" | "updated">("due");
   const [open, setOpen] = useState<string | null>(null);
+  // Free-text search: type "plum" and every plumbing task lists below.
+  const [search, setSearch] = useState("");
+  // Panels run four to a row. Two rows is the cap; the rest hide behind "…".
+  const [allTiles, setAllTiles] = useState(false);
   // Subtask filter: show only the children of this parent (chip / ?parent=).
   const [parentOf, setParentOf] = useState<string | null>(initialParent ?? null);
 
@@ -204,6 +208,10 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     () => [...new Set(tasks.map((t) => t.assignee).filter((x): x is string => !!x))].sort(),
     [tasks]
   );
+  const tradeNames = useMemo(
+    () => [...new Set(tasks.map((t) => t.trade).filter((x): x is string => !!x))].sort(),
+    [tasks]
+  );
 
   // Phase/stage panels: open per bucket within the current project filter.
   const phaseStats = useMemo(() => {
@@ -250,22 +258,33 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   }, [tasks, todayIso]);
 
   const prioRank = (p: string | null) => (p === "High" ? 0 : p === "Medium" ? 1 : p === "Low" ? 2 : 3);
+  // Every word typed has to appear somewhere on the task: its title, trade,
+  // assignee, status or notes. "plum" finds the plumbing work.
+  const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = (t: TableTask) => {
+    if (terms.length === 0) return true;
+    const hay = [t.action, t.trade, t.assignee, t.status, t.priority, t.project, t.notes, t.parent]
+      .filter(Boolean).join(" ").toLowerCase();
+    return terms.every((w) => hay.includes(w));
+  };
   const shownAll = tasks
     .filter(
       (t) =>
-        (state === "all" || t.state === state) &&
+        hits(t) &&
+        (terms.length > 0 || state === "all" || t.state === state) &&
+        (terms.length > 0 || true) &&
         (domain === "all" || t.domain === domain) &&
         (project === "all" || (t.project ?? "No project") === project) &&
         (trade === "all" || t.trade === trade) &&
         (person === "all" || (person === "__unassigned__" ? !t.assignee : t.assignee === person)) &&
         (priority === "all" || (t.priority ?? "No Priority") === priority) &&
-        (view !== "mine" || t.who === "you") &&
-        (view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso)) &&
+        (terms.length > 0 || view !== "mine" || t.who === "you") &&
+        (terms.length > 0 || view !== "late" || (t.state === "open" && !!t.target_date && t.target_date < todayIso)) &&
         // Stuck = open and not moving: overdue, waiting on someone, or parked.
         // Mirrors the homepage card's "stuck" count.
-        (view !== "stuck" || (t.state === "open" &&
+        (terms.length > 0 || view !== "stuck" || (t.state === "open" &&
           ((!!t.target_date && t.target_date < todayIso) || /pending/i.test(t.status) || t.status === "Parked"))) &&
-        (view !== "urgent" || t.state === "open") &&
+        (terms.length > 0 || view !== "urgent" || t.state === "open") &&
         (parentOf === null || t.parent_id === parentOf) &&
         (phase === "all" || (stageMode ? stageOf(t.trade) : phaseOf(t.trade)) === phase)
     )
@@ -280,9 +299,9 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     );
   // Urgent = the 10 nearest-due open tasks, line by line (the default view).
   // (When filtered to a parent's subtasks, show all of them — no urgent cap.)
-  const shown = view === "urgent" && parentOf === null ? shownAll.slice(0, 10) : shownAll;
+  const shown = view === "urgent" && parentOf === null && terms.length === 0 ? shownAll.slice(0, 10) : shownAll;
   const parentTitle = parentOf ? (tasks.find((t) => t.id === parentOf)?.action ?? tasks.find((t) => t.parent_id === parentOf)?.parent ?? "this task") : null;
-  const tableVisible = (!compact && !startEmpty) || view !== "none" || trade !== "all" || parentOf !== null;
+  const tableVisible = (!compact && !startEmpty) || view !== "none" || trade !== "all" || parentOf !== null || terms.length > 0;
 
   const pick = (setter: (v: never) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     (setter as (v: string) => void)(e.target.value);
@@ -375,7 +394,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
               </select>
               <select value={trade} onChange={(e) => { pick(setTrade)(e); setView("all"); }}>
                 <option value="all">All trades</option>
-                {[...new Set(tasks.map((t) => t.trade).filter((x): x is string => !!x))].sort().map((tr) => <option key={tr}>{tr}</option>)}
+                {tradeNames.map((tr) => <option key={tr}>{tr}</option>)}
               </select>
               <select value={sort} onChange={pick(setSort)}>
                 <option value="due">By due (late first)</option>
@@ -386,7 +405,38 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
-      {showLatePanels && (latePeople.length > 0 || (!!addTaskSlot && !compact)) && (
+      {showLatePanels && (
+        <div style={{ display: "grid", gap: 4 }}>
+          <input
+            className="input"
+            type="search"
+            list="task-search-terms"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setOpen(null); }}
+            placeholder="Search tasks — a trade, a name, a word in the title"
+            aria-label="Search tasks"
+          />
+          {/* Autocomplete: the trades and people actually on this project. */}
+          <datalist id="task-search-terms">
+            {[...tradeNames, ...people].map((v) => <option key={v} value={v} />)}
+          </datalist>
+          {terms.length > 0 && (
+            <span className="muted small">
+              {shown.length} match{shown.length === 1 ? "" : "es"} for &ldquo;{search.trim()}&rdquo;
+              <button type="button" className="btn ghost small" style={{ marginLeft: 8, padding: "1px 8px" }}
+                onClick={() => setSearch("")}>Clear</button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {showLatePanels && (latePeople.length > 0 || (!!addTaskSlot && !compact)) && (() => {
+        // Eight tiles fill two rows; the add-task tile takes one of them.
+        const capacity = 8 - (addTaskSlot && !compact ? 1 : 0);
+        const overflowing = !allTiles && latePeople.length > capacity;
+        const shownLate = overflowing ? latePeople.slice(0, capacity - 1) : latePeople;
+        const hidden = latePeople.length - shownLate.length;
+        return (
         <div className="phase-grid late-grid" style={{ marginBottom: 4 }}>
           {addTaskSlot && !compact && (
             <button type="button" className={showAdd ? "phase-tile late-tile on" : "phase-tile late-tile"} title={showAdd ? "Close" : "Add a task to this project"}
@@ -396,7 +446,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
               <span className="tradestat-late" style={{ color: "var(--brand)" }}>new</span>
             </button>
           )}
-          {latePeople.map(([who, n]) => {
+          {shownLate.map(([who, n]) => {
             const key = who === "Unassigned" ? "__unassigned__" : who;
             const on = view === "late" && person === key;
             // Short name for the tile: first word plus initial, full name on hover.
@@ -423,8 +473,25 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
               </button>
             );
           })}
+          {hidden > 0 && (
+            <button type="button" className="phase-tile late-tile" title={`Show ${hidden} more`}
+              onClick={() => setAllTiles(true)}>
+              <span className="phase-icon" style={{ background: "#eef1ea", color: "#555", width: 26, height: 26, fontSize: 16, fontWeight: 700 }}>…</span>
+              <span className="phase-name">More</span>
+              <span className="tradestat-late">{hidden} more</span>
+            </button>
+          )}
+          {allTiles && latePeople.length > 7 && (
+            <button type="button" className="phase-tile late-tile" title="Show fewer"
+              onClick={() => setAllTiles(false)}>
+              <span className="phase-icon" style={{ background: "#eef1ea", color: "#555", width: 26, height: 26, fontSize: 16, fontWeight: 700 }}>‹</span>
+              <span className="phase-name">Fewer</span>
+              <span className="tradestat-late">collapse</span>
+            </button>
+          )}
         </div>
-      )}
+        );
+      })()}
       {showAdd && addTaskSlot && !compact && (
         <div className="card" style={{ padding: "10px 12px", marginBottom: 4 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
