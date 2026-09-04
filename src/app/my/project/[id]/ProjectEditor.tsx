@@ -124,7 +124,7 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultO
           {perms.status && (
             <div className="field" style={{ marginBottom: 0 }}>
               <label htmlFor="pe-stage">Stage</label>
-              <select id="pe-stage" name="stage" className="input" defaultValue={project.stage ?? "active"}>
+              <select id="pe-stage" name="stage" className="input" defaultValue={project.stage ?? "bid"}>
                 {PROJECT_STAGES.map((s) => <option key={s} value={s}>{STAGE_LABEL[s] ?? s}</option>)}
               </select>
               <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>

@@ -65,7 +65,11 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
     supabase.rpc("portal_my_invites"),
   ]);
   // Things waiting on you: invitations to answer, and answers to yours.
-  const inbound = ((invites?.incoming ?? []) as unknown[]).length + ((invites?.outcomes ?? []) as unknown[]).length;
+  const { data: msgPending } = await supabase.rpc("portal_my_messages_pending");
+  const waitingMessages = typeof msgPending === "number" ? msgPending : 0;
+  const inbound = ((invites?.incoming ?? []) as unknown[]).length
+    + ((invites?.outcomes ?? []) as unknown[]).length
+    + waitingMessages;
 
   // Who you are, under the logo: email, then your highest seat (by the
   // authority ladder) or your trade - with "(N roles)" when you hold more.
@@ -109,7 +113,11 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
         <div className="topnav-right">
           {isAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined} />}
           <BackNav />
-          <Link href="/my#inbound" className="iconlink" title={inbound > 0 ? `${inbound} waiting on you` : "Inbox"} aria-label="Inbox"
+          <Link href="/my/inbox" className="iconlink"
+            title={inbound > 0
+              ? `${inbound} waiting on you${waitingMessages > 0 ? ` · ${waitingMessages} message${waitingMessages === 1 ? "" : "s"} to review` : ""}`
+              : "Inbox"}
+            aria-label="Inbox"
             style={{ position: "relative" }}>
             <InboxIcon />
             {inbound > 0 && (

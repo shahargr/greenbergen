@@ -34,17 +34,22 @@ export default async function SettingsPage({
   type ContactHouse = { project_id: string; project_name: string; address: string | null; people: ContactPerson[] };
   const contactHouses = ((contactsData ?? []) as ContactHouse[]);
   // Account facts for the right column; the contractor's bids by project.
-  const [{ data: acct }, { data: bidProjData }, { data: myTradeRows }] = await Promise.all([
+  const [{ data: acct }, { data: bidProjData }, { data: ownerProjData }, { data: myTradeRows }] = await Promise.all([
     me?.app_user_id ? supabase.from("app_users").select("created_at, last_modified_at, last_login_at").eq("id", me.app_user_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.rpc("portal_my_bid_projects"),
+    supabase.rpc("portal_my_owner_projects"),
     me?.contact_id
       ? supabase.from("contact_trade_roles").select("trade").eq("contact_id", me.contact_id)
       : Promise.resolve({ data: [] }),
   ]);
   // The trades you offer, shown under your name.
   const myTrades = [...new Set(((myTradeRows ?? []) as { trade: string }[]).map((t) => t.trade))].sort();
-  type BidProj = { project_id: string; project_name: string; address: string | null; status: string; parent_name: string | null; kind: "awarded" | "bidding" | "not awarded"; bids: number; amount: number | null };
+  type BidProj = { project_id: string; project_name: string; address: string | null; status: string; parent_name: string | null; kind: "awarded" | "pending you" | "pending customer" | "not awarded"; bids: number; amount: number | null };
   const bidProjects = ((bidProjData ?? []) as BidProj[]);
+  type OwnerProj = { project_id: string; project_name: string; address: string | null; status: string;
+    stage: string | null; parent_name: string | null; packages: number; contracts: number;
+    open_tasks: number; bucket: "idea" | "active" | "completed" };
+  const firstName = (me?.full_name ?? "").trim().split(/\s+/)[0] || null;
   const fmtD = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
   // Everyone ever added to one of my projects, at any role.
   type MyContractor = { id: string; name: string; company: string | null; trade: string | null; stage: string | null; phone: string | null; email: string | null; seats: string[] | null; is_owner?: boolean; projects: number; awarded: number; status?: "awarded" | "bidding" | "not awarded" | "member"; vendor_status: string | null };
@@ -96,6 +101,7 @@ export default async function SettingsPage({
   const trashDays: number = trashData?.days ?? 14;
   const trashItems = ((trashData?.items ?? []) as { id: string; name: string; trashed_at: string; expires_on: string }[]);
 
+  const ownerProjects = ((ownerProjData ?? []) as OwnerProj[]);
   const { data: contact } = me?.contact_id
     ? await supabase
         .from("contacts")
@@ -117,6 +123,10 @@ export default async function SettingsPage({
     ? await supabase.from("assets").select("id, asking_price").in("id", assetIds)
     : { data: [] };
 
+  const avatarUrl = contact?.avatar_path
+    ? `${supabase.storage.from("public-media").getPublicUrl(contact.avatar_path).data.publicUrl}?v=${Date.parse(acct?.last_modified_at ?? "") || 0}`
+    : null;
+
   const homes: HomeAsset[] = (homeProjects ?? []).map((p) => ({
     projectId: p.id as string,
     projectName: p.project_name as string,
@@ -129,29 +139,74 @@ export default async function SettingsPage({
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
       <span className="kicker">Settings</span>
-      <h1 style={{ fontSize: 26, margin: "6px 0 14px" }}>Your account</h1>
+      <h1 style={{ fontSize: 26, margin: "6px 0 14px" }}>
+        {firstName ? `${firstName}'s account setup` : "Account setup"}
+      </h1>
 
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14 }}>
-        {/* Account, two columns: who you are on the left, dates on the right. */}
-        <div className="card" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, auto)", gap: 12, alignItems: "start" }}>
-          <span style={{ minWidth: 0 }}>
-            <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
-            {me?.is_superadmin && <span className="extra-chip" style={{ marginLeft: 8 }}>admin</span>}
-            {myTrades.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                {myTrades.map((t) => <span key={t} className="extra-chip" style={{ fontSize: 11 }}>{t}</span>)}
-              </div>
+        {/* One account panel: who you are, when you joined, and the form to
+            change any of it — folded in rather than a card of its own. */}
+        <div className="card" style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: avatarUrl ? "auto minmax(0, 1fr) minmax(0, auto)" : "minmax(0, 1fr) minmax(0, auto)", gap: 12, alignItems: "start" }}>
+            {avatarUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1px solid #e7e9e4" }} />
             )}
-            {myTrades.length === 0 && <div className="muted small" style={{ marginTop: 2 }}>No trades listed yet</div>}
-          </span>
-          <span className="small" style={{ display: "grid", gap: 2, textAlign: "right", whiteSpace: "nowrap", minWidth: 0 }}>
-            <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Signed in as <strong style={{ color: "var(--ink)" }}>{me?.email}</strong></span>
-            <span><span className="muted">Member since</span> {fmtD(acct?.created_at)}</span>
-            <span><span className="muted">Last updated</span> {fmtD(acct?.last_modified_at ?? acct?.created_at)}</span>
-            {acct?.last_login_at && <span><span className="muted">Last login</span> {fmtD(acct.last_login_at)}</span>}
-          </span>
+            <span style={{ minWidth: 0 }}>
+              <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
+              {me?.is_superadmin && <span className="extra-chip" style={{ marginLeft: 8 }}>admin</span>}
+              {myTrades.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                  {myTrades.map((t) => <span key={t} className="extra-chip" style={{ fontSize: 11 }}>{t}</span>)}
+                </div>
+              )}
+              {myTrades.length === 0 && <div className="muted small" style={{ marginTop: 2 }}>No trades listed yet</div>}
+            </span>
+            <span className="small" style={{ display: "grid", gap: 2, textAlign: "right", whiteSpace: "nowrap", minWidth: 0 }}>
+              <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Signed in as <strong style={{ color: "var(--ink)" }}>{me?.email}</strong></span>
+              <span><span className="muted">Member since</span> {fmtD(acct?.created_at)}</span>
+              <span><span className="muted">Last updated</span> {fmtD(acct?.last_modified_at ?? acct?.created_at)}</span>
+              {acct?.last_login_at && <span><span className="muted">Last login</span> {fmtD(acct.last_login_at)}</span>}
+            </span>
+          </div>
+
+          <details style={{ borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+            <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>✏️ Edit your details</summary>
+          <form action={saveProfile} style={{ display: "grid", gap: 10, marginTop: 10 }}>
+          <div className="form-2col">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="st-name">Full name</label>
+              <input id="st-name" name="full_name" className="input" defaultValue={me?.full_name ?? ""} />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="st-phone">Phone</label>
+              <input id="st-phone" name="phone" className="input" type="tel" defaultValue={contact?.phone ?? ""} />
+            </div>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Profile photo (optional)</label>
+            <PhotoPick name="avatar" label="Add photo" />
+            <p className="muted small" style={{ margin: "4px 0 0" }}>
+              Shows on your task panels. Leave empty to keep {contact?.avatar_path ? "your current photo" : "the icon"}.
+            </p>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="st-address">Office address</label>
+            <input id="st-address" name="address" className="input"
+              defaultValue={contact?.address ?? homes[0]?.address ?? ""} />
+            {!contact?.address && homes[0]?.address && (
+              <p className="muted small" style={{ margin: "4px 0 0" }}>
+                Pre-filled from the address you claimed — hit Save to keep it.
+              </p>
+            )}
+          </div>
+          <div>
+            <button className="btn">Save</button>
+          </div>
+          </form>
+          </details>
         </div>
 
         {/* Superadmin controls, right where the account is. */}
@@ -180,102 +235,70 @@ export default async function SettingsPage({
           </div>
         )}
 
-        {/* The identity card above is the summary; the full form sits behind Edit. */}
-        <details className="card">
-          <summary style={{ cursor: "pointer", fontWeight: 700 }}>✏️ Edit your details</summary>
-          <form action={saveProfile} style={{ display: "grid", gap: 10, marginTop: 10 }}>
-          <div className="form-2col">
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="st-name">Full name</label>
-              <input id="st-name" name="full_name" className="input" defaultValue={me?.full_name ?? ""} />
-            </div>
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label htmlFor="st-phone">Phone</label>
-              <input id="st-phone" name="phone" className="input" type="tel" defaultValue={contact?.phone ?? ""} />
-            </div>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Profile photo (optional)</label>
-            <PhotoPick name="avatar" label="Add photo" />
-            <p className="muted small" style={{ margin: "4px 0 0" }}>
-              Shows on your task panels. Leave empty to keep {contact?.avatar_path ? "your current photo" : "the icon"}.
-            </p>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="st-address">Home address</label>
-            <input id="st-address" name="address" className="input"
-              defaultValue={contact?.address ?? homes[0]?.address ?? ""} />
-            {!contact?.address && homes[0]?.address && (
-              <p className="muted small" style={{ margin: "4px 0 0" }}>
-                Pre-filled from your claimed home — hit Save to keep it.
-              </p>
-            )}
-          </div>
-          <div>
-            <button className="btn">Save</button>
-          </div>
-          </form>
-        </details>
-
-        {/* Houses (yours), projects awarded to you, projects you are bidding on. */}
+        {/* What you have here, grouped by what you are. A contractor reads
+            bids by who owes the next move; an owner reads projects by how far
+            along they are. */}
         {(() => {
-          const isHouse = (p: MemProj) => !p.parent_project_id || [...(seats.get(p.id) ?? [])].some((s) => s === "asset owner");
-          const bidById = new Map(bidProjects.map((b) => [b.project_id, b]));
-          const myHouses = houses.filter(isHouse);
-          const awarded = bidProjects.filter((b) => b.kind === "awarded");
-          const bidding = bidProjects.filter((b) => b.kind === "bidding");
-          const others = [...memProjects.values()].filter((p) => !isHouse(p) && !bidById.has(p.id) && !myHouses.some((h) => h.id === p.parent_project_id))
-            .sort((a, b) => a.project_name.localeCompare(b.project_name));
-          const row = (b: BidProj) => (
-            <div key={b.project_id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0 }}>
+          const bidGroups: [string, string, BidProj[]][] = [
+            ["📨", "Bids pending you", bidProjects.filter((b) => b.kind === "pending you")],
+            ["⏳", "Bids pending customer", bidProjects.filter((b) => b.kind === "pending customer")],
+            ["✅", "Bids awarded", bidProjects.filter((b) => b.kind === "awarded")],
+          ];
+          const lost = bidProjects.filter((b) => b.kind === "not awarded");
+          const ownerGroups: [string, string, OwnerProj[]][] = [
+            ["💡", "Project ideas", ownerProjects.filter((o) => o.bucket === "idea")],
+            ["🔨", "Projects active", ownerProjects.filter((o) => o.bucket === "active")],
+            ["🏁", "Projects completed", ownerProjects.filter((o) => o.bucket === "completed")],
+          ];
+          const line = (href: string, name: string, sub: string | null, right: string) => (
+            <div key={href} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0 }}>
               <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                <Link href={`/my/project/${b.project_id}`} style={{ fontWeight: 600 }}>{b.project_name}</Link>
-                {b.parent_name && <span className="muted"> · {b.parent_name}</span>}
+                <Link href={href} style={{ fontWeight: 600 }}>{name}</Link>
+                {sub && <span className="muted"> · {sub}</span>}
               </span>
-              <span className="muted" style={{ whiteSpace: "nowrap" }}>{b.amount != null ? `$${Math.round(b.amount).toLocaleString()} · ` : ""}{b.status}</span>
+              <span className="muted" style={{ whiteSpace: "nowrap" }}>{right}</span>
             </div>
           );
           return (
             <>
-              <div className="card" style={{ display: "grid", gap: 6 }}>
-                <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {myHouses.length}</h2>
-                {myHouses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house of your own yet.</p>}
-                {myHouses.map((h) => (
-                  <div key={h.id} style={{ display: "grid", gap: 3, borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
-                    <div className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-                      <Link href={`/my/house/${h.id}`} style={{ fontWeight: 700 }}>{h.project_name} →</Link>
-                      <span className="muted" style={{ whiteSpace: "nowrap" }}>{[...(seats.get(h.id) ?? [])].join(", ")} · {h.status}</span>
-                    </div>
-                    {h.address && <div className="muted small">{h.address}</div>}
-                    {childrenOf(h.id).map((p) => (
-                      <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, paddingLeft: 18 }}>
-                        <Link href={`/my/project/${p.id}`}>↳ {p.project_name}</Link>
-                        <span className="muted" style={{ whiteSpace: "nowrap" }}>{p.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-              {(awarded.length > 0 || bidding.length > 0 || others.length > 0) && (
+              {bidProjects.length > 0 && (
                 <div className="card" style={{ display: "grid", gap: 8 }}>
-                  <h2 className="section-title" style={{ margin: 0 }}>🔧 Projects awarded · {awarded.length}</h2>
-                  {awarded.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing awarded yet.</p>}
-                  {awarded.map(row)}
-                  <h2 className="section-title" style={{ margin: "6px 0 0" }}>📨 In bidding · {bidding.length}</h2>
-                  {bidding.length === 0 && <p className="muted small" style={{ margin: 0 }}>No open bids.</p>}
-                  {bidding.map(row)}
-                  {others.length > 0 && (
-                    <>
-                      <h2 className="section-title" style={{ margin: "6px 0 0" }}>Other projects you are on · {others.length}</h2>
-                      {others.map((p) => (
-                        <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
-                          <Link href={`/my/project/${p.id}`}>{p.project_name}</Link>
-                          <span className="muted" style={{ whiteSpace: "nowrap" }}>{[...(seats.get(p.id) ?? [])].join(", ")} · {p.status}</span>
-                        </div>
-                      ))}
-                    </>
+                  <h2 className="section-title" style={{ margin: 0 }}>Your bids · {bidProjects.length}</h2>
+                  {bidGroups.map(([icon, title, rows]) => (
+                    <div key={title} style={{ display: "grid", gap: 4 }}>
+                      <strong className="small">{icon} {title} · {rows.length}</strong>
+                      {rows.length === 0 && <span className="muted small">None.</span>}
+                      {rows.map((b) => line(`/my/project/${b.project_id}`, b.project_name, b.parent_name,
+                        `${b.amount != null ? `$${Math.round(b.amount).toLocaleString()} · ` : ""}${b.bids} bid${b.bids === 1 ? "" : "s"}`))}
+                    </div>
+                  ))}
+                  {lost.length > 0 && (
+                    <details>
+                      <summary className="small muted" style={{ cursor: "pointer" }}>Not awarded · {lost.length}</summary>
+                      <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
+                        {lost.map((b) => line(`/my/project/${b.project_id}`, b.project_name, b.parent_name, b.status))}
+                      </div>
+                    </details>
                   )}
-                  <p className="muted small" style={{ margin: 0 }}>Open a project to see its scope. Owner details stay hidden until the work is awarded.</p>
+                </div>
+              )}
+
+              {ownerProjects.length > 0 && (
+                <div className="card" style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                    <h2 className="section-title" style={{ margin: 0 }}>Your projects · {ownerProjects.length}</h2>
+                    <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Start a project</Link>
+                  </div>
+                  {ownerGroups.map(([icon, title, rows]) => (
+                    <div key={title} style={{ display: "grid", gap: 4 }}>
+                      <strong className="small">{icon} {title} · {rows.length}</strong>
+                      {rows.length === 0 && <span className="muted small">None.</span>}
+                      {rows.map((o) => line(`/my/project/${o.project_id}`, o.project_name, o.parent_name ?? o.address,
+                        o.bucket === "completed" ? (o.stage ?? o.status)
+                          : o.bucket === "idea" ? "nothing bid yet"
+                          : `${o.open_tasks} open · ${o.contracts} contract${o.contracts === 1 ? "" : "s"}`))}
+                    </div>
+                  ))}
                 </div>
               )}
             </>
