@@ -125,14 +125,47 @@ export async function saveConfigValues(projectId: string, formData: FormData) {
 // Deleting moves the project to the recycle bin (trash_own_project keeps
 // the same guards: owner rank, no children, no contracts, no money).
 // Restore any time inside the retention window; purge is nightly.
+// Deletion is a two-step: asking creates an approval GATE assigned to the
+// project owner; approving it (on the task page) is what moves the project
+// to the recycle bin. Nothing is trashed here.
 export async function deleteProject(projectId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("trash_own_project", { p_project_id: projectId });
-  if (error || !data?.ok) {
-    redirect(`/my/project/${projectId}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not delete.")}`);
-  }
+  const back = `/my/project/${projectId}?tab=admin`;
+  const [{ data: project }, { data: me }] = await Promise.all([
+    supabase.from("projects").select("id, project_name, owner_user_id").eq("id", projectId).maybeSingle(),
+    supabase.rpc("me"),
+  ]);
+  if (!project) redirect("/my");
+  if (!me?.app_user_id) redirect(`${back}&error=${encodeURIComponent("Please sign in first.")}`);
+  const { data: owner } = project.owner_user_id
+    ? await supabase.from("app_users").select("id, contact_id, full_name, email").eq("id", project.owner_user_id).maybeSingle()
+    : { data: null };
+  const title = `Approve deletion — ${project.project_name}`;
+  const { data: existing } = await supabase.from("actions").select("id").eq("project_id", projectId).eq("action", title)
+    .not("status", "in", "(\"Completed\",\"Cancelled\",\"Force Cancelled\")").maybeSingle();
+  if (existing) redirect(`/my/task/${existing.id}?error=${encodeURIComponent("A deletion request is already waiting for the owner's approval.")}`);
+  const requester = me.full_name ?? me.email ?? "someone";
+  const { data: row, error } = await supabase.from("actions").insert({
+    project_id: projectId,
+    action: title,
+    status: "Not Started",
+    priority: "High",
+    domain: "construction",
+    is_gate: true,
+    assigned_to_contact_id: owner?.contact_id ?? null,
+    assigned_by_contact_id: me.contact_id ?? null,
+    desired_outcome: "The project owner approves or declines moving this project to the recycle bin.",
+    notes: `DELETION REQUEST by ${requester} on ${new Date().toISOString().slice(0, 10)}. Approving moves "${project.project_name}" - tasks, media and all - to the recycle bin (restorable for the retention window). Declining leaves everything as it is. Only the project owner${owner ? ` (${owner.full_name ?? owner.email})` : ""} or a superadmin can approve.`,
+    created_by: requester,
+    source: "manual",
+  }).select("id").maybeSingle();
+  if (error || !row) redirect(`${back}&error=${encodeURIComponent(error?.message ?? "Could not create the approval request.")}`);
+  revalidatePath(`/my/project/${projectId}`);
   revalidatePath("/my");
-  redirect(`/my?ok=${encodeURIComponent(`Moved to the recycle bin — restore within ${data.days} days from Settings.`)}`);
+  const isOwner = me.app_user_id === project.owner_user_id;
+  redirect(isOwner
+    ? `/my/task/${row.id}`
+    : `${back}&ok=${encodeURIComponent(`Deletion request sent to ${owner?.full_name ?? owner?.email ?? "the owner"} for approval.`)}`);
 }
 
 export async function restoreProject(projectId: string) {

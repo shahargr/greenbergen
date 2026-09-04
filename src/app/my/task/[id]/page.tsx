@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TaskEditor, type TaskView, type MemberOption, type CommentView } from "./TaskEditor";
 import { TaskTransactions, type TaskTx, type PayMethod } from "./TaskTransactions";
 import { SubtaskRow, type Subtask } from "./SubtaskRow";
-import { taskPerms } from "./actions";
+import { taskPerms, approveDeletion, declineDeletion } from "./actions";
 import { getCaps, acceptFor } from "@/lib/caps";
 
 export const maxDuration = 60;
@@ -50,6 +50,13 @@ export default async function TaskPage({
     .maybeSingle();
   if (!rawTask) notFound();
   const t = rawTask as unknown as TaskFull;
+  // A deletion-approval gate: the owner (or a superadmin) decides here.
+  const isDeletionGate = String(t.action ?? "").startsWith("Approve deletion — ") && !CLOSED.includes(t.status);
+  const { data: gateProject } = isDeletionGate && t.project_id
+    ? await supabase.from("projects").select("owner_user_id, project_name").eq("id", t.project_id).maybeSingle()
+    : { data: null as { owner_user_id: string | null; project_name: string } | null };
+  const { data: meForGate } = isDeletionGate ? await supabase.rpc("me") : { data: null };
+  const canDecideDeletion = !!isDeletionGate && !!meForGate && (meForGate.app_user_id === gateProject?.owner_user_id || !!meForGate.is_superadmin);
 
   const [perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }, { data: tradeRows }, { data: childRows }] =
     await Promise.all([
@@ -288,6 +295,20 @@ export default async function TaskPage({
           {openChildren.map((ch) => (
             <SubtaskRow key={`${ch.id}|${saved ?? ""}|${error ?? ""}`} task={ch} parentId={t.id} />
           ))}
+        </div>
+      )}
+      {isDeletionGate && (
+        <div className="card" style={{ display: "grid", gap: 8, marginBottom: 12, borderLeft: "3px solid #c0262d" }}>
+          <h2 className="section-title" style={{ margin: 0, color: "#c0262d" }}>Deletion request · {gateProject?.project_name ?? ""}</h2>
+          <p className="small" style={{ margin: 0 }}>Approving moves the project - tasks, media and all - to the recycle bin, restorable for the retention window. Declining leaves everything as it is.</p>
+          {canDecideDeletion ? (
+            <div className="btn-row">
+              <form action={approveDeletion.bind(null, t.id)}><button className="btn" style={{ background: "#c0262d" }}>Approve — move to recycle bin</button></form>
+              <form action={declineDeletion.bind(null, t.id)}><button className="btn ghost">Decline</button></form>
+            </div>
+          ) : (
+            <p className="muted small" style={{ margin: 0 }}>Waiting for the project owner to approve or decline.</p>
+          )}
         </div>
       )}
       {/* Keyed on saved/error so the editor remounts after a redirect back to

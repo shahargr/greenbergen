@@ -659,3 +659,39 @@ async function spawnFollowUp(
     .maybeSingle();
   return (row?.id as string | undefined) ?? null;
 }
+
+// The owner (or a superadmin) answers a deletion-approval gate. Approve
+// trashes the project and completes the gate; decline cancels the gate.
+async function deletionGate(taskId: string) {
+  const supabase = await createClient();
+  const { data: task } = await supabase.from("actions").select("id, action, project_id, status").eq("id", taskId).maybeSingle();
+  if (!task || !task.project_id || !String(task.action ?? "").startsWith("Approve deletion — ")) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("This is not a deletion request.")}`);
+  }
+  const [{ data: project }, { data: me }] = await Promise.all([
+    supabase.from("projects").select("id, project_name, owner_user_id").eq("id", task.project_id).maybeSingle(),
+    supabase.rpc("me"),
+  ]);
+  if (!project || !me?.app_user_id) redirect(`/my/task/${taskId}?error=${encodeURIComponent("Please sign in first.")}`);
+  if (me.app_user_id !== project.owner_user_id && !me.is_superadmin) {
+    redirect(`/my/task/${taskId}?error=${encodeURIComponent("Only the project owner can approve or decline this.")}`);
+  }
+  return { supabase, task, project, actor: (me.full_name ?? me.email ?? "portal user") as string };
+}
+
+export async function approveDeletion(taskId: string) {
+  const { supabase, task, project, actor } = await deletionGate(taskId);
+  const { data, error } = await supabase.rpc("trash_own_project", { p_project_id: project.id });
+  if (error || !data?.ok) redirect(`/my/task/${taskId}?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not move the project to the recycle bin.")}`);
+  await supabase.rpc("close_action", { p_action_id: task.id, p_force: true, p_actor: actor, p_final_status: "Completed", p_is_final_occurrence: false });
+  revalidatePath("/my");
+  revalidatePath("/my/settings");
+  redirect(`/my?ok=${encodeURIComponent(`"${project.project_name}" moved to the recycle bin — restore within ${data.days} days from Settings.`)}`);
+}
+
+export async function declineDeletion(taskId: string) {
+  const { supabase, task, project, actor } = await deletionGate(taskId);
+  await supabase.rpc("close_action", { p_action_id: task.id, p_force: true, p_actor: actor, p_final_status: "Cancelled", p_is_final_occurrence: false });
+  revalidatePath(`/my/project/${project.id}`);
+  redirect(`/my/project/${project.id}?tab=admin&ok=${encodeURIComponent("Deletion declined — the project stays.")}`);
+}

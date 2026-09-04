@@ -43,9 +43,10 @@ export function DeleteProjectZone({ project, perms }: { project: ProjectView; pe
     <div className="card" style={{ borderLeft: "3px solid #c0262d", display: "grid", gap: 8 }}>
       <strong className="small" style={{ color: "#c0262d" }}>Danger zone — delete project</strong>
       <p className="muted small" style={{ margin: 0 }}>
-        Deleting moves this project — tasks, media and all — to the
-        recycle bin (restorable from Settings for the retention
-        window). Type the project name to confirm.
+        Deleting is a two-step: this sends a request to the project owner
+        as an approval task. Once approved, the project — tasks, media and
+        all — moves to the recycle bin (restorable from Settings for the
+        retention window). Type the project name to confirm.
       </p>
       <form
         action={deleteProject.bind(null, project.id)}
@@ -55,7 +56,7 @@ export function DeleteProjectZone({ project, perms }: { project: ProjectView; pe
         <input className="input" value={confirmName} onChange={(e) => setConfirmName(e.target.value)}
           placeholder={`Type "${project.project_name}"`} style={{ maxWidth: 260 }} />
         <button className="btn" style={{ background: "#c0262d" }} disabled={confirmName !== project.project_name}>
-          Move to recycle bin
+          Request deletion
         </button>
       </form>
     </div>
