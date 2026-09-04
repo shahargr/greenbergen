@@ -66,6 +66,7 @@ export function TaskEditor({
   trades = [],
   isOpen,
   evidenceCount,
+  evidenceSlot,
 }: {
   task: TaskView;
   perms: TaskPerms;
@@ -74,6 +75,9 @@ export function TaskEditor({
   trades?: string[];
   isOpen: boolean;
   evidenceCount: number;
+  // The evidence gallery, rendered by the page; sits right under the
+  // comment / photo / audio card.
+  evidenceSlot?: React.ReactNode;
 }) {
   const [unlocked, setUnlocked] = useState(false);
   const [quick, setQuick] = useState<"none" | "photo" | "audio" | "comment">("none");
@@ -282,6 +286,8 @@ export function TaskEditor({
           )}
         </div>
       )}
+
+      {evidenceSlot}
 
       {comments.length > 0 && (
         <div className="card" style={{ display: "grid", gap: 8 }}>

@@ -212,6 +212,32 @@ export default async function TaskPage({
     const { data: s } = await supabase.storage.from(e.files!.bucket).createSignedUrl(e.files!.path, 3600);
     if (s?.signedUrl) evidenceUrls.set(e.id, s.signedUrl);
   }));
+  // Rendered inside the editor, directly under the comment / photo card.
+  const evidencePanel = evidence.length > 0 ? (
+    <div className="card" style={{ display: "grid", gap: 8 }}>
+      <h2 className="section-title" style={{ margin: 0 }}>Evidence · {evidence.length}</h2>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {evidence.map((e) => {
+          const f = e.files!;
+          const u = evidenceUrls.get(e.id);
+          const isImg = (f.mime_type ?? "").startsWith("image/") || f.kind === "photo";
+          if (isImg && u) {
+            return (
+              <a key={e.id} href={u} target="_blank" rel="noreferrer" title={`${f.file_name} · ${e.role} · ${new Date(e.created_at).toLocaleDateString()}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={u} alt={f.file_name} style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 10, border: "1px solid #e7e9e4" }} />
+                <div className="muted" style={{ fontSize: 10, textAlign: "center", marginTop: 2 }}>{e.role}</div>
+              </a>
+            );
+          }
+          const icon = f.kind === "audio" ? "🎙" : "📄";
+          return u
+            ? <a key={e.id} href={u} target="_blank" rel="noreferrer" className="extra-chip" style={{ textDecoration: "none" }}>{icon} {f.file_name} <span className="muted">· {e.role}</span></a>
+            : <span key={e.id} className="extra-chip">{icon} {f.file_name} <span className="muted">· not uploaded yet</span></span>;
+        })}
+      </div>
+    </div>
+  ) : null;
   const payMethods = (methodRows ?? []) as PayMethod[];
   // Suggestions for the create form: people on the project, and the accounts
   // this project has actually paid from.
@@ -255,32 +281,7 @@ export default async function TaskPage({
       {/* Keyed on saved/error so the editor remounts after a redirect back to
           this page — otherwise a client-side "Applying..." can stick after an
           error (Next keeps client state across a same-route searchParams change). */}
-      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} />
-      {evidence.length > 0 && (
-        <div className="card" style={{ marginTop: 14, display: "grid", gap: 8 }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Evidence · {evidence.length}</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {evidence.map((e) => {
-              const f = e.files!;
-              const u = evidenceUrls.get(e.id);
-              const isImg = (f.mime_type ?? "").startsWith("image/") || f.kind === "photo";
-              if (isImg && u) {
-                return (
-                  <a key={e.id} href={u} target="_blank" rel="noreferrer" title={`${f.file_name} · ${e.role} · ${new Date(e.created_at).toLocaleDateString()}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={u} alt={f.file_name} style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 10, border: "1px solid #e7e9e4" }} />
-                    <div className="muted" style={{ fontSize: 10, textAlign: "center", marginTop: 2 }}>{e.role}</div>
-                  </a>
-                );
-              }
-              const icon = f.kind === "audio" ? "🎙" : "📄";
-              return u
-                ? <a key={e.id} href={u} target="_blank" rel="noreferrer" className="extra-chip" style={{ textDecoration: "none" }}>{icon} {f.file_name} <span className="muted">· {e.role}</span></a>
-                : <span key={e.id} className="extra-chip">{icon} {f.file_name} <span className="muted">· not uploaded yet</span></span>;
-            })}
-          </div>
-        </div>
-      )}
+      <TaskEditor key={`${saved ?? ""}|${error ?? ""}`} task={view} perms={perms} members={members} comments={comments} trades={tradeNames} isOpen={isOpen} evidenceCount={evidenceCount ?? 0} evidenceSlot={evidencePanel} />
       <div style={{ marginTop: 14 }}>
         <TaskTransactions
           key={`tx|${saved ?? ""}|${error ?? ""}`}
