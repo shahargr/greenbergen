@@ -59,6 +59,8 @@ export default async function SettingsPage({
   const showAllContractors = (await searchParams).contractors === "all";
   const visibleContractors = showAllContractors ? contractors : contractors.filter((c) => c.status !== "not awarded");
   const hiddenContractors = contractors.length - visibleContractors.length;
+  // Owners are not contractors; a card holding nothing but owners is dropped.
+  const workingContractors = contractors.filter((c) => !c.is_owner);
   // God mode (superadmins): the same cookie the Admin overview toggles.
   const godOn = !!me?.is_superadmin && (await cookies()).get("gb_god")?.value === "1";
 
@@ -213,6 +215,19 @@ export default async function SettingsPage({
           </details>
         </div>
 
+        {/* The contractor's side of setup lives on its own page. */}
+        {(myTrades.length > 0 || bidProjects.length > 0) && (
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ minWidth: 0 }}>
+              <strong>Your business</strong>
+              <div className="muted small">
+                Company address, phone and web page · price list your proposals are drafted from · W9, insurance and warranties · payment terms · how your bids are going.
+              </div>
+            </span>
+            <Link href="/my/business" className="btn ghost small" style={{ whiteSpace: "nowrap" }}>Business setup →</Link>
+          </div>
+        )}
+
         {/* Superadmin controls, right where the account is. */}
         {me?.is_superadmin && (
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", borderLeft: godOn ? "4px solid #7a1f2b" : undefined }}>
@@ -311,16 +326,15 @@ export default async function SettingsPage({
 
         {/* Your contractors: anyone ever added to a project of yours, at any
             role. Each row opens the person's page. */}
+        {workingContractors.length > 0 && (
         <div className="card" style={{ display: "grid", gap: 6, overflowX: "auto" }}>
-          {/* Owners and contractors are different people: title by what the
-              list actually holds, and mark owners so nobody reads a landlord
-              as a tradesman. */}
+          {/* The people you brought onto your projects. A list of the owners
+              you work for is not useful to a contractor, so it is not shown:
+              when everyone here is an owner, the card stays away. */}
           <h2 className="section-title" style={{ margin: 0 }}>
             {contractors.some((c) => !c.is_owner) && contractors.some((c) => c.is_owner)
               ? "People on your projects"
-              : contractors.every((c) => c.is_owner) && contractors.length > 0
-                ? "Owners you work with"
-                : "Your contractors"} · {contractors.length}
+              : "Your contractors"} · {workingContractors.length}
           </h2>
           {hiddenContractors > 0 && !showAllContractors && <p className="small" style={{ margin: 0 }}><Link href="/my/settings?contractors=all">View all · {hiddenContractors} not awarded hidden</Link></p>}
           {showAllContractors && hiddenContractors === 0 && contractors.some((c) => c.status === "not awarded") && <p className="small" style={{ margin: 0 }}><Link href="/my/settings">Hide not awarded</Link></p>}
@@ -366,6 +380,8 @@ export default async function SettingsPage({
             </table>
           )}
         </div>
+
+        )}
 
         {/* Add property: the action sits on the card's own top bar. */}
         <form action={createHome} className="card" style={{ display: "grid", gap: 8 }}>
