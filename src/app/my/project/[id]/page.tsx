@@ -26,10 +26,12 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam } = await searchParams;
+  // A schedule item clicked open (?item=<task id>) unfolds under the calendar.
+  const selectedItem = itemParam && /^[0-9a-f-]{36}$/i.test(itemParam) ? itemParam : null;
   // Two tabs: Overview (schedule, tasks) and Manage project (bids, bidders,
   // award, people). Anything that opens the people list lands on Manage.
   const tab: "overview" | "manage" = tabParam === "manage" || peopleMode === "all" ? "manage" : "overview";
@@ -331,6 +333,22 @@ export default async function ProjectPage({
   const todayTasks = weekTasks.filter((t) => t.target_date === todayIso);
   const restOfWeekTasks = weekTasks.filter((t) => t.target_date! > todayIso).sort((a, b) => a.target_date!.localeCompare(b.target_date!));
   const dayLabel = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+  // Links on the calendar keep the picked day and open the item in place.
+  const itemHref = (taskId: string) =>
+    selectedItem === taskId
+      ? `/my/project/${project.id}${selectedDay ? `?day=${selectedDay}` : ""}`
+      : `/my/project/${project.id}?${selectedDay ? `day=${selectedDay}&` : ""}item=${taskId}`;
+  type ItemDetail = {
+    id: string; action: string | null; status: string; priority: string | null; target_date: string | null; completed_on: string | null;
+    desired_outcome: string | null; notes: string | null; is_gate: boolean | null; pending_on: string | null; pending_reason: string | null;
+    assigned_to: string | null; contacts: { name: string | null; person_name: string | null } | null;
+  };
+  const { data: itemRow } = selectedItem
+    ? await supabase.from("actions")
+        .select("id, action, status, priority, target_date, completed_on, desired_outcome, notes, is_gate, pending_on, pending_reason, assigned_to, contacts:assigned_to_contact_id(name, person_name)")
+        .eq("id", selectedItem).eq("project_id", id).maybeSingle()
+    : { data: null };
+  const item = (itemRow ?? null) as unknown as ItemDetail | null;
   const money = (n: number | null) => (n == null ? "" : `$${Math.round(n).toLocaleString()}`);
 
   return (
@@ -401,12 +419,12 @@ export default async function ProjectPage({
                   {/* Order inside a day: open gates, open tasks, payments, then
                       everything finished at the bottom. */}
                   {dayGates.filter((g) => !g.closed).map((g) => (
-                    <Link key={g.id} href={`/my/task/${g.id}`} className="weekitem gate open" title={`Gate · ${g.status} · ${g.action ?? ""}`}>
+                    <Link key={g.id} href={itemHref(g.id)} className="weekitem gate open" title={`Gate · ${g.status} · ${g.action ?? ""}`}>
                       {gateIcon(false)}{g.action ?? "(gate)"}
                     </Link>
                   ))}
                   {dayTasks.map((t) => (
-                    <Link key={t.id} href={`/my/task/${t.id}`} className="weekitem" title={t.action}>
+                    <Link key={t.id} href={itemHref(t.id)} className="weekitem" title={t.action} style={selectedItem === t.id ? { fontWeight: 700, textDecoration: "underline" } : undefined}>
                       {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
                     </Link>
                   ))}
@@ -414,12 +432,12 @@ export default async function ProjectPage({
                     <span key={p.id} className="weekitem pay" title={p.description ?? "payment"}>💵 {money(p.amount)} {p.description ?? ""}</span>
                   ))}
                   {dayGates.filter((g) => g.closed).map((g) => (
-                    <Link key={g.id} href={`/my/task/${g.id}`} className="weekitem gate done" title={`Gate · ${g.status} · ${g.action ?? ""}`}>
+                    <Link key={g.id} href={itemHref(g.id)} className="weekitem gate done" title={`Gate · ${g.status} · ${g.action ?? ""}`}>
                       {gateIcon(true)}{g.action ?? "(gate)"}
                     </Link>
                   ))}
                   {dayDone.map((a) => (
-                    <Link key={a.id} href={`/my/task/${a.id}`} className="weekitem done" title={`Completed · ${a.action ?? ""}`}>
+                    <Link key={a.id} href={itemHref(a.id)} className="weekitem done" title={`Completed · ${a.action ?? ""}`}>
                       {a.action ?? "(untitled)"}
                     </Link>
                   ))}
@@ -437,6 +455,36 @@ export default async function ProjectPage({
             </p>
           )}
         </div>
+
+        {/* A schedule item, unfolded in place. */}
+        {item && (
+          <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, borderLeft: `3px solid ${item.is_gate ? (["Completed", "Cancelled", "Force Cancelled"].includes(item.status) ? "#1f6b45" : "#c0262d") : item.status === "Completed" ? "#1f6b45" : "var(--brand)"}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <h2 className="section-title" style={{ margin: 0 }}>
+                {item.is_gate && gateIcon(["Completed", "Cancelled", "Force Cancelled"].includes(item.status))}{item.action ?? "(untitled)"}
+              </h2>
+              <span className="btn-row" style={{ gap: 8 }}>
+                <Link href={`/my/task/${item.id}`} className="btn ghost small">Open task →</Link>
+                <Link href={itemHref(item.id)} className="small">Close ✕</Link>
+              </span>
+            </div>
+            <div className="small" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <span className="extra-chip">{item.status}</span>
+              {item.priority && <span className="extra-chip" style={item.priority === "High" ? { background: "#fdecec", color: "#c0262d" } : undefined}>{item.priority}</span>}
+              {item.target_date && <span className="extra-chip">Due {item.target_date}</span>}
+              {item.completed_on && <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>Done {item.completed_on}</span>}
+              {item.is_gate && <span className="extra-chip" style={{ background: "#fdf4e3", color: "#a8842c" }}>Gate</span>}
+            </div>
+            <div className="small" style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr)", gap: "4px 10px" }}>
+              <span className="muted">Assigned to</span>
+              <span>{item.contacts?.person_name ?? item.contacts?.name ?? item.assigned_to ?? "—"}</span>
+              {item.pending_on && <><span className="muted">Waiting on</span><span>{item.pending_on}{item.pending_reason ? ` — ${item.pending_reason}` : ""}</span></>}
+              {item.desired_outcome && <><span className="muted">Outcome</span><span style={{ whiteSpace: "pre-line" }}>{item.desired_outcome}</span></>}
+              <span className="muted">Notes</span>
+              <span style={{ whiteSpace: "pre-line", maxHeight: "5.8em", overflowY: "auto" }}>{item.notes ?? "—"}</span>
+            </div>
+          </div>
+        )}
 
         {/* The picked day, as a table: everything on the calendar for it. */}
         {selectedDay && (() => {
