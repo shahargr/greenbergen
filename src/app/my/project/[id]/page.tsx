@@ -174,12 +174,58 @@ export default async function ProjectPage({
     .trim() || null;
   const isCrew = perms.rank > 0 && perms.rank <= 5 && !perms.admin;
   const isContractorSide = !isCrew && perms.rank > 5 && perms.rank < 50 && !perms.admin;
+
+  // Which tabs to offer. A tab is offered when the viewer can SEE something
+  // in it or DO something in it. A tab whose whole content would be "nothing
+  // yet" is not a tab, it is a dead end - so it is not drawn. Tasks always
+  // shows; it is the landing. The checks are head counts and the RPCs the
+  // tabs themselves read from, and they run only for the side that needs them.
+  const specCount = ((configValueRows ?? []) as { value: string | null }[]).filter((r) => r.value != null).length;
+  // Whether this person may write on the project at all: the same function
+  // the row policies use, so a form is offered only where it would succeed.
+  const { data: canEditData } = await supabase.rpc("can_edit_project", { p_project_id: id });
+  const canEdit = perms.admin || canEditData === true;
+  // Project scope: editors always have the wizard, the bid ladder and the
+  // forms. Anyone else needs something written, filed or lined up to read.
+  const scopeActionable = perms.rank >= 50 || perms.admin;
+  let scopeHasContent = !!briefDescription || specCount > 0;
+  if (!isCrew && !scopeActionable && !scopeHasContent) {
+    const [{ data: scopeLines }, { data: briefFiles }] = await Promise.all([
+      supabase.rpc("portal_scope_evidence", { p_project: id }),
+      supabase.rpc("portal_brief_files", { p_project: id }),
+    ]);
+    scopeHasContent = ((scopeLines ?? []) as unknown[]).length > 0 || ((briefFiles ?? []) as unknown[]).length > 0;
+  }
+  const offerScope = scopeActionable || scopeHasContent;
+  // Site visit: the log form (if it would save), or visits and roster days
+  // already recorded.
+  let offerVisit = false;
+  if (!isCrew && !isContractorSide) {
+    if (canEdit) offerVisit = true;
+    else {
+      const [{ count: visitCount }, { count: rosterCount }] = await Promise.all([
+        supabase.from("actions").select("id", { count: "exact", head: true }).eq("project_id", id).like("action", "Site visit log - %"),
+        supabase.from("site_roster").select("contact_id", { count: "exact", head: true }).eq("project_id", id),
+      ]);
+      offerVisit = (visitCount ?? 0) > 0 || (rosterCount ?? 0) > 0;
+    }
+  }
+  // Contractor side: Payments and Contract both hang off a contract. With
+  // none on this project (an invited bidder, say) both would be empty.
+  const { data: myContractRows } = isContractorSide
+    ? await supabase.rpc("portal_my_contract", { p_project: id })
+    : { data: [] };
+  const hasContract = ((myContractRows ?? []) as unknown[]).length > 0;
+
   // Overview and Tasks are one tab now ("site"): the week, then the list.
-  // ?tab=overview from an old link lands there too.
+  // ?tab=overview from an old link lands there too. A deep link to a tab
+  // that is not offered still opens it - the strip just does not point there.
   const tab: "site" | "visit" | "scope" | "setup" | "crew" | "contractor" | "contract" =
     isCrew ? "crew"
     : isContractorSide
-      ? (tabParam === "scope" ? "scope" : tabParam === "contract" ? "contract" : "contractor")
+      ? (tabParam === "scope" ? "scope" : tabParam === "contract" ? "contract"
+         : tabParam === "payments" || tabParam === "contractor" ? "contractor"
+         : hasContract ? "contractor" : "scope")
     : (tabParam === "setup" || tabParam === "admin") ? "setup"
     : tabParam === "visit" ? "visit"
     : tabParam === "scope" ? "scope"
@@ -535,21 +581,30 @@ export default async function ProjectPage({
       <div style={{ display: "grid", gap: 14, marginTop: 10 }}>
         {/* The strip each person gets: none for crew, three for a contractor,
             the full set for site management and above. */}
-        {isContractorSide && (
-          <div className="tabtable">
-            <Link href={`/my/project/${project.id}`} className={tab === "contractor" ? "on" : undefined}>Payments</Link>
-            <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "on" : undefined}>Scope</Link>
-            <Link href={`/my/project/${project.id}?tab=contract`} className={tab === "contract" ? "on" : undefined}>Contract</Link>
-          </div>
-        )}
-        {!isCrew && !isContractorSide && (
-        <div className="tabtable">
-          <Link href={`/my/project/${project.id}`} className={tab === "site" ? "on" : undefined}>Tasks</Link>
-          <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "on" : undefined}>Site visit</Link>
-          <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "on" : undefined}>Project scope</Link>
-          {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "on" : undefined}>Setup</Link>}
-        </div>
-        )}
+        {(() => {
+          const base = `/my/project/${project.id}`;
+          const strip = isCrew ? []
+            : isContractorSide ? [
+              { key: "contractor", label: "Payments", href: base, offered: hasContract },
+              { key: "scope", label: "Scope", href: `${base}?tab=scope`, offered: offerScope },
+              { key: "contract", label: "Contract", href: `${base}?tab=contract`, offered: hasContract },
+            ] : [
+              { key: "site", label: "Tasks", href: base, offered: true },
+              { key: "visit", label: "Site visit", href: `${base}?tab=visit`, offered: offerVisit },
+              { key: "scope", label: "Project scope", href: `${base}?tab=scope`, offered: offerScope },
+              { key: "setup", label: "Setup", href: `${base}?tab=setup`, offered: perms.rank >= 50 },
+            ];
+          const shown = strip.filter((t) => t.offered || t.key === tab);
+          // One tab is a heading, not a choice - nothing to draw.
+          if (shown.length < 2) return null;
+          return (
+            <div className="tabtable">
+              {shown.map((t) => (
+                <Link key={t.key} href={t.href} className={tab === t.key ? "on" : undefined}>{t.label}</Link>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* A hand on site: arrive, photo, voice, leave. */}
         {tab === "crew" && (
