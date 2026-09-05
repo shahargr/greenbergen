@@ -29,7 +29,7 @@ type MemberRow = {
   role: string;
   project_role: string | null;
   contact_id: string | null;
-  contacts: { name: string; person_name?: string | null; phone?: string | null; email_a?: string | null; avatar_path?: string | null } | null;
+  contacts: { name: string; person_name?: string | null; phone?: string | null; email_a?: string | null; avatar_path?: string | null; last_modified_at?: string | null } | null;
 };
 
 // Project drill-down: details (unlock-to-edit per rank), the people on it,
@@ -86,7 +86,7 @@ export default async function ProjectPage({
       projectPerms(id),
       supabase
         .from("project_members")
-        .select("role, project_role, contact_id, contacts(name, person_name, phone, email_a, avatar_path)")
+        .select("role, project_role, contact_id, contacts(name, person_name, phone, email_a, avatar_path, last_modified_at)")
         .eq("project_id", id)
         .eq("status", "active"),
       supabase.rpc("portal_tasks", { p_project_id: id, p_open_limit: 200, p_closed_limit: 200 }),
@@ -260,8 +260,12 @@ export default async function ProjectPage({
     const ap = m.contacts?.avatar_path;
     if (!m.contacts || !ap) continue;
     const nm = m.contacts.person_name ?? m.contacts.name;
-    // ?v= busts the browser cache after a photo is replaced (stable path).
-    if (nm && !avatars[nm]) avatars[nm] = `${supabase.storage.from("public-media").getPublicUrl(ap).data.publicUrl}?v=${Date.now()}`;
+    // ?v= busts the browser cache after a photo is replaced. The path is
+    // stable, so the token has to come from the contact's own last change -
+    // off the clock it would differ on every render and no avatar would ever
+    // be cached. Same token the settings page uses.
+    const v = Date.parse(m.contacts.last_modified_at ?? "") || 0;
+    if (nm && !avatars[nm]) avatars[nm] = `${supabase.storage.from("public-media").getPublicUrl(ap).data.publicUrl}?v=${v}`;
   }
 
   type ConfigRow = { id: string; action: string; status: string; requires_photo_evidence: boolean | null; notes: string | null };

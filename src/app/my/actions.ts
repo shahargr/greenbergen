@@ -378,14 +378,21 @@ export async function editPayment(formData: FormData) {
 // Create and assign a task, with photos and a voice note attached as
 // instructions (file_links role 'reference'). Members insert under the
 // actions RLS; attachments never block the task.
-export async function createTask(formData: FormData) {
+// Create-and-assign. The task row is made here; the photos and voice note
+// are NOT in this request. Vercel caps a serverless request body at 4.5 MB
+// and rejects anything larger before this code runs - no log line, and the
+// browser sees only "An unexpected response was received from the server".
+// One phone photo plus a voice note clears that. So the form uploads its
+// files straight to Supabase Storage (the storage policy admits a project
+// editor, the same rule this action ran under) and then calls
+// attachTaskUploads with the paths. Returns the new task's id.
+export type TaskCreated = { ok: true; id: string } | { ok: false; error: string };
+
+export async function createTask(formData: FormData): Promise<TaskCreated> {
   const supabase = await createClient();
   const projectId = String(formData.get("project") ?? "");
   const title = String(formData.get("title") ?? "").trim();
-  const back = "/my/tasks?";
-  if (!projectId || !title) {
-    redirect(`${back}error=${encodeURIComponent("Project and task title are both needed.")}`);
-  }
+  if (!projectId || !title) return { ok: false, error: "Project and task title are both needed." };
   const assignee = String(formData.get("assigned_to") ?? "").trim() || null;
   const priority = String(formData.get("priority") ?? "Medium");
   // Retroactive logging: a task can be created straight into a completed
@@ -415,47 +422,50 @@ export async function createTask(formData: FormData) {
     .select("id")
     .maybeSingle();
   if (error || !created) {
-    const msg = error?.message.includes("row-level security")
-      ? "Creating tasks on this project is not yours to do."
-      : error?.message ?? "Could not create the task.";
-    redirect(`${back}error=${encodeURIComponent(msg)}`);
+    return {
+      ok: false,
+      error: error?.message.includes("row-level security")
+        ? "Creating tasks on this project is not yours to do."
+        : error?.message ?? "Could not create the task.",
+    };
   }
-
-  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
-  const photos = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
-  const taskId = created.id;
-  after(async () => {
-  for (const [i, file] of [...photos, ...files].entries()) {
-    const isImage = file.type.startsWith("image/");
-    const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (isImage ? ".jpg" : ".m4a")).toLowerCase();
-    const path = `${projectId}/actions/${taskId}/instructions-${Date.now()}-${i}${ext}`;
-    const bytes = await file.arrayBuffer();
-    const { error: upErr } = await supabase.storage
-      .from("project-media")
-      .upload(path, bytes, { contentType: file.type || undefined, upsert: true });
-    if (!upErr) {
-      const { data: fileId } = await supabase.rpc("record_project_file", {
-        p_project_id: projectId,
-        p_path: path,
-        p_file_name: file.name || `instructions${ext}`,
-        p_mime: file.type || null,
-        p_size: file.size,
-        p_caption: `Task instructions: ${title}`,
-        p_kind: isImage ? "photo" : "audio",
-      });
-      if (fileId) {
-        await supabase.rpc("file_attach", {
-          p_file_id: fileId,
-          p_action_id: taskId,
-          p_contract_id: null,
-          p_role: "reference",
-        });
-      }
-    }
-  }
-  });
   revalidatePath("/my");
-  redirect(`/my/task/${taskId}?saved=1`);
+  revalidatePath(`/my/project/${projectId}`);
+  return { ok: true, id: created.id };
+}
+
+// The second half of creating a task with attachments: the browser has put
+// the files in Storage under this project and task; this records each one
+// and links it to the task as reference material. The path prefix is checked
+// so a caller cannot record a file that belongs to another project.
+export type TaskUpload = { path: string; name: string; mime: string; size: number; kind: "photo" | "audio" | "document" | "other" };
+
+export async function attachTaskUploads(taskId: string, projectId: string, title: string, uploads: TaskUpload[]) {
+  const supabase = await createClient();
+  const prefix = `${projectId}/actions/${taskId}/`;
+  const failed: string[] = [];
+  for (const u of uploads) {
+    if (!u.path.startsWith(prefix)) { failed.push(u.name); continue; }
+    const { data: fileId, error } = await supabase.rpc("record_project_file", {
+      p_project_id: projectId,
+      p_path: u.path,
+      p_file_name: u.name,
+      p_mime: u.mime || null,
+      p_size: u.size,
+      p_caption: `Task instructions: ${title}`,
+      p_kind: u.kind,
+    });
+    if (error || !fileId) { failed.push(`${u.name}${error ? ` (${error.message})` : ""}`); continue; }
+    const { data: att } = await supabase.rpc("file_attach", {
+      p_file_id: fileId,
+      p_action_id: taskId,
+      p_contract_id: null,
+      p_role: "reference",
+    });
+    if (att && att.ok === false) failed.push(`${u.name} (${att.reason})`);
+  }
+  revalidatePath(`/my/task/${taskId}`);
+  return { ok: failed.length === 0, failed };
 }
 
 

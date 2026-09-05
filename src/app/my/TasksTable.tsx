@@ -572,7 +572,9 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
             <button key={f.key} type="button" className={view === f.key ? "on" : undefined}
               aria-pressed={view === f.key}
               onClick={() => {
-                if (view === f.key) { setView("none"); }
+                // Off again means back to the page's own default - not left
+                // on "closed" because Completed was the last thing pressed.
+                if (view === f.key) { setView("none"); setState(initialState ?? "open"); }
                 else { setView(f.key); setState(f.state); }
                 setPerson("all"); setParentOf(null); setOpen(null);
               }}>
