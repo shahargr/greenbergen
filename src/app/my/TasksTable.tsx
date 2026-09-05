@@ -76,10 +76,7 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, addOpen = false, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, presetViews = false, weekStartIso, weekEndIso, startEmpty = false, stageTiles, avatars, todayIso }: {
-  // Project page: the filter dropdowns live behind each saved slot's ⚙, not
-  // on the page. Three slot buttons stay; setup picks the filters + a name.
-  filtersInSetup?: boolean;
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, addOpen = false, domainOptions, savedFilters = false, showViews = true, presetViews = false, weekStartIso, weekEndIso, startEmpty = false, stageTiles, avatars, todayIso }: {
   // Hide the five quick views (Urgent / My tasks / Late / Stuck / Full list).
   showViews?: boolean;
   // Four fixed presets instead - Today, This week, Stalled, Completed -
@@ -188,22 +185,6 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     setPhase(sl.phase); setView(sl.view as typeof view); setOpen(null);
   };
   const clearSlot = (i: number) => { const next = [...slots]; next[i] = null; persist(next); };
-  // Setup mode: which slot is being configured, and its short name.
-  const [setupSlot, setSetupSlot] = useState<number | null>(null);
-  const [slotName, setSlotName] = useState("");
-  const openSetup = (i: number) => {
-    const sl = slots[i];
-    if (sl) applySlot(sl);
-    setSlotName(sl?.label ?? "");
-    setSetupSlot(i);
-  };
-  const saveSetup = () => {
-    if (setupSlot === null) return;
-    const next = [...slots];
-    next[setupSlot] = { label: slotName.trim() || autoLabel(), project, person, priority, phase, view: view === "none" ? "all" : view };
-    persist(next);
-    setSetupSlot(null);
-  };
 
   const projects = useMemo(
     () => [...new Set(tasks.map((t) => t.project ?? "No project"))].sort(),
@@ -350,8 +331,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     }
   };
 
-  // The filter controls, used inline on list pages and inside a slot's
-  // setup panel on the project page.
+  // The filter controls, inline on the list pages.
   const filterControls = (
     <div className="filterbar">
       {/* One project only (a project page): no project filter, no project column. */}
@@ -584,7 +564,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
-      {!compact && !filtersInSetup && filterControls}
+      {!compact && filterControls}
 
       {showTradeTiles && stageMode && (
         <div className="phase-grid">
@@ -634,48 +614,8 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         </div>
       )}
 
-      {savedFilters && filtersInSetup && (
-        <div style={{ display: "grid", gap: 8 }}>
-          {/* Three filter buttons, each with its own setup. */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
-            {slots.map((sl, i) => (
-              <span key={i} style={{ display: "flex", alignItems: "stretch", minWidth: 0 }}>
-                <button type="button"
-                  className="btn ghost small"
-                  style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0, opacity: sl ? 1 : 0.65, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "4px 6px", fontSize: 11 }}
-                  title={sl ? `Apply: ${sl.label}` : "Set up this filter"}
-                  onClick={() => (sl ? (applySlot(sl), setSetupSlot(null)) : openSetup(i))}>
-                  <span style={{ fontWeight: 700, marginRight: 4 }}>{i + 1}</span>{sl ? sl.label : "Filter"}
-                </button>
-                <button type="button" className="btn ghost small" title="Setup: choose filters and a short name"
-                  aria-label={`Set up filter ${i + 1}`}
-                  style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: 0, padding: "2px 6px", flex: "none" }}
-                  onClick={() => (setupSlot === i ? setSetupSlot(null) : openSetup(i))}>
-                  ⚙
-                </button>
-              </span>
-            ))}
-          </div>
-          {setupSlot !== null && (
-            <div className="card" style={{ display: "grid", gap: 8, padding: "10px 12px" }}>
-              <div className="small" style={{ fontWeight: 700 }}>Filter {setupSlot + 1} · setup</div>
-              {filterControls}
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="slot-name">Short name</label>
-                <input id="slot-name" className="input" value={slotName} onChange={(e) => setSlotName(e.target.value)}
-                  placeholder={autoLabel()} style={{ maxWidth: 260 }} />
-              </div>
-              <div className="btn-row">
-                <button type="button" className="btn small" onClick={saveSetup}>Save filter {setupSlot + 1}</button>
-                {slots[setupSlot] && <button type="button" className="btn ghost small" onClick={() => { clearSlot(setupSlot); setSetupSlot(null); }}>Clear</button>}
-                <button type="button" className="btn ghost small" onClick={() => setSetupSlot(null)}>Close</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
-      {savedFilters && !filtersInSetup && (
+      {savedFilters && (
         <div className="slot-grid">
           {slots.map((sl, i) => (
             <div key={i} className="slot">
