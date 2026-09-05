@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { markMessage, setMessage, removeMessage, messageToTask } from "./actions";
+import { ComposeMessage, type Target } from "./ComposeMessage";
 
 export const dynamic = "force-dynamic";
 
@@ -27,14 +28,16 @@ const when = (t: string) => new Date(t).toLocaleString(undefined, { month: "shor
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string; show?: string; task?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; show?: string; task?: string; compose?: string }>;
 }) {
-  const { ok, error, show, task: taskFor } = await searchParams;
+  const { ok, error, show, task: taskFor, compose } = await searchParams;
   const supabase = await createClient();
-  const [{ data: msgData }, { data: invData }] = await Promise.all([
+  const [{ data: msgData }, { data: invData }, { data: targetData }] = await Promise.all([
     supabase.rpc("portal_my_messages", { p_limit: 100 }),
     supabase.rpc("portal_my_invites"),
+    supabase.rpc("portal_compose_targets"),
   ]);
+  const targets = ((targetData ?? []) as Target[]);
   const all = ((msgData ?? []) as Msg[]);
   const invites: Invites = { incoming: invData?.incoming ?? [], outcomes: invData?.outcomes ?? [] };
   const pending = all.filter((m) => m.pending);
@@ -84,11 +87,24 @@ export default async function InboxPage({
         )}
 
         <div className="card" style={{ display: "grid", gap: 10, minWidth: 0 }}>
-          <div className="btn-row" style={{ gap: 6 }}>
-            {tab("all", "Everything", all.length)}
-            {tab("in", "Inbound", all.filter((m) => m.direction === "inbound").length)}
-            {tab("out", "Outbound", all.filter((m) => m.direction === "outbound" || m.mine).length)}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div className="btn-row" style={{ gap: 6 }}>
+              {tab("all", "Everything", all.length)}
+              {tab("in", "Inbound", all.filter((m) => m.direction === "inbound").length)}
+              {tab("out", "Outbound", all.filter((m) => m.direction === "outbound").length)}
+            </div>
+            <Link href={compose === "1" ? "/my/inbox" : "/my/inbox?compose=1"}
+              className={compose === "1" ? "btn ghost small" : "btn small"} style={{ whiteSpace: "nowrap" }}>
+              {compose === "1" ? "Cancel" : "✉️ New message"}
+            </Link>
           </div>
+
+          {/* Write to someone you share a project with. */}
+          {compose === "1" && (
+            <div className="card" style={{ background: "#fafbfa", padding: "10px 12px" }}>
+              <ComposeMessage targets={targets} />
+            </div>
+          )}
 
           {shown.length === 0 && (
             <p className="muted small" style={{ margin: 0 }}>

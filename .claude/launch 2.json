@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "phone-check",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4599",
+        "--directory",
+        "/private/tmp/claude-502/-Users-greenberg-Library-Mobile-Documents-com-apple-CloudDocs-Work-Claude-proptech-session-02-1a5d32/86382d97-12d8-4b55-aa5b-5704309b9443/scratchpad"
+      ],
+      "port": 4599,
+      "autoPort": true
+    }
+  ]
+}

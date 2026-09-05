@@ -48,3 +48,23 @@ export async function messageToTask(messageId: string, formData: FormData) {
   const id = (data as { action_id?: string } | null)?.action_id;
   redirect(id ? `/my/task/${id}?ok=${encodeURIComponent("Task created from the message.")}` : back("Task created."));
 }
+
+// Send a message inside the platform. The row is the delivery — no email, no
+// SMS. Who you may reach is decided by shared project membership, and the
+// database checks that again rather than trusting this form.
+export async function sendMessage(formData: FormData) {
+  const supabase = await createClient();
+  const body = String(formData.get("body") ?? "").trim();
+  const project = String(formData.get("project") ?? "").trim();
+  const to = String(formData.get("to") ?? "").trim();
+  if (!project || !to) redirect(back("Pick a project and someone to send it to.", true));
+  if (!body) redirect(back("Write something to send.", true));
+
+  const { error } = await supabase.rpc("send_portal_message", {
+    p_project: project,
+    p_to_contact: to,
+    p_body: body,
+  });
+  revalidatePath("/my/inbox");
+  redirect(error ? back(error.message, true) : back("Sent. It is in their inbox now."));
+}
