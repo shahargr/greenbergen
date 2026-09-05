@@ -45,6 +45,8 @@ export type ProjectPerms = {
   notes: boolean;
   status: boolean;
   address: boolean;
+  // Where the project hangs in the tree - an owner-level decision.
+  parent: boolean;
   financials: boolean;
 };
 
@@ -63,6 +65,7 @@ export async function projectPerms(projectId: string): Promise<ProjectPerms> {
     notes: rank >= 50,
     status: rank >= 70,
     address: rank >= 70,
+    parent: rank >= 70,
     financials: admin,
   };
 }
@@ -92,9 +95,39 @@ export async function saveProject(projectId: string, formData: FormData) {
     const v = String(formData.get("address") ?? "").trim();
     updates.address = v || null;
   }
+  // Moving a project in the tree. The customer agreement governs WHERE a
+  // project may live exactly as it governs creating one - a job under a home
+  // you control is unlimited, a top-level home counts against assets_allowed -
+  // so the same check runs here, with this project excluded from its own
+  // count. Loops are refused by trg_projects_no_cycle in the database.
+  if (p.parent && formData.has("parent")) {
+    const raw = String(formData.get("parent") ?? "").trim();
+    const next = /^[0-9a-f-]{36}$/i.test(raw) ? raw : null;
+    const { data: before } = await supabase
+      .from("projects").select("parent_project_id").eq("id", projectId).maybeSingle();
+    const now = (before?.parent_project_id as string | null) ?? null;
+    if (next !== now) {
+      if (next === projectId) {
+        redirect(`/my/project/${projectId}?tab=setup&error=${encodeURIComponent("A project cannot be its own parent.")}`);
+      }
+      const { data: allowed, error: gateError } = await supabase.rpc("may_create_project", {
+        p_exclude_project: projectId,
+        p_parent_project: next,
+      });
+      if (gateError || allowed !== true) {
+        redirect(`/my/project/${projectId}?tab=setup&error=${encodeURIComponent(
+          gateError?.message ??
+          (next === null
+            ? "Your agreement does not cover another top-level project. Keep this one under a home, or free up a slot first."
+            : "You do not have the rights on that project to hang this one under it.")
+        )}`);
+      }
+      updates.parent_project_id = next;
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
-    redirect(`/my/project/${projectId}?error=${encodeURIComponent("Nothing you may edit was changed.")}`);
+    redirect(`/my/project/${projectId}?tab=setup&error=${encodeURIComponent("Nothing you may edit was changed.")}`);
   }
   updates.last_modified_by = "portal:project";
 
@@ -102,8 +135,8 @@ export async function saveProject(projectId: string, formData: FormData) {
   revalidatePath(`/my/project/${projectId}`);
   revalidatePath("/my");
   redirect(error
-    ? `/my/project/${projectId}?error=${encodeURIComponent(error.message)}`
-    : `/my/project/${projectId}?saved=1`);
+    ? `/my/project/${projectId}?tab=setup&error=${encodeURIComponent(error.message)}`
+    : `/my/project/${projectId}?tab=setup&saved=1`);
 }
 
 // Structured configurator answers - one row per field, upserted.

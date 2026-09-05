@@ -22,6 +22,7 @@ type Membership = {
     address: string | null;
     status: string;
     is_template: boolean;
+    parent_project_id: string | null;
   } | null;
 };
 
@@ -53,7 +54,7 @@ export default async function WorkHome({
     me?.app_user_id
       ? supabase
           .from("project_members")
-          .select("role, project_role, projects(id, project_name, address, status, is_template, trashed_at)")
+          .select("role, project_role, projects(id, project_name, address, status, is_template, trashed_at, parent_project_id)")
           .eq("app_user_id", me.app_user_id)
           .eq("status", "active")
           .eq("role", wantedRole)
@@ -67,6 +68,16 @@ export default async function WorkHome({
   const seats = showAll ? allSeats : allSeats.filter((m) => m.projects!.status === "In Progress");
   const hiddenClosed = allSeats.length - seats.length;
   const seatIds = new Set(seats.map((s) => s.projects!.id));
+
+  // A job carries no address of its own - the home above it does. Without
+  // that home in the line, two "Emergency generator" seats read identically.
+  const parentIds = [...new Set(seats.map((s) => s.projects!.parent_project_id).filter((x): x is string => !!x))];
+  const { data: parentRows } = parentIds.length
+    ? await supabase.from("projects").select("id, project_name, address").in("id", parentIds)
+    : { data: [] };
+  const parents = new Map(
+    ((parentRows ?? []) as { id: string; project_name: string; address: string | null }[]).map((p) => [p.id, p])
+  );
 
   const seatTasks = ((taskData ?? []) as PortalTask[]).filter(
     (t) => t.project_id && seatIds.has(t.project_id)
@@ -110,12 +121,19 @@ export default async function WorkHome({
       <div style={{ display: "grid", gap: 8, marginBottom: 8 }}>
         {visibleSeats.map((s) => (
           <Link key={s.projects!.id} href={`/my/project/${s.projects!.id}`} className="card statlink" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-            <span>
+            <span style={{ minWidth: 0 }}>
               <strong style={{ fontSize: 15 }}>{s.projects!.project_name}</strong>
-              <div className="muted small">
-                {s.project_role ?? s.role}
-                {s.projects!.address && <> · {s.projects!.address}</>} · {s.projects!.status}
-              </div>
+              {(() => {
+                const home = s.projects!.parent_project_id ? parents.get(s.projects!.parent_project_id) : undefined;
+                const where = s.projects!.address ?? home?.address ?? null;
+                return (
+                  <div className="muted small">
+                    {home && <>under {home.project_name} · </>}
+                    {s.project_role ?? s.role}
+                    {where && <> · {where}</>} · {s.projects!.status}
+                  </div>
+                );
+              })()}
             </span>
             <span className="extra-chip" style={{ whiteSpace: "nowrap" }}>
               {openByProject.get(s.projects!.id) ?? 0} open

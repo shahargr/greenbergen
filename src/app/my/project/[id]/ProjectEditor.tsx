@@ -11,6 +11,7 @@ type ProjectView = {
   stage: string | null;
   address: string | null;
   notes: string | null;
+  parent_project_id?: string | null;
 };
 
 // The definition panel edits the stage; status (open / closed) is a record
@@ -20,6 +21,9 @@ type ProjectView = {
 // text until unlocked; unlocked, only the fields your rank allows become
 // inputs - and the server re-checks every one on save.
 type Crumb = { id: string; name: string; href: string | null };
+// A project this one may hang under. The label carries the address, because
+// two homes can hold jobs of the very same name.
+export type ParentOption = { id: string; name: string; address: string | null };
 
 // Owner › parent › … › this project. Parents link; the ends are plain.
 function Hierarchy({ crumbs, maskOwner = false }: { crumbs: Crumb[]; maskOwner?: boolean }) {
@@ -67,7 +71,7 @@ export function DeleteProjectZone({ project, perms }: { project: ProjectView; pe
   );
 }
 
-export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultOpen = false, showActions = true, showDelete = true, maskOwner = false }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; briefSlot?: React.ReactNode; defaultOpen?: boolean; showActions?: boolean; showDelete?: boolean; maskOwner?: boolean }) {
+export function ProjectEditor({ project, perms, crumbs = [], parentOptions = [], briefSlot, defaultOpen = false, showActions = true, showDelete = true, maskOwner = false }: { project: ProjectView; perms: ProjectPerms; crumbs?: Crumb[]; parentOptions?: ParentOption[]; briefSlot?: React.ReactNode; defaultOpen?: boolean; showActions?: boolean; showDelete?: boolean; maskOwner?: boolean }) {
   const [setup, setSetup] = useState(defaultOpen);
   const [confirmName, setConfirmName] = useState("");
   const canEditAnything = perms.name || perms.notes || perms.status || perms.address;
@@ -119,6 +123,23 @@ export function ProjectEditor({ project, perms, crumbs = [], briefSlot, defaultO
             <div className="field" style={{ marginBottom: 0 }}>
               <label htmlFor="pe-name">Name</label>
               <input id="pe-name" name="name" className="input" defaultValue={project.project_name} required />
+            </div>
+          )}
+          {perms.parent && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="pe-parent">Belongs under</label>
+              <select id="pe-parent" name="parent" className="input" defaultValue={project.parent_project_id ?? ""}>
+                <option value="">Nothing — this is a top-level project</option>
+                {parentOptions.map((o) => (
+                  <option key={o.id} value={o.id}>{o.address ? `${o.name} — ${o.address}` : o.name}</option>
+                ))}
+              </select>
+              <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>
+                The project this one sits under — a home for a job, a portfolio
+                for a home. It is what tells two jobs of the same name apart, and
+                it decides who inherits access. Its own children are not offered:
+                the tree cannot fold back on itself.
+              </p>
             </div>
           )}
           {perms.status && (

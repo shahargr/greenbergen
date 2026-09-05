@@ -17,7 +17,7 @@ import { projectPerms, updateContact, setSiteRoster, logSiteVisit } from "./acti
 import { FileDrop } from "@/components/FileDrop";
 import { getCaps, acceptFor, capsHint } from "@/lib/caps";
 import { inviteToProject } from "../../invite/actions";
-import { TasksTable, type TableTask } from "../../TasksTable";
+import { TasksTable, type TableTask, type TaskView } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
 import { ProjectBrief } from "@/components/ProjectBrief";
@@ -39,15 +39,14 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string; date?: string; step?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; add?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string; date?: string; step?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam, date: dateParam, step: stepParam } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, add: addParam, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam, date: dateParam, step: stepParam } = await searchParams;
   // A schedule item clicked open (?item=<task id>) unfolds under the calendar.
   const selectedItem = itemParam && /^[0-9a-f-]{36}$/i.test(itemParam) ? itemParam : null;
-  // Five tabs, one job each:
-  //   overview - look: schedule, today, purchase & sale
-  //   site     - Tasks: the day-to-day list, late panels, people
+  // Four tabs, one job each:
+  //   site     - Tasks: the week, the day-to-day list, late panels, people
   //   visit    - Site visit: roster, visit log, days on site
   //   scope    - Project scope: trades, scope lines, the bid process
   //   setup    - define and administer: details, configuration, invitations,
@@ -58,9 +57,13 @@ export default async function ProjectPage({
   // ?tasks=open|done|stuck pre-filters the task list (the homepage card's
   // three counts link here).
   const initialTaskState: "open" | "closed" | "all" = tasksBucket === "done" ? "closed" : "open";
-  // Default on load: the 10 most urgent tasks. ?tasks=open|done|stuck override.
-  const initialTaskView: "all" | "stuck" | "urgent" =
-    parentTask ? "all" : tasksBucket === "stuck" ? "stuck" : "all";
+  // Default on load: what is due today. ?tasks=open|done|stuck override.
+  const initialTaskView: TaskView =
+    parentTask ? "all"
+    : tasksBucket === "stuck" ? "stuck"
+    : tasksBucket === "done" ? "done"
+    : tasksBucket === "open" ? "all"
+    : "today";
   const supabase = await createClient();
 
   const { data: project } = await supabase
@@ -171,15 +174,16 @@ export default async function ProjectPage({
     .trim() || null;
   const isCrew = perms.rank > 0 && perms.rank <= 5 && !perms.admin;
   const isContractorSide = !isCrew && perms.rank > 5 && perms.rank < 50 && !perms.admin;
-  const tab: "overview" | "site" | "visit" | "scope" | "setup" | "crew" | "contractor" | "contract" =
+  // Overview and Tasks are one tab now ("site"): the week, then the list.
+  // ?tab=overview from an old link lands there too.
+  const tab: "site" | "visit" | "scope" | "setup" | "crew" | "contractor" | "contract" =
     isCrew ? "crew"
     : isContractorSide
       ? (tabParam === "scope" ? "scope" : tabParam === "contract" ? "contract" : "contractor")
     : (tabParam === "setup" || tabParam === "admin") ? "setup"
     : tabParam === "visit" ? "visit"
     : tabParam === "scope" ? "scope"
-    : (tabParam === "site" || tabParam === "manage" || peopleMode === "all" || (!tabParam && (tasksBucket || parentTask))) ? "site"
-    : "overview";
+    : "site";
   const { data: scopeTradeRows } = tab === "scope" && perms.rank >= 50
     ? await supabase.from("project_bid_needs").select("trade").eq("project_id", id).not("trade", "is", null)
     : { data: [] };
@@ -310,6 +314,49 @@ export default async function ProjectPage({
     ancestors.unshift({ id: up.id, project_name: up.project_name, address: (up.address as string | null) ?? null });
     cursor = up.parent_project_id as string | null;
   }
+  // Same name, same parent: two "Emergency generator" jobs under one home.
+  // When that happens the header adds the start date to tell them apart.
+  const { data: twinRows } = project.parent_project_id
+    ? await supabase
+        .from("projects")
+        .select("id")
+        .eq("parent_project_id", project.parent_project_id)
+        .eq("project_name", project.project_name)
+        .is("trashed_at", null)
+        .neq("id", project.id)
+        .limit(1)
+    : { data: [] };
+  const hasTwin = ((twinRows ?? []) as { id: string }[]).length > 0;
+
+  // The projects this one may be moved under. RLS returns only what the
+  // caller is a member of; this project and everything beneath it are then
+  // dropped, so the tree can never be folded into itself.
+  const { data: parentOptionRows } = tab === "setup" && perms.parent
+    ? await supabase
+        .from("projects")
+        .select("id, project_name, address, parent_project_id")
+        .is("trashed_at", null)
+        .eq("is_template", false)
+        .order("project_name")
+        .limit(200)
+    : { data: [] };
+  type OptionRow = { id: string; project_name: string; address: string | null; parent_project_id: string | null };
+  const optionRows = ((parentOptionRows ?? []) as OptionRow[]);
+  const descendants = new Set<string>([project.id]);
+  for (let pass = 0; pass < 8; pass += 1) {
+    let grew = false;
+    for (const o of optionRows) {
+      if (o.parent_project_id && descendants.has(o.parent_project_id) && !descendants.has(o.id)) {
+        descendants.add(o.id);
+        grew = true;
+      }
+    }
+    if (!grew) break;
+  }
+  const parentOptions = optionRows
+    .filter((o) => !descendants.has(o.id))
+    .map((o) => ({ id: o.id, name: o.project_name, address: o.address }));
+
   const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
   const { data: ownerRow } = ownerId
     ? await supabase.from("app_users").select("full_name, email").eq("id", ownerId).maybeSingle()
@@ -434,17 +481,36 @@ export default async function ProjectPage({
       <span className="kicker only-wide">{project.parent_project_id ? "Job" : "Home"}</span>
       {(() => {
         const navAddress = project.address ?? [...ancestors].reverse().find((a) => a.address)?.address ?? null;
+        // The name on its own is not unique - two homes can each have an
+        // "Emergency generator". The line under it says which one: the home
+        // it hangs under, its address, and (for same-named siblings) the day
+        // it started. A contractor working five sites reads this first.
+        const startedOn = project.created_at ? String(project.created_at).slice(0, 10) : null;
         return (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
-            <h1 className="page-title" style={{ margin: 0, minWidth: 0 }}>{project.project_name}</h1>
-            {navAddress && (
-              <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small"
-                title={`Navigate to ${navAddress}`}
-                style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, flex: "none" }}>
-                <CarIcon /> <span className="only-wide">Navigate</span>
-              </a>
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", margin: "6px 0 2px" }}>
+              <h1 className="page-title" style={{ margin: 0, minWidth: 0 }}>{project.project_name}</h1>
+              {navAddress && (
+                <a href={mapsHref(navAddress)} target="_blank" rel="noreferrer" className="btn ghost small"
+                  title={`Navigate to ${navAddress}`}
+                  style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, flex: "none" }}>
+                  <CarIcon /> <span className="only-wide">Navigate</span>
+                </a>
+              )}
+            </div>
+            {(ancestors.length > 0 || navAddress) && (
+              <p className="small muted" style={{ margin: "0 0 10px", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "baseline", minWidth: 0 }}>
+                {ancestors.map((a, i) => (
+                  <span key={a.id} style={{ minWidth: 0 }}>
+                    {i > 0 && <span aria-hidden>› </span>}
+                    <Link href={`/my/project/${a.id}`}>{a.project_name}</Link>
+                  </span>
+                ))}
+                {navAddress && <span>{ancestors.length > 0 ? "· " : ""}{navAddress}</span>}
+                {hasTwin && startedOn && <span>· started {startedOn}</span>}
+              </p>
             )}
-          </div>
+          </>
         );
       })()}
 
@@ -466,22 +532,18 @@ export default async function ProjectPage({
         {/* The strip each person gets: none for crew, three for a contractor,
             the full set for site management and above. */}
         {isContractorSide && (
-          <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, padding: "8px 10px" }}>
-            <Link href={`/my/project/${project.id}`} style={{ justifySelf: "start" }}
-              className={tab === "contractor" ? "btn small" : "btn ghost small"}>Payments</Link>
-            <Link href={`/my/project/${project.id}?tab=scope`} style={{ justifySelf: "center" }}
-              className={tab === "scope" ? "btn small" : "btn ghost small"}>Scope</Link>
-            <Link href={`/my/project/${project.id}?tab=contract`} style={{ justifySelf: "end" }}
-              className={tab === "contract" ? "btn small" : "btn ghost small"}>Contract</Link>
+          <div className="tabtable">
+            <Link href={`/my/project/${project.id}`} className={tab === "contractor" ? "on" : undefined}>Payments</Link>
+            <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "on" : undefined}>Scope</Link>
+            <Link href={`/my/project/${project.id}?tab=contract`} className={tab === "contract" ? "on" : undefined}>Contract</Link>
           </div>
         )}
         {!isCrew && !isContractorSide && (
-        <div className="card tabstrip" style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "8px 10px" }}>
-          <Link href={`/my/project/${project.id}`} className={tab === "overview" ? "btn small" : "btn ghost small"}>Overview</Link>
-          <Link href={`/my/project/${project.id}?tab=site`} className={tab === "site" ? "btn small" : "btn ghost small"}>Tasks</Link>
-          <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "btn small" : "btn ghost small"}>Site visit</Link>
-          <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "btn small" : "btn ghost small"}>Project scope</Link>
-          {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "btn small" : "btn ghost small"}>Setup</Link>}
+        <div className="tabtable">
+          <Link href={`/my/project/${project.id}`} className={tab === "site" ? "on" : undefined}>Tasks</Link>
+          <Link href={`/my/project/${project.id}?tab=visit`} className={tab === "visit" ? "on" : undefined}>Site visit</Link>
+          <Link href={`/my/project/${project.id}?tab=scope`} className={tab === "scope" ? "on" : undefined}>Project scope</Link>
+          {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=setup`} className={tab === "setup" ? "on" : undefined}>Setup</Link>}
         </div>
         )}
 
@@ -494,7 +556,7 @@ export default async function ProjectPage({
 
 
 
-        {tab === "overview" && (<>
+        {tab === "site" && (<>
         {/* Phone opens on the work, not on the furniture: what is due today,
             what has slipped, and the three things you came here to do. The
             week is a strip below it, not the headline. Wide screens keep the
@@ -549,21 +611,19 @@ export default async function ProjectPage({
 
           {/* The three things you open a project on a phone to do. */}
           <div className="phone-actions">
-            {perms.rank >= 50 && <Link href={`/my/project/${project.id}?tab=site#add-task`} className="btn ghost small">＋ Task</Link>}
+            {perms.rank >= 50 && <Link href={`/my/project/${project.id}?add=1#add-task`} className="btn ghost small">＋ Task</Link>}
             <Link href={`/my/project/${project.id}?tab=visit`} className="btn ghost small">📋 Log visit</Link>
             <Link href={`/my/project/${project.id}?tab=scope`} className="btn ghost small">📷 Scope</Link>
           </div>
         </div>
 
-        {/* The landing view: what is planned this week, day by day, then
-            today's list and the rest of the week. */}
+        {/* What is planned this week, day by day - then, further down, the
+            task list itself. Overview and Tasks are one tab. */}
         <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <h2 className="section-title" style={{ margin: 0 }}>This week · {weekTasks.length} task{weekTasks.length === 1 ? "" : "s"}{weekPayments.length ? ` · ${weekPayments.length} payment${weekPayments.length === 1 ? "" : "s"}` : ""}</h2>
             <span className="muted small">{dayLabel(weekDays[0])} – {dayLabel(weekDays[6])}</span>
           </div>
-          {/* Phone: an agenda - today and the next days, one row per item,
-              like an inbox. Wide screens get the week grid below. */}
           {/* Phone: the whole week as one strip. A day is a tap, and its
               list opens below — three stacked days that each say "—" cost a
               third of the screen to tell you nothing. */}
@@ -738,7 +798,7 @@ export default async function ProjectPage({
           );
         })()}
 
-        {/* Wide screens only - on a phone the agenda above already is today. */}
+        {/* Wide screens only - on a phone the Today card at the top already is this. */}
         <div className="card only-wide" style={{ display: "grid", gap: 6, minWidth: 0 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Today · {todayTasks.length}</h2>
           {todayTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing due today.</p>}
@@ -763,9 +823,10 @@ export default async function ProjectPage({
         {tab === "setup" && (
           <>
             <ProjectEditor
-              project={{ id: project.id, project_name: project.project_name, status: project.status, stage: project.stage, address: project.address, notes: project.notes }}
+              project={{ id: project.id, project_name: project.project_name, status: project.status, stage: project.stage, address: project.address, notes: project.notes, parent_project_id: project.parent_project_id }}
               perms={perms}
               crumbs={crumbs}
+              parentOptions={parentOptions}
               briefSlot={project.parent_project_id ? <ProjectBrief projectId={project.id} /> : null}
               defaultOpen
               showDelete={false}
@@ -886,7 +947,8 @@ export default async function ProjectPage({
           </details>
         )}
 
-        {tab === "overview" && perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
+        {/* Purchase & sale: a record, not day-to-day work - it lives on Setup. */}
+        {tab === "setup" && perms.rank >= 70 && (project.purchase_date || project.purchase_amount || project.sold_date || project.sold_amount) && (
           <div className="card">
             <h2 className="section-title">Purchase &amp; sale</h2>
             <div className="small" style={{ display: "grid", gap: 4 }}>
@@ -1024,12 +1086,12 @@ export default async function ProjectPage({
 
         {/* Site visit: the tasks to review, and where work gets logged. */}
         {tab === "site" && (
-        <div className="card">
+        <div className="card" id="add-task">
           <h2 className="section-title" style={{ margin: 0 }}>Tasks · {openCount} open · {doneCount} done</h2>
-          <TasksTable tasks={projectTasks} todayIso={todayIso} savedFilters filtersInSetup showViews={false} startEmpty={!tasksBucket && !parentTask} showTradeTiles={false} showLatePanels avatars={avatars}
+          <TasksTable tasks={projectTasks} todayIso={todayIso} presetViews weekStartIso={weekDays[0]} weekEndIso={weekEndIso} showViews={false} showTradeTiles={false} showLatePanels avatars={avatars}
             initialParent={parentTask ?? null}
             initialState={initialTaskState} initialView={initialTaskView}
-            addOpen={!!assignContact}
+            addOpen={!!assignContact || addParam === "1"}
             addTaskSlot={perms.rank >= 50 ? (
               <AddTaskForm projects={[{ id: project.id, name: project.project_name }]} members={taskMembers} defaultAssignee={assignContact} />
             ) : undefined} />

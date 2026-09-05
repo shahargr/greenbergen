@@ -1059,6 +1059,20 @@ html, body { max-width: 100%; overflow-x: clip; }
   .tasktable .col-date { width: 64px; }
 }
 
+/* Page tabs and preset filters: plain text laid out as a transparent table -
+   no buttons, no card behind them. Three cells to a row for the tabs, four
+   for the filter presets. */
+.tabtable { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
+.tabtable > * {
+  padding: 8px 0; font-size: 14px; text-align: left; color: #4a5a50; text-decoration: none;
+  border: 0; border-bottom: 1px solid var(--line, #e3e6e2); background: none; font-family: inherit;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.tabtable > *:hover { color: var(--brand, #1f6b45); text-decoration: none; }
+.tabtable > .on { color: var(--brand, #1f6b45); font-weight: 700; border-bottom-color: var(--brand, #1f6b45); }
+.tabtable.quad { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 10px; }
+.tabtable.quad > * { font-size: 13px; }
+@media (max-width: 380px) { .tabtable.quad > * { font-size: 12px; } }
 
 /* ---------------------------------------------------------------------------
    Phone-first project page.
@@ -1076,15 +1090,8 @@ html, body { max-width: 100%; overflow-x: clip; }
   .page-title { font-size: 20px; line-height: 1.2; }
   main.wrap { padding-top: 16px; }
 
-  /* Tabs stop being a card and become one row of pills that scrolls if it
-     must. Five short labels fit a 390pt screen without scrolling. */
-  .card.tabstrip {
-    background: none; border: none; padding: 0;
-    flex-wrap: nowrap; overflow-x: auto; gap: 4px;
-    -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  }
-  .card.tabstrip::-webkit-scrollbar { display: none; }
-  .card.tabstrip .btn { padding: 5px 9px; font-size: 12px; flex: 0 0 auto; }
+  /* The tabs are plain text in a transparent table (.tabtable) now, so the
+     old pill-strip rules have nothing to style. */
 
   /* Cards give back the padding a mouse pointer needed and a thumb does not. */
   .card { padding: 12px 14px; border-radius: 10px; }

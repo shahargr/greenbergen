@@ -17,7 +17,11 @@ type Bid = {
   insurance_reply: { gl_held?: boolean; wc_held?: boolean; coi?: boolean; carrier?: string | null } | null;
   bidder: string | null; can_reply: boolean; can_manage: boolean;
   package: {
-    id: string; project_id: string; project_name: string | null; phase: string | null; category: string | null; trade: string | null;
+    id: string; project_id: string; project_name: string | null;
+    // The home the job hangs under: what tells two jobs of the same name
+    // apart for a bidder who prices work on five sites.
+    project_parent_id: string | null; project_parent_name: string | null;
+    phase: string | null; category: string | null; trade: string | null;
     scope_summary: string | null; reply_by: string | null; status: string; budget_amount: number | null;
     deposit_pct: number | null; retainage_pct: number | null; retainage_release_trigger: string | null; net_days: number | null;
     consumables_by: string | null; finish_material_by: string | null;
@@ -75,6 +79,10 @@ export default async function BidReplyPage({
       </p>
       <span className="kicker">Bid reply · {pk.phase ?? "—"}</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 2px" }}>{pk.category ?? pk.trade ?? "Package"}</h1>
+      <p className="muted small" style={{ margin: "0 0 2px" }}>
+        {pk.project_parent_name && <>{pk.project_parent_name} <span aria-hidden>›</span> </>}
+        <strong style={{ color: "var(--ink)" }}>{pk.project_name ?? "Project"}</strong>
+      </p>
       <p className="muted small" style={{ margin: "0 0 12px" }}>
         {b.bidder ? `${b.bidder} · ` : ""}status <strong>{b.status}</strong> · reply by {pk.reply_by ?? "—"}
         {pk.status !== "open" && <> · <span style={{ color: "#a8842c" }}>package {pk.status}</span></>}

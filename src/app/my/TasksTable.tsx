@@ -29,6 +29,10 @@ export type TableTask = {
 
 const PRIORITY_ORDER = ["High", "Medium", "Low", "No Priority"];
 
+// The list views. The last four are the project page's fixed presets:
+// today, this week, stalled (open but not moving) and completed.
+export type TaskView = "all" | "mine" | "late" | "stuck" | "urgent" | "today" | "week" | "done";
+
 // Construction phases, and which trade falls in each (tasks have no phase
 // field, so phase is derived from the task's trade).
 const PHASES = ["Site prep", "Rough", "Systems", "Appliance", "Finish", "Outside"] as const;
@@ -72,12 +76,19 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, addOpen = false, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, startEmpty = false, stageTiles, avatars, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, addOpen = false, domainOptions, savedFilters = false, filtersInSetup = false, showViews = true, presetViews = false, weekStartIso, weekEndIso, startEmpty = false, stageTiles, avatars, todayIso }: {
   // Project page: the filter dropdowns live behind each saved slot's ⚙, not
   // on the page. Three slot buttons stay; setup picks the filters + a name.
   filtersInSetup?: boolean;
   // Hide the five quick views (Urgent / My tasks / Late / Stuck / Full list).
   showViews?: boolean;
+  // Four fixed presets instead - Today, This week, Stalled, Completed -
+  // drawn as plain text in a transparent table (the project page).
+  presetViews?: boolean;
+  // The week the "This week" preset means (Monday..Sunday). Without them it
+  // falls back to today plus six days.
+  weekStartIso?: string;
+  weekEndIso?: string;
   // Start with an empty list; it fills when a late-person tile or a saved
   // filter is clicked (project page).
   startEmpty?: boolean;
@@ -85,7 +96,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   initialProject?: string;
   initialDomain?: string;
   initialState?: "open" | "closed" | "all";
-  initialView?: "all" | "mine" | "late" | "stuck" | "urgent";
+  initialView?: TaskView;
   showLatePanels?: boolean;
   // Display name -> public photo URL; people without one keep the icon.
   avatars?: Record<string, string>;
@@ -122,7 +133,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const stageOf = (trade: string | null) => (trade ? tradeStage[trade] ?? null : null);
   const router = useRouter();
   // compact mode: the table stays hidden until a view is picked.
-  const [view, setView] = useState<"none" | "mine" | "late" | "stuck" | "urgent" | "all">(compact || startEmpty ? "none" : (initialView ?? "all"));
+  const [view, setView] = useState<TaskView | "none">(compact || startEmpty ? "none" : (initialView ?? "all"));
   const [state, setState] = useState<"open" | "closed" | "all">(initialState ?? "open");
   const [domain, setDomain] = useState(initialDomain ?? "construction");
   const [project, setProject] = useState(initialProject ?? "all");
@@ -257,6 +268,21 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     return best;
   }, [tasks, todayIso]);
 
+  // "This week" means the calendar week the page is showing; without one,
+  // today plus the six days after it.
+  const weekFrom = weekStartIso ?? todayIso;
+  const weekTo = weekEndIso ?? new Date(new Date(todayIso + "T12:00:00").getTime() + 6 * 86400000).toISOString().slice(0, 10);
+
+  // What each preset would show, so the row can carry its own count.
+  const isStalled = (t: TableTask) =>
+    t.state === "open" && ((!!t.target_date && t.target_date < todayIso) || /pending/i.test(t.status) || t.status === "Parked");
+  const presetCounts = {
+    today: tasks.filter((t) => t.state === "open" && t.target_date === todayIso).length,
+    week: tasks.filter((t) => t.state === "open" && !!t.target_date && t.target_date >= weekFrom && t.target_date <= weekTo).length,
+    stuck: tasks.filter(isStalled).length,
+    done: tasks.filter((t) => t.state === "closed").length,
+  };
+
   const prioRank = (p: string | null) => (p === "High" ? 0 : p === "Medium" ? 1 : p === "Low" ? 2 : 3);
   // Every word typed has to appear somewhere on the task: its title, trade,
   // assignee, status or notes. "plum" finds the plumbing work.
@@ -285,13 +311,19 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
         (terms.length > 0 || view !== "stuck" || (t.state === "open" &&
           ((!!t.target_date && t.target_date < todayIso) || /pending/i.test(t.status) || t.status === "Parked"))) &&
         (terms.length > 0 || view !== "urgent" || t.state === "open") &&
+        // The presets: due today, due inside this week, or already closed.
+        (terms.length > 0 || view !== "today" || (t.state === "open" && t.target_date === todayIso)) &&
+        (terms.length > 0 || view !== "week" || (t.state === "open" && !!t.target_date && t.target_date >= weekFrom && t.target_date <= weekTo)) &&
+        (terms.length > 0 || view !== "done" || t.state === "closed") &&
         (parentOf === null || t.parent_id === parentOf) &&
         (phase === "all" || (stageMode ? stageOf(t.trade) : phaseOf(t.trade)) === phase)
     )
     .sort((a, b) =>
       view === "urgent"
         ? ((a.target_date ?? "9999").localeCompare(b.target_date ?? "9999") || (prioRank(a.priority) - prioRank(b.priority)))
-        : view === "late" || view === "stuck"
+        : view === "done"
+          ? (b.last_updated ?? "").localeCompare(a.last_updated ?? "")
+        : view === "late" || view === "stuck" || view === "today" || view === "week"
           ? (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999")
           : sort === "updated"
             ? (b.last_updated ?? "").localeCompare(a.last_updated ?? "")
@@ -525,6 +557,29 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
           Full list
         </button>
       </div>
+      )}
+
+      {/* The project page's four fixed filters: plain text, transparent
+          table, no buttons. Clicking one again clears it. */}
+      {presetViews && (
+        <div className="tabtable quad">
+          {([
+            { key: "today", label: "Today", n: presetCounts.today, state: "open" },
+            { key: "week", label: "This week", n: presetCounts.week, state: "open" },
+            { key: "stuck", label: "Stalled", n: presetCounts.stuck, state: "open" },
+            { key: "done", label: "Completed", n: presetCounts.done, state: "closed" },
+          ] as const).map((f) => (
+            <button key={f.key} type="button" className={view === f.key ? "on" : undefined}
+              aria-pressed={view === f.key}
+              onClick={() => {
+                if (view === f.key) { setView("none"); }
+                else { setView(f.key); setState(f.state); }
+                setPerson("all"); setParentOf(null); setOpen(null);
+              }}>
+              {f.label} <span className="muted">{f.n}</span>
+            </button>
+          ))}
+        </div>
       )}
 
       {!compact && !filtersInSetup && filterControls}
