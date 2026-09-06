@@ -23,6 +23,7 @@ import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { AddTaskForm } from "../../AddTaskForm";
 import { HomePhoto } from "./HomePhoto";
+import { HomeWorkstreams, type Workstream } from "./HomeWorkstreams";
 import { BecomePicker, type BecomeGroup } from "@/components/BecomePicker";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export default async function ProjectPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, project_name, status, stage, address, notes, parent_project_id, owner_user_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount, asset_id, cover_file_id")
+    .select("id, project_name, status, stage, address, notes, parent_project_id, owner_user_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount, asset_id, cover_file_id, home_blueprint_code, disabled_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -446,6 +447,14 @@ export default async function ProjectPage({
     }
   }
 
+  // The home's standing workstreams, for the owner's switches on Setup.
+  let workstreams: Workstream[] = [];
+  if (tab === "setup" && isHome && (perms.rank >= 70 || perms.admin)) {
+    const { data: wsRows } = await supabase.rpc("home_workstreams", { p_home_project_id: project.id });
+    workstreams = ((wsRows ?? []) as Workstream[]);
+  }
+  const disabledAt = (project as { disabled_at?: string | null }).disabled_at ?? null;
+
   const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
   const { data: ownerRow } = ownerId
     ? await supabase.from("app_users").select("full_name, email").eq("id", ownerId).maybeSingle()
@@ -558,6 +567,13 @@ export default async function ProjectPage({
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
+      {/* A default workstream its owner switched off: still here, off the lists. */}
+      {disabledAt && (
+        <p className="small" style={{ margin: "0 0 10px", padding: "8px 10px", borderRadius: 8, background: "#f4f5f1", color: "#5b6158" }}>
+          This workstream is switched off — it stays out of your lists but keeps everything in it.
+          {project.parent_project_id && <> Turn it back on from <Link href={`/my/project/${project.parent_project_id}?tab=setup`}>the home&apos;s Setup tab</Link>.</>}
+        </p>
+      )}
       <p className="small only-wide" style={{ margin: "0 0 6px" }}>
         <Link href="/my">← Your projects</Link>
       </p>
@@ -923,6 +939,9 @@ export default async function ProjectPage({
 
         {tab === "setup" && isHome && (perms.rank >= 70 || perms.admin) && (
           <HomePhoto projectId={project.id} currentUrl={coverUrl} />
+        )}
+        {tab === "setup" && isHome && (perms.rank >= 70 || perms.admin) && (
+          <HomeWorkstreams homeId={project.id} items={workstreams} />
         )}
         {tab === "setup" && (
           <>

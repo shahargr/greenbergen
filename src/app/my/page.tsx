@@ -240,6 +240,7 @@ export default async function MyPage({
       .from("projects")
       .select("id, project_name, address, status, parent_project_id, is_template, domain")
       .is("trashed_at", null)
+      .is("disabled_at", null)
       .eq("is_template", false)
       .order("project_name");
     bandOverviewAll = (((allRows ?? []) as Omit<ProjectOverviewRow, "open_count" | "last_activity">[]))
