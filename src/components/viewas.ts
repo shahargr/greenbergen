@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { VIEW_HOME } from "./viewmap";
 
 // The mask menu: remember which hat the admin picked and land them on that
@@ -12,6 +13,7 @@ export async function setView(role: string) {
   if (!home) return;
   const jar = await cookies();
   jar.set("gb_view", role, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+  revalidatePath("/", "layout");
   redirect(home);
 }
 
@@ -32,6 +34,9 @@ export async function beginViewAs(userId: string, canAct = false, next?: string)
   const supabase = await createClient();
   const back = safePath(next);
   const { data, error } = await supabase.rpc("begin_view_as", { p_as_user_id: userId, p_can_act: canAct });
+  // The identity changed, so nothing Next has cached - the top bar above
+  // all - may be shown again. Layout-wide, before the redirect.
+  revalidatePath("/", "layout");
   if (error || !data?.ok) {
     redirect(withError(back, data?.reason ?? error?.message ?? "Could not switch."));
   }
@@ -42,6 +47,7 @@ export async function endViewAs(next?: string) {
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
   await supabase.rpc("end_view_as");
+  revalidatePath("/", "layout");
   redirect(safePath(next));
 }
 

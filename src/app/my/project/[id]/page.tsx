@@ -141,7 +141,10 @@ export default async function ProjectPage({
   // God mode: the people this project can be looked at as - its own seats
   // with a login first, then everyone else on the platform.
   type ViewTarget = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
-  const { data: viewTargetData } = godMode ? await supabase.rpc("admin_view_targets") : { data: null };
+  const [{ data: viewTargetData }, { data: realIdData }] = godMode
+    ? await Promise.all([supabase.rpc("admin_view_targets"), supabase.rpc("real_app_user_id")])
+    : [{ data: null }, { data: null }];
+  const realId = typeof realIdData === "string" ? realIdData : null;
   const becomeGroups: BecomeGroup[] = (() => {
     const targets = ((viewTargetData ?? []) as ViewTarget[]);
     const here = new Map<string, { name: string; hint: string; rank: number }>();
@@ -548,7 +551,7 @@ export default async function ProjectPage({
         <p className="banner" style={{ background: "#7a1f2b", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <span>⚡ <strong>God mode</strong> — you hold no seat on this project; you&apos;re acting with full admin rights.</span>
           <span style={{ display: "inline-flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <BecomePicker groups={becomeGroups} back={`/my/project/${project.id}${tabParam ? `?tab=${tabParam}` : ""}`} />
+            <BecomePicker groups={becomeGroups} back={`/my/project/${project.id}${tabParam ? `?tab=${tabParam}` : ""}`} excludeId={realId} />
             <Link href="/admin/projects" style={{ color: "#fff", whiteSpace: "nowrap" }}>All projects →</Link>
           </span>
         </p>

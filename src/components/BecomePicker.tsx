@@ -4,8 +4,11 @@ export type BecomeGroup = { label: string; people: { id: string; name: string; h
 
 // The god-mode picker: choose a person, then look through their eyes (view)
 // or use their hands (act). Posts to becomeUser and returns to `back`.
-export function BecomePicker({ groups, back }: { groups: BecomeGroup[]; back: string }) {
-  const shown = groups.filter((g) => g.people.length > 0);
+export function BecomePicker({ groups, back, excludeId = null }: { groups: BecomeGroup[]; back: string; excludeId?: string | null }) {
+  // The administrator is never a choice here; returning is the top bar's job.
+  const shown = groups
+    .map((g) => ({ ...g, people: g.people.filter((u) => u.id !== excludeId) }))
+    .filter((g) => g.people.length > 0);
   if (shown.length === 0) return null;
   return (
     <form action={becomeUser} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
