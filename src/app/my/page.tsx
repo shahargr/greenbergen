@@ -279,9 +279,17 @@ export default async function MyPage({
   // projects too, but they are not "open projects" - they live on the
   // property's own page.
   const { data: serviceRows } = bandOverview.length > 0
-    ? await supabase.from("projects").select("id").in("id", bandOverview.map((p) => p.id)).not("home_blueprint_code", "is", null)
-    : { data: [] as { id: string }[] };
-  const serviceIds = new Set(((serviceRows ?? []) as { id: string }[]).map((r) => r.id));
+    ? await supabase.from("projects").select("id, parent_project_id, home_blueprint_code").in("id", bandOverview.map((p) => p.id)).not("home_blueprint_code", "is", null)
+    : { data: [] as { id: string; parent_project_id: string | null; home_blueprint_code: string | null }[] };
+  const serviceList = ((serviceRows ?? []) as { id: string; parent_project_id: string | null; home_blueprint_code: string | null }[]);
+  const serviceIds = new Set(serviceList.map((r) => r.id));
+  // The insurance line per home, and whether anything at all is on file
+  // there - a task or a document. Nothing on file is an alert on the panel.
+  const insuranceByHome = new Map(serviceList.filter((r) => r.home_blueprint_code === "insurance" && r.parent_project_id).map((r) => [r.parent_project_id as string, r.id]));
+  const { data: insuranceFileRows } = insuranceByHome.size > 0
+    ? await supabase.from("files").select("project_id").in("project_id", [...insuranceByHome.values()]).limit(200)
+    : { data: [] as { project_id: string | null }[] };
+  const insuranceHasFile = new Set(((insuranceFileRows ?? []) as { project_id: string | null }[]).map((r) => r.project_id).filter((x): x is string => !!x));
   // The house above a project, whether or not you hold a seat on it. A
   // contractor is invited to the project only; the house is context, and
   // without it the project reads as if it were a home of its own.
@@ -1176,7 +1184,13 @@ export default async function MyPage({
                   <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
                   <Link href="/my/new-home" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
                 </div>
-                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — <Link href="/my/new-home">add your property</Link>.</p>}
+                {houses.length === 0 && (
+                  <div className="card" style={{ display: "grid", gap: 8, justifyItems: "start" }}>
+                    <strong>You have no property yet.</strong>
+                    <span className="muted small">Claim your address and it gets a page of its own — projects, services, people, paperwork and money.</span>
+                    <Link href="/my/new-home" className="btn small">Claim your address</Link>
+                  </div>
+                )}
                 {/* One panel per home: the home on the left - its photo when
                     the owner has set one, its name and address always - and
                     its open projects on the right. Two show; the rest fold
@@ -1190,16 +1204,8 @@ export default async function MyPage({
                     const starred = priority.has(h.id);
                     const k = KIND.house;
                     return (
-                      <div key={h.id} className="card homepanel" style={{ position: "relative", borderLeft: `4px solid ${k.color}`, borderColor: starred ? k.color : undefined }}>
-                        <form action={setProjectPriority} style={{ position: "absolute", top: 6, right: 8 }}>
-                          <input type="hidden" name="project" value={h.id} />
-                          <input type="hidden" name="on" value={starred ? "0" : "1"} />
-                          <input type="hidden" name="back" value={showClosedProjects ? "/my?allp=1" : "/my"} />
-                          <button title={starred ? "Priority — click to unflag" : "Flag as priority (moves it up)"} aria-label={starred ? "Unflag priority" : "Flag as priority"}
-                            style={{ border: 0, background: "none", cursor: "pointer", fontSize: 18, lineHeight: 1, color: starred ? "#c9a227" : "#c9ccc4", padding: 0 }}>
-                            {starred ? "★" : "☆"}
-                          </button>
-                        </form>
+                      <div key={h.id} className="card homepanel" style={{ borderLeft: `4px solid ${k.color}`, borderColor: starred ? k.color : undefined }}>
+                        {/* LEFT: the home - photo, name, address - and what you do to it. */}
                         <div className="homepanel-left">
                           {cover ? (
                             // The photo is the home, not a button: nothing to click.
@@ -1222,22 +1228,62 @@ export default async function MyPage({
                             {/* A property is a living hub, not a project: no project status under its address. */}
                             <span className="muted homepanel-sub">{h.address ?? "No address yet"}</span>
                           </div>
-                        </div>
-                        <div className="homepanel-right">
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, paddingRight: 22 }}>
-                            <span className="small" style={{ fontWeight: 700, color: "#a8842c" }}>Open projects · {open.length}</span>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 10, whiteSpace: "nowrap" }}>
-                              <Link href={`/my/new-project?parent=${h.id}`} className="small">＋ New</Link>
-                              {/* The way into the property itself: its hub and setup. */}
-                              <Link href={`/my/project/${h.id}?tab=setup`} className="iconlink" title="Configure this property" aria-label={`Configure ${h.project_name}`} style={{ padding: 2 }}>
-                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <circle cx="12" cy="12" r="3" />
-                                  <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z" />
-                                </svg>
-                              </Link>
-                            </span>
+                          <div className="homepanel-actions">
+                            {/* A task lives on a project: one open project takes it straight there, more than one asks which. */}
+                            <Link href={open.length === 1 ? `/my/project/${open[0].id}?add=1#add-task` : "/my/tasks?add=1#add-task"} title="Add a task">＋ Task</Link>
+                            <Link href={`/my/new-project?parent=${h.id}`} title="Start a project on this property">＋ Project</Link>
+                            <Link href={`/my/project/${h.id}?tab=setup`} className="iconlink" title="Configure this property" aria-label={`Configure ${h.project_name}`} style={{ padding: 0 }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="3" />
+                                <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z" />
+                              </svg>
+                            </Link>
+                            <form action={setProjectPriority} style={{ display: "inline-flex" }}>
+                              <input type="hidden" name="project" value={h.id} />
+                              <input type="hidden" name="on" value={starred ? "0" : "1"} />
+                              <input type="hidden" name="back" value={showClosedProjects ? "/my?allp=1" : "/my"} />
+                              <button title={starred ? "Priority — click to unflag" : "Flag as priority (moves it up)"} aria-label={starred ? "Unflag priority" : "Flag as priority"}
+                                style={{ border: 0, background: "none", cursor: "pointer", fontSize: 16, lineHeight: 1, color: starred ? "#c9a227" : "#c9ccc4", padding: 0 }}>
+                                {starred ? "★" : "☆"}
+                              </button>
+                            </form>
                           </div>
-                          {open.length === 0 && <p className="muted small" style={{ margin: "6px 0 0" }}>Nothing open on this property.</p>}
+                        </div>
+
+                        {/* RIGHT: what needs you, then the open projects with their tasks. */}
+                        <div className="homepanel-right">
+                          {(() => {
+                            // Alerts, read from the data: stuck or overdue work, urgent
+                            // tasks, money due this week, and a service with nothing on file.
+                            const cards = open.map((j) => cardsById.get(j.id)).filter((c): c is ProjectCard => !!c);
+                            const stuck = cards.reduce((n, c) => n + (c.stuck ?? 0), 0);
+                            const urgentHigh = cards.flatMap((c) => c.urgent.filter((t) => t.priority === "High").map((t) => ({ ...t, project_id: c.id }))).slice(0, 2);
+                            const pays = cards.flatMap((c) => c.week.payments);
+                            const paySum = pays.reduce((n, x) => n + (x.amount ?? 0), 0);
+                            const ins = insuranceByHome.get(h.id);
+                            const insCard = ins ? cardsById.get(ins) : undefined;
+                            const insEmpty = !!ins && (insCard?.open ?? 0) === 0 && (insCard?.done ?? 0) === 0 && !insuranceHasFile.has(ins);
+                            const alerts: React.ReactNode[] = [];
+                            if (stuck > 0) alerts.push(
+                              <Link key="stuck" href={open.length === 1 ? `/my/project/${open[0].id}?tasks=stuck` : `/my/project/${h.id}`} className="homepanel-alert red">
+                                <strong>{stuck}</strong> task{stuck === 1 ? "" : "s"} stuck or overdue
+                              </Link>);
+                            for (const t of urgentHigh) alerts.push(
+                              <Link key={t.id} href={`/my/task/${t.id}`} className="homepanel-alert red">
+                                Urgent: <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{t.action}</span>
+                              </Link>);
+                            if (pays.length > 0) alerts.push(
+                              <span key="pay" className="homepanel-alert amber">
+                                <strong>{pays.length}</strong> payment{pays.length === 1 ? "" : "s"} due this week{paySum > 0 ? ` · ${money(paySum)}` : ""}
+                              </span>);
+                            if (insEmpty) alerts.push(
+                              <Link key="ins" href={`/my/project/${ins}`} className="homepanel-alert amber">
+                                Insurance: nothing on file yet
+                              </Link>);
+                            if (alerts.length === 0) return null;
+                            return <div className="homepanel-alerts">{alerts}</div>;
+                          })()}
+                          {open.length === 0 && <p className="muted small" style={{ margin: "6px 0 0" }}>Nothing open on this property. <Link href={`/my/new-project?parent=${h.id}`}>Start a project</Link>.</p>}
                           {shown.map((j) => {
                             const c = cardsById.get(j.id);
                             const openN = c?.open ?? j.open_count;
@@ -1271,7 +1317,7 @@ export default async function MyPage({
                             );
                           })}
                           {more > 0 && (
-                            <Link href={`/my/project/${h.id}`} className="small" style={{ display: "block", marginTop: 6, fontWeight: 700 }}>+{more} more →</Link>
+                            <Link href={`/my/project/${h.id}`} className="small" style={{ display: "block", marginTop: 6, fontWeight: 700 }}>+{more} more project{more === 1 ? "" : "s"} →</Link>
                           )}
                         </div>
                       </div>

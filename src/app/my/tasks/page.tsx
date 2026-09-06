@@ -31,9 +31,9 @@ type ProjectOverview = { id: string; last_activity: string };
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string; domain?: string; state?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; domain?: string; state?: string; add?: string }>;
 }) {
-  const { error, ok, domain: qDomain, state: qState } = await searchParams;
+  const { error, ok, domain: qDomain, state: qState, add: addParam } = await searchParams;
   const domain = qDomain ?? "construction";
   const state = (qState === "closed" || qState === "all" ? qState : "open") as "open" | "closed" | "all";
   const supabase = await createClient();
@@ -182,6 +182,7 @@ export default async function TasksPage({
         compact
         savedFilters
         domainOptions={isAdmin ? ["construction", "system", "cloudhiro", "personal"] : ["construction"]}
+        addOpen={addParam === "1"}
         addTaskSlot={pmProjects.length > 0 ? <AddTaskForm projects={taskProjects} members={taskMembers} /> : <p className="muted small">Task creation is for project managers and above.</p>}
         todayIso={todayIso}
       />
