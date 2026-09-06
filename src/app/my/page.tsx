@@ -276,8 +276,11 @@ export default async function MyPage({
       .filter((j) => j.parent_project_id && !String(j.status).startsWith("Closed"))
       .map((j) => j.parent_project_id as string)
   );
+  // In the Active view the open job IS the activity test - the house's own
+  // bucket says "done" (its renovation closed), which is exactly the case
+  // this rule exists for. Other views keep their own filter.
   const reclaimedHouses = bandOverviewAll.filter((p) =>
-    p.status !== "In Progress" && openJobUnder.has(p.id) && inView(p.id) && !bandOverview.some((q) => q.id === p.id));
+    p.status !== "In Progress" && openJobUnder.has(p.id) && (view === "active" || inView(p.id)) && !bandOverview.some((q) => q.id === p.id));
   const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length - reclaimedHouses.length;
   const bandIds = new Set(bandOverview.map((p) => p.id));
   // Full tree: roots are projects whose parent is absent from the list;
