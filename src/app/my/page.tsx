@@ -282,6 +282,26 @@ export default async function MyPage({
   const reclaimedHouses = bandOverviewAll.filter((p) =>
     p.status !== "In Progress" && openJobUnder.has(p.id) && (view === "active" || inView(p.id)) && !bandOverview.some((q) => q.id === p.id));
   const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length - reclaimedHouses.length;
+  // The home photos: which of these projects carry one, then a signed URL
+  // for each (project-media is private). Bounded by the projects on the page.
+  const coverUrlById = new Map<string, string>();
+  {
+    const ids = bandOverviewAll.map((p) => p.id);
+    const { data: coverRows } = ids.length
+      ? await supabase.from("projects").select("id, cover_file_id").in("id", ids).not("cover_file_id", "is", null)
+      : { data: [] };
+    const covers = ((coverRows ?? []) as { id: string; cover_file_id: string }[]);
+    const { data: fileRows } = covers.length
+      ? await supabase.from("files").select("id, bucket, path").in("id", covers.map((c) => c.cover_file_id))
+      : { data: [] };
+    const fileById = new Map(((fileRows ?? []) as { id: string; bucket: string; path: string }[]).map((f) => [f.id, f]));
+    await Promise.all(covers.map(async (c) => {
+      const f = fileById.get(c.cover_file_id);
+      if (!f) return;
+      const { data: signed } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
+      if (signed?.signedUrl) coverUrlById.set(c.id, signed.signedUrl);
+    }));
+  }
   const bandIds = new Set(bandOverview.map((p) => p.id));
   // Full tree: roots are projects whose parent is absent from the list;
   // children nest recursively under their parent at any depth.
@@ -1145,35 +1165,89 @@ export default async function MyPage({
                 {(houses.length > 0 || !isContractorish) && (<>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
                   <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
-                  <Link href="/my/settings#add-property" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
+                  <Link href="/my/new-home" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
                 </div>
-                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — add your property below.</p>}
-                <div className="ptiles ptiles-even">
-                  {houses.map((p) => projectTile(p, "house", null, childCount.get(p.id) ?? 0, jobs.filter((j) => j.parent_project_id === p.id && !String(j.status).startsWith("Closed"))))}
+                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — <Link href="/my/new-home">add your property</Link>.</p>}
+                {/* One panel per home: the home on the left - its photo when
+                    the owner has set one, its name and address always - and
+                    its open projects on the right. Two show; the rest fold
+                    behind "+N more" into the home's own page. */}
+                <div style={{ display: "grid", gap: 10 }}>
+                  {houses.map((h) => {
+                    const open = jobs.filter((j) => j.parent_project_id === h.id && !String(j.status).startsWith("Closed"));
+                    const shown = open.slice(0, 2);
+                    const more = open.length - shown.length;
+                    const cover = coverUrlById.get(h.id) ?? null;
+                    const starred = priority.has(h.id);
+                    const k = KIND.house;
+                    return (
+                      <div key={h.id} className="card homepanel" style={{ position: "relative", borderLeft: `4px solid ${k.color}`, borderColor: starred ? k.color : undefined }}>
+                        <form action={setProjectPriority} style={{ position: "absolute", top: 6, right: 8 }}>
+                          <input type="hidden" name="project" value={h.id} />
+                          <input type="hidden" name="on" value={starred ? "0" : "1"} />
+                          <input type="hidden" name="back" value={showClosedProjects ? "/my?allp=1" : "/my"} />
+                          <button title={starred ? "Priority — click to unflag" : "Flag as priority (moves it up)"} aria-label={starred ? "Unflag priority" : "Flag as priority"}
+                            style={{ border: 0, background: "none", cursor: "pointer", fontSize: 18, lineHeight: 1, color: starred ? "#c9a227" : "#c9ccc4", padding: 0 }}>
+                            {starred ? "★" : "☆"}
+                          </button>
+                        </form>
+                        <Link href={`/my/project/${h.id}`} className="homepanel-left">
+                          {cover
+                            // eslint-disable-next-line @next/next/no-img-element
+                            ? <img src={cover} alt="" className="homepanel-photo" />
+                            : <span className="homepanel-photo homepanel-empty" aria-hidden>{k.glyph}</span>}
+                          <strong className="homepanel-name">{h.project_name}</strong>
+                          <span className="muted homepanel-sub">{h.address ?? "No address yet"}{h.status !== "In Progress" ? ` · ${h.status}` : ""}</span>
+                        </Link>
+                        <div className="homepanel-right">
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, paddingRight: 22 }}>
+                            <span className="small" style={{ fontWeight: 700, color: "#a8842c" }}>Open projects · {open.length}</span>
+                            <Link href="/my/new-project" className="small" style={{ whiteSpace: "nowrap" }}>＋ New</Link>
+                          </div>
+                          {open.length === 0 && <p className="muted small" style={{ margin: "6px 0 0" }}>Nothing open on this property.</p>}
+                          {shown.map((j) => {
+                            const c = cardsById.get(j.id);
+                            const urgent = c?.urgent[0];
+                            return (
+                              <Link key={j.id} href={`/my/project/${j.id}`} className="homepanel-job">
+                                <span className="homepanel-jobname">{j.project_name}</span>
+                                <span className="muted" style={{ fontSize: 11, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                  <span><strong style={{ color: "var(--ink)" }}>{c?.open ?? j.open_count}</strong> open</span>
+                                  {(c?.stuck ?? 0) > 0 && <span style={{ color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
+                                  {urgent && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{urgent.priority === "High" ? "● " : ""}{urgent.action}</span>}
+                                </span>
+                              </Link>
+                            );
+                          })}
+                          {more > 0 && (
+                            <Link href={`/my/project/${h.id}`} className="small" style={{ display: "block", marginTop: 6, fontWeight: 700 }}>+{more} more →</Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                {/* Another property, right here: the form the settings page
-                    keeps at its foot, where nobody landing at its head found it. */}
-                {canCreate && (
-                  <details style={{ marginTop: 4 }}>
-                    <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add another property</summary>
-                    <form action={createHome} className="card" style={{ display: "grid", gap: 8, marginTop: 8, maxWidth: 480 }}>
-                      <input name="name" className="input" required autoComplete="off" placeholder="What should we call it? e.g. The Closter house" />
-                      <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
-                      <div><button className="btn small">Add property</button></div>
-                      <p className="muted small" style={{ margin: 0 }}>It gets a page of its own. To file it under a portfolio, use Belongs under on its Setup tab.</p>
-                    </form>
-                  </details>
-                )}
                 </>)}
 
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
-                  <h2 className="section-title" style={{ margin: 0, color: "#a8842c" }}>🔧 Projects · {jobs.length}</h2>
-                  <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
-                </div>
-                {jobs.length === 0 && <p className="muted small" style={{ margin: 0 }}>No projects yet — a generator, a water heater, a leak: describe it once and it becomes a project under your house.</p>}
-                <div className="ptiles">
-                  {jobs.map((p) => projectTile(p, "project", houseName(p)))}
-                </div>
+                {/* Jobs whose home is not on the page (a house you hold no
+                    seat on, or one behind "show all") keep their own row. */}
+                {(() => {
+                  const houseIds = new Set(houses.map((h) => h.id));
+                  const loose = jobs.filter((j) => !j.parent_project_id || !houseIds.has(j.parent_project_id));
+                  if (loose.length === 0 && houses.length > 0) return null;
+                  return (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
+                        <h2 className="section-title" style={{ margin: 0, color: "#a8842c" }}>🔧 {houses.length > 0 ? "Other projects" : "Projects"} · {loose.length}</h2>
+                        <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
+                      </div>
+                      {loose.length === 0 && <p className="muted small" style={{ margin: 0 }}>No projects yet — a generator, a water heater, a leak: describe it once and it becomes a project under your house.</p>}
+                      <div className="ptiles">
+                        {loose.map((p) => projectTile(p, "project", houseName(p)))}
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {others.length > 0 && (
                   <>

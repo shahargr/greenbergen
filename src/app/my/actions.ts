@@ -14,8 +14,12 @@ import { geocodeUsAddress } from "@/lib/geocode";
 export async function createHome(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
+  // Where a refusal is shown: the screen the form was on (the dedicated
+  // add-a-home page, or settings), never a different page.
+  const rawBack = String(formData.get("back") ?? "/my");
+  const back = rawBack.startsWith("/") && !rawBack.startsWith("//") ? rawBack : "/my";
   if (!name || !address) {
-    redirect(`/my?error=${encodeURIComponent("Name and address are both needed.")}`);
+    redirect(`${back}?error=${encodeURIComponent("Name and address are both needed.")}`);
   }
 
   const supabase = await createClient();
@@ -24,10 +28,10 @@ export async function createHome(formData: FormData) {
     p_address: address,
   });
   if (error) {
-    redirect(`/my?error=${encodeURIComponent("Could not create the home — please try again.")}`);
+    redirect(`${back}?error=${encodeURIComponent("Could not create the home — please try again.")}`);
   }
   if (!data?.ok) {
-    redirect(`/my?error=${encodeURIComponent(data?.reason ?? "Could not create the home.")}`);
+    redirect(`${back}?error=${encodeURIComponent(data?.reason ?? "Could not create the home.")}`);
   }
 
   revalidatePath("/my");
