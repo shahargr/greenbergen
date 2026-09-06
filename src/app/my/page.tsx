@@ -1202,10 +1202,11 @@ export default async function MyPage({
                         </form>
                         <div className="homepanel-left">
                           {cover ? (
-                            <Link href={`/my/project/${h.id}`} className="homepanel-photo" style={{ padding: 0, overflow: "hidden" }} aria-label={h.project_name}>
+                            // The photo is the home, not a button: nothing to click.
+                            <span className="homepanel-photo" style={{ padding: 0, overflow: "hidden" }}>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                            </Link>
+                            </span>
                           ) : canAddPhoto(h.id) ? (
                             // No cover yet, and this is your property: the frame is
                             // the invitation, straight into its album.
@@ -1216,30 +1217,57 @@ export default async function MyPage({
                           ) : (
                             <span className="homepanel-photo homepanel-empty" aria-hidden>{k.glyph}</span>
                           )}
-                          <Link href={`/my/project/${h.id}`} className="homepanel-title">
+                          <div className="homepanel-title">
                             <strong className="homepanel-name">{h.project_name}</strong>
                             {/* A property is a living hub, not a project: no project status under its address. */}
                             <span className="muted homepanel-sub">{h.address ?? "No address yet"}</span>
-                          </Link>
+                          </div>
                         </div>
                         <div className="homepanel-right">
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, paddingRight: 22 }}>
                             <span className="small" style={{ fontWeight: 700, color: "#a8842c" }}>Open projects · {open.length}</span>
-                            <Link href="/my/new-project" className="small" style={{ whiteSpace: "nowrap" }}>＋ New</Link>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 10, whiteSpace: "nowrap" }}>
+                              <Link href={`/my/new-project?parent=${h.id}`} className="small">＋ New</Link>
+                              {/* The way into the property itself: its hub and setup. */}
+                              <Link href={`/my/project/${h.id}?tab=setup`} className="iconlink" title="Configure this property" aria-label={`Configure ${h.project_name}`} style={{ padding: 2 }}>
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="3" />
+                                  <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z" />
+                                </svg>
+                              </Link>
+                            </span>
                           </div>
                           {open.length === 0 && <p className="muted small" style={{ margin: "6px 0 0" }}>Nothing open on this property.</p>}
                           {shown.map((j) => {
                             const c = cardsById.get(j.id);
-                            const urgent = c?.urgent[0];
+                            const openN = c?.open ?? j.open_count;
+                            // The project's tasks, indented beneath it: the most
+                            // urgent few, and how many more wait on its page.
+                            const tasks = (c?.urgent ?? []).slice(0, 4);
+                            const rest = Math.max(0, openN - tasks.length);
                             return (
-                              <Link key={j.id} href={`/my/project/${j.id}`} className="homepanel-job">
-                                <span className="homepanel-jobname">{j.project_name}</span>
-                                <span className="muted" style={{ fontSize: 11, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                  <span><strong style={{ color: "var(--ink)" }}>{c?.open ?? j.open_count}</strong> open</span>
-                                  {(c?.stuck ?? 0) > 0 && <span style={{ color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
-                                  {urgent && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>next: {urgent.priority === "High" ? "● " : ""}{urgent.action}</span>}
-                                </span>
-                              </Link>
+                              <div key={j.id} className="homepanel-job" style={{ gap: 3 }}>
+                                <Link href={`/my/project/${j.id}`} style={{ textDecoration: "none", color: "inherit", display: "grid", gap: 2 }}>
+                                  <span className="homepanel-jobname">{j.project_name}</span>
+                                  <span className="muted" style={{ fontSize: 11, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                    <span><strong style={{ color: "var(--ink)" }}>{openN}</strong> open</span>
+                                    {(c?.stuck ?? 0) > 0 && <span style={{ color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
+                                  </span>
+                                </Link>
+                                {tasks.map((t) => (
+                                  <Link key={t.id} href={`/my/task/${t.id}`} className="homepanel-task">
+                                    <span aria-hidden>↳</span>
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                                      {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                                    </span>
+                                  </Link>
+                                ))}
+                                {rest > 0 && (
+                                  <Link href={`/my/project/${j.id}`} className="homepanel-task muted">
+                                    <span aria-hidden>↳</span><span>+{rest} more task{rest === 1 ? "" : "s"}</span>
+                                  </Link>
+                                )}
+                              </div>
                             );
                           })}
                           {more > 0 && (

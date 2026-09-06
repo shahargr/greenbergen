@@ -46,8 +46,10 @@ export default async function NewProjectPage({
   const byId = new Map(owned.map((p) => [p.id, p]));
   const isHouse = (p: NonNullable<Membership["projects"]>) =>
     !p.home_blueprint_code && !!p.address && (!p.parent_project_id || !byId.get(p.parent_project_id)?.address);
-  const homes = owned.filter(isHouse);
   const jobs = owned.filter((p) => !p.home_blueprint_code && !isHouse(p) && p.status === "In Progress" && p.parent_project_id && byId.has(p.parent_project_id));
+  // A closed home is offered only while something is still open on it; a
+  // sold house with nothing under way is not a place for new work.
+  const homes = owned.filter(isHouse).filter((h) => h.status === "In Progress" || jobs.some((j) => j.parent_project_id === h.id));
   // Homes first (open before closed), each followed by its own projects.
   const nameOfParent = (p: NonNullable<Membership["projects"]>) => byId.get(p.parent_project_id ?? "")?.project_name ?? "";
   const parentHomes = [
@@ -67,17 +69,19 @@ export default async function NewProjectPage({
     );
   }
 
+  // Default: the home last worked on - tasks live on its projects, so the
+  // latest task anywhere beneath a home is what names it.
   let defaultParent = parentHomes[0].id;
+  const homeOfJob = new Map(jobs.map((j) => [j.id, j.parent_project_id as string]));
   const { data: lastTouched } = await supabase
     .from("actions")
     .select("project_id")
-    .in("project_id", homes.map((p) => p.id))
+    .in("project_id", [...homes.map((p) => p.id), ...jobs.map((j) => j.id)])
     .order("last_updated", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (lastTouched?.project_id && parentHomes.some((p) => p.id === lastTouched.project_id)) {
-    defaultParent = lastTouched.project_id as string;
-  }
+  const touchedHome = lastTouched?.project_id ? (homeOfJob.get(lastTouched.project_id as string) ?? (lastTouched.project_id as string)) : null;
+  if (touchedHome && parentHomes.some((p) => p.id === touchedHome)) defaultParent = touchedHome;
   // Arriving from a property's hub: that home, no guessing.
   if (parentParam && parentHomes.some((p) => p.id === parentParam)) defaultParent = parentParam;
 

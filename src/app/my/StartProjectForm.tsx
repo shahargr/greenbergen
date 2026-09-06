@@ -40,6 +40,12 @@ const WIZARDS: Record<string, WizardField[]> = {
     { key: "issue", label: "What's going on?", options: ["Leaking", "No / weak hot water", "Old — replacing proactively"] },
     { key: "heater_location", label: "Where is it?", options: ["Basement", "Garage", "Closet", "Attic"] },
   ],
+  // The small job: a trade for an hour, not a week.
+  "Quick fix / repair": [
+    { key: "what", label: "What needs fixing?", options: ["Plumbing", "Electrical", "Appliance", "Doors & windows", "Roof & gutters", "Something else"] },
+    { key: "urgency", label: "How urgent?", options: ["Today", "This week", "When convenient"] },
+    { key: "where", label: "Where in the house?", options: ["Kitchen", "Bathroom", "Basement", "Outside", "Elsewhere"] },
+  ],
 };
 import { createJob } from "./actions";
 
@@ -147,6 +153,15 @@ export function StartProjectForm({
                   <rect x="7" y="2.5" width="10" height="16" rx="3.5" />
                   <path d="M10 21.5v-3M14 21.5v-3" />
                   <path d="M12 7c-1.1 1.5-2 2.4-2 3.6a2 2 0 0 0 4 0c0-1.2-.9-2.1-2-3.6z" />
+                </svg>
+              ),
+            },
+            {
+              name: "Quick fix / repair",
+              icon: (
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.7 6.3a4 4 0 0 0 5.2 5.2l-8.6 8.6a2.2 2.2 0 0 1-3.1-3.1l8.6-8.6a4 4 0 0 0-2.1-2.1z" />
+                  <path d="M14.7 6.3 18 3l3 3-3.3 3.3" />
                 </svg>
               ),
             },
