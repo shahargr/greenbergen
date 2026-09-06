@@ -38,19 +38,64 @@ export async function createHome(formData: FormData) {
   redirect("/my");
 }
 
-// The same creation, for a form that stays on the page: returns the new
-// project's id so the browser can attach a cover photo to it, or the reason
-// the agreement refused.
-export async function createHomeReturning(name: string, address: string): Promise<{ ok: true; projectId: string } | { ok: false; error: string }> {
-  const v_name = name.trim();
-  const v_address = address.trim();
-  if (!v_name || !v_address) return { ok: false, error: "Name and address are both needed." };
+// The dedicated add-a-home screen drives this in steps, because the photo
+// and the rooms both need the project to exist first: create (here, small
+// request), then the browser uploads the photo straight to Storage, then
+// addHomeSpaces writes the rooms. No redirect - the form navigates itself.
+export type HomeCreated = { ok: true; projectId: string; assetId: string } | { ok: false; error: string };
+
+export async function createHomeStart(formData: FormData): Promise<HomeCreated> {
+  const name = String(formData.get("name") ?? "").trim();
+  const address = String(formData.get("address") ?? "").trim();
+  // claim = a home that stands; plan = one that does not exist yet. The
+  // asset row says which, so nothing downstream mistakes a plan for a house.
+  const mode = String(formData.get("mode") ?? "claim") === "plan" ? "plan" : "claim";
+  if (!name || !address) return { ok: false, error: "Name and address are both needed." };
+  // Verify against the Census geocoder; a match standardises the address,
+  // a miss is advisory and never blocks (the geocoder does not know every
+  // new build). Same rule the settings page applies.
+  const { verifyUsAddress } = await import("@/lib/geocode");
+  const standardized = await verifyUsAddress(address);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_home_asset", { p_name: v_name, p_address: v_address });
+  const { data, error } = await supabase.rpc("create_home_asset", {
+    p_name: name,
+    p_address: standardized ?? address,
+    p_description: mode === "plan" ? "Planned new build - added before construction; its spaces are the design." : "Existing home, claimed by its owner; its spaces are as built.",
+  });
   if (error) return { ok: false, error: "Could not create the home — please try again." };
-  if (!data?.ok || !data.project_id) return { ok: false, error: data?.reason ?? "Could not create the home." };
+  if (!data?.ok) return { ok: false, error: data?.reason ?? "Could not create the home." };
   revalidatePath("/my");
-  return { ok: true, projectId: String(data.project_id) };
+  return { ok: true, projectId: String(data.project_id), assetId: String(data.asset_id) };
+}
+
+// What is in the house: one project_spaces row per room, named by type and
+// numbered when there are several ("Bedroom 1", "Bedroom 2"). origin says
+// which kind of room it is: existing (a claimed home, as built) or planned
+// (a design, whose items are decided later). Creating a space creates
+// nothing else either way.
+export type SpacePick = { code: string; label: string; count: number };
+
+export async function addHomeSpaces(projectId: string, picks: SpacePick[], origin: "existing" | "planned" = "planned"): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const rows: { project_id: string; name: string; space_type: string; origin: "existing" | "planned"; created_by: string; last_modified_by: string }[] = [];
+  for (const pick of picks) {
+    const n = Math.max(0, Math.min(20, Math.floor(pick.count)));
+    for (let i = 1; i <= n; i += 1) {
+      rows.push({
+        project_id: projectId,
+        name: n > 1 ? `${pick.label} ${i}` : pick.label,
+        space_type: pick.code,
+        origin,
+        created_by: "portal:new-home",
+        last_modified_by: "portal:new-home",
+      });
+    }
+  }
+  if (rows.length === 0) return { ok: true, created: 0 };
+  const { error } = await supabase.from("project_spaces").insert(rows);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/my/project/${projectId}`);
+  return { ok: true, created: rows.length };
 }
 
 export async function signOut() {

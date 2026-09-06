@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { createHomeReturning } from "./actions";
+import { createHomeStart } from "./actions";
 import { addPropertyPhoto } from "./project/[id]/actions";
 
 // Claiming a home: a name, an address, and - optionally - the picture that
@@ -47,7 +47,9 @@ export function ClaimHomeForm({
     if (!name || !address) { setErr("Name and address are both needed."); return; }
     setErr("");
     setBusy("Adding your home…");
-    const made = await createHomeReturning(name, address);
+    const create = new FormData();
+    create.set("name", name); create.set("address", address); create.set("mode", "claim");
+    const made = await createHomeStart(create);
     if (!made.ok) { setErr(made.error); setBusy(""); return; }
     if (photo) {
       setBusy("Uploading the photo…");
