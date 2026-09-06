@@ -24,7 +24,13 @@ export function FileDrop({
   label = "Add files",
   hint,
   camera = true,
+  onFiles,
 }: {
+  // The staged files, every time they change - the ORIGINAL File objects.
+  // Safari cannot always read a File back out of an input it was placed in
+  // through a DataTransfer ("Load failed"), so a client that uploads from the
+  // browser must take the files from here, not from the form.
+  onFiles?: (files: File[]) => void;
   name: string;
   accept?: string;
   videoName?: string;
@@ -61,10 +67,10 @@ export function FileDrop({
   function add(list: FileList | File[] | null | undefined) {
     const ok = Array.from(list ?? []).filter((f) => f.size > 0);
     if (!ok.length) return;
-    setStaged((prev) => { const next = [...prev, ...ok]; sync(next); return next; });
+    setStaged((prev) => { const next = [...prev, ...ok]; sync(next); onFiles?.(next); return next; });
   }
   function remove(i: number) {
-    setStaged((prev) => { const next = prev.filter((_, j) => j !== i); sync(next); return next; });
+    setStaged((prev) => { const next = prev.filter((_, j) => j !== i); sync(next); onFiles?.(next); return next; });
   }
 
   function stopCamera() {

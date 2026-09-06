@@ -25,6 +25,9 @@ export function AddTaskForm({
 }) {
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  // The files as picked or dropped - the originals. Reading them back out
+  // of the form's hidden inputs fails in Safari ("Load failed").
+  const [picked, setPicked] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState("");
   const [failed, setFailed] = useState("");
@@ -52,7 +55,7 @@ export function AddTaskForm({
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const files = fd.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+    const files = picked.filter((f) => f.size > 0);
     fd.delete("photos");
     fd.delete("files");
     if (voiceBlob) {
@@ -76,10 +79,21 @@ export function AddTaskForm({
           setStage(`Uploading ${i + 1} of ${files.length}…`);
           const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] ?? (kindOf(file) === "photo" ? ".jpg" : ".m4a")).toLowerCase();
           const path = `${projectId}/actions/${made.id}/instructions-${Date.now()}-${i}${ext}`;
-          const { error } = await supabase.storage
+          let { error } = await supabase.storage
             .from("project-media")
             .upload(path, file, { contentType: file.type || undefined, upsert: true });
-          if (error) { problems.push(`${file.name || "file"}: ${error.message}`); continue; }
+          if (error) {
+            // Safari sometimes cannot stream a File it can still read whole:
+            // one more try with the bytes in hand.
+            try {
+              const bytes = await file.arrayBuffer();
+              ({ error } = await supabase.storage.from("project-media")
+                .upload(path, new Blob([bytes], { type: file.type || "application/octet-stream" }), { contentType: file.type || undefined, upsert: true }));
+            } catch (readErr) {
+              error = { message: readErr instanceof Error ? readErr.message : String(readErr) } as typeof error;
+            }
+          }
+          if (error) { problems.push(`${file.name || "file"}: ${error.message} — the task is saved; add the file again from its page`); continue; }
           uploads.push({ path, name: file.name || `instructions${ext}`, mime: file.type, size: file.size, kind: kindOf(file) });
         }
         if (uploads.length > 0) {
@@ -145,7 +159,7 @@ export function AddTaskForm({
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Photos as instructions</label>
-          <FileDrop name="photos" accept="image/*,application/pdf" label="Add photos / PDF" />
+          <FileDrop name="photos" accept="image/*,application/pdf" label="Add photos / PDF" onFiles={setPicked} />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
           <label>Or say it</label>
