@@ -209,6 +209,19 @@ export async function removePropertyPhoto(projectId: string, fileId: string): Pr
   return { ok: true };
 }
 
+// A default workstream (blueprint_home_projects) switched off or on for a
+// home, from the home's Setup tab. The database re-checks owner rank.
+export async function setHomeWorkstream(homeId: string, code: string, enabled: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_home_workstream", { p_home_project_id: homeId, p_code: code, p_enabled: enabled });
+  if (error) return { ok: false, error: error.message };
+  if (!data?.ok) return { ok: false, error: data?.reason ?? "Could not switch that workstream." };
+  revalidatePath(`/my/project/${homeId}`);
+  if (data.project_id) revalidatePath(`/my/project/${data.project_id}`);
+  revalidatePath("/my");
+  return { ok: true };
+}
+
 // Structured configurator answers - one row per field, upserted.
 export async function saveConfigValues(projectId: string, formData: FormData) {
   const supabase = await createClient();
