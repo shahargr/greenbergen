@@ -1177,3 +1177,17 @@ html, body { max-width: 100%; overflow-x: clip; }
 .roomcount button { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px; background: #fff; font: inherit; font-size: 15px; line-height: 1; cursor: pointer; color: var(--ink); }
 .roomcount button:disabled { opacity: 0.35; cursor: default; }
 .roomcount > span { min-width: 18px; text-align: center; font-size: 13px; font-weight: 700; }
+
+
+/* The account card head: avatar, name and trades, then the account facts.
+   Three columns where there is room. On a phone the facts - which must not
+   wrap mid-date - claimed their full width and the name collapsed under
+   them; there they drop below the name, left-aligned, and wrap freely. */
+.acct-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 12px; align-items: start; }
+.acct-head.has-avatar { grid-template-columns: auto minmax(0, 1fr) minmax(0, auto); }
+.acct-facts { display: grid; gap: 2px; text-align: right; white-space: nowrap; min-width: 0; }
+@media (max-width: 640px) {
+  .acct-head { grid-template-columns: minmax(0, 1fr); }
+  .acct-head.has-avatar { grid-template-columns: auto minmax(0, 1fr); }
+  .acct-facts { grid-column: 1 / -1; text-align: left; white-space: normal; border-top: 1px solid #eef0ec; padding-top: 8px; }
+}

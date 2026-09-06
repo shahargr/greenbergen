@@ -151,7 +151,7 @@ export default async function SettingsPage({
         {/* One account panel: who you are, when you joined, and the form to
             change any of it — folded in rather than a card of its own. */}
         <div className="card" style={{ display: "grid", gap: 10 }}>
-          <div style={{ display: "grid", gridTemplateColumns: avatarUrl ? "auto minmax(0, 1fr) minmax(0, auto)" : "minmax(0, 1fr) minmax(0, auto)", gap: 12, alignItems: "start" }}>
+          <div className={avatarUrl ? "acct-head has-avatar" : "acct-head"}>
             {avatarUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatarUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1px solid #e7e9e4" }} />
@@ -166,7 +166,7 @@ export default async function SettingsPage({
               )}
               {myTrades.length === 0 && <div className="muted small" style={{ marginTop: 2 }}>No trades listed yet</div>}
             </span>
-            <span className="small" style={{ display: "grid", gap: 2, textAlign: "right", whiteSpace: "nowrap", minWidth: 0 }}>
+            <span className="small acct-facts">
               <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Signed in as <strong style={{ color: "var(--ink)" }}>{me?.email}</strong></span>
               <span><span className="muted">Member since</span> {fmtD(acct?.created_at)}</span>
               <span><span className="muted">Last updated</span> {fmtD(acct?.last_modified_at ?? acct?.created_at)}</span>
