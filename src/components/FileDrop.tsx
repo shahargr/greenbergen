@@ -16,6 +16,20 @@ import { useEffect, useRef, useState } from "react";
 // posts them under the given field names — no client-side FormData needed.
 // Files route by type: videos to `videoName`, PDFs to `docName` (when given),
 // everything else to `name`.
+// A staged photo, drawn from the file itself; the object URL is released
+// when the thumbnail goes.
+function Thumb({ file }: { file: File }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const u = URL.createObjectURL(file);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  // eslint-disable-next-line @next/next/no-img-element
+  return url ? <img src={url} alt={file.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : null;
+}
+
 export function FileDrop({
   name,
   accept = "image/*",
@@ -40,6 +54,9 @@ export function FileDrop({
   camera?: boolean;
 }) {
   const [staged, setStaged] = useState<File[]>([]);
+  // Shots taken with the phone's own camera this session - the "take another"
+  // loop shows once the first one is in.
+  const [shots, setShots] = useState(0);
   const [over, setOver] = useState(false);
   const [live, setLive] = useState(false);
   const [camErr, setCamErr] = useState("");
@@ -139,7 +156,7 @@ export function FileDrop({
         onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
       {camera && (
         <input ref={camRef} type="file" accept="image/*" capture="environment" hidden
-          onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+          onChange={(e) => { const n = e.target.files?.length ?? 0; add(e.target.files); if (n > 0) setShots((k) => k + n); e.target.value = ""; }} />
       )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -147,28 +164,52 @@ export function FileDrop({
         {camera && (
           <button type="button" className={live ? "btn small" : "btn ghost small"}
             onClick={() => (live ? stopCamera() : openCamera())}>
-            📷 {live ? "Close camera" : "Take photo"}
+            📷 {live ? "Close camera" : "Take photos"}
+          </button>
+        )}
+        {camera && !live && (
+          <button type="button" className="btn ghost small" title="The phone's own camera app - one shot per tap, then take another"
+            onClick={() => camRef.current?.click()}>
+            📱 Phone camera
           </button>
         )}
         <span className="muted small">{hint ?? "or drag & drop / paste here"}</span>
       </div>
 
+      {/* The phone camera hands back one shot at a time: keep the next one a
+          single tap away, so a walk-through is photo, photo, photo - not
+          photo, upload, photo, upload. */}
+      {camera && !live && shots > 0 && (
+        <div className="btn-row" style={{ gap: 8, alignItems: "center", background: "#f3f8f4", borderRadius: 8, padding: "6px 10px" }}>
+          <span className="small"><strong>{shots}</strong> photo{shots === 1 ? "" : "s"} taken</span>
+          <button type="button" className="btn small" onClick={() => camRef.current?.click()}>📱 Take another</button>
+          <button type="button" className="btn ghost small" onClick={() => setShots(0)}>Done</button>
+        </div>
+      )}
+
       {live && (
         <div style={{ display: "grid", gap: 8, justifyItems: "start" }}>
           <video ref={preview} autoPlay playsInline muted
             style={{ width: "100%", maxWidth: 360, aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 10, background: "#111" }} />
-          <div className="btn-row">
+          <div className="btn-row" style={{ alignItems: "center" }}>
             <button type="button" className="btn small" onClick={snap}>📸 Snap</button>
             <button type="button" className="btn ghost small" onClick={stopCamera}>Done</button>
+            <span className="small"><strong>{staged.filter((f) => f.type.startsWith("image/")).length}</strong> photo{staged.filter((f) => f.type.startsWith("image/")).length === 1 ? "" : "s"} so far</span>
           </div>
-          <span className="muted small">Snap as many as you need — each one is added below.</span>
+          <span className="muted small">Snap as many as you need — the camera stays open, each shot is added below.</span>
         </div>
       )}
       {camErr && <p className="error small" style={{ margin: 0 }}>{camErr}</p>}
 
       {staged.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {staged.map((f, i) => (
+          {staged.map((f, i) => f.type.startsWith("image/") ? (
+            <span key={`${f.name}-${i}`} style={{ position: "relative", width: 64, height: 64, borderRadius: 8, overflow: "hidden", border: "1px solid var(--line)", background: "#eef2ee" }}>
+              <Thumb file={f} />
+              <button type="button" aria-label={`Remove ${f.name}`} onClick={() => remove(i)}
+                style={{ position: "absolute", top: 2, right: 2, width: 20, height: 20, borderRadius: 10, border: "none", background: "rgba(0,0,0,.55)", color: "#fff", cursor: "pointer", fontWeight: 700, lineHeight: "20px", padding: 0 }}>×</button>
+            </span>
+          ) : (
             <span key={`${f.name}-${i}`} className="extra-chip" style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%" }}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>
                 {f.type.startsWith("image/") ? "🖼" : f.type.startsWith("video/") ? "🎬" : f.type === "application/pdf" ? "📄" : "📎"} {f.name || f.type || "file"}
