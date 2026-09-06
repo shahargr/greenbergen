@@ -278,7 +278,7 @@ export default async function TaskPage({
         </div>
       </div>
       {error && <p className="error small">{error}</p>}
-      {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — read-only.</p>}
+      {!isOpen && <p className="muted small">This task is {view.status.toLowerCase()} — its fields are locked; comments and files can still be added.</p>}
       {(chainPrev || chainNext.length > 0) && (
         <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 14, flexWrap: "wrap" }}>
           {chainPrev && (

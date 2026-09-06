@@ -35,8 +35,10 @@ function ProjectRow({ p }: { p: PublicProject }) {
     <>
       <Thumb p={p} />
       <div>
-        <strong>{p.project_name}</strong>
-        {p.address && <div className="muted small">{p.address}</div>}
+        {/* The address is the public identity of a build; the project name only adds
+            a line when it says something the address does not. */}
+        <strong>{p.address ?? p.project_name}</strong>
+        {p.address && !p.address.toLowerCase().includes(p.project_name.toLowerCase()) && <div className="muted small">{p.project_name}</div>}
       </div>
     </>
   );

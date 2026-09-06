@@ -115,9 +115,9 @@ export default async function ProjectPage({
         {/* Internal project status is deliberately NOT shown publicly - it
             still gates the inquiry form below. */}
         <h1 style={{ fontSize: "clamp(24px, 4vw, 32px)", margin: "8px 0 2px" }}>
-          {about.project}
+          {about.address ?? about.project}
         </h1>
-        {about.address && <p className="muted" style={{ margin: "0 0 6px" }}>{about.address}</p>}
+        {about.address && !about.address.toLowerCase().includes(about.project.toLowerCase()) && <p className="muted" style={{ margin: "0 0 6px" }}>{about.project}</p>}
         {/* People on the project sign in straight into it. */}
         <p className="small" style={{ margin: "0 0 14px" }}>
           <Link href={`/login?next=${encodeURIComponent(`/my/project/${data.project_id}`)}`} style={{ fontWeight: 700 }}>Working on this project? Log in →</Link>

@@ -180,7 +180,10 @@ export function TaskEditor({
       })
     : [...new Set([task.status, "Completed"])];
 
-  const canAttach = isOpen && (perms.notes || perms.complete);
+  // Files and comments are welcome on a closed task too - the certificate
+  // or the receipt often arrives after the work is done (rulebook 51). Only
+  // the task's own fields stay locked once it is closed.
+  const canAttach = perms.notes || perms.complete;
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -206,7 +209,7 @@ export function TaskEditor({
         </div>
       </div>
 
-      {isOpen && (
+      {canAttach && (
         <div className="card" style={{ display: "grid", gap: 10 }}>
           {uploadFailed && <p className="error small" style={{ margin: 0 }}>{uploadFailed}</p>}
           {/* Three small buttons on one line - comment, photo, audio. */}
