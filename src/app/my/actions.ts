@@ -47,6 +47,9 @@ export type HomeCreated = { ok: true; projectId: string; assetId: string } | { o
 export async function createHomeStart(formData: FormData): Promise<HomeCreated> {
   const name = String(formData.get("name") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
+  // claim = a home that stands; plan = one that does not exist yet. The
+  // asset row says which, so nothing downstream mistakes a plan for a house.
+  const mode = String(formData.get("mode") ?? "claim") === "plan" ? "plan" : "claim";
   if (!name || !address) return { ok: false, error: "Name and address are both needed." };
   // Verify against the Census geocoder; a match standardises the address,
   // a miss is advisory and never blocks (the geocoder does not know every
@@ -54,7 +57,11 @@ export async function createHomeStart(formData: FormData): Promise<HomeCreated> 
   const { verifyUsAddress } = await import("@/lib/geocode");
   const standardized = await verifyUsAddress(address);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_home_asset", { p_name: name, p_address: standardized ?? address });
+  const { data, error } = await supabase.rpc("create_home_asset", {
+    p_name: name,
+    p_address: standardized ?? address,
+    p_description: mode === "plan" ? "Planned new build - added before construction; its spaces are the design." : "Existing home, claimed by its owner; its spaces are as built.",
+  });
   if (error) return { ok: false, error: "Could not create the home — please try again." };
   if (!data?.ok) return { ok: false, error: data?.reason ?? "Could not create the home." };
   revalidatePath("/my");
@@ -62,13 +69,15 @@ export async function createHomeStart(formData: FormData): Promise<HomeCreated> 
 }
 
 // What is in the house: one project_spaces row per room, named by type and
-// numbered when there are several ("Bedroom 1", "Bedroom 2"). Creating a
-// space creates nothing else - its items wait until someone opens it.
+// numbered when there are several ("Bedroom 1", "Bedroom 2"). origin says
+// which kind of room it is: existing (a claimed home, as built) or planned
+// (a design, whose items are decided later). Creating a space creates
+// nothing else either way.
 export type SpacePick = { code: string; label: string; count: number };
 
-export async function addHomeSpaces(projectId: string, picks: SpacePick[]): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
+export async function addHomeSpaces(projectId: string, picks: SpacePick[], origin: "existing" | "planned" = "planned"): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
   const supabase = await createClient();
-  const rows: { project_id: string; name: string; space_type: string; created_by: string; last_modified_by: string }[] = [];
+  const rows: { project_id: string; name: string; space_type: string; origin: "existing" | "planned"; created_by: string; last_modified_by: string }[] = [];
   for (const pick of picks) {
     const n = Math.max(0, Math.min(20, Math.floor(pick.count)));
     for (let i = 1; i <= n; i += 1) {
@@ -76,6 +85,7 @@ export async function addHomeSpaces(projectId: string, picks: SpacePick[]): Prom
         project_id: projectId,
         name: n > 1 ? `${pick.label} ${i}` : pick.label,
         space_type: pick.code,
+        origin,
         created_by: "portal:new-home",
         last_modified_by: "portal:new-home",
       });

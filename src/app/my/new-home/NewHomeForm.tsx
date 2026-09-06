@@ -9,13 +9,19 @@ import { setCoverPhoto } from "../project/[id]/actions";
 
 export type RoomType = { code: string; label: string; parent: string | null; wet: boolean; bed: number; bath: number };
 
-// Add a home in one screen: name and address, its photo, and what is in it.
+// Two different acts share this screen, and the copy and the record follow
+// which one it is:
+//   claim - a home that stands. Its rooms already exist; the count is what
+//           is there, as built (origin existing), and nothing gets designed.
+//   plan  - a home that does not exist yet. The rooms are the design
+//           (origin planned); their fixtures are decided later.
 // Three steps under the hood, each needing the last one's id: the project
 // is created (small request), the photo goes straight from the browser to
 // Storage (never through a server action - Vercel caps those at 4.5 MB),
 // and the rooms are written as project_spaces.
 export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
   const router = useRouter();
+  const [mode, setMode] = useState<"claim" | "plan">("claim");
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -66,6 +72,7 @@ export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
       const fd = new FormData();
       fd.set("name", name);
       fd.set("address", address);
+      fd.set("mode", mode);
       const made = await createHomeStart(fd);
       if (!made.ok) { setErr(made.error); setBusy(""); return; }
       const problems: string[] = [];
@@ -86,7 +93,7 @@ export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
       const picks = rooms.filter((r) => (counts[r.code] ?? 0) > 0).map((r) => ({ code: r.code, label: r.label, count: counts[r.code] }));
       if (picks.length > 0) {
         setBusy("Adding the rooms…");
-        const r = await addHomeSpaces(made.projectId, picks);
+        const r = await addHomeSpaces(made.projectId, picks, mode === "claim" ? "existing" : "planned");
         if (!r.ok) problems.push(`rooms: ${r.error}`);
       }
 
@@ -104,9 +111,16 @@ export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
 
   return (
     <form onSubmit={submit} className="card" style={{ display: "grid", gap: 12 }}>
+      {/* Which act this is. Everything below reads differently for each. */}
+      <div className="tabtable" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }} role="tablist" aria-label="What kind of home">
+        <button type="button" role="tab" aria-selected={mode === "claim"} className={mode === "claim" ? "on" : undefined} onClick={() => setMode("claim")}>Claim my home</button>
+        <button type="button" role="tab" aria-selected={mode === "plan"} className={mode === "plan" ? "on" : undefined} onClick={() => setMode("plan")}>Plan a new build</button>
+      </div>
       <p className="muted small" style={{ margin: 0 }}>
-        It gets a page of its own — projects, people, paperwork and money.
-        To file it under a portfolio later, use <em>Belongs under</em> on its Setup tab.
+        {mode === "claim"
+          ? <>A home that stands. It gets a page of its own — projects, people, paperwork and money — and its rooms are recorded as they are, not designed.</>
+          : <>A home that does not exist yet. Its rooms are the design; each becomes a space whose fixtures and finishes are decided as you go.</>}
+        {" "}To file it under a portfolio later, use <em>Belongs under</em> on its Setup tab.
       </p>
       <div className="field" style={{ marginBottom: 0 }}>
         <label htmlFor="nh-name">What should we call it?</label>
@@ -117,7 +131,10 @@ export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
         <label htmlFor="nh-address">Address</label>
         <input id="nh-address" className="input" required placeholder="12 Maple Ave, Tenafly NJ"
           value={address} onChange={(e) => setAddress(e.target.value)} />
-        <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>Checked against the US Census geocoder on save; a match standardises it, a miss never blocks.</p>
+        <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>
+          Checked against the US Census geocoder on save; a match standardises it, a miss never blocks.
+          {mode === "claim" && <> Property records for it — year built, size, lot — are the next step.</>}
+        </p>
       </div>
 
       <div className="field" style={{ marginBottom: 0 }}>
@@ -137,8 +154,12 @@ export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
       </div>
 
       <div className="field" style={{ marginBottom: 0 }}>
-        <label>What is in this house? <span className="muted" style={{ fontWeight: 400 }}>· {picked ? `${picked} room${picked === 1 ? "" : "s"} · ${beds} bed · ${baths} bath` : "tap to count rooms"}</span></label>
-        <p className="muted" style={{ fontSize: 11, margin: "0 0 6px" }}>Each becomes a space on the home&apos;s page, where its fixtures and finishes are decided later. Nothing else is filled in for you.</p>
+        <label>{mode === "claim" ? "What is in it today?" : "What is planned?"} <span className="muted" style={{ fontWeight: 400 }}>· {picked ? `${picked} room${picked === 1 ? "" : "s"} · ${beds} bed · ${baths} bath` : "tap to count rooms"}</span></label>
+        <p className="muted" style={{ fontSize: 11, margin: "0 0 6px" }}>
+          {mode === "claim"
+            ? <>Count what is there, as built. Each becomes a space on the home&apos;s page, marked existing. Optional — you can add rooms later from the home&apos;s page.</>
+            : <>Each becomes a space to design on the home&apos;s page, marked planned; its fixtures and finishes are decided later. Nothing else is filled in for you.</>}
+        </p>
         <div style={{ display: "grid", gap: 8 }}>
           {groups.map((g) => g.items.length > 0 && (
             <div key={g.key} style={{ display: "grid", gap: 4 }}>
@@ -167,7 +188,7 @@ export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
 
       {err && <p className="error small" style={{ margin: 0 }}>{err}</p>}
       <div className="btn-row">
-        <button className="btn" disabled={!!busy}>{busy || "Add home"}</button>
+        <button className="btn" disabled={!!busy}>{busy || (mode === "claim" ? "Claim home" : "Add planned home")}</button>
         <Link className="btn ghost" href="/my">Cancel</Link>
       </div>
     </form>
