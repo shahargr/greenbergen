@@ -372,17 +372,6 @@ export default async function MyPage({
   const needsPhoto = !!boot?.me?.contact_id && !myContact?.avatar_path;
   const cardsById = new Map<string, ProjectCard>();
   for (const c of ((cardData ?? []) as ProjectCard[])) cardsById.set(c.id, c);
-  // The Activity fold exists to show money and schedule per project. Those
-  // come from portal_project_cards, which only covers owner and manager
-  // seats — so for a contractor it returns nothing and the fold can only
-  // repeat the tile above it. Show it when it has something to say.
-  const activityHasContent = bandOverview.some((p) => {
-    const c = cardsById.get(p.id);
-    return !!c && (c.transactions.length > 0 || c.pending.length > 0 || c.urgent.length > 0
-      || c.week.tasks.length > 0 || c.week.payments.length > 0
-      || c.next_week.tasks.length > 0 || c.next_week.payments.length > 0);
-  });
-
   const money = (n: number | null) => (n == null ? "—" : n >= 1000 ? `$${Math.round(n).toLocaleString()}` : `$${Math.round(n * 100) / 100}`);
   const fmtDate = (d: string | null) => (d ? new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—");
   // Weekday + short date for the schedule rows, e.g. "Tue 9/8".
@@ -1263,23 +1252,6 @@ export default async function MyPage({
             );
           })()}
 
-          {/* The detailed panels (transactions, this/next week, urgent tasks)
-              stay available under one fold — when there is anything in them. */}
-          {activityHasContent && (
-          <details style={{ marginTop: 4 }}>
-            <summary className="small muted" style={{ cursor: "pointer", fontWeight: 600 }}>Activity — transactions and this/next week, per project</summary>
-            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              {bandRoots.length === 1 && (bandChildren.get(bandRoots[0].id) ?? []).length > 0
-                ? (bandChildren.get(bandRoots[0].id) ?? []).map((c) => (
-                    <div key={c.id} style={{ display: "grid", gap: 8 }}>
-                      {overviewCard(c, false, 0)}
-                      {(bandChildren.get(c.id) ?? []).map((g) => renderTree(g, 1))}
-                    </div>
-                  ))
-                : bandRoots.map((r) => renderTree(r, 0))}
-            </div>
-          </details>
-          )}
           {!showClosedProjects && hiddenClosedProjects > 0 && (
             <p className="small" style={{ margin: 0 }}>
               <Link href="/my?allp=1">Show all projects ({hiddenClosedProjects} closed hidden)</Link>
