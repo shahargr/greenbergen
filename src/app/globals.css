@@ -1253,3 +1253,23 @@ div.album-empty { cursor: default; }
 a.homepanel-photo { text-decoration: none; }
 a.homepanel-add { gap: 4px; font-size: 12px; font-weight: 600; grid-auto-rows: max-content; align-content: center; }
 a.homepanel-add:hover { background: #cfe8d8; text-decoration: none; }
+
+/* Property hub: the owner's projects beside the home's standing services,
+   then what needs attention. One column on a phone. */
+.hub-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { .hub-cols { grid-template-columns: 1fr; } }
+.hub-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid #eef0ec;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+.hub-row:first-of-type { margin-top: 4px; }
+.hub-row:hover { text-decoration: none; }
+.hub-row:hover .hub-name { color: var(--brand); }
+.hub-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

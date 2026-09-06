@@ -246,7 +246,7 @@ export default async function ProjectPage({
   // Overview and Tasks are one tab now ("site"): the week, then the list.
   // ?tab=overview from an old link lands there too. A deep link to a tab
   // that is not offered still opens it - the strip just does not point there.
-  const tab: "site" | "visit" | "scope" | "setup" | "crew" | "contractor" | "contract" =
+  let tab: "home" | "site" | "visit" | "scope" | "setup" | "crew" | "contractor" | "contract" =
     isCrew ? "crew"
     : isContractorSide
       ? (tabParam === "scope" ? "scope" : tabParam === "contract" ? "contract"
@@ -372,12 +372,14 @@ export default async function ProjectPage({
   // name them with links instead of leaving the user to hunt.
   const { data: childProjectRows } = await supabase
     .from("projects")
-    .select("id, project_name, status")
+    .select("id, project_name, status, home_blueprint_code")
     .eq("parent_project_id", id)
     .is("trashed_at", null)
     .eq("is_template", false)
     .order("project_name");
-  const childProjects = ((childProjectRows ?? []) as { id: string; project_name: string; status: string }[]);
+  // home_blueprint_code set = a standing SERVICE the home came with (taxes,
+  // insurance, the mortgage); null = a PROJECT the owner opened.
+  const childProjects = ((childProjectRows ?? []) as { id: string; project_name: string; status: string; home_blueprint_code: string | null }[]);
 
   // Hierarchy for the Details card: owner › every parent › this project.
   // Parents are walked upward (a home is normally one level; a portfolio
@@ -389,6 +391,40 @@ export default async function ProjectPage({
     if (!up) break;
     ancestors.unshift({ id: up.id, project_name: up.project_name, address: (up.address as string | null) ?? null });
     cursor = up.parent_project_id as string | null;
+  }
+
+  // A property: nothing above it with an address - a root, or a house under
+  // a portfolio. A property lands on its hub (projects, services, what needs
+  // attention); site visits, bids and people live inside the projects.
+  const isHome = !ancestors.some((a) => !!a.address) && !!(project.address || (project as { asset_id?: string | null }).asset_id);
+  if (isHome && tab === "site" && !tabParam && !tasksBucket && !addParam && !assignContact && !parentTask && !peopleMode && !dayParam && !itemParam) {
+    tab = "home";
+  }
+  // The hub: open work per child, and the handful of tasks across the whole
+  // property that need someone now - overdue first, then high priority,
+  // then due this week.
+  type AttentionTask = { id: string; action: string; priority: string | null; target_date: string | null; project_id: string };
+  const openByChild = new Map<string, number>();
+  let attention: AttentionTask[] = [];
+  if (tab === "home") {
+    const { data: openRows } = await supabase
+      .from("actions")
+      .select("id, action, priority, target_date, project_id")
+      .in("project_id", [project.id, ...childProjects.map((c) => c.id)])
+      .not("status", "in", '("Completed","Cancelled","Force Cancelled","Superseded")')
+      .order("target_date", { ascending: true, nullsFirst: false })
+      .limit(400);
+    const rows = ((openRows ?? []) as AttentionTask[]);
+    for (const r of rows) openByChild.set(r.project_id, (openByChild.get(r.project_id) ?? 0) + 1);
+    const weekOut = new Date(new Date(todayIso + "T12:00:00").getTime() + 7 * 86400000).toISOString().slice(0, 10);
+    const tier = (t: AttentionTask) =>
+      t.target_date && t.target_date < todayIso ? 0
+      : t.priority === "High" ? 1
+      : t.target_date && t.target_date <= weekOut ? 2
+      : t.target_date ? 3 : 4;
+    attention = [...rows]
+      .sort((a, b) => tier(a) - tier(b) || (a.target_date ?? "9").localeCompare(b.target_date ?? "9"))
+      .slice(0, 8);
   }
   // Same name, same parent: two "Emergency generator" jobs under one home.
   // When that happens the header adds the start date to tell them apart.
@@ -439,9 +475,7 @@ export default async function ProjectPage({
     .filter((o) => (!!myAppUserId && o.owner_user_id === myAppUserId) || o.id === project.parent_project_id)
     .map((o) => ({ id: o.id, name: o.project_name, address: o.address }));
 
-  // A property: nothing above it with an address - a root, or a house under
-  // a portfolio. Only a property gets an album and a cover photo.
-  const isHome = !ancestors.some((a) => !!a.address) && !!(project.address || (project as { asset_id?: string | null }).asset_id);
+  // Only a property gets an album and a cover photo.
   const coverFileId = (project as { cover_file_id?: string | null }).cover_file_id ?? null;
   // The album: the property's own photos - the ones added to it directly,
   // not task evidence - newest first, each with a short-lived signed URL.
@@ -628,7 +662,7 @@ export default async function ProjectPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f" }}>{flashOk}</p>}
       {error && <p className="error small">{error}</p>}
-      {childProjects.length > 0 && (
+      {childProjects.length > 0 && !isHome && (
         <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
           <span className="muted">Under this project:</span>
           {childProjects.map((cp) => (
@@ -649,6 +683,12 @@ export default async function ProjectPage({
               { key: "contractor", label: "Payments", href: base, offered: hasContract },
               { key: "scope", label: "Scope", href: `${base}?tab=scope`, offered: offerScope },
               { key: "contract", label: "Contract", href: `${base}?tab=contract`, offered: hasContract },
+            ] : isHome ? [
+              // A property: its hub, its own task list, its setup. Site
+              // visits, scope and bids belong to the projects under it.
+              { key: "home", label: "Home", href: base, offered: true },
+              { key: "site", label: "Tasks", href: `${base}?tab=site`, offered: true },
+              { key: "setup", label: "Setup", href: `${base}?tab=setup`, offered: perms.rank >= 50 },
             ] : [
               { key: "site", label: "Tasks", href: base, offered: true },
               { key: "visit", label: "Site visit", href: `${base}?tab=visit`, offered: offerVisit },
@@ -675,6 +715,63 @@ export default async function ProjectPage({
         {tab === "contract" && <ContractorView projectId={project.id} show="contract" />}
 
 
+
+        {tab === "home" && (() => {
+          const myProjects = childProjects.filter((c) => !c.home_blueprint_code);
+          const services = childProjects.filter((c) => !!c.home_blueprint_code);
+          const nameOf = new Map<string, string>([[project.id, project.project_name], ...childProjects.map((c) => [c.id, c.project_name] as [string, string])]);
+          const row = (c: { id: string; project_name: string; status: string }) => {
+            const n = openByChild.get(c.id) ?? 0;
+            return (
+              <Link key={c.id} href={`/my/project/${c.id}`} className="hub-row">
+                <span className="hub-name">{c.project_name}</span>
+                <span className="muted small" style={{ whiteSpace: "nowrap" }}>
+                  {String(c.status).startsWith("Closed") ? c.status : n > 0 ? `${n} open` : "—"}
+                </span>
+              </Link>
+            );
+          };
+          return (
+            <>
+              <div className="hub-cols">
+                <div className="card" style={{ display: "grid", gap: 4, alignContent: "start", minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                    <h2 className="section-title" style={{ margin: 0, color: "#a8842c" }}>Projects · {myProjects.length}</h2>
+                    {perms.rank >= 50 && <Link href={`/my/new-project?parent=${project.id}`} className="small" style={{ whiteSpace: "nowrap", fontWeight: 700 }}>＋ New</Link>}
+                  </div>
+                  {myProjects.length === 0 && <p className="muted small" style={{ margin: "4px 0 0" }}>Nothing under way. A kitchen, a generator, a deck — start one.</p>}
+                  {myProjects.map(row)}
+                </div>
+                <div className="card" style={{ display: "grid", gap: 4, alignContent: "start", minWidth: 0 }}>
+                  <h2 className="section-title" style={{ margin: 0 }}>Services · {services.length}</h2>
+                  {services.length === 0 && <p className="muted small" style={{ margin: "4px 0 0" }}>None on record.</p>}
+                  {services.map(row)}
+                </div>
+              </div>
+              <div className="card" style={{ display: "grid", gap: 4, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <h2 className="section-title" style={{ margin: 0 }}>Needs attention · {attention.length}</h2>
+                  <Link href={`/my/project/${project.id}?tab=site`} className="small" style={{ whiteSpace: "nowrap" }}>All tasks →</Link>
+                </div>
+                {attention.length === 0 && <p className="muted small" style={{ margin: "4px 0 0" }}>Nothing needs you right now.</p>}
+                {attention.map((t) => {
+                  const late = !!t.target_date && t.target_date < todayIso;
+                  return (
+                    <Link key={t.id} href={`/my/task/${t.id}`} className="hub-row">
+                      <span className="hub-name" style={{ fontWeight: 500 }}>
+                        {(late || t.priority === "High") && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                        {t.project_id !== project.id && <span className="muted"> · {nameOf.get(t.project_id) ?? ""}</span>}
+                      </span>
+                      <span className="small" style={{ whiteSpace: "nowrap", color: late ? "#c0262d" : "var(--muted)" }}>
+                        {t.target_date ? (late ? `${dayLabel(t.target_date)} · late` : dayLabel(t.target_date)) : "no date"}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
 
         {tab === "site" && (<>
         {/* Phone opens on the work, not on the furniture: what is due today,
@@ -732,8 +829,8 @@ export default async function ProjectPage({
           {/* The three things you open a project on a phone to do. */}
           <div className="phone-actions">
             {perms.rank >= 50 && <Link href={`/my/project/${project.id}?add=1#add-task`} className="btn ghost small">＋ Task</Link>}
-            <Link href={`/my/project/${project.id}?tab=visit`} className="btn ghost small">📋 Log visit</Link>
-            <Link href={`/my/project/${project.id}?tab=scope`} className="btn ghost small">📷 Scope</Link>
+            {!isHome && <Link href={`/my/project/${project.id}?tab=visit`} className="btn ghost small">📋 Log visit</Link>}
+            {!isHome && <Link href={`/my/project/${project.id}?tab=scope`} className="btn ghost small">📷 Scope</Link>}
           </div>
         </div>
 
@@ -1222,7 +1319,7 @@ export default async function ProjectPage({
 
         )}
 
-        {tab === "site" && perms.rank >= 50 && (
+        {tab === "site" && perms.rank >= 50 && !isHome && (
           <>
             {/* Manage project: four compact tiles in one line, each jumping
                 to its full card below. */}

@@ -20,9 +20,9 @@ type Membership = {
 export default async function NewProjectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; parent?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, parent: parentParam } = await searchParams;
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
 
@@ -64,6 +64,8 @@ export default async function NewProjectPage({
   if (lastTouched?.project_id && parentHomes.some((p) => p.id === lastTouched.project_id)) {
     defaultParent = lastTouched.project_id as string;
   }
+  // Arriving from a property's hub: that home, no guessing.
+  if (parentParam && parentHomes.some((p) => p.id === parentParam)) defaultParent = parentParam;
 
   return (
     <main className="wrap" style={{ paddingTop: 24, paddingBottom: 96, maxWidth: 560 }}>

@@ -258,6 +258,13 @@ export default async function MyPage({
     ? bandOverviewAll
     : bandOverviewAll.filter((p) => p.status === "In Progress")
   ).filter((p) => inView(p.id));
+  // A home's standing services (taxes, insurance, the mortgage...) are child
+  // projects too, but they are not "open projects" - they live on the
+  // property's own page.
+  const { data: serviceRows } = bandOverview.length > 0
+    ? await supabase.from("projects").select("id").in("id", bandOverview.map((p) => p.id)).not("home_blueprint_code", "is", null)
+    : { data: [] as { id: string }[] };
+  const serviceIds = new Set(((serviceRows ?? []) as { id: string }[]).map((r) => r.id));
   // The house above a project, whether or not you hold a seat on it. A
   // contractor is invited to the project only; the house is context, and
   // without it the project reads as if it were a home of its own.
@@ -1133,7 +1140,7 @@ export default async function MyPage({
             // Setting a property's photos is the owner's - the same gate the album applies.
             const ownedIds = new Set(ownerProjects.map((p) => p.id));
             const canAddPhoto = (id: string) => !!boot?.me?.is_superadmin || ownedIds.has(id);
-            const jobs = byPriority(bandOverview.filter((p) => kinds.get(p.id) === "project"));
+            const jobs = byPriority(bandOverview.filter((p) => kinds.get(p.id) === "project" && !serviceIds.has(p.id)));
             const others = byPriority(bandOverview.filter((p) => !["house", "project"].includes(kinds.get(p.id) ?? "")));
             const childCount = new Map<string, number>();
             for (const p of bandOverview) if (p.parent_project_id) childCount.set(p.parent_project_id, (childCount.get(p.parent_project_id) ?? 0) + 1);
