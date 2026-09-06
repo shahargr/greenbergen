@@ -1165,9 +1165,9 @@ export default async function MyPage({
                 {(houses.length > 0 || !isContractorish) && (<>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
                   <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
-                  <Link href="/my/settings#add-property" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
+                  <Link href="/my/new-home" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
                 </div>
-                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — add your property below.</p>}
+                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — <Link href="/my/new-home">add your property</Link>.</p>}
                 {/* One panel per home: the home on the left - its photo when
                     the owner has set one, its name and address always - and
                     its open projects on the right. Two show; the rest fold
@@ -1227,19 +1227,6 @@ export default async function MyPage({
                     );
                   })}
                 </div>
-                {/* Another property, right here: the form the settings page
-                    keeps at its foot, where nobody landing at its head found it. */}
-                {canCreate && (
-                  <details style={{ marginTop: 4 }}>
-                    <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add another property</summary>
-                    <form action={createHome} className="card" style={{ display: "grid", gap: 8, marginTop: 8, maxWidth: 480 }}>
-                      <input name="name" className="input" required autoComplete="off" placeholder="What should we call it? e.g. The Closter house" />
-                      <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
-                      <div><button className="btn small">Add property</button></div>
-                      <p className="muted small" style={{ margin: 0 }}>It gets a page of its own. To file it under a portfolio, use Belongs under on its Setup tab.</p>
-                    </form>
-                  </details>
-                )}
                 </>)}
 
                 {/* Jobs whose home is not on the page (a house you hold no
