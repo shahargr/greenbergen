@@ -51,17 +51,31 @@ export default async function TasksPage({
     me?.app_user_id
       ? supabase
           .from("project_members")
-          .select("role, projects(id, project_name, is_template, trashed_at)")
+          .select("role, projects(id, project_name, is_template, trashed_at, address, parent_project_id, home_blueprint_code)")
           .eq("app_user_id", me.app_user_id)
           .eq("status", "active")
           .in("role", ["owner", "manager"])
       : Promise.resolve({ data: [] }),
   ]);
   const leads: Lead[] = (leadData as Lead[]) ?? [];
-  const pmProjects = (((membershipRows ?? []) as unknown as Membership[]))
+  type PmRow = { id: string; project_name: string; address?: string | null; parent_project_id?: string | null; home_blueprint_code?: string | null };
+  const pmAll = (((membershipRows ?? []) as unknown as Membership[]))
     .filter((m) => m.projects && !m.projects.is_template && !(m.projects as { trashed_at?: string | null }).trashed_at)
-    .map((m) => m.projects!)
+    .map((m) => m.projects! as PmRow)
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+  // Tasks hang off projects, never off a property: a home (an address with
+  // no addressed parent) is not offered. Parents outside the seat list are
+  // looked up so the test holds for a house under a portfolio.
+  const parentIds = [...new Set(pmAll.map((p) => p.parent_project_id).filter((x): x is string => !!x && !pmAll.some((q) => q.id === x)))];
+  const { data: parentRows } = parentIds.length
+    ? await supabase.from("projects").select("id, address").in("id", parentIds)
+    : { data: [] as { id: string; address: string | null }[] };
+  const addrOf = new Map<string, string | null>([
+    ...pmAll.map((p) => [p.id, p.address ?? null] as [string, string | null]),
+    ...((parentRows ?? []) as { id: string; address: string | null }[]).map((p) => [p.id, p.address] as [string, string | null]),
+  ]);
+  const isProperty = (p: PmRow) => !p.home_blueprint_code && !!p.address && (!p.parent_project_id || !addrOf.get(p.parent_project_id));
+  const pmProjects = pmAll.filter((p) => !isProperty(p));
 
   const tableTasks: TableTask[] = (((portalData ?? []) as PortalTask[])).map((t) => ({
     id: t.id, action: t.action, status: t.status, priority: t.priority,

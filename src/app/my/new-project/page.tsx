@@ -10,7 +10,7 @@ type Membership = {
   projects: {
     id: string; project_name: string; address: string | null; status: string;
     parent_project_id: string | null; is_template: boolean; asset_id: string | null;
-    trashed_at: string | null;
+    trashed_at: string | null; home_blueprint_code: string | null;
   } | null;
 };
 
@@ -29,7 +29,7 @@ export default async function NewProjectPage({
   const { data: rows } = me?.app_user_id
     ? await supabase
         .from("project_members")
-        .select("role, projects(id, project_name, address, status, parent_project_id, is_template, asset_id, trashed_at)")
+        .select("role, projects(id, project_name, address, status, parent_project_id, is_template, asset_id, trashed_at, home_blueprint_code)")
         .eq("app_user_id", me.app_user_id)
         .eq("status", "active")
         .eq("role", "owner")
@@ -39,10 +39,24 @@ export default async function NewProjectPage({
     .map((m) => m.projects!)
     .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
 
-  let parentHomes = owned.filter((p) => p.asset_id && p.status === "In Progress");
-  if (parentHomes.length === 0) {
-    parentHomes = owned.filter((p) => !p.parent_project_id && p.address && p.status === "In Progress");
-  }
+  // Where a project may belong: a HOME (the usual), or a PROJECT already on
+  // one, when the new work is a piece of it - the pergola under the
+  // improvements. A closed home still takes new projects: that is where its
+  // leftovers live (rulebook 60). Services are not parents.
+  const byId = new Map(owned.map((p) => [p.id, p]));
+  const isHouse = (p: NonNullable<Membership["projects"]>) =>
+    !p.home_blueprint_code && !!p.address && (!p.parent_project_id || !byId.get(p.parent_project_id)?.address);
+  const homes = owned.filter(isHouse);
+  const jobs = owned.filter((p) => !p.home_blueprint_code && !isHouse(p) && p.status === "In Progress" && p.parent_project_id && byId.has(p.parent_project_id));
+  // Homes first (open before closed), each followed by its own projects.
+  const nameOfParent = (p: NonNullable<Membership["projects"]>) => byId.get(p.parent_project_id ?? "")?.project_name ?? "";
+  const parentHomes = [
+    ...homes.filter((h) => h.status === "In Progress"),
+    ...homes.filter((h) => h.status !== "In Progress"),
+  ].flatMap((h) => [
+    { id: h.id, name: h.project_name, address: h.status === "In Progress" ? h.address : `${h.address ?? ""} · ${h.status}`.replace(/^ · /, ""), status: h.status },
+    ...jobs.filter((j) => j.parent_project_id === h.id).map((j) => ({ id: j.id, name: `↳ ${j.project_name}`, address: `under ${nameOfParent(j)}`, status: j.status })),
+  ]);
 
   if (parentHomes.length === 0) {
     return (
@@ -57,7 +71,7 @@ export default async function NewProjectPage({
   const { data: lastTouched } = await supabase
     .from("actions")
     .select("project_id")
-    .in("project_id", parentHomes.map((p) => p.id))
+    .in("project_id", homes.map((p) => p.id))
     .order("last_updated", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -73,7 +87,7 @@ export default async function NewProjectPage({
       <h1 style={{ fontSize: 26, margin: "0 0 12px" }}>Start a project</h1>
       <div className="card">
         <StartProjectForm
-          homes={parentHomes.map((p) => ({ id: p.id, name: p.project_name, address: p.address }))}
+          homes={parentHomes.map((p) => ({ id: p.id, name: p.name, address: p.address }))}
           defaultParent={defaultParent}
           error={error}
         />

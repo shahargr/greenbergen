@@ -106,7 +106,7 @@ export function StartProjectForm({
           </div>
         ) : (
           <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="pj-parent">Which property is this for?</label>
+            <label htmlFor="pj-parent">Where does it belong? <span className="muted" style={{ fontWeight: 400 }}>a home, or a project on it</span></label>
             <select id="pj-parent" name="parent" className="input" defaultValue={defaultParent} required>
               {homes.map((h) => (
                 <option key={h.id} value={h.id}>

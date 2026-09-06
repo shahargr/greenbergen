@@ -399,9 +399,9 @@ export default async function ProjectPage({
   // a portfolio. A property lands on its hub (projects, services, what needs
   // attention); site visits, bids and people live inside the projects.
   const isHome = !ancestors.some((a) => !!a.address) && !!(project.address || (project as { asset_id?: string | null }).asset_id);
-  if (isHome && tab === "site" && !tabParam && !tasksBucket && !addParam && !assignContact && !parentTask && !peopleMode && !dayParam && !itemParam) {
-    tab = "home";
-  }
+  // Tasks hang off projects, never off the property: a home has no task
+  // list, so anything that would open one lands on the hub instead.
+  if (isHome && tab === "site") tab = "home";
   // The hub: open work per child, and the handful of tasks across the whole
   // property that need someone now - overdue first, then high priority,
   // then due this week.
@@ -679,14 +679,16 @@ export default async function ProjectPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f" }}>{flashOk}</p>}
       {error && <p className="error small">{error}</p>}
-      {childProjects.length > 0 && !isHome && (
+      {!isHome && (childProjects.length > 0 || perms.rank >= 50) && !isCrew && !isContractorSide && (
         <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
-          <span className="muted">Under this project:</span>
+          {childProjects.length > 0 && <span className="muted">Under this project:</span>}
           {childProjects.map((cp) => (
             <Link key={cp.id} href={`/my/project/${cp.id}`} className="extra-chip" style={{ textDecoration: "none" }}>
               ↳ {cp.project_name} <span className="muted">· {cp.status}</span>
             </Link>
           ))}
+          {/* A project can nest under a project: the pergola under the improvements. */}
+          {perms.rank >= 50 && <Link href={`/my/new-project?parent=${project.id}`} className="muted" style={{ whiteSpace: "nowrap" }}>＋ Sub-project</Link>}
         </p>
       )}
 
@@ -704,7 +706,6 @@ export default async function ProjectPage({
               // A property: its hub, its own task list, its setup. Site
               // visits, scope and bids belong to the projects under it.
               { key: "home", label: "Home", href: base, offered: true },
-              { key: "site", label: "Tasks", href: `${base}?tab=site`, offered: true },
               { key: "setup", label: "Setup", href: `${base}?tab=setup`, offered: perms.rank >= 50 },
             ] : [
               { key: "site", label: "Tasks", href: base, offered: true },
@@ -768,7 +769,7 @@ export default async function ProjectPage({
               <div className="card" style={{ display: "grid", gap: 4, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                   <h2 className="section-title" style={{ margin: 0 }}>Needs attention · {attention.length}</h2>
-                  <Link href={`/my/project/${project.id}?tab=site`} className="small" style={{ whiteSpace: "nowrap" }}>All tasks →</Link>
+                  <span className="muted" style={{ fontSize: 11 }}>across this property&apos;s projects</span>
                 </div>
                 {attention.length === 0 && <p className="muted small" style={{ margin: "4px 0 0" }}>Nothing needs you right now.</p>}
                 {attention.map((t) => {
