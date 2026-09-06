@@ -200,9 +200,14 @@ export default async function AdminUsersPage({
                   <span className="muted"> · {u.email}{u.is_superadmin ? " · admin" : ""}{u.is_active ? "" : " · SUSPENDED"}</span>
                 </span>
                 {u.is_active && !u.is_superadmin && (
-                  <form action={beginViewAs.bind(null, u.id)}>
-                    <button className="btn ghost" style={{ padding: "6px 12px" }}>👁 View as</button>
-                  </form>
+                  <span style={{ display: "inline-flex", gap: 6 }}>
+                    <form action={beginViewAs.bind(null, u.id, false, "/my")}>
+                      <button className="btn ghost" style={{ padding: "6px 12px" }} title="Their eyes only; changes refused">👁 View as</button>
+                    </form>
+                    <form action={beginViewAs.bind(null, u.id, true, "/my")}>
+                      <button className="btn" style={{ padding: "6px 12px" }} title="Their hands too; every change is logged with your name behind it">⚡ Act as</button>
+                    </form>
+                  </span>
                 )}
                 <form action={toggleAccount.bind(null, u.id, !u.is_active)}>
                   <button className={u.is_active ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>

@@ -22,6 +22,7 @@ import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { AddTaskForm } from "../../AddTaskForm";
+import { BecomePicker, type BecomeGroup } from "@/components/BecomePicker";
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +138,27 @@ export default async function ProjectPage({
   const godOn = (await cookies()).get("gb_god")?.value === "1";
   const godMode = !!meRow?.is_superadmin && (godOn ||
     !(((memberRows ?? []) as unknown as MemberRow[]).some((m) => !!m.contact_id && m.contact_id === myContactId)));
+  // God mode: the people this project can be looked at as - its own seats
+  // with a login first, then everyone else on the platform.
+  type ViewTarget = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
+  const { data: viewTargetData } = godMode ? await supabase.rpc("admin_view_targets") : { data: null };
+  const becomeGroups: BecomeGroup[] = (() => {
+    const targets = ((viewTargetData ?? []) as ViewTarget[]);
+    const here = new Map<string, { name: string; hint: string; rank: number }>();
+    const elsewhere = new Map<string, { name: string; hint: string; rank: number }>();
+    for (const t of targets) {
+      for (const st of t.seats ?? []) {
+        const bucket = t.project_id === id ? here : elsewhere;
+        const hint = t.project_id === id ? (st.project_role ?? st.role) : `${st.project_role ?? st.role} · ${t.name}`;
+        const cur = bucket.get(st.app_user_id);
+        if (!cur || st.rank > cur.rank) bucket.set(st.app_user_id, { name: st.name, hint, rank: st.rank });
+      }
+    }
+    for (const k of here.keys()) elsewhere.delete(k);
+    const list = (m: Map<string, { name: string; hint: string; rank: number }>) =>
+      [...m.entries()].map(([id, v]) => ({ id, name: v.name, hint: v.hint })).sort((a, b) => a.name.localeCompare(b.name));
+    return [{ label: "On this project", people: list(here) }, { label: "Everyone else", people: list(elsewhere) }];
+  })();
   const projectTasks: TableTask[] = (((taskData ?? []) as PortalTask[])).map((t) => ({
     id: t.id, action: t.action, status: t.status, priority: t.priority,
     target_date: t.target_date, last_updated: t.last_updated, notes: t.notes,
@@ -525,7 +547,10 @@ export default async function ProjectPage({
       {godMode && (
         <p className="banner" style={{ background: "#7a1f2b", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <span>⚡ <strong>God mode</strong> — you hold no seat on this project; you&apos;re acting with full admin rights.</span>
-          <Link href="/admin/projects" style={{ color: "#fff", whiteSpace: "nowrap" }}>All projects →</Link>
+          <span style={{ display: "inline-flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <BecomePicker groups={becomeGroups} back={`/my/project/${project.id}${tabParam ? `?tab=${tabParam}` : ""}`} />
+            <Link href="/admin/projects" style={{ color: "#fff", whiteSpace: "nowrap" }}>All projects →</Link>
+          </span>
         </p>
       )}
       <span className="kicker only-wide">{project.parent_project_id ? "Job" : "Home"}</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { setView } from "./viewas";
+import { setView, beginViewAs, endViewAs } from "./viewas";
 import { VIEW_HOME } from "./viewmap";
 
 const MaskIcon = () => (
@@ -13,9 +13,18 @@ const MaskIcon = () => (
   </svg>
 );
 
-// Admin-only view-as menu. A details element never closes on its own;
-// this one closes on selection, outside click, and Escape.
-export function MaskMenu({ views, current, email }: { views: string[]; current: string; email?: string }) {
+export type Person = { id: string; name: string; hint: string | null };
+
+// Admin-only view-as menu. Hats on top (which surface to look at), then the
+// people you can become - each with view (their eyes) or act (their hands).
+// A details element never closes on its own; this one closes on selection,
+// outside click, and Escape.
+export function MaskMenu({ views, current, email, people = [], borrowed = null, here = "/my" }: {
+  views: string[]; current: string; email?: string;
+  people?: Person[];
+  borrowed?: { id: string; canAct: boolean } | null;
+  here?: string;
+}) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -54,6 +63,12 @@ export function MaskMenu({ views, current, email }: { views: string[]; current: 
               {email}
             </span>
           )}
+          {borrowed && (
+            <button type="button" className="rolemenu-item" style={{ width: "100%", textAlign: "left", fontWeight: 700 }}
+              onClick={async () => { setOpen(false); await endViewAs(here); }}>
+              ↩ Return to myself
+            </button>
+          )}
           {views.map((v) =>
             v === current ? (
               <span key={v} className="rolemenu-item current">{v} ✓</span>
@@ -73,6 +88,33 @@ export function MaskMenu({ views, current, email }: { views: string[]; current: 
             ) : (
               <span key={v} className="rolemenu-item current">{v} · soon</span>
             )
+          )}
+          {people.length > 0 && (
+            <>
+              <span className="rolemenu-item current" style={{ borderTop: "1px solid #e5e7eb", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                Become someone
+              </span>
+              {people.map((u) => {
+                const isCurrent = borrowed?.id === u.id;
+                return (
+                  <span key={u.id} className="rolemenu-item" style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 10px 6px 14px", whiteSpace: "nowrap" }}>
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 13 }}
+                      title={u.hint ?? undefined}>
+                      {isCurrent ? "✓ " : ""}{u.name}
+                      {u.hint && <span className="muted" style={{ fontSize: 11 }}> · {u.hint}</span>}
+                    </span>
+                    <span style={{ display: "inline-flex", gap: 4, flex: "none" }}>
+                      <button type="button" className="btn ghost small" style={{ padding: "1px 7px", fontSize: 11, opacity: isCurrent && !borrowed?.canAct ? 0.5 : 1 }}
+                        title="See the system through their eyes; changes refused"
+                        onClick={async () => { setOpen(false); await beginViewAs(u.id, false, here); }}>view</button>
+                      <button type="button" className="btn small" style={{ padding: "1px 7px", fontSize: 11, opacity: isCurrent && borrowed?.canAct ? 0.5 : 1 }}
+                        title="Do things as them; every change is logged with your name behind it"
+                        onClick={async () => { setOpen(false); await beginViewAs(u.id, true, here); }}>act</button>
+                    </span>
+                  </span>
+                );
+              })}
+            </>
           )}
         </div>
       )}

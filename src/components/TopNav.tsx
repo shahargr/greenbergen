@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getMe } from "@/lib/serverMe";
 import { Wordmark } from "@/components/SiteHeader";
 import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
-import { MaskMenu } from "@/components/MaskMenu";
+import { MaskMenu, type Person } from "@/components/MaskMenu";
 import { BackNav } from "@/components/BackNav";
 import { NavRole } from "@/components/NavRole";
-import { endViewAs } from "@/components/viewas";
+import { endViewAs, beginViewAs } from "@/components/viewas";
 
 const InviteIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -58,12 +58,17 @@ const ALL_VIEWS = ["Owner", "Contractor", "PM", "GC", "Buyer", "Developer", "Vie
 // put on a different hat.
 export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const supabase = await createClient();
-  const [me, { data: borrowed }, jar, { data: invites }] = await Promise.all([
+  const [me, { data: borrowed }, { data: canActData }, jar, hdrs, { data: invites }] = await Promise.all([
     getMe(),
     supabase.rpc("borrowed_seat"),
+    supabase.rpc("borrowed_can_act"),
     cookies(),
+    headers(),
     supabase.rpc("portal_my_invites"),
   ]);
+  const canAct = canActData === true;
+  // Where to come back to after a switch: the page being looked at.
+  const here = hdrs.get("x-pathname") ?? "/my";
   // Things waiting on you: invitations to answer, and answers to yours.
   const { data: msgPending } = await supabase.rpc("portal_my_messages_pending");
   const waitingMessages = typeof msgPending === "number" ? msgPending : 0;
@@ -94,9 +99,30 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   // The label under the logo: the picked hat, as long as it lives on this
   // surface; otherwise the surface's own name.
   const isAdmin: boolean = me?.is_superadmin ?? false;
+  // While borrowed, me() is the borrowed person - but a borrowed seat can
+  // only exist for a real administrator, so the mask stays available.
+  const realAdmin = isAdmin || !!borrowed;
   const picked = isAdmin ? jar.get("gb_view")?.value : undefined;
   const viewLabel = picked && VIEW_HOME[picked] === ROLE_HOME[role] ? picked : role;
   const views = [...ALL_VIEWS];
+
+  // The people an administrator can become: everyone holding a seat with a
+  // login, once each, with their highest seat as the hint.
+  type Target = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
+  const { data: targetData } = realAdmin ? await supabase.rpc("admin_view_targets") : { data: null };
+  const people: Person[] = [];
+  {
+    const best = new Map<string, { name: string; rank: number; hint: string }>();
+    for (const t of ((targetData ?? []) as Target[])) {
+      for (const st of t.seats ?? []) {
+        const hint = `${st.project_role ?? st.role} · ${t.name}`;
+        const cur = best.get(st.app_user_id);
+        if (!cur || st.rank > cur.rank) best.set(st.app_user_id, { name: st.name, rank: st.rank, hint });
+      }
+    }
+    for (const [id, v] of best) people.push({ id, name: v.name, hint: v.hint });
+    people.sort((a, b) => a.name.localeCompare(b.name));
+  }
 
   return (
     <header className="topnav">
@@ -111,7 +137,8 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </span>
         </div>
         <div className="topnav-right">
-          {isAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined} />}
+          {realAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined}
+            people={people} borrowed={borrowed ? { id: String(borrowed), canAct } : null} here={here} />}
           <BackNav />
           <Link href="/my/inbox" className="iconlink"
             title={inbound > 0
@@ -134,11 +161,23 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
         </div>
       </nav>
       {borrowed && (
-        <div style={{ background: "#c0262d", color: "#fff", fontSize: 13, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-          <span>👁 Viewing as <strong>{me?.email}</strong> — their eyes, read-mostly. Expires in an hour.</span>
-          <form action={endViewAs}>
-            <button className="btn small" style={{ background: "#fff", color: "#c0262d", border: 0 }}>Exit view</button>
-          </form>
+        <div style={{ background: canAct ? "#7a1f2b" : "#c0262d", color: "#fff", fontSize: 13, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span>
+            {canAct
+              ? <>⚡ Acting as <strong>{me?.full_name ?? me?.email}</strong> — every change lands as them, logged with your name behind it.</>
+              : <>👁 Viewing as <strong>{me?.full_name ?? me?.email}</strong> — their eyes only; changes are refused.</>}
+            <span style={{ opacity: 0.8 }}> Expires in an hour.</span>
+          </span>
+          <span style={{ display: "inline-flex", gap: 6 }}>
+            {!canAct && (
+              <form action={beginViewAs.bind(null, String(borrowed), true, here)}>
+                <button className="btn small" style={{ background: "#fff", color: "#7a1f2b", border: 0 }}>⚡ Act as them</button>
+              </form>
+            )}
+            <form action={endViewAs.bind(null, here)}>
+              <button className="btn small" style={{ background: "transparent", color: "#fff", border: "1px solid #fff" }}>↩ Return to myself</button>
+            </form>
+          </span>
         </div>
       )}
     </header>

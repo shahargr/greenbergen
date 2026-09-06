@@ -5,6 +5,7 @@ import { CarIcon } from "@/components/CarIcon";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { setGodMode } from "../admin/actions";
+import { BecomePicker } from "@/components/BecomePicker";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
 import { createHome, setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal, setProjectPriority } from "./actions";
@@ -145,6 +146,19 @@ export default async function MyPage({
   const welcomeVideo: string | null = boot?.welcome_video ?? null;
   const canCreate: boolean = home?.can_create ?? false;
   const godMode = godOn && !!boot?.me?.is_superadmin;
+  // God mode: everyone with a seat and a login, once each, highest seat as the hint.
+  type ViewTarget = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
+  const { data: viewTargetData } = godMode ? await supabase.rpc("admin_view_targets") : { data: null };
+  const becomePeople = (() => {
+    const best = new Map<string, { name: string; hint: string; rank: number }>();
+    for (const t of ((viewTargetData ?? []) as ViewTarget[])) {
+      for (const st of t.seats ?? []) {
+        const cur = best.get(st.app_user_id);
+        if (!cur || st.rank > cur.rank) best.set(st.app_user_id, { name: st.name, hint: `${st.project_role ?? st.role} · ${t.name}`, rank: st.rank });
+      }
+    }
+    return [...best.entries()].map(([id, v]) => ({ id, name: v.name, hint: v.hint })).sort((a, b) => a.name.localeCompare(b.name));
+  })();
 
   // Projects this user holds a seat on, with the seat itself.
   type Membership = {
@@ -927,6 +941,7 @@ export default async function MyPage({
       {godMode && (
         <p className="banner" style={{ background: "#7a1f2b", marginTop: 0, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <span>⚡ <strong>God mode is on</strong> — showing every project on the platform as if you were invited to all.</span>
+          <BecomePicker groups={[{ label: "Everyone with a seat", people: becomePeople }]} back="/my" />
           <form action={setGodMode} style={{ display: "inline" }}>
             <input type="hidden" name="back" value="/my" />
             <input type="hidden" name="on" value="0" />
