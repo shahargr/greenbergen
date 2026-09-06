@@ -19,12 +19,16 @@ export type Person = { id: string; name: string; hint: string | null };
 // people you can become - each with view (their eyes) or act (their hands).
 // A details element never closes on its own; this one closes on selection,
 // outside click, and Escape.
-export function MaskMenu({ views, current, email, people = [], borrowed = null, here = "/my" }: {
+export function MaskMenu({ views, current, email, people = [], borrowed = null, here = "/my", selfId = null }: {
   views: string[]; current: string; email?: string;
   people?: Person[];
   borrowed?: { id: string; canAct: boolean } | null;
   here?: string;
+  // The administrator themself: never offered as someone to become -
+  // "Return to myself" is that.
+  selfId?: string | null;
 }) {
+  const others = people.filter((u) => u.id !== selfId);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -89,16 +93,16 @@ export function MaskMenu({ views, current, email, people = [], borrowed = null, 
               <span key={v} className="rolemenu-item current">{v} · soon</span>
             )
           )}
-          {people.length > 0 && (
+          {others.length > 0 && (
             <>
               <span className="rolemenu-item current" style={{ borderTop: "1px solid #e5e7eb", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
                 Become someone
               </span>
-              {people.map((u) => {
+              {others.map((u) => {
                 const isCurrent = borrowed?.id === u.id;
                 return (
-                  <span key={u.id} className="rolemenu-item" style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 10px 6px 14px", whiteSpace: "nowrap" }}>
-                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 13 }}
+                  <span key={u.id} className="rolemenu-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "6px 10px 6px 14px", minWidth: 0 }}>
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}
                       title={u.hint ?? undefined}>
                       {isCurrent ? "✓ " : ""}{u.name}
                       {u.hint && <span className="muted" style={{ fontSize: 11 }}> · {u.hint}</span>}

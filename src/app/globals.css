@@ -748,8 +748,17 @@ a.statlink.selected { border-color: var(--brand); box-shadow: 0 0 0 1px var(--br
    icon cluster), clamped to the viewport on phones */
 .rolemenu-right .rolemenu-list {
   left: 0; right: auto;
-  max-width: min(250px, calc(100vw - 24px));
+  max-width: min(360px, calc(100vw - 24px));
   overflow-wrap: anywhere;
+}
+/* On a phone the mask sits at the right edge, so a list hung off its left
+   edge runs off the screen - the "act" buttons were never visible. Pin the
+   list to the viewport instead, under the top bar, and let it scroll. */
+@media (max-width: 640px) {
+  .rolemenu-right .rolemenu-list {
+    position: fixed; left: 12px; right: 12px; top: 60px;
+    max-width: none; max-height: 72vh; overflow-y: auto;
+  }
 }
 .rolemenu-right summary { list-style: none; cursor: pointer; }
 .rolemenu-right summary::-webkit-details-marker { display: none; }

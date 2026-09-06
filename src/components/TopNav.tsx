@@ -58,17 +58,27 @@ const ALL_VIEWS = ["Owner", "Contractor", "PM", "GC", "Buyer", "Developer", "Vie
 // put on a different hat.
 export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const supabase = await createClient();
-  const [me, { data: borrowed }, { data: canActData }, jar, hdrs, { data: invites }] = await Promise.all([
+  const [me, { data: borrowed }, { data: canActData }, { data: realIdData }, jar, hdrs, { data: invites }] = await Promise.all([
     getMe(),
     supabase.rpc("borrowed_seat"),
     supabase.rpc("borrowed_can_act"),
+    supabase.rpc("real_app_user_id"),
     cookies(),
     headers(),
     supabase.rpc("portal_my_invites"),
   ]);
   const canAct = canActData === true;
-  // Where to come back to after a switch: the page being looked at.
-  const here = hdrs.get("x-pathname") ?? "/my";
+  const realId = typeof realIdData === "string" ? realIdData : null;
+  // Where to come back to after a switch: the page being looked at, minus
+  // any flash it was carrying (an old ?error= must not follow the switch).
+  const here = (() => {
+    const raw = hdrs.get("x-pathname") ?? "/my";
+    const [path, qs] = raw.split("?");
+    const q = new URLSearchParams(qs ?? "");
+    for (const k of ["error", "ok", "saved"]) q.delete(k);
+    const rest = q.toString();
+    return rest ? `${path}?${rest}` : path;
+  })();
   // Things waiting on you: invitations to answer, and answers to yours.
   const { data: msgPending } = await supabase.rpc("portal_my_messages_pending");
   const waitingMessages = typeof msgPending === "number" ? msgPending : 0;
@@ -138,7 +148,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
         </div>
         <div className="topnav-right">
           {realAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined}
-            people={people} borrowed={borrowed ? { id: String(borrowed), canAct } : null} here={here} />}
+            people={people} borrowed={borrowed ? { id: String(borrowed), canAct } : null} here={here} selfId={realId} />}
           <BackNav />
           <Link href="/my/inbox" className="iconlink"
             title={inbound > 0
