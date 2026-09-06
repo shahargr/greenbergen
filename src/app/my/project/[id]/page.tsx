@@ -22,6 +22,7 @@ import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { AddTaskForm } from "../../AddTaskForm";
+import { FinanceRollup, type Rollup } from "../../FinanceRollup";
 import { PropertyPhotos, type PropertyPhoto } from "./PropertyPhotos";
 import { HomeWorkstreams, type Workstream } from "./HomeWorkstreams";
 import { BecomePicker, type BecomeGroup } from "@/components/BecomePicker";
@@ -566,40 +567,58 @@ export default async function ProjectPage({
     return d.toISOString().slice(0, 10);
   });
   const weekEndIso = weekDays[6];
+  // The schedule shows three days - yesterday, today, tomorrow - and any day
+  // picked from it. The week itself stays the frame for the task presets.
+  const shiftDay = (iso: string, n: number) => new Date(new Date(iso + "T12:00:00").getTime() + n * dayMs).toISOString().slice(0, 10);
+  const threeDays = [shiftDay(todayIso, -1), todayIso, shiftDay(todayIso, 1)];
+  const winStart = [threeDays[0], selectedDay ?? threeDays[0]].sort()[0];
+  const winEnd = [threeDays[2], selectedDay ?? threeDays[2]].sort()[1];
   const { data: weekTxRows } = await supabase
     .from("transactions").select("id, description, amount, paid_on, target_date, status")
     .eq("project_id", id).eq("direction", "out")
     .in("status", ["scheduled", "forecast", "approved", "invoice received"])
-    .or(`paid_on.gte.${weekDays[0]},target_date.gte.${weekDays[0]}`)
+    .or(`paid_on.gte.${winStart},target_date.gte.${winStart}`)
     .limit(100);
   type WeekTx = { id: string; description: string | null; amount: number | null; paid_on: string | null; target_date: string | null; status: string };
   const weekPayments = ((weekTxRows ?? []) as WeekTx[])
     .map((t) => ({ ...t, on: t.paid_on ?? t.target_date }))
-    .filter((t) => t.on && t.on >= weekDays[0] && t.on <= weekEndIso);
-  const weekTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date >= weekDays[0] && t.target_date <= weekEndIso);
+    .filter((t) => t.on && t.on >= winStart && t.on <= winEnd);
+  const weekTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date >= winStart && t.target_date <= winEnd);
   // Completed this week (on the day they closed) and every gate on the
   // project (on its due day): both belong on the calendar.
   type WeekExtra = { id: string; action: string | null; status: string; is_gate: boolean | null; target_date: string | null; completed_on: string | null };
   const { data: extraRows } = await supabase
     .from("actions").select("id, action, status, is_gate, target_date, completed_on")
     .eq("project_id", id)
-    .or(`is_gate.eq.true,and(status.eq.Completed,completed_on.gte.${weekDays[0]},completed_on.lte.${weekEndIso})`)
+    .or(`is_gate.eq.true,and(status.eq.Completed,completed_on.gte.${winStart},completed_on.lte.${winEnd})`)
     .limit(200);
   const extras = ((extraRows ?? []) as WeekExtra[]);
   const doneThisWeek = extras
-    .filter((a) => a.status === "Completed" && !a.is_gate && a.completed_on && a.completed_on >= weekDays[0] && a.completed_on <= weekEndIso)
+    .filter((a) => a.status === "Completed" && !a.is_gate && a.completed_on && a.completed_on >= winStart && a.completed_on <= winEnd)
     .map((a) => ({ ...a, on: a.completed_on as string }));
   const weekGates = extras
     .filter((a) => a.is_gate)
     .map((a) => ({ ...a, on: (a.status === "Completed" ? (a.completed_on ?? a.target_date) : a.target_date) ?? null, closed: ["Completed", "Cancelled", "Force Cancelled"].includes(a.status) }))
-    .filter((a) => a.on && a.on >= weekDays[0] && a.on <= weekEndIso);
+    .filter((a) => a.on && a.on >= winStart && a.on <= winEnd);
+  // Milestones and money: the payment stages of every contract on the
+  // project, and the budget-vs-actual roll-up - both read under the
+  // financials grant, so a collaborator without it simply gets nothing.
+  type StageRow = { id: string; name: string; amount: number | null; due_on: string | null; status: string; settlement_status: string | null; paid_at: string | null; contracts: { title: string | null; trade: string | null } | null };
+  const wantMoney = tab === "site" && !isHome && (perms.rank >= 50 || perms.admin);
+  const [{ data: stageRows }, { data: rollupData }] = wantMoney
+    ? await Promise.all([
+        supabase.from("payment_stages").select("id, name, amount, due_on, status, settlement_status, paid_at, contracts(title, trade)")
+          .eq("project_id", id).order("due_on", { ascending: true, nullsFirst: false }).order("sequence_no", { ascending: true }).limit(60),
+        supabase.rpc("portal_finance_rollup", { p_project_id: id }),
+      ])
+    : [{ data: [] }, { data: null }];
+  const stages = ((stageRows ?? []) as unknown as StageRow[]);
+  const rollup = (rollupData ?? null) as Rollup | null;
   // Gantt milestone sign: a diamond. Red while the gate is open, green once closed.
   const gateIcon = (closed: boolean) => (
     <span aria-hidden style={{ display: "inline-block", width: 9, height: 9, background: closed ? "#1f6b45" : "#c0262d", transform: "rotate(45deg)", marginRight: 6, verticalAlign: "0px" }} />
   );
   const overdueTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date < todayIso);
-  const todayTasks = weekTasks.filter((t) => t.target_date === todayIso);
-  const restOfWeekTasks = weekTasks.filter((t) => t.target_date! > todayIso).sort((a, b) => a.target_date!.localeCompare(b.target_date!));
   const dayLabel = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
   // Links on the calendar keep the picked day and open the item in place.
   const itemHref = (taskId: string) =>
@@ -792,108 +811,24 @@ export default async function ProjectPage({
         })()}
 
         {tab === "site" && (<>
-        {/* Phone opens on the work, not on the furniture: what is due today,
-            what has slipped, and the three things you came here to do. The
-            week is a strip below it, not the headline. Wide screens keep the
-            calendar first — there is room for it there. */}
-        <div className="only-narrow" style={{ display: "grid", gap: 10 }}>
-          {(() => {
-            const gatesToday = weekGates.filter((g) => g.on === todayIso);
-            const paysToday = weekPayments.filter((p) => p.on === todayIso);
-            const nextUp = restOfWeekTasks[0];
-            const count = todayTasks.length + gatesToday.length + paysToday.length;
-            return (
-              <div className="card" style={{ display: "grid", gap: 6, minWidth: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                  <h2 className="section-title" style={{ margin: 0 }}>Today · {count}</h2>
-                  <span className="muted small">{dayLabel(todayIso)}</span>
-                </div>
-                {count === 0 && (
-                  <p className="muted small" style={{ margin: 0 }}>
-                    Nothing due today.{nextUp ? <> Next: <Link href={itemHref(nextUp.id)}>{nextUp.action}</Link> on {dayLabel(nextUp.target_date!)}.</> : null}
-                  </p>
-                )}
-                {gatesToday.map((g) => (
-                  <Link key={g.id} href={itemHref(g.id)} className="phone-row">
-                    <span>{gateIcon(g.closed)} {g.action ?? "(gate)"}</span>
-                    <span className="muted">Gate</span>
-                  </Link>
-                ))}
-                {todayTasks.map((t) => (
-                  <Link key={t.id} href={itemHref(t.id)} className="phone-row">
-                    <span>{t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}</span>
-                    <span className="muted">{t.assignee ?? "unassigned"}</span>
-                  </Link>
-                ))}
-                {paysToday.map((p) => (
-                  <div key={p.id} className="phone-row">
-                    <span>💵 {money(p.amount)} {p.description ?? ""}</span>
-                    <span className="muted">{p.status}</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-
-          {overdueTasks.length > 0 && (
-            <Link href={`/my/project/${project.id}?tab=site&tasks=stuck`} className="card"
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
-                       textDecoration: "none", color: "inherit", borderLeft: "4px solid #c0262d" }}>
-              <span className="small"><strong style={{ color: "#c0262d" }}>{overdueTasks.length} overdue</strong> · oldest {dayLabel(overdueTasks[0].target_date!)}</span>
-              <span className="muted small">See them →</span>
-            </Link>
-          )}
-
-          {/* The three things you open a project on a phone to do. */}
-          <div className="phone-actions">
-            {perms.rank >= 50 && <Link href={`/my/project/${project.id}?add=1#add-task`} className="btn ghost small">＋ Task</Link>}
-            {!isHome && <Link href={`/my/project/${project.id}?tab=visit`} className="btn ghost small">📋 Log visit</Link>}
-            {!isHome && <Link href={`/my/project/${project.id}?tab=scope`} className="btn ghost small">📷 Scope</Link>}
-          </div>
-        </div>
-
-        {/* What is planned this week, day by day - then, further down, the
-            task list itself. Overview and Tasks are one tab. */}
+        {/* The schedule: yesterday, today, tomorrow. Today in the middle and
+            marked; a day's header opens its table below. */}
         <div className="card" style={{ display: "grid", gap: 8, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <h2 className="section-title" style={{ margin: 0 }}>This week · {weekTasks.length} task{weekTasks.length === 1 ? "" : "s"}{weekPayments.length ? ` · ${weekPayments.length} payment${weekPayments.length === 1 ? "" : "s"}` : ""}</h2>
-            <span className="muted small">{dayLabel(weekDays[0])} – {dayLabel(weekDays[6])}</span>
-          </div>
-          {/* Phone: the whole week as one strip. A day is a tap, and its
-              list opens below — three stacked days that each say "—" cost a
-              third of the screen to tell you nothing. */}
-          <div className="weekstrip only-narrow">
-            {weekDays.map((d) => {
-              const n = weekTasks.filter((t) => t.target_date === d).length
-                + weekPayments.filter((x) => x.on === d).length
-                + weekGates.filter((g) => g.on === d).length;
-              const late = weekTasks.some((t) => t.target_date === d && t.priority === "High");
-              return (
-                <Link key={d} href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`}
-                  className={`${d === todayIso ? "today " : ""}${selectedDay === d ? "on" : ""}`}>
-                  <span>{new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "narrow" })}</span>
-                  <span className={n ? (late ? "n high" : "n") : "n zero"}>{n || "·"}</span>
-                </Link>
-              );
-            })}
-          </div>
-
-          <div className="weekgrid only-wide">
-            {weekDays.map((d) => {
+          <div className="threeday">
+            {threeDays.map((d, i) => {
               const isToday = d === todayIso;
               const dayTasks = weekTasks.filter((t) => t.target_date === d && !weekGates.some((g) => g.id === t.id));
               const dayPay = weekPayments.filter((t) => t.on === d);
               const dayGates = weekGates.filter((g) => g.on === d);
               const dayDone = doneThisWeek.filter((a) => a.on === d);
+              const empty = dayTasks.length === 0 && dayPay.length === 0 && dayGates.length === 0 && dayDone.length === 0;
               return (
-                <div key={d} className={`weekday${isToday ? " today" : ""}${selectedDay === d ? " selected" : ""}`}>
-                  <Link href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`} className="weekday-head"
-                    style={{ textDecoration: "none", color: "inherit", cursor: "pointer" }} title={selectedDay === d ? "Close this day" : "Show this day's list"}>
-                    {dayLabel(d)}{isToday ? " · today" : ""}
+                <div key={d} className={`day${isToday ? " today" : ""}${selectedDay === d ? " selected" : ""}`}>
+                  <Link href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`} className="day-head" title={selectedDay === d ? "Close this day" : "Show this day's list"}>
+                    <span className="muted" style={{ fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>{i === 0 ? "Yesterday" : i === 1 ? "Today" : "Tomorrow"}</span>
+                    <span>{dayLabel(d)}</span>
                   </Link>
-                  {dayTasks.length === 0 && dayPay.length === 0 && dayGates.length === 0 && dayDone.length === 0 && <div className="muted" style={{ fontSize: 11 }}>—</div>}
-                  {/* Order inside a day: open gates, open tasks, payments, then
-                      everything finished at the bottom. */}
+                  {empty && <div className="muted" style={{ fontSize: 11 }}>—</div>}
                   {dayGates.filter((g) => !g.closed).map((g) => (
                     <Link key={g.id} href={itemHref(g.id)} className="weekitem gate open" title={`Gate · ${g.status} · ${g.action ?? ""}`}>
                       {gateIcon(false)}{g.action ?? "(gate)"}
@@ -917,21 +852,24 @@ export default async function ProjectPage({
                       {a.action ?? "(untitled)"}
                     </Link>
                   ))}
-                  {/* Any day opens its own table below the calendar. */}
-                  <Link href={selectedDay === d ? `/my/project/${project.id}` : `/my/project/${project.id}?day=${d}`} className="weekday-open">
-                    {selectedDay === d ? "close ▴" : "details ▾"}
-                  </Link>
                 </div>
               );
             })}
           </div>
-          {/* Wide only: on a phone the red strip above the week already says
-              this, and says it next to today's work where it belongs. */}
           {overdueTasks.length > 0 && (
-            <p className="small only-wide" style={{ margin: 0, color: "#c0262d" }}>
-              {overdueTasks.length} overdue from before this week — <Link href={`/my/project/${project.id}?tab=site&tasks=stuck`} style={{ color: "inherit" }}>see them</Link>
+            <p className="small" style={{ margin: 0, color: "#c0262d" }}>
+              <strong>{overdueTasks.length} overdue</strong> · oldest {dayLabel(overdueTasks[0].target_date!)} — <Link href={`/my/project/${project.id}?tab=site&tasks=stuck`} style={{ color: "inherit" }}>see them</Link>
             </p>
           )}
+        </div>
+
+        {/* Log: the things you came here to record. */}
+        <div className="card" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
+          <span className="section-title" style={{ margin: 0, marginRight: 4 }}>Log</span>
+          {perms.rank >= 50 && <Link href={`/my/project/${project.id}?add=1#add-task`} className="btn ghost small">＋ Task</Link>}
+          {!isHome && <Link href={`/my/project/${project.id}?tab=visit`} className="btn ghost small">📋 Site visit</Link>}
+          {!isHome && <Link href={`/my/project/${project.id}?tab=scope`} className="btn ghost small">📷 Scope photo</Link>}
+          {perms.rank >= 50 && <Link href="/my/payments" className="btn ghost small">💵 Payment</Link>}
         </div>
 
         {/* A schedule item, unfolded in place. */}
@@ -1032,26 +970,6 @@ export default async function ProjectPage({
             </div>
           );
         })()}
-
-        {/* Wide screens only - on a phone the Today card at the top already is this. */}
-        <div className="card only-wide" style={{ display: "grid", gap: 6, minWidth: 0 }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Today · {todayTasks.length}</h2>
-          {todayTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing due today.</p>}
-          {todayTasks.map((t) => (
-            <Link key={t.id} href={`/my/task/${t.id}`} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}</span>
-              <span className="muted" style={{ whiteSpace: "nowrap" }}>{t.assignee ?? "unassigned"}</span>
-            </Link>
-          ))}
-          <h2 className="section-title" style={{ margin: "8px 0 0" }}>Rest of this week · {restOfWeekTasks.length}</h2>
-          {restOfWeekTasks.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing else due this week.</p>}
-          {restOfWeekTasks.map((t) => (
-            <Link key={t.id} href={`/my/task/${t.id}`} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}</span>
-              <span className="muted" style={{ whiteSpace: "nowrap" }}>{dayLabel(t.target_date!)}{t.assignee ? ` · ${t.assignee}` : ""}</span>
-            </Link>
-          ))}
-        </div>
 
         </>)}
 
@@ -1329,7 +1247,7 @@ export default async function ProjectPage({
         {tab === "site" && (
         <div className="card" id="add-task">
           <h2 className="section-title" style={{ margin: 0 }}>Tasks · {openCount} open · {doneCount} done</h2>
-          <TasksTable tasks={projectTasks} todayIso={todayIso} presetViews weekStartIso={weekDays[0]} weekEndIso={weekEndIso} showViews={false} showTradeTiles={false} showLatePanels avatars={avatars}
+          <TasksTable tasks={projectTasks} todayIso={todayIso} presetViews weekStartIso={weekDays[0]} weekEndIso={weekEndIso} showViews={false} showTradeTiles={false} showLatePanels avatars={avatars} topLevelOnly groupByTrade
             initialParent={parentTask ?? null}
             initialState={initialTaskState} initialView={initialTaskView}
             addOpen={!!assignContact || addParam === "1"}
@@ -1338,6 +1256,41 @@ export default async function ProjectPage({
             ) : undefined} />
         </div>
 
+        )}
+
+        {tab === "site" && wantMoney && (stages.length > 0 || (rollup?.projects?.length ?? 0) > 0) && (
+          <div id="money" className="card" style={{ display: "grid", gap: 10, minWidth: 0 }}>
+            <h2 className="section-title" style={{ margin: 0 }}>Milestones &amp; money</h2>
+            {stages.length > 0 && (
+              <div style={{ overflowX: "auto" }}>
+                <table className="tasktable" style={{ width: "100%" }}>
+                  <thead>
+                    <tr><th>Milestone</th><th>Contract</th><th style={{ textAlign: "right" }}>Amount</th><th>Due</th><th>Status</th></tr>
+                  </thead>
+                  <tbody>
+                    {stages.map((st) => {
+                      const paid = st.settlement_status === "paid" || st.status === "Paid";
+                      const late = !paid && !!st.due_on && st.due_on < todayIso;
+                      return (
+                        <tr key={st.id}>
+                          <td style={{ minWidth: 0 }}><strong style={{ fontWeight: 600 }}>{st.name}</strong></td>
+                          <td className="muted" style={{ whiteSpace: "nowrap" }}>{st.contracts?.trade ?? st.contracts?.title ?? "—"}</td>
+                          <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{money(st.amount)}</td>
+                          <td className="muted" style={{ whiteSpace: "nowrap", color: late ? "#c0262d" : undefined }}>{st.due_on ?? "—"}</td>
+                          <td style={{ whiteSpace: "nowrap" }}>
+                            <span className="extra-chip" style={paid ? { background: "#e6f2ea", color: "#1f6b45" } : late ? { background: "#fdecec", color: "#c0262d" } : undefined}>
+                              {paid ? `Paid${st.paid_at ? " " + String(st.paid_at).slice(0, 10) : ""}` : st.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {rollup && <FinanceRollup rollup={rollup} />}
+          </div>
         )}
 
         {tab === "site" && perms.rank >= 50 && !isHome && (
@@ -1372,9 +1325,20 @@ export default async function ProjectPage({
         {tab === "site" && peopleRows.length > 0 && (
           // minWidth 0 + overflow hidden at every level so a long task title
           // truncates instead of widening the page.
-          <div id="people" className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <h2 className="section-title" style={{ margin: 0 }}>People · {visiblePeople.length}{!showAllPeople && visiblePeople.length < peopleRows.length ? ` of ${peopleRows.length}` : ""}</h2>
+          <details id="people" className="card tradefold" open={showAllPeople} style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
+            <summary style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", listStyle: "none" }}>
+              <span className="tile-icon" style={{ width: 34, height: 34, flex: "none" }} aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5z" /><path d="M5 3v18" /><path d="M3 7h2M3 12h2M3 17h2" />
+                  <circle cx="12" cy="10" r="2.2" /><path d="M8.5 16c.6-1.8 2-2.7 3.5-2.7s2.9.9 3.5 2.7" />
+                </svg>
+              </span>
+              <span style={{ display: "grid", gap: 1, minWidth: 0 }}>
+                <strong>People · {visiblePeople.length}{!showAllPeople && visiblePeople.length < peopleRows.length ? ` of ${peopleRows.length}` : ""}</strong>
+                <span className="muted small">Who is on this project, what they hold, what they are owed. Open to see the book.</span>
+              </span>
+            </summary>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
               {peopleRows.length > activePeople.length && (
                 showAllPeople
                   ? <Link href={`/my/project/${project.id}?tab=site`} className="small">Active only</Link>
@@ -1451,7 +1415,7 @@ export default async function ProjectPage({
                 </div>
               </details>
             ))}
-          </div>
+          </details>
         )}
 
         {/* Administration, merged into Setup: the record itself and the one

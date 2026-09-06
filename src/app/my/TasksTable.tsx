@@ -76,7 +76,12 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 // person - so "what do Javier and I have, open and closed, latest first"
 // is three dropdowns. A row click expands it in place with the link into
 // the full task page.
-export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, addOpen = false, domainOptions, savedFilters = false, showViews = true, presetViews = false, weekStartIso, weekEndIso, startEmpty = false, stageTiles, avatars, todayIso }: {
+export function TasksTable({ tasks, initialProject, initialDomain, initialState, initialView, initialParent, syncUrl = false, showTradeTiles = true, showLatePanels = false, compact = false, addTaskSlot, addOpen = false, domainOptions, savedFilters = false, showViews = true, presetViews = false, weekStartIso, weekEndIso, startEmpty = false, stageTiles, avatars, todayIso, topLevelOnly = false, groupByTrade = false }: {
+  // Only top-level tasks in view; a parent carries a toggle that unfolds its
+  // subtasks beneath it, indented (the project page).
+  topLevelOnly?: boolean;
+  // The list in buckets, one per trade, each with its count and a fold.
+  groupByTrade?: boolean;
   // Hide the five quick views (Urgent / My tasks / Late / Stuck / Full list).
   showViews?: boolean;
   // Four fixed presets instead - Today, This week, Stalled, Completed -
@@ -170,6 +175,10 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const [allTiles, setAllTiles] = useState(false);
   // Subtask filter: show only the children of this parent (chip / ?parent=).
   const [parentOf, setParentOf] = useState<string | null>(initialParent ?? null);
+  // Parents unfolded in place, and trade buckets folded shut.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [foldedTrades, setFoldedTrades] = useState<Set<string>>(new Set());
+  const toggleSet = (set: Set<string>, id: string) => { const n = new Set(set); if (n.has(id)) n.delete(id); else n.add(id); return n; };
 
   // Four personal saved filters, per browser.
   type Slot = { label: string; project: string; person: string; priority: string; phase: string; view: string } | null;
@@ -336,7 +345,20 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
     );
   // Urgent = the 10 nearest-due open tasks, line by line (the default view).
   // (When filtered to a parent's subtasks, show all of them — no urgent cap.)
-  const shown = view === "urgent" && parentOf === null && terms.length === 0 ? shownAll.slice(0, 10) : shownAll;
+  const shownCapped = view === "urgent" && parentOf === null && terms.length === 0 ? shownAll.slice(0, 10) : shownAll;
+  // Top level only: a subtask whose parent is itself in the list hides under
+  // it (unfold to see it); an orphan whose parent is filtered out stays.
+  const shownIds = new Set(shownCapped.map((t) => t.id));
+  const nest = topLevelOnly && parentOf === null && terms.length === 0;
+  const shown = nest ? shownCapped.filter((t) => !t.parent_id || !shownIds.has(t.parent_id)) : shownCapped;
+  const childrenOf = (id: string) => (nest ? shownCapped.filter((c) => c.parent_id === id) : []);
+  // Trade buckets, biggest first; tasks with no trade gather under General, last.
+  const buckets = (() => {
+    if (!groupByTrade) return null;
+    const m = new Map<string, TableTask[]>();
+    for (const t of shown) { const k = t.trade ?? "General"; m.set(k, [...(m.get(k) ?? []), t]); }
+    return [...m.entries()].sort((a, b) => (a[0] === "General" ? 1 : b[0] === "General" ? -1 : b[1].length - a[1].length || a[0].localeCompare(b[0])));
+  })();
   const parentTitle = parentOf ? (tasks.find((t) => t.id === parentOf)?.action ?? tasks.find((t) => t.parent_id === parentOf)?.parent ?? "this task") : null;
   const tableVisible = (!compact && !startEmpty) || view !== "none" || trade !== "all" || parentOf !== null || terms.length > 0;
 
@@ -684,21 +706,36 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                 <th>{sort === "updated" ? "Updated" : "Due"}</th>
               </tr>
             </thead>
-            <tbody>
-              {shown.map((t) => (
+            {(() => {
+              const row = (t: TableTask, depth: number): React.ReactNode => {
+                const kids = childrenOf(t.id);
+                const isOpen = expanded.has(t.id);
+                return (
                 <Fragment key={t.id}>
                   <tr
                     onClick={() => setOpen(open === t.id ? null : t.id)}
+                    className={depth > 0 ? "child" : undefined}
                     style={{ cursor: "pointer", opacity: t.state === "closed" ? 0.65 : 1 }}
                     aria-expanded={open === t.id}
                   >
-                    <td style={{ minWidth: 0 }}>
-                      <strong style={{ fontWeight: 600 }}>{t.action}</strong>
-                      {/* Subtask linkage: children say whose; parents get a chip that filters to their children. */}
-                      {t.parent_id && parentOf !== t.parent_id && (
+                    <td style={{ minWidth: 0, paddingLeft: depth > 0 ? 14 + depth * 14 : undefined }}>
+                      <span style={{ display: "flex", gap: 6, alignItems: "baseline", minWidth: 0 }}>
+                        {depth > 0 && <span className="muted" aria-hidden>↳</span>}
+                        <strong style={{ fontWeight: 600 }}>{t.action}</strong>
+                      </span>
+                      {/* Subtask linkage: children say whose; parents get a toggle that unfolds their children right here. */}
+                      {t.parent_id && parentOf !== t.parent_id && depth === 0 && (
                         <div className="muted" style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>↳ under {t.parent ?? "a parent task"}</div>
                       )}
-                      {(t.open_children ?? 0) > 0 && (
+                      {kids.length > 0 ? (
+                        <button type="button" className="extra-chip"
+                          style={{ marginTop: 2, cursor: "pointer", border: "none", background: isOpen ? "#e6f2ea" : "#fdecec", color: isOpen ? "#1f6b45" : "#c0262d", fontWeight: 600 }}
+                          title={isOpen ? "Fold the subtasks away" : "Unfold this task's subtasks"}
+                          aria-expanded={isOpen}
+                          onClick={(e) => { e.stopPropagation(); setExpanded(toggleSet(expanded, t.id)); }}>
+                          {isOpen ? "▾" : "▸"} {kids.length} subtask{kids.length === 1 ? "" : "s"}
+                        </button>
+                      ) : (t.open_children ?? 0) > 0 && (
                         <button type="button" className="extra-chip"
                           style={{ marginTop: 2, cursor: "pointer", border: "none", background: "#fdecec", color: "#c0262d", fontWeight: 600 }}
                           title="Show this task's open subtasks"
@@ -746,9 +783,33 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                       </td>
                     </tr>
                   )}
+                  {isOpen && kids.map((c) => row(c, depth + 1))}
                 </Fragment>
-              ))}
-            </tbody>
+                );
+              };
+              if (!buckets) return <tbody>{shown.map((t) => row(t, 0))}</tbody>;
+              return buckets.map(([tradeName, list]) => {
+                const folded = foldedTrades.has(tradeName);
+                const late = list.filter((t) => t.state === "open" && !!t.target_date && t.target_date < todayIso).length;
+                return (
+                  <tbody key={tradeName}>
+                    <tr className="tasktable-group" onClick={() => setFoldedTrades(toggleSet(foldedTrades, tradeName))} aria-expanded={!folded}>
+                      <td colSpan={projects.length > 1 ? 4 : 3}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          <span aria-hidden>{folded ? "▸" : "▾"}</span>
+                          {tradeName !== "General" && <span style={{ display: "inline-flex", width: 16, height: 16 }}><TradeIcon trade={tradeName} /></span>}
+                          <span>{tradeName}</span>
+                          <span className="muted" style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                            {list.length} task{list.length === 1 ? "" : "s"}{late > 0 ? <span className="tradestat-late"> · {late} late</span> : null}
+                          </span>
+                        </span>
+                      </td>
+                    </tr>
+                    {!folded && list.map((t) => row(t, 0))}
+                  </tbody>
+                );
+              });
+            })()}
           </table>
         </div>
       )}
