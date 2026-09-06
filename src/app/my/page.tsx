@@ -1218,7 +1218,8 @@ export default async function MyPage({
                           )}
                           <Link href={`/my/project/${h.id}`} className="homepanel-title">
                             <strong className="homepanel-name">{h.project_name}</strong>
-                            <span className="muted homepanel-sub">{h.address ?? "No address yet"}{h.status !== "In Progress" ? ` · ${h.status}` : ""}</span>
+                            {/* A property is a living hub, not a project: no project status under its address. */}
+                            <span className="muted homepanel-sub">{h.address ?? "No address yet"}</span>
                           </Link>
                         </div>
                         <div className="homepanel-right">
@@ -1236,7 +1237,7 @@ export default async function MyPage({
                                 <span className="muted" style={{ fontSize: 11, display: "flex", gap: 8, flexWrap: "wrap" }}>
                                   <span><strong style={{ color: "var(--ink)" }}>{c?.open ?? j.open_count}</strong> open</span>
                                   {(c?.stuck ?? 0) > 0 && <span style={{ color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
-                                  {urgent && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{urgent.priority === "High" ? "● " : ""}{urgent.action}</span>}
+                                  {urgent && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>next: {urgent.priority === "High" ? "● " : ""}{urgent.action}</span>}
                                 </span>
                               </Link>
                             );
