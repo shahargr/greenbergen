@@ -262,7 +262,20 @@ export default async function MyPage({
     const inList = bandOverviewAll.find((x) => x.id === row.parent_project_id);
     return inList ? inList.project_name : (workById.get(row.id)?.parent_name ?? null);
   };
-  const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length;
+  // A house whose own renovation closed but which still carries open work
+  // is not a closed project - it is your property with a job on it. That is
+  // exactly the shape rulebook 60 prescribes (leftovers move to a child
+  // project), so the page must not hide the house behind "show all" while
+  // its job sits below with nowhere to belong. Derived from the data, not
+  // from the status someone set (rulebook 34).
+  const openJobUnder = new Set(
+    bandOverviewAll
+      .filter((j) => j.parent_project_id && !String(j.status).startsWith("Closed"))
+      .map((j) => j.parent_project_id as string)
+  );
+  const reclaimedHouses = bandOverviewAll.filter((p) =>
+    p.status !== "In Progress" && openJobUnder.has(p.id) && inView(p.id) && !bandOverview.some((q) => q.id === p.id));
+  const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length - reclaimedHouses.length;
   const bandIds = new Set(bandOverview.map((p) => p.id));
   // Full tree: roots are projects whose parent is absent from the list;
   // children nest recursively under their parent at any depth.
@@ -1107,8 +1120,8 @@ export default async function MyPage({
               return parent && !parent.address ? "house" : "project";
             };
             const byPriority = (list: ProjectOverviewRow[]) => [...list.filter((p) => priority.has(p.id)), ...list.filter((p) => !priority.has(p.id))];
-            const kinds = new Map(bandOverview.map((p) => [p.id, kindOf(p)]));
-            const houses = byPriority(bandOverview.filter((p) => kinds.get(p.id) === "house"));
+            const kinds = new Map([...bandOverview, ...reclaimedHouses].map((p) => [p.id, kindOf(p)]));
+            const houses = byPriority([...bandOverview, ...reclaimedHouses].filter((p) => kinds.get(p.id) === "house"));
             const jobs = byPriority(bandOverview.filter((p) => kinds.get(p.id) === "project"));
             const others = byPriority(bandOverview.filter((p) => !["house", "project"].includes(kinds.get(p.id) ?? "")));
             const childCount = new Map<string, number>();
@@ -1126,12 +1139,25 @@ export default async function MyPage({
                 {(houses.length > 0 || !isContractorish) && (<>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
                   <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
-                  <Link href="/my/settings" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
+                  <Link href="/my/settings#add-property" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
                 </div>
-                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — add your property on the settings page.</p>}
+                {houses.length === 0 && <p className="muted small" style={{ margin: 0 }}>No house yet — add your property below.</p>}
                 <div className="ptiles ptiles-even">
                   {houses.map((p) => projectTile(p, "house", null, childCount.get(p.id) ?? 0, jobs.filter((j) => j.parent_project_id === p.id && !String(j.status).startsWith("Closed"))))}
                 </div>
+                {/* Another property, right here: the form the settings page
+                    keeps at its foot, where nobody landing at its head found it. */}
+                {canCreate && (
+                  <details style={{ marginTop: 4 }}>
+                    <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>＋ Add another property</summary>
+                    <form action={createHome} className="card" style={{ display: "grid", gap: 8, marginTop: 8, maxWidth: 480 }}>
+                      <input name="name" className="input" required autoComplete="off" placeholder="What should we call it? e.g. The Closter house" />
+                      <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
+                      <div><button className="btn small">Add property</button></div>
+                      <p className="muted small" style={{ margin: 0 }}>It gets a page of its own. To file it under a portfolio, use Belongs under on its Setup tab.</p>
+                    </form>
+                  </details>
+                )}
                 </>)}
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>

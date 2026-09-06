@@ -384,7 +384,7 @@ export default async function SettingsPage({
         )}
 
         {/* Add property: the action sits on the card's own top bar. */}
-        <form action={createHome} className="card" style={{ display: "grid", gap: 8 }}>
+        <form id="add-property" action={createHome} className="card" style={{ display: "grid", gap: 8, scrollMarginTop: 80 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <h2 className="section-title" style={{ margin: 0 }}>Add property</h2>
             <button className="btn small">Save</button>
