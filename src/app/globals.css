@@ -1160,3 +1160,34 @@ html, body { max-width: 100%; overflow-x: clip; }
 .homepanel-job:hover { text-decoration: none; }
 .homepanel-job:hover .homepanel-jobname { color: var(--brand); }
 .homepanel-jobname { font-size: 14px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+
+
+/* What is in the house: a compact grid of room types, each with a count.
+   Tapping the name adds one (or clears it); the stepper adjusts. */
+/* Two columns only where a room name can still be read beside its stepper;
+   on a phone they squeezed "Master bedroom" to five characters under the
+   buttons, so there each room takes the full width. */
+.roomgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 8px; }
+@media (max-width: 520px) { .roomgrid { grid-template-columns: 1fr; } }
+.roomrow { display: flex; justify-content: space-between; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 3px 4px 3px 8px; min-width: 0; background: #fff; }
+.roomrow.on { border-color: var(--brand); background: #f3f8f4; }
+.roomname { border: 0; background: none; font: inherit; font-size: 13px; text-align: left; cursor: pointer; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 0; }
+.roomrow.on .roomname { font-weight: 600; color: var(--brand); }
+.roomcount { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.roomcount button { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px; background: #fff; font: inherit; font-size: 15px; line-height: 1; cursor: pointer; color: var(--ink); }
+.roomcount button:disabled { opacity: 0.35; cursor: default; }
+.roomcount > span { min-width: 18px; text-align: center; font-size: 13px; font-weight: 700; }
+
+
+/* The account card head: avatar, name and trades, then the account facts.
+   Three columns where there is room. On a phone the facts - which must not
+   wrap mid-date - claimed their full width and the name collapsed under
+   them; there they drop below the name, left-aligned, and wrap freely. */
+.acct-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 12px; align-items: start; }
+.acct-head.has-avatar { grid-template-columns: auto minmax(0, 1fr) minmax(0, auto); }
+.acct-facts { display: grid; gap: 2px; text-align: right; white-space: nowrap; min-width: 0; }
+@media (max-width: 640px) {
+  .acct-head { grid-template-columns: minmax(0, 1fr); }
+  .acct-head.has-avatar { grid-template-columns: auto minmax(0, 1fr); }
+  .acct-facts { grid-column: 1 / -1; text-align: left; white-space: normal; border-top: 1px solid #eef0ec; padding-top: 8px; }
+}

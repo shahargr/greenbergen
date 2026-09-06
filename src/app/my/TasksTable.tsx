@@ -130,8 +130,32 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
   const stageOf = (trade: string | null) => (trade ? tradeStage[trade] ?? null : null);
   const router = useRouter();
   // compact mode: the table stays hidden until a view is picked.
-  const [view, setView] = useState<TaskView | "none">(compact || startEmpty ? "none" : (initialView ?? "all"));
-  const [state, setState] = useState<"open" | "closed" | "all">(initialState ?? "open");
+  // The landing view. A preset that would show nothing is not a landing:
+  // four open tasks with no date yet belong to none of Today, This week or
+  // Stalled, and a page that opens on "Today - 0, nothing matches" hides
+  // work that is plainly there. Open on the first preset with something in
+  // it; with nothing dated, stalled or done, the full open list.
+  const landing = (() => {
+    const wanted: TaskView | "none" = compact || startEmpty ? "none" : (initialView ?? "all");
+    if (!presetViews || wanted === "none") return { view: wanted, state: initialState ?? "open" as const };
+    const wFrom = weekStartIso ?? todayIso;
+    const wTo = weekEndIso ?? new Date(new Date(todayIso + "T12:00:00").getTime() + 6 * 86400000).toISOString().slice(0, 10);
+    const has: Record<"today" | "week" | "stuck" | "done", boolean> = {
+      today: tasks.some((t) => t.state === "open" && t.target_date === todayIso),
+      week: tasks.some((t) => t.state === "open" && !!t.target_date && t.target_date >= wFrom && t.target_date <= wTo),
+      stuck: tasks.some((t) => t.state === "open" && ((!!t.target_date && t.target_date < todayIso) || /pending/i.test(t.status) || t.status === "Parked")),
+      done: tasks.some((t) => t.state === "closed"),
+    };
+    const isPreset = (v: string): v is keyof typeof has => v in has;
+    if (isPreset(wanted) && !has[wanted]) {
+      const next = (["today", "week", "stuck", "done"] as const).find((k) => has[k]);
+      if (!next) return { view: "all" as const, state: "open" as const };
+      return { view: next, state: (next === "done" ? "closed" : "open") as "open" | "closed" };
+    }
+    return { view: wanted, state: initialState ?? "open" as const };
+  })();
+  const [view, setView] = useState<TaskView | "none">(landing.view);
+  const [state, setState] = useState<"open" | "closed" | "all">(landing.state);
   const [domain, setDomain] = useState(initialDomain ?? "construction");
   const [project, setProject] = useState(initialProject ?? "all");
   const [trade, setTrade] = useState("all");
