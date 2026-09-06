@@ -98,6 +98,20 @@ export async function addHomeSpaces(projectId: string, picks: SpacePick[], origi
   return { ok: true, created: rows.length };
 }
 
+// "Don't show this again" under the welcome video: stamped on the person's
+// own row (own_profile_update). The video returns only if an admin clears it.
+export async function dismissWelcomeVideo(formData: FormData) {
+  const supabase = await createClient();
+  const { data: me } = await supabase.rpc("me");
+  if (!me?.app_user_id) redirect("/login");
+  const hide = formData.get("hide") === "on";
+  await supabase.from("app_users")
+    .update({ welcome_video_dismissed_at: hide ? new Date().toISOString() : null })
+    .eq("id", me.app_user_id);
+  revalidatePath("/my");
+  redirect("/my");
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

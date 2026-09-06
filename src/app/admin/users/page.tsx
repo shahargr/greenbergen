@@ -68,9 +68,9 @@ export default async function AdminUsersPage({
       .order("created_at", { ascending: true }),
     supabase
       .from("app_users")
-      .select("id, email, full_name, is_active, is_superadmin, created_at")
+      .select("id, email, full_name, is_active, is_superadmin, created_at, contact_id, login_count, last_login_at")
       .order("created_at", { ascending: false })
-      .limit(25),
+      .limit(500),
     supabase
       .from("app_invitations")
       .select("id, email, token, status, expires_at, uses, max_uses, can_create_projects, created_at")
@@ -94,6 +94,97 @@ export default async function AdminUsersPage({
     ? await supabase.from("app_users").select("id, email").in("id", ownerIds)
     : { data: [] as { id: string; email: string | null }[] };
   const ownerEmail = new Map(((ownerRows ?? []) as { id: string; email: string | null }[]).map((u) => [u.id, u.email ?? ""]));
+
+  // Who each account IS, read from the data rather than a typed label:
+  //   admin      - is_superadmin
+  //   homeowner  - owns a home, or sits as asset owner anywhere
+  //   contractor - holds a trade, or a site seat below project management
+  //   other      - signed up, nothing yet (an invitee, a viewer)
+  type Account = { id: string; email: string | null; full_name: string | null; is_active: boolean; is_superadmin: boolean; created_at: string; contact_id: string | null; login_count: number | null; last_login_at: string | null };
+  const accounts = ((accountRows.data ?? []) as Account[]);
+  const contactIds = accounts.map((a) => a.contact_id).filter((x): x is string => !!x);
+  const [{ data: seatRowsAll }, { data: tradeRowsAll }] = await Promise.all([
+    supabase.from("project_members").select("app_user_id, role, project_role").eq("status", "active").not("app_user_id", "is", null).limit(5000),
+    contactIds.length ? supabase.from("contact_trade_roles").select("contact_id, trade").in("contact_id", contactIds) : Promise.resolve({ data: [] as { contact_id: string; trade: string }[] }),
+  ]);
+  const rankOf = new Map(((roleRows.data ?? []) as { role: string; authority_rank: number | null }[]).map((r) => [r.role, r.authority_rank ?? 0]));
+  const seatsOf = new Map<string, string[]>();
+  for (const r of ((seatRowsAll ?? []) as { app_user_id: string; role: string; project_role: string | null }[])) {
+    const list = seatsOf.get(r.app_user_id) ?? [];
+    const seat = r.project_role ?? r.role;
+    if (!list.includes(seat)) list.push(seat);
+    seatsOf.set(r.app_user_id, list);
+  }
+  const tradesOf = new Map<string, string[]>();
+  for (const r of ((tradeRowsAll ?? []) as { contact_id: string; trade: string }[])) {
+    const list = tradesOf.get(r.contact_id) ?? [];
+    if (!list.includes(r.trade)) list.push(r.trade);
+    tradesOf.set(r.contact_id, list);
+  }
+  const homesOf = new Map<string, number>();
+  for (const p of projList) if (p.owner_user_id && p.status === "In Progress") homesOf.set(p.owner_user_id, (homesOf.get(p.owner_user_id) ?? 0) + 1);
+  type AccountType = "admin" | "homeowner" | "contractor" | "other";
+  const typeOf = (a: Account): AccountType => {
+    if (a.is_superadmin) return "admin";
+    const seats = seatsOf.get(a.id) ?? [];
+    if ((homesOf.get(a.id) ?? 0) > 0 || seats.includes("asset owner")) return "homeowner";
+    const trades = a.contact_id ? tradesOf.get(a.contact_id) ?? [] : [];
+    if (trades.length > 0 || seats.some((st) => (rankOf.get(st) ?? 0) > 0 && (rankOf.get(st) ?? 0) < 50)) return "contractor";
+    return "other";
+  };
+  const TYPES: { key: AccountType; label: string; note: string }[] = [
+    { key: "homeowner", label: "Homeowners", note: "Own a home on the platform" },
+    { key: "contractor", label: "Contractors", note: "Hold a trade or a site seat" },
+    { key: "admin", label: "Administrators", note: "Full platform rights" },
+    { key: "other", label: "Signed up, nothing yet", note: "No home, no trade, no seat" },
+  ];
+  const activeAccounts = accounts.filter((a) => a.is_active);
+  const suspended = accounts.filter((a) => !a.is_active);
+  const byType = new Map<AccountType, Account[]>();
+  for (const a of activeAccounts) { const t = typeOf(a); byType.set(t, [...(byType.get(t) ?? []), a]); }
+  const fmtWhen = (d: string | null) => d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "never";
+  const accountRow = (u: Account) => {
+    const seats = seatsOf.get(u.id) ?? [];
+    const trades = u.contact_id ? tradesOf.get(u.contact_id) ?? [] : [];
+    const homes = homesOf.get(u.id) ?? 0;
+    const facts = [
+      homes > 0 ? `${homes} home${homes === 1 ? "" : "s"}` : null,
+      trades.length > 0 ? trades.join(", ") : null,
+      seats.length > 0 ? seats.join(", ") : null,
+    ].filter(Boolean).join(" · ");
+    return (
+      <div key={u.id} className="card" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <span className="small" style={{ minWidth: 0 }}>
+          <strong>{u.full_name ?? u.email}</strong>
+          <span className="muted"> · {u.email}{u.is_active ? "" : " · SUSPENDED"}</span>
+          <br />
+          <span className="muted">
+            {u.login_count ?? 0} login{(u.login_count ?? 0) === 1 ? "" : "s"} · last {fmtWhen(u.last_login_at)} · joined {fmtWhen(u.created_at)}
+            {facts ? ` · ${facts}` : ""}
+          </span>
+        </span>
+        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+          {u.is_active && !u.is_superadmin && (
+            <>
+              <form action={beginViewAs.bind(null, u.id, false, "/my")}>
+                <button className="btn ghost" style={{ padding: "6px 12px" }} title="Their eyes only; changes refused">👁 View as</button>
+              </form>
+              <form action={beginViewAs.bind(null, u.id, true, "/my")}>
+                <button className="btn" style={{ padding: "6px 12px" }} title="Their hands too; every change is logged with your name behind it">⚡ Act as</button>
+              </form>
+            </>
+          )}
+          {!u.is_superadmin && (
+            <form action={toggleAccount.bind(null, u.id, !u.is_active)}>
+              <button className={u.is_active ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>
+                {u.is_active ? "Suspend" : "Resume"}
+              </button>
+            </form>
+          )}
+        </span>
+      </div>
+    );
+  };
   // The eight seats the picker offers, in Shahar's order.
   const SEATS = ["GC", "Contractor", "Viewer", "Project manager", "Inspector", "Consultant", "Investor", "Maintenance manager"];
 
@@ -142,6 +233,29 @@ export default async function AdminUsersPage({
       </div>
 
       <div style={{ display: "grid", gap: 14 }}>
+        <div className="card" style={{ display: "grid", gap: 12 }}>
+          <h2 className="section-title" style={{ margin: 0 }}>Users · {activeAccounts.length} active</h2>
+          {TYPES.map((t) => {
+            const list = byType.get(t.key) ?? [];
+            if (list.length === 0) return null;
+            return (
+              <div key={t.key} style={{ display: "grid", gap: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <strong>{t.label} · {list.length}</strong>
+                  <span className="muted" style={{ fontSize: 11 }}>{t.note}</span>
+                </div>
+                {list.map(accountRow)}
+              </div>
+            );
+          })}
+          {suspended.length > 0 && (
+            <details className="tradefold">
+              <summary>Suspended · {suspended.length}</summary>
+              <div style={{ display: "grid", gap: 6, paddingTop: 8 }}>{suspended.map(accountRow)}</div>
+            </details>
+          )}
+        </div>
+
         <div className="card">
           <h2 className="section-title">Contractor requests · {vendorRequests}</h2>
           {(vendorRows.data ?? []).length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing pending.</p>}
@@ -187,35 +301,6 @@ export default async function AdminUsersPage({
               </div>
             ))}
             {(inviteRows.data ?? []).length === 0 && <p className="muted small" style={{ margin: 0 }}>None pending.</p>}
-          </div>
-        </details>
-
-        <details className="card tradefold">
-          <summary>Accounts · {users}</summary>
-          <div style={{ display: "grid", gap: 8, paddingTop: 8 }}>
-            {(accountRows.data ?? []).map((u) => (
-              <div key={u.id} className="card" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <span className="small">
-                  <strong>{u.full_name ?? u.email}</strong>
-                  <span className="muted"> · {u.email}{u.is_superadmin ? " · admin" : ""}{u.is_active ? "" : " · SUSPENDED"}</span>
-                </span>
-                {u.is_active && !u.is_superadmin && (
-                  <span style={{ display: "inline-flex", gap: 6 }}>
-                    <form action={beginViewAs.bind(null, u.id, false, "/my")}>
-                      <button className="btn ghost" style={{ padding: "6px 12px" }} title="Their eyes only; changes refused">👁 View as</button>
-                    </form>
-                    <form action={beginViewAs.bind(null, u.id, true, "/my")}>
-                      <button className="btn" style={{ padding: "6px 12px" }} title="Their hands too; every change is logged with your name behind it">⚡ Act as</button>
-                    </form>
-                  </span>
-                )}
-                <form action={toggleAccount.bind(null, u.id, !u.is_active)}>
-                  <button className={u.is_active ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>
-                    {u.is_active ? "Suspend" : "Resume"}
-                  </button>
-                </form>
-              </div>
-            ))}
           </div>
         </details>
 

@@ -8,11 +8,11 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 // Admin landing: one tile per section. Sections grow as their screens get
 // built; the tiles say honestly which are live.
 const SECTIONS = [
-  { href: "/admin/photos", title: "Public pages", note: "Hero photos, galleries, about text, scope facts.", live: true },
-  { href: "/admin/users", title: "User management", note: "Accounts, invitations, roles.", live: false },
-  { href: "/admin/finance", title: "Finance", note: "Agreements, billing, receivables.", live: false },
-  { href: "/admin/projects", title: "Project management", note: "Every project on the platform; enter any in god mode.", live: true },
-];
+  { href: "/admin/photos", title: "Public pages", note: "Hero photos, galleries, about text, scope facts.", live: true, countKey: null },
+  { href: "/admin/users", title: "User management", note: "Active accounts by type, invitations, seats.", live: true, countKey: "users" },
+  { href: "/admin/finance", title: "Finance", note: "Agreements, billing, receivables.", live: false, countKey: null },
+  { href: "/admin/projects", title: "Project management", note: "Every project on the platform, by kind.", live: true, countKey: "projects" },
+] as const;
 
 export default async function AdminHome() {
   const supabase = await createClient();
@@ -30,6 +30,12 @@ export default async function AdminHome() {
     .from("seasonal_tips")
     .select("month, tip")
     .order("month");
+  // The two numbers on the tiles: live projects and active accounts.
+  const [{ count: projectCount }, { count: userCount }] = await Promise.all([
+    supabase.from("projects").select("id", { count: "exact", head: true }).is("trashed_at", null).eq("is_template", false),
+    supabase.from("app_users").select("id", { count: "exact", head: true }).eq("is_active", true),
+  ]);
+  const tileCount = { users: userCount ?? 0, projects: projectCount ?? 0 };
 
   if (!me?.is_superadmin) {
     return (
@@ -48,35 +54,21 @@ export default async function AdminHome() {
       <div className="admin-tiles">
         {SECTIONS.map((s) => (
           <Link key={s.href} href={s.href} className="card statlink admin-tile">
-            <strong>{s.title}</strong>
+            <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <strong>{s.title}</strong>
+              {s.countKey && <span className="stat-big" style={{ fontSize: 22 }}>{tileCount[s.countKey]}</span>}
+            </span>
             <span className="muted small">{s.note}</span>
             {!s.live && <span className="small" style={{ color: "var(--brand)" }}>To be developed</span>}
           </Link>
         ))}
       </div>
 
-      <div className="card" style={{ display: "grid", gap: 8, borderLeft: godOn ? "4px solid #7a1f2b" : undefined }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <h2 className="section-title" style={{ margin: 0 }}>⚡ God mode · {godOn ? "ON" : "off"}</h2>
-          <form action={setGodMode}>
-            <input type="hidden" name="back" value="/admin" />
-            <input type="hidden" name="on" value={godOn ? "0" : "1"} />
-            <button className="btn small" style={godOn ? undefined : { background: "#7a1f2b" }}>
-              {godOn ? "Turn off" : "Turn on"}
-            </button>
-          </form>
-        </div>
-        <p className="muted small" style={{ margin: 0 }}>
-          ON: your homepage lists <strong>every project on the platform</strong> as if you were invited to all of them,
-          and every project page shows a god-mode banner. OFF: only projects you hold a seat on. Your admin rights
-          themselves don&apos;t change — this only changes what is listed.
-        </p>
-      </div>
-
       <div className="card" style={{ display: "grid", gap: 8 }}>
         <h2 className="section-title">Welcome video</h2>
         <p className="muted small" style={{ margin: 0 }}>
-          Shown to first-run users on their welcome screen. YouTube link or a direct MP4 URL; empty hides it.
+          Shown to first-run users on their welcome screen until they tick &ldquo;don&apos;t show this again&rdquo;.
+          YouTube link or a direct MP4 URL; empty hides it for everyone.
         </p>
         <form action={saveWelcomeVideo} className="btn-row">
           <input name="url" className="input" defaultValue={cfgRow?.welcome_video_url ?? ""}
@@ -144,6 +136,26 @@ export default async function AdminHome() {
           </div>
         </form>
       </details>
+
+      {/* Last on purpose: a switch you flip rarely, below the things you edit. */}
+      <div className="card" style={{ display: "grid", gap: 8, borderLeft: godOn ? "4px solid #7a1f2b" : undefined }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <h2 className="section-title" style={{ margin: 0 }}>⚡ God mode · {godOn ? "ON" : "off"}</h2>
+          <form action={setGodMode}>
+            <input type="hidden" name="back" value="/admin" />
+            <input type="hidden" name="on" value={godOn ? "0" : "1"} />
+            <button className="btn small" style={godOn ? undefined : { background: "#7a1f2b" }}>
+              {godOn ? "Turn off" : "Turn on"}
+            </button>
+          </form>
+        </div>
+        <p className="muted small" style={{ margin: 0 }}>
+          ON: your homepage lists <strong>every project on the platform</strong> as if you were invited to all of them,
+          and every project page shows a god-mode banner. OFF: only projects you hold a seat on. Your admin rights
+          themselves don&apos;t change — this only changes what is listed.
+        </p>
+      </div>
+
     </main>
   );
 }

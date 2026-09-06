@@ -8,7 +8,7 @@ import { setGodMode } from "../admin/actions";
 import { BecomePicker } from "@/components/BecomePicker";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal, setProjectPriority } from "./actions";
+import { dismissWelcomeVideo, setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal, setProjectPriority } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
 import { ClaimHomeForm } from "./ClaimHomeForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
@@ -144,7 +144,23 @@ export default async function MyPage({
   const projects: HomeProject[] = (home?.projects as HomeProject[]) ?? [];
   const hasHome = projects.length > 0;
   const banner = banner0;
-  const welcomeVideo: string | null = boot?.welcome_video ?? null;
+  // The welcome video shows by default on first run; a tick under it stops
+  // it from the next visit on.
+  const { data: videoPref } = boot?.me?.app_user_id
+    ? await supabase.from("app_users").select("welcome_video_dismissed_at").eq("id", boot.me.app_user_id).maybeSingle()
+    : { data: null as { welcome_video_dismissed_at: string | null } | null };
+  const welcomeVideo: string | null = videoPref?.welcome_video_dismissed_at ? null : (boot?.welcome_video ?? null);
+  const videoBlock = welcomeVideo ? (
+    <div style={{ display: "grid", gap: 6 }}>
+      <WelcomeVideo url={welcomeVideo} />
+      <form action={dismissWelcomeVideo} style={{ display: "flex", justifyContent: "flex-end" }}>
+        <label className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" name="hide" /> Don&apos;t show this video next time
+        </label>
+        <button className="linklike small" style={{ marginLeft: 8, color: "var(--brand)" }}>Save</button>
+      </form>
+    </div>
+  ) : null;
   const canCreate: boolean = home?.can_create ?? false;
   const godMode = godOn && !!boot?.me?.is_superadmin;
   // God mode: everyone with a seat and a login, once each, highest seat as the hint.
@@ -1045,7 +1061,7 @@ export default async function MyPage({
               and money, all in one place. Three steps and you&apos;re running:
             </p>
           </div>
-          {welcomeVideo && <WelcomeVideo url={welcomeVideo} />}
+          {videoBlock}
           <ol className="welcome-steps">
             <li className="active">
               <strong>Claim your address</strong>
@@ -1071,7 +1087,7 @@ export default async function MyPage({
       {hasHome && bandOverviewAll.length > 0 && !bandOverviewAll.some((p) => p.parent_project_id) && (
         <section className="card" style={{ marginBottom: 14, display: "grid", gap: 10 }}>
           <strong>Your home is in ✓ — now start your first project</strong>
-          {welcomeVideo && <WelcomeVideo url={welcomeVideo} />}
+          {videoBlock}
           <p className="muted small" style={{ margin: 0 }}>
             A generator, a water heater, a leak — describe it once and it
             becomes a project with tasks, people and money attached.
