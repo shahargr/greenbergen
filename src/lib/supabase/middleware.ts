@@ -4,6 +4,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
+  // The page's own path, for server components that need to send someone
+  // back to where they were (the view-as switch in the top bar).
+  request.headers.set("x-pathname", request.nextUrl.pathname + request.nextUrl.search);
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
