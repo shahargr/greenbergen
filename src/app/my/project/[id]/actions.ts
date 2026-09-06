@@ -139,6 +139,41 @@ export async function saveProject(projectId: string, formData: FormData) {
     : `/my/project/${projectId}?tab=setup&saved=1`);
 }
 
+// The home's own photo. The browser has already put the bytes in Storage
+// under <project>/cover/; this records the file and points the project at
+// it. Owner rank, like the address - it is the face of the property.
+export type CoverUpload = { path: string; name: string; mime: string; size: number };
+
+export async function setCoverPhoto(projectId: string, upload: CoverUpload): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const p = await projectPerms(projectId);
+  if (!(p.rank >= 70 || p.admin)) return { ok: false, error: "Only the owner may set the home photo." };
+  if (!upload.path.startsWith(`${projectId}/cover/`)) return { ok: false, error: "That file is not under this property." };
+  const { data: fileId, error } = await supabase.rpc("record_project_file", {
+    p_project_id: projectId, p_path: upload.path, p_file_name: upload.name,
+    p_mime: upload.mime || null, p_size: upload.size, p_caption: "Home photo", p_kind: "photo",
+  });
+  if (error || !fileId) return { ok: false, error: error?.message ?? "Could not record the photo." };
+  const { error: upErr } = await supabase.from("projects")
+    .update({ cover_file_id: fileId, last_modified_by: "portal:setup" }).eq("id", projectId);
+  if (upErr) return { ok: false, error: upErr.message };
+  revalidatePath(`/my/project/${projectId}`);
+  revalidatePath("/my");
+  return { ok: true };
+}
+
+export async function clearCoverPhoto(projectId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const p = await projectPerms(projectId);
+  if (!(p.rank >= 70 || p.admin)) return { ok: false, error: "Only the owner may change the home photo." };
+  const { error } = await supabase.from("projects")
+    .update({ cover_file_id: null, last_modified_by: "portal:setup" }).eq("id", projectId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/my/project/${projectId}`);
+  revalidatePath("/my");
+  return { ok: true };
+}
+
 // Structured configurator answers - one row per field, upserted.
 export async function saveConfigValues(projectId: string, formData: FormData) {
   const supabase = await createClient();

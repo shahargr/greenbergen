@@ -22,6 +22,7 @@ import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { AddTaskForm } from "../../AddTaskForm";
+import { HomePhoto } from "./HomePhoto";
 import { BecomePicker, type BecomeGroup } from "@/components/BecomePicker";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +70,7 @@ export default async function ProjectPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, project_name, status, stage, address, notes, parent_project_id, owner_user_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount")
+    .select("id, project_name, status, stage, address, notes, parent_project_id, owner_user_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount, asset_id, cover_file_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -431,6 +432,19 @@ export default async function ProjectPage({
   const parentOptions = optionRows
     .filter((o) => !descendants.has(o.id))
     .map((o) => ({ id: o.id, name: o.project_name, address: o.address }));
+
+  // A property: nothing above it with an address - a root, or a house under
+  // a portfolio. Only a property gets a home photo.
+  const isHome = !ancestors.some((a) => !!a.address) && !!(project.address || (project as { asset_id?: string | null }).asset_id);
+  const coverFileId = (project as { cover_file_id?: string | null }).cover_file_id ?? null;
+  let coverUrl: string | null = null;
+  if (tab === "setup" && coverFileId) {
+    const { data: cf } = await supabase.from("files").select("bucket, path").eq("id", coverFileId).maybeSingle();
+    if (cf?.bucket && cf.path) {
+      const { data: signed } = await supabase.storage.from(cf.bucket).createSignedUrl(cf.path, 3600);
+      coverUrl = signed?.signedUrl ?? null;
+    }
+  }
 
   const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
   const { data: ownerRow } = ownerId
@@ -907,6 +921,9 @@ export default async function ProjectPage({
 
         </>)}
 
+        {tab === "setup" && isHome && (perms.rank >= 70 || perms.admin) && (
+          <HomePhoto projectId={project.id} currentUrl={coverUrl} />
+        )}
         {tab === "setup" && (
           <>
             <ProjectEditor
