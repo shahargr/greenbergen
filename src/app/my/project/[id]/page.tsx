@@ -404,19 +404,23 @@ export default async function ProjectPage({
     : { data: [] };
   const hasTwin = ((twinRows ?? []) as { id: string }[]).length > 0;
 
-  // The projects this one may be moved under. RLS returns only what the
-  // caller is a member of; this project and everything beneath it are then
-  // dropped, so the tree can never be folded into itself.
+  // The projects this one may be moved under: the ones the session user
+  // OWNS. RLS returns everything the caller may see - for an administrator
+  // that is the whole platform - so the visible tree is read in full only to
+  // find this project's descendants (the tree can never be folded into
+  // itself), and the offer is then narrowed to owner_user_id = me. The
+  // current parent stays offered whoever owns it, so an unchanged form saves
+  // as unchanged rather than silently moving the project to the top level.
   const { data: parentOptionRows } = tab === "setup" && perms.parent
     ? await supabase
         .from("projects")
-        .select("id, project_name, address, parent_project_id")
+        .select("id, project_name, address, parent_project_id, owner_user_id")
         .is("trashed_at", null)
         .eq("is_template", false)
         .order("project_name")
         .limit(200)
     : { data: [] };
-  type OptionRow = { id: string; project_name: string; address: string | null; parent_project_id: string | null };
+  type OptionRow = { id: string; project_name: string; address: string | null; parent_project_id: string | null; owner_user_id: string | null };
   const optionRows = ((parentOptionRows ?? []) as OptionRow[]);
   const descendants = new Set<string>([project.id]);
   for (let pass = 0; pass < 8; pass += 1) {
@@ -429,8 +433,10 @@ export default async function ProjectPage({
     }
     if (!grew) break;
   }
+  const myAppUserId: string | null = meRow?.app_user_id ?? null;
   const parentOptions = optionRows
     .filter((o) => !descendants.has(o.id))
+    .filter((o) => (!!myAppUserId && o.owner_user_id === myAppUserId) || o.id === project.parent_project_id)
     .map((o) => ({ id: o.id, name: o.project_name, address: o.address }));
 
   // A property: nothing above it with an address - a root, or a house under

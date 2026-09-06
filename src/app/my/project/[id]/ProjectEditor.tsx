@@ -137,8 +137,9 @@ export function ProjectEditor({ project, perms, crumbs = [], parentOptions = [],
               <p className="muted" style={{ fontSize: 11, margin: "4px 0 0" }}>
                 The project this one sits under — a home for a job, a portfolio
                 for a home. It is what tells two jobs of the same name apart, and
-                it decides who inherits access. Its own children are not offered:
-                the tree cannot fold back on itself.
+                it decides who inherits access. Only properties you own are
+                offered, and never the children of this project: the tree cannot
+                fold back on itself.
               </p>
             </div>
           )}
