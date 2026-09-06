@@ -22,7 +22,7 @@ import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { AddTaskForm } from "../../AddTaskForm";
-import { HomePhoto } from "./HomePhoto";
+import { PropertyPhotos, type PropertyPhoto } from "./PropertyPhotos";
 import { BecomePicker, type BecomeGroup } from "@/components/BecomePicker";
 
 export const dynamic = "force-dynamic";
@@ -440,16 +440,29 @@ export default async function ProjectPage({
     .map((o) => ({ id: o.id, name: o.project_name, address: o.address }));
 
   // A property: nothing above it with an address - a root, or a house under
-  // a portfolio. Only a property gets a home photo.
+  // a portfolio. Only a property gets an album and a cover photo.
   const isHome = !ancestors.some((a) => !!a.address) && !!(project.address || (project as { asset_id?: string | null }).asset_id);
   const coverFileId = (project as { cover_file_id?: string | null }).cover_file_id ?? null;
-  let coverUrl: string | null = null;
-  if (tab === "setup" && coverFileId) {
-    const { data: cf } = await supabase.from("files").select("bucket, path").eq("id", coverFileId).maybeSingle();
-    if (cf?.bucket && cf.path) {
-      const { data: signed } = await supabase.storage.from(cf.bucket).createSignedUrl(cf.path, 3600);
-      coverUrl = signed?.signedUrl ?? null;
-    }
+  // The album: the property's own photos - the ones added to it directly,
+  // not task evidence - newest first, each with a short-lived signed URL.
+  const photos: PropertyPhoto[] = [];
+  if (tab === "setup" && isHome) {
+    const { data: photoRows } = await supabase
+      .from("files")
+      .select("id, bucket, path, file_name, created_at")
+      .eq("project_id", project.id)
+      .eq("bucket", "project-media")
+      .eq("kind", "photo")
+      .eq("is_latest", true)
+      .or(`path.like.${project.id}/photos/%,path.like.${project.id}/cover/%`)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const rows = ((photoRows ?? []) as { id: string; bucket: string; path: string; file_name: string | null; created_at: string }[]);
+    const signed = await Promise.all(rows.map((r) => supabase.storage.from(r.bucket).createSignedUrl(r.path, 3600)));
+    rows.forEach((r, i) => {
+      const url = signed[i]?.data?.signedUrl;
+      if (url) photos.push({ id: r.id, url, name: r.file_name, takenAt: r.created_at, cover: r.id === coverFileId });
+    });
   }
 
   const ownerId = (project as { owner_user_id: string | null }).owner_user_id;
@@ -927,8 +940,8 @@ export default async function ProjectPage({
 
         </>)}
 
-        {tab === "setup" && isHome && (perms.rank >= 70 || perms.admin) && (
-          <HomePhoto projectId={project.id} currentUrl={coverUrl} />
+        {tab === "setup" && isHome && (
+          <PropertyPhotos projectId={project.id} photos={photos} canEdit={perms.rank >= 70 || perms.admin} />
         )}
         {tab === "setup" && (
           <>

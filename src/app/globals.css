@@ -1160,3 +1160,96 @@ html, body { max-width: 100%; overflow-x: clip; }
 .homepanel-job:hover { text-decoration: none; }
 .homepanel-job:hover .homepanel-jobname { color: var(--brand); }
 .homepanel-jobname { font-size: 14px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+
+/* Property album: the photos a home keeps, the cover marked, actions on hover
+   (always shown where there is no hover to speak of). */
+.album {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.album-tile {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #f3f8f4;
+}
+.album-tile.cover { outline: 2px solid var(--brand); outline-offset: 1px; }
+.album-open { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.album-tile img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+.album-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+.album-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding: 6px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.55));
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.album-tile:hover .album-actions,
+.album-tile:focus-within .album-actions { opacity: 1; }
+@media (hover: none) { .album-actions { opacity: 1; } }
+.album-actions button {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  cursor: pointer;
+}
+.album-actions button:hover { background: rgba(0, 0, 0, 0.6); }
+.album-actions button:disabled { opacity: 0.5; cursor: default; }
+.album-empty {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 28px 12px;
+  border: 1px dashed #c9d3cc;
+  border-radius: 10px;
+  color: var(--muted);
+  text-align: center;
+  background: #fbfcfa;
+  font: inherit;
+  cursor: pointer;
+}
+.album-empty svg { color: var(--brand); }
+div.album-empty { cursor: default; }
+.lightbox-tools {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: default;
+}
+
+/* Home panel: the photo frame and the title are two links - the frame
+   invites a photo when there is none, the title opens the property. */
+.homepanel-title { display: grid; gap: 2px; min-width: 0; text-decoration: none; color: inherit; }
+.homepanel-title:hover { text-decoration: none; }
+.homepanel-title:hover .homepanel-name { color: var(--brand); }
+a.homepanel-photo { text-decoration: none; }
+a.homepanel-add { gap: 4px; font-size: 12px; font-weight: 600; grid-auto-rows: max-content; align-content: center; }
+a.homepanel-add:hover { background: #cfe8d8; text-decoration: none; }

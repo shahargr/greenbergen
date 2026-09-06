@@ -8,8 +8,9 @@ import { setGodMode } from "../admin/actions";
 import { BecomePicker } from "@/components/BecomePicker";
 import { rpcRetry } from "@/lib/rpc";
 import { getWeather, getForecast, type WeatherIcon } from "@/lib/weather";
-import { createHome, setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal, setProjectPriority } from "./actions";
+import { setTown, toggleDeal, requestMoreHomes, respondInvite, dismissInviteOutcome, joinClusterDeal, leaveClusterDeal, setProjectPriority } from "./actions";
 import { StartProjectForm } from "./StartProjectForm";
+import { ClaimHomeForm } from "./ClaimHomeForm";
 import { WelcomeVideo } from "@/components/WelcomeVideo";
 import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
@@ -1042,11 +1043,7 @@ export default async function MyPage({
               <strong>Claim your address</strong>
               <span className="muted small">Tell us where home is — that&apos;s where everything lives.</span>
               {canCreate ? (
-                <form action={createHome} style={{ display: "grid", gap: 8, marginTop: 8, maxWidth: 380 }}>
-                  <input name="name" className="input" required autoComplete="off" placeholder="What should we call it? e.g. Our house" />
-                  <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
-                  <div><button className="btn">Claim it</button></div>
-                </form>
+                <ClaimHomeForm buttonLabel="Claim it" namePlaceholder="Our house" labels={false} style={{ marginTop: 8, maxWidth: 380 }} />
               ) : (
                 <span className="muted small">Your account has no active agreement yet — ask us for an invitation.</span>
               )}
@@ -1090,11 +1087,7 @@ export default async function MyPage({
             )}
           </div>
           {canCreate && (
-            <form action={createHome} style={{ display: "grid", gap: 8, minWidth: "min(300px, 100%)" }}>
-              <input name="name" className="input" required placeholder="What should we call it? e.g. Our house" />
-              <input name="address" className="input" required placeholder="Address — 12 Maple Ave, Tenafly NJ" />
-              <button className="btn">Claim it</button>
-            </form>
+            <ClaimHomeForm buttonLabel="Claim it" namePlaceholder="Our house" labels={false} style={{ minWidth: "min(300px, 100%)" }} />
           )}
         </section>
       )}
@@ -1137,6 +1130,9 @@ export default async function MyPage({
             const byPriority = (list: ProjectOverviewRow[]) => [...list.filter((p) => priority.has(p.id)), ...list.filter((p) => !priority.has(p.id))];
             const kinds = new Map([...bandOverview, ...reclaimedHouses].map((p) => [p.id, kindOf(p)]));
             const houses = byPriority([...bandOverview, ...reclaimedHouses].filter((p) => kinds.get(p.id) === "house"));
+            // Setting a property's photos is the owner's - the same gate the album applies.
+            const ownedIds = new Set(ownerProjects.map((p) => p.id));
+            const canAddPhoto = (id: string) => !!boot?.me?.is_superadmin || ownedIds.has(id);
             const jobs = byPriority(bandOverview.filter((p) => kinds.get(p.id) === "project"));
             const others = byPriority(bandOverview.filter((p) => !["house", "project"].includes(kinds.get(p.id) ?? "")));
             const childCount = new Map<string, number>();
@@ -1180,14 +1176,27 @@ export default async function MyPage({
                             {starred ? "★" : "☆"}
                           </button>
                         </form>
-                        <Link href={`/my/project/${h.id}`} className="homepanel-left">
-                          {cover
-                            // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={cover} alt="" className="homepanel-photo" />
-                            : <span className="homepanel-photo homepanel-empty" aria-hidden>{k.glyph}</span>}
-                          <strong className="homepanel-name">{h.project_name}</strong>
-                          <span className="muted homepanel-sub">{h.address ?? "No address yet"}{h.status !== "In Progress" ? ` · ${h.status}` : ""}</span>
-                        </Link>
+                        <div className="homepanel-left">
+                          {cover ? (
+                            <Link href={`/my/project/${h.id}`} className="homepanel-photo" style={{ padding: 0, overflow: "hidden" }} aria-label={h.project_name}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                            </Link>
+                          ) : canAddPhoto(h.id) ? (
+                            // No cover yet, and this is your property: the frame is
+                            // the invitation, straight into its album.
+                            <Link href={`/my/project/${h.id}?tab=setup#photos`} className="homepanel-photo homepanel-empty homepanel-add">
+                              {k.glyph}
+                              <span>＋ Add photo</span>
+                            </Link>
+                          ) : (
+                            <span className="homepanel-photo homepanel-empty" aria-hidden>{k.glyph}</span>
+                          )}
+                          <Link href={`/my/project/${h.id}`} className="homepanel-title">
+                            <strong className="homepanel-name">{h.project_name}</strong>
+                            <span className="muted homepanel-sub">{h.address ?? "No address yet"}{h.status !== "In Progress" ? ` · ${h.status}` : ""}</span>
+                          </Link>
+                        </div>
                         <div className="homepanel-right">
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, paddingRight: 22 }}>
                             <span className="small" style={{ fontWeight: 700, color: "#a8842c" }}>Open projects · {open.length}</span>

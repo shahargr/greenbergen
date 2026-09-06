@@ -38,6 +38,21 @@ export async function createHome(formData: FormData) {
   redirect("/my");
 }
 
+// The same creation, for a form that stays on the page: returns the new
+// project's id so the browser can attach a cover photo to it, or the reason
+// the agreement refused.
+export async function createHomeReturning(name: string, address: string): Promise<{ ok: true; projectId: string } | { ok: false; error: string }> {
+  const v_name = name.trim();
+  const v_address = address.trim();
+  if (!v_name || !v_address) return { ok: false, error: "Name and address are both needed." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_home_asset", { p_name: v_name, p_address: v_address });
+  if (error) return { ok: false, error: "Could not create the home — please try again." };
+  if (!data?.ok || !data.project_id) return { ok: false, error: data?.reason ?? "Could not create the home." };
+  revalidatePath("/my");
+  return { ok: true, projectId: String(data.project_id) };
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

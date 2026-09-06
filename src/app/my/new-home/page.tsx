@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { createHome } from "../actions";
+import { ClaimHomeForm } from "../ClaimHomeForm";
 
 export const dynamic = "force-dynamic";
 
@@ -27,25 +27,13 @@ export default async function NewHomePage({
       <h1 style={{ fontSize: 26, margin: "4px 0 12px" }}>Add a home</h1>
       {error && <p className="error small">{error}</p>}
       {allowed === true ? (
-        <form action={createHome} className="card" style={{ display: "grid", gap: 10 }}>
-          <input type="hidden" name="back" value="/my/new-home" />
+        <div className="card" style={{ display: "grid", gap: 10 }}>
           <p className="muted small" style={{ margin: 0 }}>
             It gets a page of its own — projects, people, paperwork and money.
             To file it under a portfolio later, use <em>Belongs under</em> on its Setup tab.
           </p>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="nh-name">What should we call it?</label>
-            <input id="nh-name" name="name" className="input" required autoComplete="off" placeholder="The Closter house" />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="nh-address">Address</label>
-            <input id="nh-address" name="address" className="input" required placeholder="12 Maple Ave, Tenafly NJ" />
-          </div>
-          <div className="btn-row">
-            <button className="btn">Add home</button>
-            <Link className="btn ghost" href="/my">Cancel</Link>
-          </div>
-        </form>
+          <ClaimHomeForm cancelHref="/my" />
+        </div>
       ) : (
         <div className="card" style={{ display: "grid", gap: 8 }}>
           <p className="small" style={{ margin: 0 }}>
