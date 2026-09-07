@@ -17,14 +17,14 @@ export const metadata = { title: "Inbox" };
 // One inbox across every home and job: invitations waiting for an answer,
 // conversations with unread messages first, then every open task on a
 // project the member is on. All read through existing functions
-// (homeowner_me, portal_my_invites, portal_tasks); nothing is stored twice.
-// Tasks are the construction domain only - a member's business projects
-// stay in the portal. The limit is 25: portal_tasks returns the full task
-// row (notes and all - 52 kB for 60 of them) and this list shows four
-// fields, so the rest is paid for and thrown away. Done opens a confirm sheet (TaskDone), never one tap.
+// (homeowner_me, portal_my_invites, homeowner_tasks); nothing is stored
+// twice. Tasks are the construction domain only - a member's business
+// projects stay in the portal - and homeowner_tasks returns just the five
+// fields drawn below (7 kB for 25, where portal_tasks' whole rows were
+// 23 kB for the same 25). Done opens a confirm sheet (TaskDone), never one tap.
 type Invite = { id: string; project_id: string; project_name: string; address: string | null; by: string; seat: string; message: string | null; created_at: string };
 type Outcome = { id: string; project_id: string; project_name: string; who: string; status: string; at: string };
-type Task = { id: string; action: string; status: string; priority: string | null; target_date: string | null; last_updated: string | null; project: string; project_id: string; state: "open" | "closed"; assignee: string | null };
+type Task = { id: string; action: string; status: string; target_date: string | null; project: string; project_id: string; assignee: string | null };
 
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string }> }) {
   const { error, ok } = await searchParams;
@@ -35,13 +35,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const [me, { data: inv }, { data: tasks }] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("invites", () => rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites")),
-    w.step("tasks", () => rpc<Task[]>(supabase, "portal_tasks", { p_project_id: null, p_open_limit: 25, p_closed_limit: 0, p_domain: "construction" })),
+    w.step("tasks", () => rpc<Task[]>(supabase, "homeowner_tasks", { p_limit: 25 })),
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/inbox");
   const incoming = inv?.incoming ?? [];
   const outcomes = inv?.outcomes ?? [];
-  const open = (tasks ?? []).filter((t) => t.state === "open");
+  const open = tasks ?? []; // homeowner_tasks returns the open ones only
   const threads = me.bookings.filter((b) => b.last_message || b.unread > 0).sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || (b.last_message?.sent_at ?? "").localeCompare(a.last_message?.sent_at ?? ""));
   const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
   const empty = incoming.length === 0 && outcomes.length === 0 && threads.length === 0 && open.length === 0;

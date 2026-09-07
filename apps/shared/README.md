@@ -22,6 +22,7 @@ apps/shared/
     ├── 002_homeowner_seed.sql    generated: node db/gen-seed.mjs > db/002_homeowner_seed.sql
     ├── 003_homeowner_functions.sql   homeowner_* surface: me (homes, quota), book / plan / post, actions, share
     ├── 004_homeowner_homes.sql       delta applied after 001-003: homes = top-most project per asset (homeowner_home_ids)
+    ├── 005_homeowner_perf.sql        delta: homeowner_package (one package, not all 17) and homeowner_tasks (the inbox's five fields)
     └── gen-seed.mjs
 ```
 
@@ -41,5 +42,5 @@ apps/shared/
 - Shared means shared: no `/project` links, no homeowner-only copy, no
   contractor-only logic. Route-aware components stay in their app.
 - The design system is edited here and nowhere else.
-- `db/` is applied only on Shahar's say-so, never automatically (001-004 applied 2026-09-07). Edit the catalogue in
+- `db/` is applied only on Shahar's say-so, never automatically (001-005 applied 2026-09-07). Edit the catalogue in
   `src/catalogue.data.json`, regenerate the seed, then apply.

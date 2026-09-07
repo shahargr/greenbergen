@@ -79,6 +79,12 @@ exist until the three files in `apps/shared/db/` are applied, in order:
    (`homeowner_home_ids`), not "a top-level project with an address" - three
    real homes sat under a business container and had vanished. 003 carries
    the same definitions, so a fresh apply of 001-003 is complete.
+5. `005_homeowner_perf.sql` - the payload delta: `homeowner_package(code)`
+   returns one package (the job page was building all seventeen and keeping
+   one, 37 kB for 4.5 kB of use) and `homeowner_tasks()` returns the five
+   fields the inbox draws (7 kB for 25 tasks, where the portal's own
+   `portal_tasks` returned whole rows: 23 kB for the same 25). Folded into
+   003 as well.
 
 They were dry-run against the live project inside a rolled-back transaction
 (schema + seed + functions + a full booking → accept → pay → close → share

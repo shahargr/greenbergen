@@ -9,10 +9,10 @@
 begin;
 
 -- ---------------------------------------------------------------- catalogue
-create or replace function public.homeowner_catalogue()
+create or replace function public.homeowner_package(p_code text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
+  select jsonb_build_object(
     'code', p.code, 'name', p.name, 'tile_title', p.tile_title, 'tile_line2', p.tile_line2,
     'trade', p.trade, 'tile_group', p.tile_group, 'availability', p.availability,
     'base_price_cents', p.base_price_cents, 'config_label', p.config_label,
@@ -35,12 +35,20 @@ language sql stable security definer set search_path = public as $$
                  'key', m.key, 'kind', m.kind, 'name', m.name, 'sequence_no', m.sequence_no,
                  'percent_of_contract', m.percent_of_contract, 'typical_range', m.typical_range,
                  'trigger_description', m.trigger_description) order by m.sequence_no)
-               from public.blueprint_package_milestones m where m.package_code = p.code), '[]'::jsonb)
-  ) order by p.sort_order, p.name), '[]'::jsonb)
+               from public.blueprint_package_milestones m where m.package_code = p.code), '[]'::jsonb))
+  from public.blueprint_packages p
+  where p.code = p_code and p.is_active;
+$$;
+comment on function public.homeowner_package(text) is 'ONE package as the app draws it (items, levers with options, photos, milestones). homeowner_catalogue() is the aggregate of this, and homeowner_booking() reads the booked package through it instead of building all seventeen and keeping one.';
+
+create or replace function public.homeowner_catalogue()
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(public.homeowner_package(p.code) order by p.sort_order, p.name), '[]'::jsonb)
   from public.blueprint_packages p
   where p.is_active;
 $$;
-comment on function public.homeowner_catalogue() is 'The package catalogue as the homeowner app draws it, nested (items, levers with options, photos, milestones). anon may call it: the grid is browsable before joining. Read-only; templates only.';
+comment on function public.homeowner_catalogue() is 'The package catalogue as the homeowner app draws it - jsonb_agg of homeowner_package(), so one definition of a package''s shape. anon may call it: the grid is browsable before joining. Read-only; templates only.';
 
 -- ---------------------------------------------------------------- referral preview
 create or replace function public.homeowner_ref_preview(p_ref uuid)
@@ -474,7 +482,7 @@ begin
 
   return jsonb_build_object(
     'project_id', b.project_id, 'home_project_id', b.home_project_id, 'package_code', b.package_code,
-    'package', (select x from jsonb_array_elements(public.homeowner_catalogue()) x where x->>'code' = b.package_code),
+    'package', public.homeowner_package(b.package_code),
     'address', pr.address, 'unit', b.unit, 'project_status', pr.status,
     'price_cents', b.price_cents, 'base_price_cents', b.base_price_cents, 'selections', b.selections, 'config_label', b.config_label,
     'facts', case when v_is_owner then b.facts end, 'budget_band', case when v_is_owner then b.budget_band end, 'note', b.note,
@@ -914,6 +922,36 @@ begin
 end $$;
 comment on function public.homeowner_quote_request(text, text, text) is 'The get-a-quote track, the "something else" tile and community-service interest all land as ONE task in actions (domain construction, Bobby), on the member''s home or the Master Template - never a parallel inbox.';
 
+-- ---------------------------------------------------------------- the inbox's tasks
+create or replace function public.homeowner_tasks(p_limit integer default 25)
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  with mine as (
+    select pm.project_id from public.project_members pm
+     where pm.app_user_id = public.current_app_user_id() and pm.status = 'active'
+    union
+    select p.id from public.projects p where public.is_superadmin()
+  ),
+  open_tasks as (
+    select a.id, a.action, a.status, a.target_date, a.project_id, p.project_name,
+           a.assigned_to_contact_id
+      from public.actions a
+      join public.projects p on p.id = a.project_id and p.trashed_at is null
+      join mine m on m.project_id = a.project_id
+     where a.domain = 'construction'
+       and a.status not in ('Completed','Cancelled','Force Cancelled','Superseded')
+     order by a.target_date asc nulls last
+     limit greatest(coalesce(p_limit, 25), 0)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', t.id, 'action', coalesce(t.action, '(untitled)'), 'status', t.status,
+    'target_date', t.target_date, 'project', t.project_name, 'project_id', t.project_id,
+    'assignee', (select coalesce(c.person_name, c.name) from public.contacts c where c.id = t.assigned_to_contact_id)
+  ) order by t.target_date asc nulls last), '[]'::jsonb)
+  from open_tasks t;
+$$;
+comment on function public.homeowner_tasks(integer) is 'The OPEN construction tasks on the member''s projects, with only the fields the inbox draws: what it is, its state, when it is due, which project, who has it. portal_tasks() returns the whole row (notes and all) for the portal''s table - 52 kB for 60 tasks - and the inbox shows four fields, so it reads this instead.';
+
 -- ---------------------------------------------------------------- grants (rulebook 71)
 do $$
 declare f text;
@@ -922,6 +960,7 @@ begin
     'homeowner_catalogue()', 'homeowner_ref_preview(uuid)', 'homeowner_register(text,text,text,uuid)', 'homeowner_progress(uuid)',
     'homeowner_me()', 'homeowner_book(text,jsonb,text,text,jsonb,text,text,uuid,text,text)', 'homeowner_booking(uuid)', 'homeowner_booking_action(uuid,text)',
     'homeowner_price(text,jsonb)', 'homeowner_plan_update(uuid,text,text)', 'homeowner_home_add(text,text)', 'homeowner_home_ids(uuid)',
+    'homeowner_package(text)', 'homeowner_tasks(integer)',
     'homeowner_offers()', 'homeowner_offer_accept(uuid,uuid)', 'homeowner_offer_decline(uuid)', 'homeowner_message_send(uuid,text,uuid)',
     'homeowner_messages_seen(uuid)', 'homeowner_milestone_mark(uuid,text,text,text,uuid)', 'homeowner_share_publish(uuid,text,boolean,uuid)', 'homeowner_share(text)',
     'homeowner_quote_request(text,text,text)', 'homeowner_task_close(uuid,uuid,text,uuid)']
@@ -933,6 +972,7 @@ begin
   revoke all on function public.homeowner_post_internal(uuid) from public, anon, authenticated;
   -- Deliberately anon: read-only, public by design.
   grant execute on function public.homeowner_catalogue() to anon;
+  grant execute on function public.homeowner_package(text) to anon;  -- the catalogue is built from it
   grant execute on function public.homeowner_share(text) to anon;
   grant execute on function public.homeowner_ref_preview(uuid) to anon;
 end $$;
