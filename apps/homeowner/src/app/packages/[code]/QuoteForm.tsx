@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@shared/supabase/client";
 import { friendly, isMissingFunction } from "@shared/rpc";
-import { Blueprint, Notice, StatusHero } from "@shared/ui";
+import { Card, Notice, StatusHero } from "@shared/ui";
 
 // The get-a-quote track and the "something else" tile: one sentence from
 // the homeowner becomes one task in the unified list, for a person to
@@ -38,10 +38,10 @@ export function QuoteForm({ code, signedIn, prompt = "What do you have in mind?"
 
   if (!signedIn) {
     return (
-      <Blueprint pad>
+      <Card pad>
         <p style={{ margin: 0 }}>Join first (three fields), and a person comes back to you by email.</p>
-        <Link href={`/join?next=${encodeURIComponent(`/packages/${code}`)}`} className="btn btn-primary btn-block blueprint" style={{ marginTop: 10 }}>Join the community</Link>
-      </Blueprint>
+        <Link href={`/join?next=${encodeURIComponent(`/packages/${code}`)}`} className="btn btn-primary btn-block" style={{ marginTop: 10 }}>Join the community</Link>
+      </Card>
     );
   }
 
@@ -56,7 +56,7 @@ export function QuoteForm({ code, signedIn, prompt = "What do you have in mind?"
         <input className="input" autoComplete="street-address" placeholder="14 Elm St, Teaneck" value={address} onChange={(e) => setAddress(e.target.value)} />
       </label>
       {err && <Notice kind="error">{err}</Notice>}
-      <button className={`btn btn-primary btn-block blueprint ${busy ? "busy" : ""}`} disabled={busy}>{busy ? <><span className="spin" /> Sending…</> : cta}</button>
+      <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy}>{busy ? <><span className="spin" /> Sending…</> : cta}</button>
     </form>
   );
 }

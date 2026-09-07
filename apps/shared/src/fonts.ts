@@ -1,25 +1,12 @@
 import localFont from "next/font/local";
 
-// Barlow and Barlow Condensed (OFL), vendored so no build depends on a font
-// CDN. Both apps load these in their root layout and pass the two class
-// names to <html>; industry.css reads the variables.
-export const barlow = localFont({
-  src: [
-    { path: "../fonts/barlow-400.woff2", weight: "400", style: "normal" },
-    { path: "../fonts/barlow-500.woff2", weight: "500", style: "normal" },
-    { path: "../fonts/barlow-700.woff2", weight: "700", style: "normal" },
-  ],
-  variable: "--font-barlow",
+// Manrope (OFL), one variable file vendored in ../fonts so no build depends
+// on a font CDN. Apps pass fontClassName to <html>; warm-ink.css reads the
+// variable. Headings use 800, body 500, buttons and labels 700.
+export const manrope = localFont({
+  src: [{ path: "../fonts/manrope-variable.woff2", weight: "200 800", style: "normal" }],
+  variable: "--font-manrope",
   display: "swap",
 });
 
-export const barlowCondensed = localFont({
-  src: [
-    { path: "../fonts/barlow-condensed-400.woff2", weight: "400", style: "normal" },
-    { path: "../fonts/barlow-condensed-600.woff2", weight: "600", style: "normal" },
-  ],
-  variable: "--font-barlow-condensed",
-  display: "swap",
-});
-
-export const fontClassName = `${barlow.variable} ${barlowCondensed.variable}`;
+export const fontClassName = manrope.variable;

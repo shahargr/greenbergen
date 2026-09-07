@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getBooking } from "@/lib/booking";
 import { dollars, shortDate } from "@shared/format";
-import { AppBar, Blueprint, Notice, Screen, StatusHero } from "@shared/ui";
+import { AppBar, Card, Notice, Screen, StatusHero } from "@shared/ui";
 import { MilestoneForm } from "./MilestoneForm";
 import { closeTask } from "../../actions";
 
@@ -39,17 +39,17 @@ export default async function MilestonePage({ params, searchParams }: { params: 
             {node.kind !== "payment" && nextStep(b, key)}
           </StatusHero>
           {node.kind === "payment" && paid && (
-            <Blueprint pad={false}>
+            <Card pad={false}>
               <div className="kv-rows" style={{ padding: "4px 14px" }}>
                 <div><span className="k">Paid to</span><span>{cname}</span></div>
                 <div><span className="k">Amount</span><span>{dollars(node.amount_cents)}</span></div>
                 <div><span className="k">Remaining</span><span>{remaining > 0 ? `${dollars(remaining)} · due at completion` : "nothing"}</span></div>
               </div>
-            </Blueprint>
+            </Card>
           )}
         </div>
         <div className="actions">
-          <Link href={`/project/${id}`} className="btn btn-primary btn-block blueprint">Back to my project</Link>
+          <Link href={`/project/${id}`} className="btn btn-primary btn-block">Back to my project</Link>
         </div>
       </Screen>
     );
@@ -73,7 +73,7 @@ export default async function MilestonePage({ params, searchParams }: { params: 
         {sp.error && <Notice kind="error" title={sp.logged ? "The milestone is logged, but the payment was not recorded." : "That didn't go through."}>{sp.error}</Notice>}
         {node.status === "done" && <Notice>Already marked{node.at ? ` on ${shortDate(node.at)}` : ""}.{node.kind === "payment" && node.unsettled ? " The payment is still to be recorded below." : ""}</Notice>}
         {node.kind === "done" && b.open_tasks.length > 0 && (
-          <Blueprint pad={false}>
+          <Card pad={false}>
             <div style={{ padding: "10px 14px 4px" }}><div className="kicker">Still open</div></div>
             {b.open_tasks.map((t) => (
               <form key={t.id} action={closeTask} className="frow" style={{ alignItems: "flex-start" }}>
@@ -87,7 +87,7 @@ export default async function MilestonePage({ params, searchParams }: { params: 
                 <button className="btn btn-secondary">{t.kind === "payment_confirmation" ? "Yes, confirmed" : "Done"}</button>
               </form>
             ))}
-          </Blueprint>
+          </Card>
         )}
         {(node.kind === "booked" || node.kind === "accepted") ? (
           <Notice>This step marks itself{node.kind === "accepted" ? " when a contractor accepts" : ""}.</Notice>

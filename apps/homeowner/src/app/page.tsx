@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
-import { AppBar, Blueprint, Screen } from "@shared/ui";
+import { AppBar, Card, Screen } from "@shared/ui";
 import { House } from "@shared/Illustrations";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
       <AppBar brand />
       <div className="body">
         {inviter ? (
-          <Blueprint className="card" pad>
+          <Card pad>
             <div className="row">
               <span className="avatar">{(inviter.name ?? "").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}</span>
               <div>
@@ -41,7 +41,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
                 <div className="small text-muted">{inviter.line}</div>
               </div>
             </div>
-          </Blueprint>
+          </Card>
         ) : (
           <div className="kicker">A community, not a marketplace</div>
         )}
@@ -57,13 +57,13 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           <House />
         </div>
 
-        <Blueprint pad={false}>
+        <Card pad={false}>
           <div className="promises">
             <div><div className="t">Pre-priced</div><div className="d">Packages, not quotes</div></div>
             <div><div className="t">Vetted</div><div className="d">Licensed &amp; insured</div></div>
             <div><div className="t">Direct</div><div className="d">You pay the contractor</div></div>
           </div>
-        </Blueprint>
+        </Card>
 
         {SHOW_MEMBER_COUNT && (
           <p className="small text-muted center" style={{ margin: 0 }}>
@@ -72,7 +72,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
         )}
       </div>
       <div className="actions">
-        <Link href={joinHref} className="btn btn-primary btn-block blueprint">
+        <Link href={joinHref} className="btn btn-primary btn-block">
           {inviter ? `Join ${inviter.first} in the community` : "Join the community"}
         </Link>
         <Link href="/packages" className="btn btn-ghost btn-block">See the packages first</Link>

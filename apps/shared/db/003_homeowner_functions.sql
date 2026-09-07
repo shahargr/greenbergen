@@ -124,7 +124,7 @@ begin
   for m in select * from public.blueprint_package_milestones where package_code = b.package_code order by sequence_no loop
     total := total + 1; st := 'upcoming'; at_ts := null; extra := '{}'::jsonb;
     if m.kind = 'booked' then
-      st := 'done'; at_ts := b.posted_at;
+      if b.posted_at is not null then st := 'done'; at_ts := b.posted_at; end if;
     elsif m.kind = 'accepted' then
       if b.accepted_at is not null then st := 'done'; at_ts := b.accepted_at; end if;
     elsif m.kind = 'payment' then
@@ -146,7 +146,7 @@ begin
     elsif m.kind = 'done' then
       if pr.status like 'Closed%' then st := 'done'; at_ts := b.done_at; end if;
     end if;
-    if st = 'upcoming' and not current_found and b.state <> 'closed' then st := 'current'; current_found := true; end if;
+    if st = 'upcoming' and not current_found and b.state not in ('closed', 'planned') then st := 'current'; current_found := true; end if;
     if st = 'done' then done_count := done_count + 1; end if;
     nodes := nodes || (jsonb_build_object('key', m.key, 'kind', m.kind, 'name', m.name, 'sequence_no', m.sequence_no,
                'percent_of_contract', m.percent_of_contract, 'typical_range', m.typical_range,
@@ -177,13 +177,30 @@ begin
                                   'is_superadmin', u.is_superadmin),
     'home', case when v_home.id is null then null else jsonb_build_object(
               'project_id', v_home.id, 'address', v_home.address, 'name', v_home.project_name,
-              'facts', (select b.facts from public.project_bookings b where b.home_project_id = v_home.id and b.facts is not null order by b.posted_at desc limit 1)) end,
+              'facts', (select b.facts from public.project_bookings b where b.home_project_id = v_home.id and b.facts is not null order by b.created_at desc limit 1)) end,
+    -- Every home the member owns, with what is happening on each. Order:
+    -- the one with live work first, then oldest first.
+    'homes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'project_id', h.id, 'address', h.address, 'name', h.project_name, 'town', nullif(btrim(split_part(h.address, ',', 2)), ''), 'created_at', h.created_at,
+        'facts', (select b.facts from public.project_bookings b where b.home_project_id = h.id and b.facts is not null order by b.created_at desc limit 1),
+        'live', (select count(*) from public.project_bookings b join public.projects j on j.id = b.project_id where b.home_project_id = h.id and j.trashed_at is null and b.state in ('posted','accepted')),
+        'planned', (select count(*) from public.project_bookings b join public.projects j on j.id = b.project_id where b.home_project_id = h.id and j.trashed_at is null and b.state = 'planned'),
+        'done', (select count(*) from public.project_bookings b join public.projects j on j.id = b.project_id where b.home_project_id = h.id and j.trashed_at is null and b.state = 'done')
+      ) order by (select count(*) from public.project_bookings b where b.home_project_id = h.id and b.state in ('posted','accepted')) desc, h.created_at)
+      from public.projects h
+      where h.owner_user_id = me and h.parent_project_id is null and coalesce(h.is_template,false) = false and h.trashed_at is null), '[]'::jsonb),
+    'home_quota', (
+      select jsonb_build_object('allowed', c.assets_allowed,
+        'have', (select count(*) from public.projects p where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false),
+        'can_add', public.may_create_asset())
+        from public.contracts c where c.id = public.live_customer_agreement(me)),
     'bookings', coalesce((
       select jsonb_agg(jsonb_build_object(
         'project_id', b.project_id, 'package_code', b.package_code, 'name', bp.name, 'tile_title', bp.tile_title,
         'illustration', bp.illustration, 'requires_permit', bp.requires_permit, 'instant_book', bp.instant_book,
-        'address', p.address, 'price_cents', b.price_cents, 'config_label', b.config_label,
-        'state', b.state, 'posted_at', b.posted_at, 'reply_by', b.reply_by, 'accepted_at', b.accepted_at,
+        'address', p.address, 'home_project_id', b.home_project_id, 'price_cents', b.price_cents, 'config_label', b.config_label,
+        'state', b.state, 'created_at', b.created_at, 'posted_at', b.posted_at, 'target_window', b.target_window, 'reply_by', b.reply_by, 'accepted_at', b.accepted_at,
         'closed_at', b.closed_at, 'done_at', b.done_at, 'repost_count', b.repost_count, 'offered_count', b.offered_count,
         'no_taker', (b.state = 'posted' and b.reply_by is not null and b.reply_by < now()),
         'share_slug', case when b.shared_at is not null then b.share_slug end,
@@ -193,85 +210,71 @@ begin
              from public.contacts c left join public.companies co on co.id = c.company_id where c.id = b.contractor_contact_id) end,
         'progress', public.homeowner_progress(b.project_id),
         'unread', (select count(*) from public.messages m where m.project_id = b.project_id and m.to_contact_id = u.contact_id and m.read_at is null)
-      ) order by (b.state = 'closed'), b.posted_at desc)
+      ) order by (b.state = 'closed'), (b.state = 'done'), (b.state = 'planned'), b.created_at desc)
       from public.project_bookings b
       join public.blueprint_packages bp on bp.code = b.package_code
       join public.projects p on p.id = b.project_id
       where p.trashed_at is null and public.is_project_member(b.project_id)), '[]'::jsonb)
   );
 end $$;
-comment on function public.homeowner_me() is 'One round trip to render the homeowner shell: profile, the home container, every booking with its derived progress and unread count.';
+comment on function public.homeowner_me() is 'One round trip to render the homeowner shell: profile, every home the member owns with live/planned/done counts, the agreement''s home quota, every booking with its derived progress and unread count.';
 
--- ---------------------------------------------------------------- book
-create or replace function public.homeowner_book(
-  p_code text, p_selections jsonb, p_address text, p_unit text, p_facts jsonb, p_budget_band text, p_note text)
-returns jsonb
-language plpgsql security definer set search_path = public as $$
-declare
-  me uuid := public.current_app_user_id();
-  pkg public.blueprint_packages;
-  v_addr text := nullif(btrim(p_address), '');
-  v_town text; v_home public.projects; v_made jsonb;
-  v_price integer; v_cfg text[] := '{}'; lv record; opt record; v_sel text;
-  v_project uuid := gen_random_uuid(); v_booking uuid; v_pkgid uuid; v_reply timestamptz := now() + interval '24 hours';
-  v_scope text; it record; m record; v_n int := 0; c record; v_plan public.project_billing_plan;
+-- ---------------------------------------------------------------- book / plan
+-- Two halves. homeowner_book() makes the HOME (if needed), the JOB project,
+-- the scope and the project_bookings row - as a plan (nothing sent) or as an
+-- order. homeowner_post_internal() is the ORDER half: stages, tasks, billing
+-- plan, the offer to contractors, the clock. A plan reaches it later through
+-- homeowner_booking_action('post'). Not granted to anyone: internal.
+create or replace function public.homeowner_price(p_code text, p_selections jsonb, out price_cents integer, out config_label text, out reason text)
+language plpgsql stable security definer set search_path = public as $$
+declare pkg public.blueprint_packages; lv record; opt record; v_sel text; v_cfg text[] := '{}';
 begin
-  perform public.assert_own_hands();
-  if me is null then return jsonb_build_object('ok', false, 'reason', 'You need to be signed in.'); end if;
   select * into pkg from public.blueprint_packages where code = p_code and is_active;
   if pkg.code is null or pkg.availability <> 'priced' or pkg.base_price_cents is null then
-    return jsonb_build_object('ok', false, 'reason', 'That package cannot be booked yet.');
+    reason := 'That package cannot be booked yet.'; return;
   end if;
-  if v_addr is null then return jsonb_build_object('ok', false, 'reason', 'We need the address for the price and the permit.'); end if;
-  v_town := nullif(btrim(split_part(v_addr, ',', 2)), '');
-
-  -- Price on the server: base plus the chosen option of each lever.
-  v_price := pkg.base_price_cents;
+  price_cents := pkg.base_price_cents;
   for lv in select * from public.blueprint_package_levers where package_code = pkg.code order by sort_order loop
     v_sel := coalesce(p_selections->>lv.key, (select o.key from public.blueprint_package_lever_options o where o.lever_id = lv.id and o.is_default limit 1));
     select * into opt from public.blueprint_package_lever_options o where o.lever_id = lv.id and o.key = v_sel;
-    if opt.id is null then return jsonb_build_object('ok', false, 'reason', 'Unknown choice for ' || lv.label || '.'); end if;
-    v_price := v_price + opt.price_delta_cents;
+    if opt.id is null then reason := 'Unknown choice for ' || lv.label || '.'; return; end if;
+    price_cents := price_cents + opt.price_delta_cents;
     if not opt.is_default then v_cfg := v_cfg || opt.label::text; end if;
   end loop;
+  config_label := coalesce(nullif(array_to_string(v_cfg, ' · '), ''), pkg.config_label);
+end $$;
+comment on function public.homeowner_price(text, jsonb) is 'The community price of a package with the chosen levers, computed on the server from blueprint_packages - the browser only ever proposes selections, never a number.';
 
-  -- The home container: the owner's, or made now (governed by the agreement).
-  select * into v_home from public.projects p
-   where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false
-     and p.trashed_at is null and p.address is not null
-   order by (lower(p.address) = lower(v_addr)) desc, p.created_at limit 1;
-  if v_home.id is null then
-    v_made := public.create_home_asset(coalesce(split_part(v_addr, ',', 1), 'My home'), v_addr, v_town, 'Added through the homeowner app when booking ' || pkg.name || '.');
-    if not coalesce((v_made->>'ok')::boolean, false) then return v_made; end if;
-    select * into v_home from public.projects where id = (v_made->>'project_id')::uuid;
-  end if;
+create or replace function public.homeowner_post_internal(p_project uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  b public.project_bookings; pr public.projects; pkg public.blueprint_packages; me uuid;
+  v_price integer; v_cfg text; v_reason text;
+  v_pkgid uuid; v_reply timestamptz := now() + interval '24 hours';
+  v_scope text; m record; v_n int := 0; c record; v_plan public.project_billing_plan;
+begin
+  select * into b from public.project_bookings where project_id = p_project for update;
+  select * into pr from public.projects where id = p_project;
+  select * into pkg from public.blueprint_packages where code = b.package_code;
+  me := pr.owner_user_id;
 
-  -- The job: a child project of the home.
-  insert into public.projects (id, project_name, address, status, domain, owner_user_id, parent_project_id, asset_id, created_by, notes)
-  values (v_project, pkg.name, v_addr, 'In Progress', 'construction', me, v_home.id, v_home.asset_id, 'homeowner-app',
-          'Booked through the homeowner app: ' || pkg.name || ' at the community price of $' || round(v_price/100.0) ||
-          ' (' || coalesce(array_to_string(v_cfg, ', '), pkg.config_label, 'most common setup') || ').' ||
-          coalesce(E'\n\nOwner note: ' || nullif(btrim(p_note), ''), ''));
-
-  -- Scope, copied down (rulebook 41).
-  for it in select * from public.blueprint_package_items where package_code = pkg.code order by sort_order loop
-    insert into public.project_scope_items (project_id, trade, item, category, source, is_required, add_to_contract, add_to_checklist,
-                                            origin, notes, created_by, authority, owner_summary, audience)
-    values (v_project, pkg.trade, it.label, 'Package: ' || pkg.name, 'blueprint_packages.' || pkg.code, true, true, true,
-            'blueprint copy', it.detail, 'homeowner-app', 'unassigned', it.detail, 'both');
-  end loop;
+  -- Price from the LIVE catalogue: a plan made in spring is posted at the
+  -- community price of the day it is posted, never a stale one.
+  select price_cents, config_label, reason into v_price, v_cfg, v_reason from public.homeowner_price(b.package_code, b.selections);
+  if v_reason is not null then return jsonb_build_object('ok', false, 'reason', v_reason); end if;
   select string_agg(label || coalesce(' - ' || detail, ''), '; ' order by sort_order) into v_scope from public.blueprint_package_items where package_code = pkg.code;
 
   -- Milestones: money ones become payment stages, hand-marked ones become tasks.
   for m in select * from public.blueprint_package_milestones where package_code = pkg.code order by sequence_no loop
     if m.kind = 'payment' then
       insert into public.payment_stages (project_id, name, sequence_no, percent_of_contract, amount, trigger_description, status, requires_photo, created_by_user_id, notes)
-      values (v_project, m.name, m.sequence_no, m.percent_of_contract, round(v_price * m.percent_of_contract / 10000.0, 2),
+      values (p_project, m.name, m.sequence_no, m.percent_of_contract, round(v_price * m.percent_of_contract / 10000.0, 2),
               m.trigger_description, 'Planned', false, me, 'Package milestone (' || pkg.code || '.' || m.key || '). Paid directly to the contractor; Green Bergen never holds the money.');
     elsif m.kind = 'task' then
       insert into public.actions (action, domain, status, priority, project_id, source, created_by, notes, depth_level, desired_outcome)
-      values (m.name, 'construction', 'Not Started', 'Medium', v_project, 'homeowner_app', 'system:package-blueprint',
-              coalesce(m.trigger_description, ''), 1, m.name || ' on ' || pkg.name || ' at ' || v_addr || '.');
+      values (m.name, 'construction', 'Not Started', 'Medium', p_project, 'homeowner_app', 'system:package-blueprint',
+              coalesce(m.trigger_description, ''), 1, m.name || ' on ' || pkg.name || ' at ' || pr.address || '.');
     end if;
   end loop;
 
@@ -279,25 +282,27 @@ begin
   -- priced (stage_payment_quote reads the plan of the stage's own project).
   -- A home with none (a superadmin's, or one that predates plans) gets the
   -- free pilot, the same default fn_projects_auto_billing_plan applies.
-  select * into v_plan from public.project_billing_plan where project_id = v_home.id and status = 'active' limit 1;
-  if v_plan.id is not null then
-    insert into public.project_billing_plan (project_id, copied_from_plan_id, model, currency, base_amount, billing_interval, percent_rate,
-      fee_bearer, fee_split_homeowner_pct, min_fee_amount, max_fee_amount, status, started_on, fee_collection_fallback, provider, payment_method_id, notes)
-    values (v_project, v_plan.copied_from_plan_id, v_plan.model, v_plan.currency, v_plan.base_amount, v_plan.billing_interval, v_plan.percent_rate,
-      v_plan.fee_bearer, v_plan.fee_split_homeowner_pct, v_plan.min_fee_amount, v_plan.max_fee_amount, 'active', current_date,
-      v_plan.fee_collection_fallback, v_plan.provider, v_plan.payment_method_id, 'Mirrored from the home container at booking (homeowner_book) so stage_payment_quote can price this job''s milestones.');
-  else
-    insert into public.project_billing_plan (project_id, copied_from_plan_id, model, currency, base_amount, billing_interval, percent_rate,
-      fee_bearer, fee_split_homeowner_pct, min_fee_amount, max_fee_amount, status, started_on, fee_collection_fallback, provider, payment_method_id, notes)
-    select v_project, bp.id, bp.model, coalesce(bp.currency, 'USD'), bp.base_amount, bp.billing_interval, bp.percent_rate,
-           bp.fee_bearer, bp.fee_split_homeowner_pct, bp.min_fee_amount, bp.max_fee_amount, 'active', current_date,
-           bp.fee_collection_fallback, bp.provider, bp.default_payment_method_id, 'Applied at booking (homeowner_book): the home had no active plan, so the free pilot default was used.'
-      from public.blueprint_pricing_plan bp where bp.code = 'free_pilot' and bp.is_active limit 1;
+  if not exists (select 1 from public.project_billing_plan where project_id = p_project and status = 'active') then
+    select * into v_plan from public.project_billing_plan where project_id = b.home_project_id and status = 'active' limit 1;
+    if v_plan.id is not null then
+      insert into public.project_billing_plan (project_id, copied_from_plan_id, model, currency, base_amount, billing_interval, percent_rate,
+        fee_bearer, fee_split_homeowner_pct, min_fee_amount, max_fee_amount, status, started_on, fee_collection_fallback, provider, payment_method_id, notes)
+      values (p_project, v_plan.copied_from_plan_id, v_plan.model, v_plan.currency, v_plan.base_amount, v_plan.billing_interval, v_plan.percent_rate,
+        v_plan.fee_bearer, v_plan.fee_split_homeowner_pct, v_plan.min_fee_amount, v_plan.max_fee_amount, 'active', current_date,
+        v_plan.fee_collection_fallback, v_plan.provider, v_plan.payment_method_id, 'Mirrored from the home container at posting (homeowner_post_internal) so stage_payment_quote can price this job''s milestones.');
+    else
+      insert into public.project_billing_plan (project_id, copied_from_plan_id, model, currency, base_amount, billing_interval, percent_rate,
+        fee_bearer, fee_split_homeowner_pct, min_fee_amount, max_fee_amount, status, started_on, fee_collection_fallback, provider, payment_method_id, notes)
+      select p_project, bp.id, bp.model, coalesce(bp.currency, 'USD'), bp.base_amount, bp.billing_interval, bp.percent_rate,
+             bp.fee_bearer, bp.fee_split_homeowner_pct, bp.min_fee_amount, bp.max_fee_amount, 'active', current_date,
+             bp.fee_collection_fallback, bp.provider, bp.default_payment_method_id, 'Applied at posting (homeowner_post_internal): the home had no active plan, so the free pilot default was used.'
+        from public.blueprint_pricing_plan bp where bp.code = 'free_pilot' and bp.is_active limit 1;
+    end if;
   end if;
 
   -- The offer: one bid package, one invited bid per contractor who can act in-app.
   insert into public.bid_packages (project_id, trade, category, scope_summary, budget_amount, budget_visible, deposit_pct, reply_by, status, created_by)
-  values (v_project, pkg.trade, 'Package', pkg.name || ' - ' || coalesce(array_to_string(v_cfg, ', '), pkg.config_label, '') || E'.\nIncluded: ' || coalesce(v_scope, ''),
+  values (p_project, pkg.trade, 'Package', pkg.name || ' - ' || coalesce(v_cfg, '') || E'.\nIncluded: ' || coalesce(v_scope, ''),
           round(v_price/100.0, 2), true, pkg.permit_deposit_pct, v_reply::date, 'open', 'homeowner-app')
   returning id into v_pkgid;
 
@@ -311,22 +316,128 @@ begin
   loop
     insert into public.bids (project_id, package_id, trade, package, scope_summary, bidder_contact_id, bidder_company_id,
                              amount, amount_basis, status, round, received_on, created_by)
-    values (v_project, v_pkgid, pkg.trade, 'Package', pkg.name, c.contact_id, c.company_id,
+    values (p_project, v_pkgid, pkg.trade, 'Package', pkg.name, c.contact_id, c.company_id,
             round(v_price/100.0, 2), 'community price - accept or pass', 'invited', 1, null, 'homeowner-app');
     v_n := v_n + 1;
   end loop;
 
-  insert into public.project_bookings (project_id, home_project_id, package_code, price_cents, base_price_cents, selections, config_label,
-                                       unit, facts, budget_band, note, state, posted_at, reply_by, bid_package_id, offered_count, created_by)
-  values (v_project, v_home.id, pkg.code, v_price, pkg.base_price_cents, coalesce(p_selections, '{}'::jsonb),
-          coalesce(nullif(array_to_string(v_cfg, ' · '), ''), pkg.config_label), nullif(btrim(p_unit), ''), p_facts,
-          nullif(btrim(p_budget_band), ''), nullif(btrim(p_note), ''), 'posted', now(), v_reply, v_pkgid, v_n, 'homeowner-app')
-  returning id into v_booking;
+  update public.project_bookings
+     set state = 'posted', posted_at = now(), reply_by = v_reply, price_cents = v_price, base_price_cents = pkg.base_price_cents,
+         config_label = v_cfg, bid_package_id = v_pkgid, offered_count = v_n, target_window = null
+   where id = b.id;
+  update public.projects set notes = coalesce(notes, '') || E'\n\nPosted to the community''s ' || pkg.trade || ' contractors at $' || round(v_price/100.0) || ' on ' || to_char(now(), 'YYYY-MM-DD') || '.'
+   where id = p_project;
 
-  return jsonb_build_object('ok', true, 'project_id', v_project, 'home_project_id', v_home.id, 'booking_id', v_booking,
+  return jsonb_build_object('ok', true, 'project_id', p_project, 'home_project_id', b.home_project_id, 'booking_id', b.id,
                             'price_cents', v_price, 'reply_by', v_reply, 'offered_count', v_n, 'instant_book', pkg.instant_book);
 end $$;
-comment on function public.homeowner_book(text, jsonb, text, text, jsonb, text, text) is 'Books a package: home container if needed, the job as a child project, scope copied down, milestones as payment stages and tasks, the billing plan mirrored, the offer as a bid package with one invited bid per contractor with a login and the trade, and the project_bookings row. Price is computed here from the levers, never trusted from the browser.';
+comment on function public.homeowner_post_internal(uuid) is 'The ORDER half of a booking, shared by homeowner_book and homeowner_booking_action(post): re-prices from the live catalogue, writes payment stages and milestone tasks, mirrors the billing plan, opens the bid package with one invited bid per contractor with a login and the trade, and starts the 24-hour clock. Internal - no grant.';
+
+create or replace function public.homeowner_book(
+  p_code text, p_selections jsonb, p_address text, p_unit text, p_facts jsonb, p_budget_band text, p_note text,
+  p_home_project_id uuid default null, p_mode text default 'book', p_target_window text default null)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := public.current_app_user_id();
+  pkg public.blueprint_packages;
+  v_addr text := nullif(btrim(p_address), '');
+  v_town text; v_home public.projects; v_made jsonb;
+  v_price integer; v_cfg text; v_reason text;
+  v_project uuid := gen_random_uuid(); v_booking uuid; it record; v_plan boolean := (p_mode = 'plan');
+begin
+  perform public.assert_own_hands();
+  if me is null then return jsonb_build_object('ok', false, 'reason', 'You need to be signed in.'); end if;
+  if p_mode not in ('book', 'plan') then return jsonb_build_object('ok', false, 'reason', 'Unknown mode.'); end if;
+  select * into pkg from public.blueprint_packages where code = p_code and is_active;
+  select price_cents, config_label, reason into v_price, v_cfg, v_reason from public.homeowner_price(p_code, coalesce(p_selections, '{}'::jsonb));
+  if v_reason is not null then return jsonb_build_object('ok', false, 'reason', v_reason); end if;
+
+  -- WHICH HOME. A chosen one of the owner's, else the one matching the
+  -- address, else a new one (governed by the agreement's quota).
+  if p_home_project_id is not null then
+    select * into v_home from public.projects p
+     where p.id = p_home_project_id and p.owner_user_id = me and p.parent_project_id is null and p.trashed_at is null;
+    if v_home.id is null then return jsonb_build_object('ok', false, 'reason', 'That home is not one of yours.'); end if;
+    v_addr := coalesce(v_addr, v_home.address);
+  else
+    if v_addr is null then return jsonb_build_object('ok', false, 'reason', 'We need the address for the price and the permit.'); end if;
+    select * into v_home from public.projects p
+     where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false
+       and p.trashed_at is null and p.address is not null and lower(p.address) = lower(v_addr)
+     order by p.created_at limit 1;
+    if v_home.id is null then
+      v_town := nullif(btrim(split_part(v_addr, ',', 2)), '');
+      v_made := public.create_home_asset(coalesce(split_part(v_addr, ',', 1), 'My home'), v_addr, v_town,
+                  'Added through the homeowner app when ' || case when v_plan then 'planning ' else 'booking ' end || pkg.name || '.');
+      if not coalesce((v_made->>'ok')::boolean, false) then return v_made; end if;
+      select * into v_home from public.projects where id = (v_made->>'project_id')::uuid;
+    end if;
+  end if;
+
+  -- The job: a child project of the home.
+  insert into public.projects (id, project_name, address, status, domain, owner_user_id, parent_project_id, asset_id, created_by, notes)
+  values (v_project, pkg.name, v_addr, 'In Progress', 'construction', me, v_home.id, v_home.asset_id, 'homeowner-app',
+          case when v_plan then 'Planned through the homeowner app: ' else 'Booked through the homeowner app: ' end || pkg.name ||
+          ' at the community price of $' || round(v_price/100.0) || ' (' || coalesce(v_cfg, 'most common setup') || ').' ||
+          coalesce(E'\n\nOwner note: ' || nullif(btrim(p_note), ''), ''));
+
+  -- Scope, copied down (rulebook 41) - for a plan too, so the owner reads
+  -- exactly what they are planning for.
+  for it in select * from public.blueprint_package_items where package_code = pkg.code order by sort_order loop
+    insert into public.project_scope_items (project_id, trade, item, category, source, is_required, add_to_contract, add_to_checklist,
+                                            origin, notes, created_by, authority, owner_summary, audience)
+    values (v_project, pkg.trade, it.label, 'Package: ' || pkg.name, 'blueprint_packages.' || pkg.code, true, true, true,
+            'blueprint copy', it.detail, 'homeowner-app', 'unassigned', it.detail, 'both');
+  end loop;
+
+  insert into public.project_bookings (project_id, home_project_id, package_code, price_cents, base_price_cents, selections, config_label,
+                                       unit, facts, budget_band, note, state, posted_at, target_window, created_by)
+  values (v_project, v_home.id, pkg.code, v_price, pkg.base_price_cents, coalesce(p_selections, '{}'::jsonb), v_cfg,
+          nullif(btrim(p_unit), ''), p_facts, nullif(btrim(p_budget_band), ''), nullif(btrim(p_note), ''),
+          'planned', null, case when v_plan then coalesce(nullif(p_target_window, ''), 'someday') end, 'homeowner-app')
+  returning id into v_booking;
+
+  if v_plan then
+    return jsonb_build_object('ok', true, 'planned', true, 'project_id', v_project, 'home_project_id', v_home.id, 'booking_id', v_booking,
+                              'price_cents', v_price, 'target_window', coalesce(nullif(p_target_window, ''), 'someday'));
+  end if;
+  return public.homeowner_post_internal(v_project);
+end $$;
+comment on function public.homeowner_book(text, jsonb, text, text, jsonb, text, text, uuid, text, text) is 'Books OR plans a package on one of the owner''s homes (p_home_project_id), the home matching the address, or a new home (create_home_asset, agreement quota). Writes the job as a child project, the scope copied down and the project_bookings row. p_mode book then posts it (homeowner_post_internal); p_mode plan stops there with state planned and p_target_window. Price is computed here from the levers, never trusted from the browser.';
+
+create or replace function public.homeowner_plan_update(p_project uuid, p_target_window text, p_note text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare b public.project_bookings; pr public.projects;
+begin
+  perform public.assert_own_hands();
+  select * into b from public.project_bookings where project_id = p_project for update;
+  if b.id is null then return jsonb_build_object('ok', false, 'reason', 'No such plan.'); end if;
+  select * into pr from public.projects where id = p_project;
+  if pr.owner_user_id <> public.current_app_user_id() and not public.is_superadmin() then
+    return jsonb_build_object('ok', false, 'reason', 'Only the homeowner can do that.');
+  end if;
+  if b.state <> 'planned' then return jsonb_build_object('ok', false, 'reason', 'This job is already ordered.'); end if;
+  update public.project_bookings set target_window = coalesce(nullif(p_target_window, ''), target_window), note = coalesce(nullif(btrim(p_note), ''), note) where id = b.id;
+  return jsonb_build_object('ok', true);
+end $$;
+comment on function public.homeowner_plan_update(uuid, text, text) is 'Changes when a PLANNED job is meant for (target_window) and the owner''s note. Ordered jobs are not touched here.';
+
+create or replace function public.homeowner_home_add(p_address text, p_name text default null)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_addr text := nullif(btrim(p_address), '');
+begin
+  if v_addr is null then return jsonb_build_object('ok', false, 'reason', 'We need the address.'); end if;
+  if exists (select 1 from public.projects p where p.owner_user_id = public.current_app_user_id() and p.parent_project_id is null
+              and p.trashed_at is null and lower(p.address) = lower(v_addr)) then
+    return jsonb_build_object('ok', false, 'reason', 'That home is already on your account.');
+  end if;
+  return public.create_home_asset(coalesce(nullif(btrim(p_name), ''), split_part(v_addr, ',', 1)), v_addr,
+                                  nullif(btrim(split_part(v_addr, ',', 2)), ''), 'Added through the homeowner app.');
+end $$;
+comment on function public.homeowner_home_add(text, text) is 'Claims another home without ordering anything: create_home_asset under the customer agreement''s quota, with a duplicate-address guard. The old portal''s "claim your address", kept.';
 
 -- ---------------------------------------------------------------- booking detail
 create or replace function public.homeowner_booking(p_project uuid)
@@ -346,7 +457,8 @@ begin
     'address', pr.address, 'unit', b.unit, 'project_status', pr.status,
     'price_cents', b.price_cents, 'base_price_cents', b.base_price_cents, 'selections', b.selections, 'config_label', b.config_label,
     'facts', case when v_is_owner then b.facts end, 'budget_band', case when v_is_owner then b.budget_band end, 'note', b.note,
-    'state', b.state, 'posted_at', b.posted_at, 'reply_by', b.reply_by, 'repost_count', b.repost_count, 'offered_count', b.offered_count,
+    'state', b.state, 'created_at', b.created_at, 'posted_at', b.posted_at, 'target_window', b.target_window, 'reply_by', b.reply_by, 'repost_count', b.repost_count, 'offered_count', b.offered_count,
+    'live_price_cents', case when b.state = 'planned' then (select price_cents from public.homeowner_price(b.package_code, b.selections)) end,
     'accepted_at', b.accepted_at, 'closed_at', b.closed_at, 'close_reason', b.close_reason, 'done_at', b.done_at,
     'no_taker', (b.state = 'posted' and b.reply_by is not null and b.reply_by < now()),
     'is_owner', v_is_owner, 'my_contact_id', my_contact,
@@ -412,6 +524,18 @@ begin
     return jsonb_build_object('ok', false, 'reason', 'A contractor already has this job.');
   end if;
 
+  -- A plan can be posted (it becomes an order at today's price) or removed.
+  if p_action = 'post' then
+    if b.state <> 'planned' then return jsonb_build_object('ok', false, 'reason', 'This job is already posted.'); end if;
+    return public.homeowner_post_internal(p_project);
+  elsif p_action = 'remove' then
+    if b.state <> 'planned' then return jsonb_build_object('ok', false, 'reason', 'Only a plan can be removed; a posted job is closed instead.'); end if;
+    update public.projects set trashed_at = now(), notes = coalesce(notes, '') || E'\n\nPlan removed by the owner on ' || to_char(now(), 'YYYY-MM-DD') || '.' where id = p_project;
+    return jsonb_build_object('ok', true);
+  elsif b.state = 'planned' then
+    return jsonb_build_object('ok', false, 'reason', 'This job is only planned - post it first.');
+  end if;
+
   if p_action in ('bump', 'reopen') then
     v_new := (ceil((b.price_cents * 1.09) / 1000.0) * 1000)::integer;
     v_reply := now() + interval '24 hours';
@@ -443,7 +567,7 @@ begin
   end if;
   return jsonb_build_object('ok', false, 'reason', 'Unknown action.');
 end $$;
-comment on function public.homeowner_booking_action(uuid, text) is 'The no-taker moment: bump (repost at +9 %, rounded up to $10, a new bid package superseding the old, same bidders, fresh 24 h), wait (+48 h), close (graceful; nothing charged, nothing shared). reopen = bump.';
+comment on function public.homeowner_booking_action(uuid, text) is 'post (a plan becomes an order at today''s price), remove (a plan is trashed, never deleted). The no-taker moment: bump (repost at +9 %, rounded up to $10, a new bid package superseding the old, same bidders, fresh 24 h), wait (+48 h), close (graceful; nothing charged, nothing shared). reopen = bump.';
 
 -- ---------------------------------------------------------------- contractor side
 create or replace function public.homeowner_offers()
@@ -749,7 +873,8 @@ declare f text;
 begin
   foreach f in array array[
     'homeowner_catalogue()', 'homeowner_ref_preview(uuid)', 'homeowner_register(text,text,text,uuid)', 'homeowner_progress(uuid)',
-    'homeowner_me()', 'homeowner_book(text,jsonb,text,text,jsonb,text,text)', 'homeowner_booking(uuid)', 'homeowner_booking_action(uuid,text)',
+    'homeowner_me()', 'homeowner_book(text,jsonb,text,text,jsonb,text,text,uuid,text,text)', 'homeowner_booking(uuid)', 'homeowner_booking_action(uuid,text)',
+    'homeowner_price(text,jsonb)', 'homeowner_plan_update(uuid,text,text)', 'homeowner_home_add(text,text)',
     'homeowner_offers()', 'homeowner_offer_accept(uuid,uuid)', 'homeowner_offer_decline(uuid)', 'homeowner_message_send(uuid,text,uuid)',
     'homeowner_messages_seen(uuid)', 'homeowner_milestone_mark(uuid,text,text,text,uuid)', 'homeowner_share_publish(uuid,text,boolean,uuid)', 'homeowner_share(text)',
     'homeowner_quote_request(text,text,text)', 'homeowner_task_close(uuid,uuid)']
@@ -757,6 +882,8 @@ begin
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to authenticated, service_role', f);
   end loop;
+  -- Internal: the order half runs only inside homeowner_book / homeowner_booking_action.
+  revoke all on function public.homeowner_post_internal(uuid) from public, anon, authenticated;
   -- Deliberately anon: read-only, public by design.
   grant execute on function public.homeowner_catalogue() to anon;
   grant execute on function public.homeowner_share(text) to anon;

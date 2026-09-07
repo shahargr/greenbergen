@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { dollars, shortDay, shortName } from "@shared/format";
-import { AppBar, Avatar, Blueprint, Screen } from "@shared/ui";
+import { AppBar, Avatar, Card, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 
 export const dynamic = "force-dynamic";
@@ -50,13 +50,13 @@ export default async function SharedCard({ params }: { params: Promise<{ slug: s
             )}
           </div>
         </div>
-        <Blueprint pad>
+        <Card pad>
           <h2>{first}&apos;s inviting you to the Bergen community.</h2>
           <p className="text-muted" style={{ margin: 0 }}>Same contractors, same pre-negotiated prices. Three fields to join.</p>
-        </Blueprint>
+        </Card>
       </div>
       <div className="actions">
-        <Link href={joinHref} className="btn btn-primary btn-block blueprint">Join with {first}&apos;s invite</Link>
+        <Link href={joinHref} className="btn btn-primary btn-block">Join with {first}&apos;s invite</Link>
         <Link href="/packages" className="btn btn-ghost btn-block">See what a {s.tile_title.toLowerCase()} costs</Link>
       </div>
     </Screen>

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@shared/supabase/server";
 import { isMissingFunction, rpc } from "@shared/rpc";
 import type { Package } from "@shared/catalogue";
-import type { Progress } from "@/lib/me";
+import type { BookingState, Progress, TargetWindow } from "@/lib/me";
 
 export type Stage = {
   id: string; name: string; sequence_no: number | null; amount_cents: number; percent: number | null; status: string;
@@ -23,7 +23,8 @@ export type Booking = {
   project_id: string; home_project_id: string; package_code: string; package: Package | null; address: string | null; unit: string | null;
   project_status: string; price_cents: number; base_price_cents: number; selections: Record<string, string>; config_label: string | null;
   facts: Record<string, unknown> | null; budget_band: string | null; note: string | null;
-  state: "posted" | "accepted" | "closed" | "done"; posted_at: string; reply_by: string | null; repost_count: number; offered_count: number;
+  state: BookingState; created_at: string; posted_at: string | null; target_window: TargetWindow | null; live_price_cents: number | null;
+  reply_by: string | null; repost_count: number; offered_count: number;
   accepted_at: string | null; closed_at: string | null; close_reason: string | null; done_at: string | null; no_taker: boolean;
   is_owner: boolean; my_contact_id: string | null;
   share: { slug: string | null; shared_at: string | null; quote: string | null; hide_address: boolean; after_file_id: string | null };

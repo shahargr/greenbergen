@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { COMMUNITY_SERVICES } from "@shared/catalogue";
 import { dollars } from "@shared/format";
-import { AppBar, Blueprint, Screen } from "@shared/ui";
+import { AppBar, Card, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { QuoteForm } from "@/app/packages/[code]/QuoteForm";
 
@@ -27,14 +27,14 @@ export default async function ServicePage({ params }: { params: Promise<{ code: 
           <h1>{s.name}</h1>
           <p className="lead">{s.description}</p>
         </div>
-        <Blueprint pad={false}>
+        <Card pad={false}>
           <div className="kv-rows" style={{ padding: "4px 14px" }}>
             <div><span className="k">{s.price_label}</span><strong>{dollars(s.price_cents)}</strong></div>
             <div><span className="k">Charged</span><span>{s.charged}</span></div>
             <div><span className="k">Season</span><span>{s.season}</span></div>
             <div><span className="k">Neighbors signed up on your street</span><span className="text-muted">Not yet counted</span></div>
           </div>
-        </Blueprint>
+        </Card>
         <QuoteForm code={s.code} signedIn={!!auth.user} prompt="Anything we should know? (gate code, where to leave the bags)" cta="Sign up for the season" />
         <p className="small text-muted" style={{ margin: 0 }}>We&apos;ll ask for your address and a card when the season opens. Nothing is charged until a delivery lands.</p>
       </div>

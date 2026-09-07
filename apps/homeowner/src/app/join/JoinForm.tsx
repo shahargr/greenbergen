@@ -105,7 +105,7 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
           {errors.submit && <Notice kind="error">{errors.submit}</Notice>}
           <p className="small text-muted">Nothing arrived? Look in spam, or <button type="button" className="btn btn-ghost" style={{ padding: 0, minHeight: 0, fontSize: 13 }} onClick={() => setStep("form")}>go back and resend</button>.</p>
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-            <button className={`btn btn-primary btn-block blueprint ${busy ? "busy" : ""}`} disabled={busy || code.length < 6}>
+            <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || code.length < 6}>
               {busy ? <><span className="spin" /> Signing you in…</> : "Continue"}
             </button>
           </div>
@@ -152,7 +152,7 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
         {errors.submit && <Notice kind="error" title="We couldn't save that.">{errors.submit}</Notice>}
 
         <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-          <button className={`btn btn-primary btn-block blueprint ${busy ? "busy" : ""}`} disabled={busy || outside}>
+          <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || outside}>
             {busy ? <><span className="spin" /> Sending your code…</> : errors.submit ? "Try again" : "Continue"}
           </button>
           <p className="small text-muted center" style={{ margin: "4px 0 0" }}>Already in? <Link href="/login">Sign in</Link></p>

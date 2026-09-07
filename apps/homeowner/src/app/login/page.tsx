@@ -67,7 +67,7 @@ function LoginInner() {
         )}
         {err && <Notice kind="error">{err}</Notice>}
         <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-          <button className={`btn btn-primary btn-block blueprint ${busy ? "busy" : ""}`} disabled={busy || (step === "code" && code.length < 6)}>
+          <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || (step === "code" && code.length < 6)}>
             {busy ? <><span className="spin" /> One moment…</> : step === "email" ? "Send my code" : "Sign in"}
           </button>
           <p className="small text-muted center" style={{ margin: "4px 0 0" }}>New here? <Link href="/join">Join the community</Link></p>

@@ -2,22 +2,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 // The reusable pieces named in the design's component list. Plain CSS
-// classes from globals.css; no client state here.
+// classes from warm-ink.css; no client state here.
 
-export function Corners() {
+// Card - the white surface everything sits on, with an optional tag slot.
+export function Card({ children, className = "", pad = true, soft = false, tag }: { children: ReactNode; className?: string; pad?: boolean; soft?: boolean; tag?: ReactNode }) {
   return (
-    <>
-      <i className="corner tl" /><i className="corner tr" /><i className="corner bl" /><i className="corner br" />
-    </>
-  );
-}
-
-// IllustrationFrame - hairline figure with corner marks and a tag slot.
-export function Blueprint({ children, className = "", pad = true, tag }: { children: ReactNode; className?: string; pad?: boolean; tag?: ReactNode }) {
-  return (
-    <div className={`blueprint ${pad ? "bp-pad" : ""} ${className}`}>
-      <Corners />
-      {tag && <span className="tag tag-accent" style={{ position: "absolute", top: 10, left: 10 }}>{tag}</span>}
+    <div className={`card ${pad ? "pad" : ""} ${soft ? "soft" : ""} ${className}`}>
+      {tag && <span className="tag" style={{ position: "absolute", top: 12, left: 12, zIndex: 1 }}>{tag}</span>}
       {children}
     </div>
   );
@@ -117,3 +108,7 @@ export function Avatar({ name, ghost = false }: { name: string | null | undefine
 export function Skeleton({ h = 14, w = "100%", style }: { h?: number; w?: string | number; style?: React.CSSProperties }) {
   return <div className="skel" style={{ height: h, width: w, ...style }} aria-hidden />;
 }
+
+export const HouseIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
+);

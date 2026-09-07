@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getBooking, signedUrls } from "@/lib/booking";
 import { shortDate } from "@shared/format";
-import { AppBar, Blueprint, Notice, Screen } from "@shared/ui";
+import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { ShareForm } from "./ShareForm";
 import { ShareLink } from "./ShareLink";
 
@@ -38,11 +38,11 @@ export default async function SharePage({ params, searchParams }: { params: Prom
         </div>
         {error && <Notice kind="error">{error}</Notice>}
         {shareSlug && b.share.shared_at && (
-          <Blueprint pad>
+          <Card pad>
             <div className="kicker">Your card is live</div>
             <ShareLink url={`${base}/s/${shareSlug}?ref=${encodeURIComponent(b.owner ? "" : "")}`.replace(/\?ref=$/, "")} />
             <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>Neighbors who join from it are counted as yours.</p>
-          </Blueprint>
+          </Card>
         )}
         {done && (
           <ShareForm projectId={id} photos={photos.map((p) => ({ id: p.id, url: urls[p.path] ?? null, caption: p.caption }))}

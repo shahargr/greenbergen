@@ -56,9 +56,10 @@ exist until the three files in `apps/shared/db/` are applied, in order:
 
 They were dry-run against the live project inside a rolled-back transaction
 (schema + seed + functions + a full booking → accept → pay → close → share
-walk-through) and passed. Until they are applied the app runs in preview:
-the landing, join, catalogue and package pages work from the JSON; the
-booking wizard stops at Book and says why; `/project` shows the empty state.
+walk-through, then a plan → post → remove pass and the home picker) and
+passed. Until they are applied the app runs in preview: the landing, join,
+catalogue and package pages work from the JSON; the booking wizard stops at
+Book and says why; `/project` shows the empty state.
 
 ## Where things live
 
@@ -66,17 +67,25 @@ booking wizard stops at Book and says why; `/project` shows the empty state.
   three-field registration + email code, `welcome/` the three steps,
   `login/`, `auth/confirm/`.
 - `src/app/packages/` the grid, `more/`, `[code]/` the package page with the
-  Adjust panel (levers + chat), `[code]/book/` the wizard (address → home →
-  photos → budget → booked).
+  Adjust panel (levers + chat), `[code]/book/` the wizard: **which home** (when
+  the member has one or more) → address → home facts → photos → budget →
+  booked; `?mode=plan` saves a plan instead (home → when → planned, nothing
+  sent); `?from=<project>` posts a saved plan (facts → photos → budget → post).
+- `src/app/homes/new/` claim another home without ordering anything.
 - `src/app/services/[code]/` the community-service pattern (salt bags).
-- `src/app/project/` one project: waiting / no-taker / closed, the progress
-  line, `folder/`, `forms/`, `timeline/` (photo + voice composer),
-  `milestone/[key]/` (confirm + pay + photograph the check), `share/`.
+- `src/app/project/` the member's home(s): live, planned and done on each,
+  add another home. `[id]/` one job: planned (price today, change when, book
+  it now, remove), waiting / no-taker / closed, the progress line, `folder/`,
+  `forms/`, `timeline/` (photo + voice composer), `milestone/[key]/` (confirm
+  + pay + photograph the check), `share/`.
+- `docs/retiring-the-old-portal.md` where every capability of the old `/my`
+  owner mode lands, and what has no home yet.
 - `src/app/s/[slug]/` the public shared card.
-- `src/lib/me.ts` and `booking.ts` the two shell reads; `forms.ts` the NJ
-  UCC permit PDFs. `src/components/` the route-aware pieces (tiles, tabs).
+- `src/lib/me.ts` and `booking.ts` the two shell reads; `plan.ts` the
+  client-safe plan vocabulary (target windows); `forms.ts` the NJ UCC permit
+  PDFs. `src/components/` the route-aware pieces (tiles, tabs).
 - Everything else comes from `apps/shared`: the catalogue and its pricing,
-  the design system (`industry.css`), fonts, UI primitives, Supabase glue.
+  the design system (`warm-ink.css`), fonts, UI primitives, Supabase glue.
 
 ## Deliberately not in v1
 

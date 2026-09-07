@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { decodeSelections, findPackage, loadCatalogue } from "@shared/catalogue";
-import { AppBar, Blueprint, CheckIcon, Screen } from "@shared/ui";
+import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { PackageConfigurator } from "./PackageConfigurator";
 import { QuoteForm } from "./QuoteForm";
@@ -48,7 +48,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
           {pkg.requires_permit && <span className="tag tag-accent">Permit package</span>}
         </div>
 
-        <Blueprint pad>
+        <Card pad>
           <h6 style={{ marginBottom: 6 }}>What&apos;s included</h6>
           <ul className="scope">
             {pkg.items.map((it, i) => (
@@ -58,7 +58,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
               </li>
             ))}
           </ul>
-        </Blueprint>
+        </Card>
 
         <PackageConfigurator pkg={pkg} initial={selections} signedIn={!!auth.user} openAdjust={adjust === "1"} />
       </div>

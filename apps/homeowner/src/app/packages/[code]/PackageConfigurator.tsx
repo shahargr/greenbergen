@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
-import { Blueprint, NumberedNotes } from "@shared/ui";
+import { Card, NumberedNotes } from "@shared/ui";
 import { PriceBlock } from "@shared/PriceBlock";
 import { AdjustPanel } from "./AdjustPanel";
 
@@ -20,6 +20,8 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pk
 
   const bookPath = `/packages/${pkg.code}/book?sel=${encodeURIComponent(encodeSelections(sel))}`;
   const bookHref = signedIn ? bookPath : `/join?next=${encodeURIComponent(bookPath)}`;
+  const planPath = `${bookPath}&mode=plan`;
+  const planHref = signedIn ? planPath : `/join?next=${encodeURIComponent(planPath)}`;
 
   const notes: React.ReactNode[] = [];
   if (pkg.requires_permit) {
@@ -34,10 +36,10 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pk
 
   return (
     <>
-      <Blueprint pad={false}>
+      <Card pad={false}>
         <PriceBlock cents={price} was={isDefault ? null : pkg.base_price_cents} config={configLabel(pkg, sel)} delta={deltas} pulse
           kicker={isDefault ? "Community price · most common setup" : "Updated price"} />
-      </Blueprint>
+      </Card>
 
       <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }} onClick={() => setOpen(true)}>
         Not what you need? <strong style={{ marginLeft: 4 }}>Adjust it.</strong>
@@ -49,12 +51,14 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pk
       </div>
 
       <div className="actions" style={{ padding: 0, marginTop: 8 }}>
-        <Link href={bookHref} className="btn btn-primary btn-block blueprint">
+        <Link href={bookHref} className="btn btn-primary btn-block">
           {pkg.instant_book ? `Book at ${dollars(price)}` : `Request at ${dollars(price)}`}
         </Link>
         <p className="small text-muted center" style={{ margin: 0 }}>
           Next: your address, then {pkg.photos.length === 1 ? "one photo" : `${["", "one", "two", "three", "four"][pkg.photos.length] ?? pkg.photos.length} photos`}. No payment today.
         </p>
+        <Link href={planHref} className="btn btn-secondary btn-block">Not yet — plan it for later</Link>
+        <p className="tiny text-muted center" style={{ margin: 0 }}>Saves it on your home at today&apos;s price as a reference. Nothing goes to contractors until you say so.</p>
       </div>
 
       {open && <AdjustPanel pkg={pkg} value={sel} onChange={setSel} onClose={() => setOpen(false)} />}

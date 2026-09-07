@@ -7,17 +7,24 @@ import { createClient } from "@shared/supabase/client";
 import { configLabel, depositCents, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { friendly, isMissingFunction } from "@shared/rpc";
-import { AppBar, Blueprint, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@shared/ui";
+import { AppBar, Card, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@shared/ui";
+import { HouseIcon } from "@shared/ui";
+import { TARGET_WINDOWS, targetWindowLabel, type TargetWindow } from "@/lib/plan";
+import type { Home, HomeQuota } from "@/lib/me";
 
 // One client-side wizard, so the photos a homeowner takes stay in memory
 // across steps and upload only after the booking row exists (the storage
-// path must start with the job's project id). Steps: address -> facts ->
-// photos -> budget -> booked.
+// path must start with the job's project id).
+//   book:  home -> (address) -> facts -> photos -> budget -> booked
+//   plan:  home -> (address) -> when -> planned          (nothing sent)
+//   post:  facts -> photos -> budget -> booked            (a plan, ordered)
+// "home" appears only when the member already has one or more homes.
 
 type Geo = { ok: boolean; found?: boolean; matched?: string; county?: string | null; bergen?: boolean | null; city?: string | null };
 type Facts = { sqft: string; year_built: string; beds: string; baths: string };
 type Shot = { file: File; preview: string; state: "ready" | "uploading" | "done" | "failed"; progress: number; error?: string };
-type Step = "address" | "facts" | "photos" | "budget" | "booked";
+type Step = "home" | "address" | "facts" | "photos" | "budget" | "when" | "booked";
+export type WizardMode = "book" | "plan" | "post";
 
 const BUDGET_BANDS = (price: number | null) => {
   const p = price ?? 0;
@@ -31,14 +38,18 @@ const BUDGET_BANDS = (price: number | null) => {
   ];
 };
 
-export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbReady }: {
-  pkg: Package; selections: Selections; knownAddress: string | null; knownFacts: Record<string, string | number> | null; dbReady: boolean;
+export function BookingWizard({ pkg, selections, mode, planned, homes, quota, knownAddress, knownFacts, dbReady }: {
+  pkg: Package; selections: Selections; mode: WizardMode;
+  planned: { project_id: string; address: string | null; target_window: TargetWindow | null } | null;
+  homes: Home[]; quota: HomeQuota; knownAddress: string | null; knownFacts: Record<string, string | number> | null; dbReady: boolean;
 }) {
   const router = useRouter();
   const price = priceFor(pkg, selections);
   const deposit = depositCents(pkg, price);
-  const [step, setStep] = useState<Step>("address");
-  const [address, setAddress] = useState(knownAddress ?? "");
+  const hasHomes = homes.length > 0;
+  const [step, setStep] = useState<Step>(mode === "post" ? "facts" : hasHomes ? "home" : "address");
+  const [homeId, setHomeId] = useState<string | null>(hasHomes ? homes[0]!.project_id : null);
+  const [address, setAddress] = useState(planned?.address ?? knownAddress ?? "");
   const [unit, setUnit] = useState("");
   const [geo, setGeo] = useState<Geo | null>(null);
   const [checking, setChecking] = useState(false);
@@ -48,12 +59,30 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
   const [shots, setShots] = useState<Record<string, Shot | undefined>>({});
   const [budget, setBudget] = useState<string>("");
   const [note, setNote] = useState("");
+  const [when, setWhen] = useState<TargetWindow>(planned?.target_window ?? "1_3_months");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
-  const [result, setResult] = useState<{ project_id: string; reply_by: string; offered_count: number; instant_book: boolean; price_cents: number } | null>(null);
+  const [result, setResult] = useState<{ project_id: string; reply_by: string; offered_count: number; instant_book: boolean; price_cents: number; planned?: boolean } | null>(null);
   const [uploadIssues, setUploadIssues] = useState<string[]>([]);
+  const afterHome: Step = mode === "plan" ? "when" : "facts";
+  const stepLabel = mode === "plan" ? "Plan it" : "Step 2 of 3 · Your home";
 
-  // ---- address ----------------------------------------------------------
+  // ---- which home --------------------------------------------------------
+  function chooseHome(e: React.FormEvent) {
+    e.preventDefault();
+    if (homeId === "new") { setAddress(""); setGeo(null); setErr(""); setStep("address"); return; }
+    const h = homes.find((x) => x.project_id === homeId);
+    if (!h) { setErr("Pick a home."); return; }
+    setAddress(h.address ?? "");
+    if (h.facts && !facts.sqft && !facts.year_built) {
+      const f = h.facts as Record<string, string | number>;
+      setFacts({ sqft: String(f.sqft ?? ""), year_built: String(f.year_built ?? ""), beds: String(f.beds ?? ""), baths: String(f.baths ?? "") });
+    }
+    setErr("");
+    setStep(afterHome);
+  }
+
+  // ---- address (a new home) ---------------------------------------------
   async function checkAddress(e: React.FormEvent) {
     e.preventDefault();
     if (address.trim().length < 6) { setErr("The street address, town and ZIP."); return; }
@@ -72,7 +101,7 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
       setGeo({ ok: false });
     }
     setChecking(false);
-    setStep("facts");
+    setStep(afterHome);
   }
 
   // ---- photos -----------------------------------------------------------
@@ -87,16 +116,40 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
   const required = Math.min(pkg.photos.length, 1); // at least the first photo; the rest are encouraged
   const photosOk = shotCount >= required;
 
-  // ---- book -------------------------------------------------------------
-  async function book() {
-    setErr(""); setBusy("Booking…");
+  // ---- plan (nothing sent) ----------------------------------------------
+  async function plan() {
+    setErr(""); setBusy("Saving…");
     const supabase = createClient();
     const { data, error } = await supabase.rpc("homeowner_book", {
-      p_code: pkg.code, p_selections: selections, p_address: address.trim(), p_unit: unit.trim() || null,
-      p_facts: { ...cleanFacts(facts), source: geo?.found ? "census-geocoder + owner" : "owner" },
-      p_budget_band: budget && budget !== "skip" ? BUDGET_BANDS(price).find((b) => b.key === budget)?.label ?? budget : null,
-      p_note: note.trim() || null,
+      p_code: pkg.code, p_selections: selections, p_address: homeId && homeId !== "new" ? null : address.trim(), p_unit: null,
+      p_facts: null, p_budget_band: null, p_note: note.trim() || null,
+      p_home_project_id: homeId && homeId !== "new" ? homeId : null, p_mode: "plan", p_target_window: when,
     });
+    if (error) {
+      setBusy("");
+      setErr(isMissingFunction(error) ? "Planning isn't switched on in the database yet (the migration in db/ has not been applied). Nothing was saved." : friendly(error.message));
+      return;
+    }
+    if (!data?.ok) { setBusy(""); setErr(friendly(data?.reason)); return; }
+    setResult({ project_id: data.project_id as string, reply_by: "", offered_count: 0, instant_book: pkg.instant_book, price_cents: data.price_cents, planned: true });
+    setBusy("");
+    setStep("booked");
+    router.refresh();
+  }
+
+  // ---- book (or post a plan) --------------------------------------------
+  async function book() {
+    setErr(""); setBusy(mode === "post" ? "Posting…" : "Booking…");
+    const supabase = createClient();
+    const { data, error } = mode === "post" && planned
+      ? await supabase.rpc("homeowner_booking_action", { p_project: planned.project_id, p_action: "post" })
+      : await supabase.rpc("homeowner_book", {
+          p_code: pkg.code, p_selections: selections, p_address: homeId && homeId !== "new" ? null : address.trim(), p_unit: unit.trim() || null,
+          p_facts: { ...cleanFacts(facts), source: geo?.found ? "census-geocoder + owner" : "owner" },
+          p_budget_band: budget && budget !== "skip" ? BUDGET_BANDS(price).find((b) => b.key === budget)?.label ?? budget : null,
+          p_note: note.trim() || null,
+          p_home_project_id: homeId && homeId !== "new" ? homeId : null, p_mode: "book", p_target_window: null,
+        });
     if (error) {
       setBusy("");
       setErr(isMissingFunction(error) ? "Booking isn't switched on in the database yet (the migration in db/ has not been applied). Nothing was sent." : friendly(error.message));
@@ -130,6 +183,30 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
   }
 
   // ---- screens ----------------------------------------------------------
+  if (step === "booked" && result?.planned) {
+    return (
+      <Screen>
+        <AppBar brand />
+        <div className="body">
+          <StatusHero variant="outline" kicker={`Planned · ${targetWindowLabel(when)}`} title={`Your ${pkg.tile_title.toLowerCase()} is on the list for ${address.split(",")[0] || "your home"}.`}>
+            Nothing was sent to anyone. When you&apos;re ready, one tap posts it to the community at that day&apos;s price.
+          </StatusHero>
+          <Card pad>
+            <div className="kv-rows">
+              <div><span className="k">Today&apos;s price</span><span>{dollars(result.price_cents)} · {configLabel(pkg, selections)}</span></div>
+              <div><span className="k">When</span><span>{targetWindowLabel(when)}</span></div>
+              <div><span className="k">Sent to contractors</span><span>Not yet</span></div>
+            </div>
+          </Card>
+        </div>
+        <div className="actions">
+          <Link href={`/project/${result.project_id}`} className="btn btn-primary btn-block">See the plan</Link>
+          <Link href="/packages" className="btn btn-ghost btn-block">Plan something else</Link>
+        </div>
+      </Screen>
+    );
+  }
+
   if (step === "booked" && result) {
     const kicker = `${result.instant_book ? "Booked" : "Requested"} · ${shortDate(new Date().toISOString())}`;
     return (
@@ -145,7 +222,7 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
               {pkg.approval_note}
             </StatusHero>
           )}
-          <Blueprint pad>
+          <Card pad>
             {result.instant_book ? (
               <ul className="scope">
                 <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Matching takes at least 24 hours.</strong><br /><span className="text-muted">We&apos;ll email you the moment someone accepts.</span></span></li>
@@ -158,7 +235,7 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
                 <div><span className="k">Expect an answer</span><span>within 24–48 h</span></div>
               </div>
             )}
-          </Blueprint>
+          </Card>
           {result.offered_count === 0 && (
             <Notice title="Heads up">No contractor for this trade is signed in to the community yet, so the job waits for one. A person at Green Bergen sees every booking and will bring one in.</Notice>
           )}
@@ -167,9 +244,51 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
           )}
         </div>
         <div className="actions">
-          <Link href={`/project/${result.project_id}`} className="btn btn-primary btn-block blueprint">See my project</Link>
+          <Link href={`/project/${result.project_id}`} className="btn btn-primary btn-block">See my project</Link>
           <Link href="/packages" className="btn btn-ghost btn-block">Back to packages</Link>
         </div>
+      </Screen>
+    );
+  }
+
+  if (step === "home") {
+    const canAdd = quota?.can_add ?? true;
+    return (
+      <Screen>
+        <AppBar back={`/packages/${pkg.code}`} />
+        <form className="body" onSubmit={chooseHome} noValidate>
+          <StepKicker>{stepLabel}</StepKicker>
+          <div className="hero">
+            <h1>Which home is the {pkg.tile_title.toLowerCase()} for?</h1>
+            <p className="lead">{mode === "plan" ? "It goes on that home's list." : `Contractors see the address only after they accept${pkg.requires_permit ? "; the town permit is filed against it" : ""}.`}</p>
+          </div>
+          <div className="homes">
+            {homes.map((h) => (
+              <label className="home-row" key={h.project_id}>
+                <input type="radio" name="home" checked={homeId === h.project_id} onChange={() => setHomeId(h.project_id)} />
+                <span className="ic"><HouseIcon /></span>
+                <span className="grow">
+                  <span className="t">{h.address?.split(",")[0] ?? h.name ?? "Home"}</span>
+                  <span className="m" style={{ display: "block" }}>{h.address?.split(",").slice(1).join(",").trim() || h.town || ""}{homeSummary(h)}</span>
+                </span>
+                <span className="radio"><span className="dot" /></span>
+              </label>
+            ))}
+            <label className={`home-row add ${canAdd ? "" : "disabled"}`} style={canAdd ? undefined : { opacity: 0.6 }}>
+              <input type="radio" name="home" checked={homeId === "new"} onChange={() => canAdd && setHomeId("new")} disabled={!canAdd} />
+              <span className="ic">+</span>
+              <span className="grow">
+                <span className="t">Another address</span>
+                <span className="m" style={{ display: "block" }}>{canAdd ? "A second home, a rental, a parent's place." : `Your agreement covers ${quota?.allowed ?? 1} home${(quota?.allowed ?? 1) === 1 ? "" : "s"}. Ask us to extend it.`}</span>
+              </span>
+              <span className="radio"><span className="dot" /></span>
+            </label>
+          </div>
+          {err && <Notice kind="error">{err}</Notice>}
+          <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
+            <button className="btn btn-primary btn-block">Continue</button>
+          </div>
+        </form>
       </Screen>
     );
   }
@@ -177,12 +296,12 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
   if (step === "address") {
     return (
       <Screen>
-        <AppBar back={`/packages/${pkg.code}`} />
+        <AppBar back={hasHomes ? () => setStep("home") : `/packages/${pkg.code}`} />
         <form className="body" onSubmit={checkAddress} noValidate>
-          <StepKicker>Step 2 of 3 · Your home</StepKicker>
+          <StepKicker>{stepLabel}</StepKicker>
           <div className="hero">
-            <h1>Where&apos;s the {pkg.tile_title.toLowerCase()} going?</h1>
-            <p className="lead">We need the address now for the price{pkg.requires_permit ? " and the town permit" : ""}. Contractors see it only after they accept.</p>
+            <h1>{hasHomes ? "Where's the other home?" : `Where's the ${pkg.tile_title.toLowerCase()} going?`}</h1>
+            <p className="lead">{mode === "plan" ? "We add the home to your account; the plan goes on it." : `We need the address now for the price${pkg.requires_permit ? " and the town permit" : ""}. Contractors see it only after they accept.`}</p>
           </div>
           <label className="field">
             <span className="field-label">Street address</span>
@@ -190,11 +309,45 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
             <p className="hint">Bergen County only. Checked against public records on the next step.</p>
           </label>
           {err && <Notice kind="error">{err}</Notice>}
-          {!dbReady && <Notice title="Preview mode">The database migration for bookings has not been applied yet, so this walk-through ends at the Book button.</Notice>}
+          {!dbReady && <Notice title="Preview mode">The database migration for bookings has not been applied yet, so this walk-through ends at the last button.</Notice>}
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-            <button className={`btn btn-primary btn-block blueprint ${checking ? "busy" : ""}`} disabled={checking}>{checking ? <><span className="spin" /> Checking the address…</> : "Continue"}</button>
+            <button className={`btn btn-primary btn-block  ${checking ? "busy" : ""}`} disabled={checking}>{checking ? <><span className="spin" /> Checking the address…</> : "Continue"}</button>
           </div>
         </form>
+      </Screen>
+    );
+  }
+
+  if (step === "when") {
+    return (
+      <Screen>
+        <AppBar back={() => setStep(homeId === "new" || !hasHomes ? "address" : "home")} />
+        <div className="body">
+          <StepKicker>Plan it · {address.split(",")[0]}</StepKicker>
+          <div className="hero">
+            <h1>When do you have in mind?</h1>
+            <p className="lead">Roughly is fine. It orders your list and tells us when a nudge is welcome — nobody is held to it.</p>
+          </div>
+          <div className="stack" style={{ gap: 8 }}>
+            {TARGET_WINDOWS.map((t) => (
+              <label className="choice" key={t.key}>
+                <span className="radio"><input type="radio" name="when" checked={when === t.key} onChange={() => setWhen(t.key)} /><span className="dot" /></span>
+                <span className="txt">{t.label}<small>{t.hint}</small></span>
+              </label>
+            ))}
+          </div>
+          <label className="field">
+            <span className="field-label">A note to yourself <span className="text-muted">(optional)</span></span>
+            <textarea className="input" rows={2} placeholder="Guest bath first. Ask about the 40-gallon option." value={note} onChange={(e) => setNote(e.target.value)} />
+          </label>
+          {err && <Notice kind="error" title="That didn't save.">{err}</Notice>}
+          <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
+            <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => void plan()}>
+              {busy ? <><span className="spin" /> {busy}</> : `Save the plan · ${dollars(price)} today`}
+            </button>
+            {!busy && <p className="tiny text-muted center" style={{ margin: 0 }}>Nothing is sent to contractors. The price is today&apos;s reference; you book at the community price of the day you post.</p>}
+          </div>
+        </div>
       </Screen>
     );
   }
@@ -203,14 +356,14 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
     const found = !!geo?.found;
     return (
       <Screen>
-        <AppBar back={() => setStep("address")} />
+        <AppBar back={mode === "post" ? `/project/${planned?.project_id}` : () => setStep(homeId === "new" || !hasHomes ? "address" : "home")} />
         <form className="body" onSubmit={(e) => { e.preventDefault(); setStep("photos"); }} noValidate>
-          <StepKicker>Step 2 of 3 · Your home</StepKicker>
+          <StepKicker>{stepLabel}</StepKicker>
           <div className="hero">
-            <h1>{found ? "Here's what we found." : "We couldn't look this one up."}</h1>
-            <p className="lead">{found ? "Public records match this address. Rough numbers for the house are enough — the contractor confirms on site." : "Happens with newer builds and some condos. Rough numbers are fine — the contractor confirms on site."}</p>
+            <h1>{found ? "Here's what we found." : geo ? "We couldn't look this one up." : "A few things about the house."}</h1>
+            <p className="lead">{found ? "Public records match this address. Rough numbers for the house are enough — the contractor confirms on site." : geo ? "Happens with newer builds and some condos. Rough numbers are fine — the contractor confirms on site." : "Rough numbers are fine — the contractor confirms on site."}</p>
           </div>
-          <Blueprint pad={false}>
+          <Card pad={false}>
             <div className="facts-head">
               <div className="addr">{address.split(",")[0]}</div>
               <div className="small text-muted">{address.split(",").slice(1).join(",").trim()}</div>
@@ -221,14 +374,14 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
               <FactInput label="Bedrooms" value={facts.beds} onChange={(v) => setFacts({ ...facts, beds: v })} placeholder="3" />
               <FactInput label="Bathrooms" value={facts.baths} onChange={(v) => setFacts({ ...facts, baths: v })} placeholder="2" />
             </div>
-          </Blueprint>
+          </Card>
           <label className="field">
             <span className="field-label">Apartment or unit <span className="text-muted">(optional)</span></span>
             <input className="input" placeholder="—" value={unit} onChange={(e) => setUnit(e.target.value)} />
           </label>
           <p className="tiny text-muted" style={{ margin: 0 }}>Property-record lookup (size, year, rooms) is coming; for now what you type is what the contractor sees.</p>
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-            <button className="btn btn-primary btn-block blueprint">{found ? "Looks right" : "Continue"}</button>
+            <button className="btn btn-primary btn-block">{found ? "Looks right" : "Continue"}</button>
             <button type="button" className="btn btn-ghost btn-block" onClick={() => setStep("photos")}>Skip — I&apos;ll tell the contractor</button>
           </div>
         </form>
@@ -243,7 +396,7 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
       <Screen>
         <AppBar back={() => setStep("facts")} />
         <div className="body">
-          <StepKicker>Step 2 of 3 · Your home</StepKicker>
+          <StepKicker>{stepLabel}</StepKicker>
           <div className="hero">
             <h1>{n === 1 ? "One photo, and the contractor can confirm the price." : n === 3 ? `Three photos for a ${pkg.tile_title.toLowerCase()}.` : `${words[n] ?? n} and the contractor can confirm the price.`}</h1>
             <p className="lead">{pkg.code === "generator" ? "Don't know your panel's amperage or gas line size? You don't need to — the photo answers it." : "Phone photos are perfect. Nobody's judging the basement."}</p>
@@ -251,7 +404,7 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
           {pkg.photos.map((req, i) => <PhotoSlot key={req.key} index={i + 1} label={req.label} hint={req.hint} shot={shots[req.key]} onPick={(f) => take(req.key, f)} />)}
           <p className="small text-muted" style={{ margin: 0 }}>Photos go into your job folder. Only the contractor who accepts your job sees them.</p>
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-            <button className="btn btn-primary btn-block blueprint" disabled={!photosOk} onClick={() => setStep("budget")}>
+            <button className="btn btn-primary btn-block" disabled={!photosOk} onClick={() => setStep("budget")}>
               Continue · {shotCount} of {n} added
             </button>
             {!photosOk && <p className="tiny text-muted center" style={{ margin: 0 }}>At least the first photo — it&apos;s what lets a contractor say yes without a visit.</p>}
@@ -288,8 +441,8 @@ export function BookingWizard({ pkg, selections, knownAddress, knownFacts, dbRea
         <p className="small text-muted" style={{ margin: 0 }}>Never shown to contractors. It doesn&apos;t change the price — the community already set that.</p>
         {err && <Notice kind="error" title="That didn't go through.">{err}</Notice>}
         <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-          <button className={`btn btn-primary btn-block blueprint ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => void book()}>
-            {busy ? <><span className="spin" /> {busy}</> : pkg.instant_book ? `Book at ${dollars(price)}` : `Request at ${dollars(price)}`}
+          <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => void book()}>
+            {busy ? <><span className="spin" /> {busy}</> : mode === "post" ? `Post it at ${dollars(price)}` : pkg.instant_book ? `Book at ${dollars(price)}` : `Request at ${dollars(price)}`}
           </button>
           {!busy && <p className="tiny text-muted center" style={{ margin: 0 }}>{pkg.requires_permit ? `Nothing today. ${dollars(deposit)} at the permit meeting, to the contractor.` : "Nothing today. You pay the contractor when it's done."}</p>}
         </div>
@@ -358,6 +511,13 @@ const cleanFacts = (f: Facts) => {
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(f)) if (v && /^\d+$/.test(v)) out[k] = Number(v);
   return out;
+};
+const homeSummary = (h: Home) => {
+  const bits: string[] = [];
+  if (h.live) bits.push(`${h.live} live`);
+  if (h.planned) bits.push(`${h.planned} planned`);
+  if (h.done) bits.push(`${h.done} done`);
+  return bits.length ? ` · ${bits.join(", ")}` : "";
 };
 const titleCase = (s: string) => s.toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase()).replace(/\bNj\b/, "NJ");
 const tradePlural = (trade: string | null) => {

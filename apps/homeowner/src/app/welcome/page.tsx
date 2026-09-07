@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getMe } from "@/lib/me";
-import { AppBar, Blueprint, Screen } from "@shared/ui";
+import { AppBar, Card, Screen } from "@shared/ui";
 import { Steps } from "@shared/Illustrations";
 import { firstName } from "@shared/format";
 
@@ -20,7 +20,7 @@ export default async function WelcomePage() {
           <h1>Here&apos;s how a project goes.</h1>
         </div>
         <div className="illus short"><Steps /></div>
-        <Blueprint pad>
+        <Card pad>
           <div className="steps">
             <div className="step active">
               <div className="n">1</div>
@@ -35,10 +35,10 @@ export default async function WelcomePage() {
               <div><div className="t">How much would you like to spend?</div><div className="d">Optional. Helps us suggest the right approach. Contractors never see it.</div></div>
             </div>
           </div>
-        </Blueprint>
+        </Card>
       </div>
       <div className="actions">
-        <Link href="/packages" className="btn btn-primary btn-block blueprint">Start with step one</Link>
+        <Link href="/packages" className="btn btn-primary btn-block">Start with step one</Link>
       </div>
     </Screen>
   );

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import "@shared/styles/industry.css";
+import "@shared/styles/warm-ink.css";
 import "./globals.css";
 import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
@@ -15,7 +15,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f2f2f3",
+  themeColor: "#f6f3ee",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

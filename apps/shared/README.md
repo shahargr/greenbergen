@@ -6,8 +6,8 @@ does, it lives in that app.
 ```
 apps/shared/
 ├── src/
-│   ├── styles/industry.css   design system: tokens, components, the phone-column layout
-│   ├── fonts.ts              Barlow / Barlow Condensed via next/font/local (files in ../fonts)
+│   ├── styles/warm-ink.css   design system: tokens, components, the phone-column layout
+│   ├── fonts.ts              Manrope via next/font/local (the variable file in ../fonts)
 │   ├── ui.tsx                AppBar, Blueprint, Notice, StatusHero, NumberedNotes, icons…
 │   ├── Illustrations.tsx     line illustrations keyed by blueprint_packages.illustration
 │   ├── PriceBlock.tsx, ProgressLine.tsx, OfflineBanner.tsx
@@ -20,7 +20,7 @@ apps/shared/
 └── db/                       THE DATABASE CONTRACT for the consumer apps
     ├── 001_homeowner_schema.sql
     ├── 002_homeowner_seed.sql    generated: node db/gen-seed.mjs > db/002_homeowner_seed.sql
-    ├── 003_homeowner_functions.sql
+    ├── 003_homeowner_functions.sql   homeowner_* surface: me (homes, quota), book / plan / post, actions, share
     └── gen-seed.mjs
 ```
 

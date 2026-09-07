@@ -8,13 +8,40 @@ import { friendly } from "@shared/rpc";
 // Server actions for the project view. Each is one RPC; the database holds
 // the rules and answers {ok, reason}.
 
-export async function bookingAction(projectId: string, action: "bump" | "wait" | "close" | "reopen") {
+export async function bookingAction(projectId: string, action: "bump" | "wait" | "close" | "reopen" | "post" | "remove") {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("homeowner_booking_action", { p_project: projectId, p_action: action });
   revalidatePath(`/project/${projectId}`);
   revalidatePath("/project");
   if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  if (action === "remove") redirect("/project?ok=removed");
   redirect(`/project/${projectId}?ok=${action}`);
+}
+
+// A plan's "when" and note. The project id and fields come from the form.
+export async function updatePlan(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const window = String(formData.get("target_window") ?? "");
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("homeowner_plan_update", { p_project: projectId, p_target_window: window || null, p_note: note });
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath("/project");
+  if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  redirect(`/project/${projectId}?ok=plan`);
+}
+
+// Claim another home without ordering anything (create_home_asset under
+// the agreement's quota).
+export async function addHome(formData: FormData) {
+  const address = String(formData.get("address") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim() || null;
+  const next = String(formData.get("next") ?? "/project");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("homeowner_home_add", { p_address: address, p_name: name });
+  revalidatePath("/project");
+  if (error || !data?.ok) redirect(`/homes/new?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}&next=${encodeURIComponent(next)}`);
+  redirect(`${next}${next.includes("?") ? "&" : "?"}ok=home`);
 }
 
 export async function markMilestone(formData: FormData) {

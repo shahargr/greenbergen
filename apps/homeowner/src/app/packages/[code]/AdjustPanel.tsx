@@ -63,7 +63,7 @@ export function AdjustPanel({ pkg, value, onChange, onClose }: { pkg: Package; v
               </div>
             ))}
             <PriceFooter price={price} base={pkg.base_price_cents} deltas={deltas} />
-            <button type="button" className="btn btn-primary btn-block blueprint" onClick={onClose}>Use this setup</button>
+            <button type="button" className="btn btn-primary btn-block" onClick={onClose}>Use this setup</button>
           </div>
         ) : (
           <ChatTab pkg={pkg} value={value} set={set} price={price} onDone={onClose} />
@@ -139,7 +139,7 @@ function ChatTab({ pkg, value, set, price, onDone }: { pkg: Package; value: Sele
         <strong className="mono" style={{ fontFamily: "var(--font-heading)", fontSize: 22 }}>{dollars(price)}</strong>
       </div>
       {done ? (
-        <button type="button" className="btn btn-primary btn-block blueprint" onClick={onDone}>Use this setup</button>
+        <button type="button" className="btn btn-primary btn-block" onClick={onDone}>Use this setup</button>
       ) : (
         <form className="row" onSubmit={typed}>
           <input className="input grow" placeholder="Or type an answer…" value={draft} onChange={(e) => setDraft(e.target.value)} />

@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getMe } from "@/lib/me";
+import { getMe, TARGET_WINDOWS, targetWindowLabel } from "@/lib/me";
 import { getBooking, type Booking } from "@/lib/booking";
+import { encodeSelections } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
-import { AppBar, Avatar, Blueprint, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
+import { AppBar, Avatar, Card, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
 import { ProgressLine } from "@shared/ProgressLine";
 import { HomeTabs } from "@/components/HomeTabs";
 import { WaitingCard } from "./WaitingCard";
-import { bookingAction } from "./actions";
+import { bookingAction, updatePlan } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -24,16 +25,65 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const pkg = b.package;
   const town = b.address?.split(",")[1]?.trim().replace(/\s+NJ.*$/, "") ?? "your town";
 
-  const switcher = me.bookings.length > 1 && (
+  const switcher = me.bookings.length > 1 && me.homes.length <= 1 && (
     <div className="seg" role="tablist" aria-label="Your projects" style={{ marginBottom: 4 }}>
       {me.bookings.filter((x) => x.state !== "closed" || x.project_id === id).slice(0, 3).map((x) => (
         <Link key={x.project_id} href={`/project/${x.project_id}`} className="seg-opt" role="tab" aria-selected={x.project_id === id}
           style={x.project_id === id ? { background: "var(--color-accent)", color: "var(--color-bg)", textDecoration: "none" } : { textDecoration: "none", color: "inherit" }}>
-          {x.tile_title} · {x.state === "done" ? "done" : x.state === "posted" ? "matching" : pkg?.requires_permit ? "permit" : "booked"}
+          {x.tile_title} · {x.state === "done" ? "done" : x.state === "planned" ? "planned" : x.state === "posted" ? "matching" : pkg?.requires_permit ? "permit" : "booked"}
         </Link>
       ))}
     </div>
   );
+
+
+  // ---- planned: on the list, nothing sent ------------------------------
+  if (b.state === "planned") {
+    const moved = b.live_price_cents != null && b.live_price_cents !== b.price_cents;
+    return (
+      <Screen>
+        <AppBar back="/project" title={pkg?.name} sub={b.address?.split(",")[0] ?? undefined} />
+        <div className="body">
+          {ok === "plan" && <div className="banner-ok">Plan updated.</div>}
+          {error && <Notice kind="error">{error}</Notice>}
+          <StatusHero variant="neutral" kicker={`Planned · ${targetWindowLabel(b.target_window)}`} title={`On the list since ${shortDate(b.created_at)}. Nobody has been asked yet.`}>
+            When you&apos;re ready, one tap posts it to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price. Photos and a budget come at that point.
+          </StatusHero>
+          <Card pad={false}>
+            <div className="price">
+              <div className="kicker">Community price today</div>
+              <div className="big mono">{dollars(b.live_price_cents ?? b.price_cents)}{moved && <span className="was">{dollars(b.price_cents)}</span>}</div>
+              <div className="delta">{b.config_label ?? pkg?.config_label ?? "most common setup"}{moved ? ` · was ${dollars(b.price_cents)} when you planned it` : " · unchanged since you planned it"}</div>
+            </div>
+          </Card>
+          {b.note && <blockquote>{b.note}</blockquote>}
+          <Card pad>
+            <div className="kicker">What&apos;s included</div>
+            <ul className="scope" style={{ marginTop: 4 }}>
+              {b.scope.map((si, i) => <li key={i}><span className="ic">✓</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>)}
+            </ul>
+          </Card>
+          <details className="card pad">
+            <summary className="card-title" style={{ cursor: "pointer" }}>Change when</summary>
+            <form action={updatePlan} className="stack" style={{ marginTop: 10 }}>
+              <input type="hidden" name="project" value={b.project_id} />
+              {TARGET_WINDOWS.map((t) => (
+                <label className="radio" key={t.key}><input type="radio" name="target_window" value={t.key} defaultChecked={b.target_window === t.key} /><span className="dot" /><span>{t.label}</span></label>
+              ))}
+              <textarea className="input" name="note" rows={2} placeholder="A note to yourself" defaultValue={b.note ?? ""} />
+              <button className="btn btn-secondary">Save</button>
+            </form>
+          </details>
+        </div>
+        <div className="actions">
+          <Link href={`/packages/${b.package_code}/book?from=${b.project_id}`} className="btn btn-primary btn-block">Book it now</Link>
+          <Link href={`/packages/${b.package_code}?sel=${encodeURIComponent(encodeSelections(b.selections))}`} className="btn btn-secondary btn-block">Adjust the package</Link>
+          <form action={bookingAction.bind(null, b.project_id, "remove")}><button className="btn btn-ghost btn-block">Remove from the list</button></form>
+        </div>
+        <HomeTabs current="project" />
+      </Screen>
+    );
+  }
 
   // ---- 11c closed -------------------------------------------------------
   if (b.state === "closed") {
@@ -45,16 +95,16 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <StatusHero variant="neutral" kicker={`Closed · ${shortDate(b.closed_at)}`} title="We've closed the request. No hard feelings.">
             Nothing was charged and nobody has your address. Your home details and photos stay in your account, so the next package takes a minute, not ten.
           </StatusHero>
-          <Blueprint pad={false}>
+          <Card pad={false}>
             <div className="kv-rows" style={{ padding: "4px 14px" }}>
               <div><span className="k">Saved</span><span>{b.address?.split(",")[0]} · {b.files.length} photo{b.files.length === 1 ? "" : "s"} · home details</span></div>
               <div><span className="k">Charged</span><span>$0</span></div>
               <div><span className="k">Want a nudge?</span><span>We&apos;ll email if the community price drops</span></div>
             </div>
-          </Blueprint>
+          </Card>
         </div>
         <div className="actions">
-          <Link href="/packages" className="btn btn-primary btn-block blueprint">Browse packages</Link>
+          <Link href="/packages" className="btn btn-primary btn-block">Browse packages</Link>
           <form action={bookingAction.bind(null, b.project_id, "reopen")}>
             <button className="btn btn-ghost btn-block">Reopen at {dollars(bump(b.price_cents))}</button>
           </form>
@@ -83,18 +133,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               </p>
             </div>
             {error && <Notice kind="error">{error}</Notice>}
-            <Blueprint pad>
+            <Card pad>
               <div className="price" style={{ padding: 0 }}>
                 <div className="kicker">Repost at</div>
                 <div className="big mono">{dollars(next)}<span className="was">{dollars(b.price_cents)}</span></div>
                 <div className="delta">+{dollars(next - b.price_cents)} ({Math.round(((next - b.price_cents) / b.price_cents) * 100)}%)</div>
               </div>
               <p className="small" style={{ margin: "8px 0 0" }}>Same scope, same warranty, same 24-hour window. Still an estimate pending contractor confirmation — and still paid directly to them.</p>
-            </Blueprint>
+            </Card>
             <p className="small text-muted" style={{ margin: 0 }}>Or wait — your job stays posted at {dollars(b.price_cents)} for another 48 hours, no action needed.</p>
           </div>
           <div className="actions">
-            <form action={bookingAction.bind(null, b.project_id, "bump")}><button className="btn btn-primary btn-block blueprint">Repost at {dollars(next)}</button></form>
+            <form action={bookingAction.bind(null, b.project_id, "bump")}><button className="btn btn-primary btn-block">Repost at {dollars(next)}</button></form>
             <form action={bookingAction.bind(null, b.project_id, "wait")}><button className="btn btn-secondary btn-block">Keep waiting at {dollars(b.price_cents)}</button></form>
             <form action={bookingAction.bind(null, b.project_id, "close")}><button className="btn btn-ghost btn-block">No thanks — close the request</button></form>
           </div>
@@ -115,7 +165,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {ok === "bump" && <div className="banner-ok">Reposted at {dollars(b.price_cents)}. The clock starts again.</div>}
           {ok === "wait" && <div className="banner-ok">Still posted at {dollars(b.price_cents)} for another 48 hours.</div>}
           {error && <Notice kind="error">{error}</Notice>}
-          <WaitingCard postedAt={b.posted_at} replyBy={b.reply_by} instant={pkg?.instant_book ?? true} />
+          <WaitingCard postedAt={b.posted_at ?? b.created_at} replyBy={b.reply_by} instant={pkg?.instant_book ?? true} />
           <NumberedNotes items={[
             <>{b.offered_count > 0 ? `${numberWord(b.offered_count)} licensed ${pluralTrade(pkg?.trade, b.offered_count)} in the community serve ${town}. Each sees your scope and photos, not your name.` : `Your scope and photos are ready for the community's ${pluralTrade(pkg?.trade, 2)} — none are signed in yet, so a person at Green Bergen is bringing one in.`}</>,
             <>They accept at {dollars(b.price_cents)} or pass. Nobody can counter-offer.</>,
@@ -147,7 +197,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         {error && <Notice kind="error">{error}</Notice>}
 
         {c && (
-          <Blueprint pad={false}>
+          <Card pad={false}>
             <div className="person">
               <Avatar name={c.name} />
               <div className="grow">
@@ -158,24 +208,24 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg>
               </a>}
             </div>
-          </Blueprint>
+          </Card>
         )}
 
-        <Blueprint pad={false}>
+        <Card pad={false}>
           <ProgressLine progress={b.progress} />
           <p className="tiny text-muted" style={{ margin: "0 14px 10px" }}>Ranges are typical for {town}. They tighten as {first} logs progress.</p>
-        </Blueprint>
+        </Card>
 
         {isDone ? (
-          <Blueprint pad>
+          <Card pad>
             <div className="kicker">All done{paidSummary(b)}</div>
             <p style={{ margin: "6px 0" }}>{pkg?.milestones.find((m) => m.kind === "done")?.trigger_description}</p>
             <p className="small text-muted" style={{ margin: "0 0 10px" }}>Show the neighbors how it went. Your share carries an invite — and {c?.name ?? "your contractor"}&apos;s next job.</p>
-            <Link href={`/project/${b.project_id}/share`} className="btn btn-primary btn-block blueprint">{b.share.shared_at ? "Shared — see the card" : "Share this project"}</Link>
+            <Link href={`/project/${b.project_id}/share`} className="btn btn-primary btn-block">{b.share.shared_at ? "Shared — see the card" : "Share this project"}</Link>
             {pkg?.items.some((i) => /warranty/i.test(i.label)) && (
               <div className="kv" style={{ marginTop: 12 }}><span className="k">Warranty</span><span className="v">{pkg.items.find((i) => /warranty/i.test(i.label))?.detail ?? "named in your scope"} · in your folder</span></div>
             )}
-          </Blueprint>
+          </Card>
         ) : cur ? (
           <NextUp booking={b} node={cur} first={first} />
         ) : null}
@@ -197,7 +247,7 @@ function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullab
   const who = node.kind === "payment" ? `you and ${first}` : node.kind === "task" ? first : "you";
   const amount = node.amount_cents ? dollars(node.amount_cents) : null;
   return (
-    <Blueprint pad>
+    <Card pad>
       <div className="kicker">Next up · {who}</div>
       <div className="card-title" style={{ fontSize: 20, margin: "4px 0" }}>{node.name}</div>
       <p className="small" style={{ margin: "0 0 10px" }}>
@@ -211,7 +261,7 @@ function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullab
         {node.kind === "accepted" && <span className="small text-muted">Waiting on a contractor.</span>}
         <Link href={`/project/${b.project_id}/timeline`} className="btn btn-secondary">{node.kind === "payment" && node.key === "permit_meeting" ? "Propose a time" : "Message " + first}</Link>
       </div>
-    </Blueprint>
+    </Card>
   );
 }
 

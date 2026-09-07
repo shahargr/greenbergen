@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { createClient } from "@shared/supabase/client";
 import { dollars } from "@shared/format";
 import { friendly } from "@shared/rpc";
-import { Blueprint, Notice } from "@shared/ui";
+import { Card, Notice } from "@shared/ui";
 import { markMilestone } from "../../actions";
 
 // 15a confirm + pay choice; 15c photograph the check. The photo uploads
@@ -71,7 +71,7 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
             <button type="button" className="shutter" aria-label="Take the photo" onClick={() => cam.current?.click()}><span /></button>
             <button type="button" className="btn btn-ghost" onClick={() => setHow(how === "cash" ? "check" : "cash")}>{how === "cash" ? "It's a check" : "Cash receipt"}</button>
           </div>
-          {photo && <button type="button" className="btn btn-primary btn-block blueprint" onClick={() => setCapture(false)}>Use this photo</button>}
+          {photo && <button type="button" className="btn btn-primary btn-block" onClick={() => setCapture(false)}>Use this photo</button>}
         </div>
         <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) setPhoto({ file: f, preview: URL.createObjectURL(f) }); e.target.value = ""; }} />
         <input ref={lib} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) setPhoto({ file: f, preview: URL.createObjectURL(f) }); e.target.value = ""; }} />
@@ -88,7 +88,7 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
       <input type="hidden" name="file_id" value={fileId} />
 
       {kind === "payment" && (
-        <Blueprint pad>
+        <Card pad>
           <div className="kicker">Due at this {nodeKey === "permit_meeting" ? "meeting" : "point"}</div>
           <div className="price" style={{ padding: 0 }}>
             <div className="big mono" style={{ fontSize: 36 }}>{dollars(amountCents)}</div>
@@ -115,12 +115,12 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
             </div>
           )}
           {how === "card" && <Notice>Card payments through the app are coming. For now, pay {contractor} directly — the milestone is still logged when you mark it.</Notice>}
-        </Blueprint>
+        </Card>
       )}
 
       {err && <Notice kind="error">{err}</Notice>}
       <div className="actions" style={{ padding: 0 }}>
-        <button type="button" className={`btn btn-primary btn-block blueprint ${busy ? "busy" : ""}`} disabled={!!busy || alreadyDone} onClick={() => void uploadThenSubmit()}>
+        <button type="button" className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy || alreadyDone} onClick={() => void uploadThenSubmit()}>
           {busy ? <><span className="spin" /> {busy}</> : kind === "payment" ? (how === "later" ? "Mark done" : how === "card" ? "Mark done" : `Mark done & record ${dollars(amountCents)}`) : kind === "done" ? "Close the job" : "Mark done"}
         </button>
       </div>
