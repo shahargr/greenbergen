@@ -5,6 +5,7 @@ import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen } from "@shared/ui";
 import { House, Illustration } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
+import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "My home" };
@@ -22,7 +23,9 @@ const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> =>
 
 export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string; home?: string }> }) {
   const { ok, show, home } = await searchParams;
-  const me = await getMe();
+  const w = stopwatch("/project");
+  const me = await w.step("me", () => getMe());
+  w.done();
   if (!me.signed_in) redirect("/login?next=/project");
   const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
   const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";

@@ -1,5 +1,6 @@
 import { createClient } from "@shared/supabase/server";
 import { isMissingFunction, rpc } from "@shared/rpc";
+import { timed } from "@shared/perf";
 import type { Progress } from "@shared/progress";
 export type { Progress };
 
@@ -42,10 +43,10 @@ export type Me =
 // `degraded` for any other failure; screens say so instead of redirecting.
 export async function getMe(): Promise<Me> {
   const supabase = await createClient();
-  const { data: claimsData } = await supabase.auth.getClaims();
+  const { data: claimsData } = await timed("me.claims", () => supabase.auth.getClaims());
   const claims = claimsData?.claims as { sub?: string; email?: string; user_metadata?: { full_name?: string } } | undefined;
   if (!claims?.sub) return { signed_in: false };
-  const { data, error } = await rpc<Me>(supabase, "homeowner_me");
+  const { data, error } = await timed("me.rpc", () => rpc<Me>(supabase, "homeowner_me"));
   if (!error && data && data.signed_in) return data;
   if (error) console.error("homeowner_me:", error.message);
   else console.error("homeowner_me: signed_in false for auth user", claims.sub);

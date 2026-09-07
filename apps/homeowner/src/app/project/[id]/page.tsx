@@ -6,6 +6,7 @@ import { encodeSelections } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Avatar, Card, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
 import { ProgressLine } from "@shared/ProgressLine";
+import { stopwatch } from "@shared/perf";
 import { HomeTabs } from "@/components/HomeTabs";
 import { WaitingCard } from "./WaitingCard";
 import { bookingAction, updatePlan } from "./actions";
@@ -17,9 +18,15 @@ export const dynamic = "force-dynamic";
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; ok?: string }> }) {
   const { id } = await params;
   const { error, ok } = await searchParams;
-  const me = await getMe();
+  const w = stopwatch("/project/[id]");
+  // The shell and the job are independent reads; fetching them together
+  // costs one round trip instead of two.
+  const [me, { booking: b, missing }] = await Promise.all([
+    w.step("me", () => getMe()),
+    w.step("booking", () => getBooking(id)),
+  ]);
+  w.done();
   if (!me.signed_in) redirect(`/login?next=/project/${id}`);
-  const { booking: b, missing } = await getBooking(id);
   if (missing) redirect("/project");
   if (!b) notFound();
   const pkg = b.package;

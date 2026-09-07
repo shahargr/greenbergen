@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./keys";
+import { stopwatch } from "../perf";
 
 // Refreshes the Supabase session cookie on every request and sends a
 // signed-out visitor to /login for anything that is not public. Public:
@@ -9,6 +10,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./keys";
 const PUBLIC_PREFIXES = ["/login", "/auth", "/join", "/packages", "/services", "/s/", "/welcome"];
 
 export async function updateSession(request: NextRequest) {
+  const w = stopwatch(`proxy ${request.nextUrl.pathname}`);
   request.headers.set("x-pathname", request.nextUrl.pathname + request.nextUrl.search);
   let response = NextResponse.next({ request });
 
@@ -26,7 +28,7 @@ export async function updateSession(request: NextRequest) {
   });
 
   // getClaims verifies the JWT locally and still refreshes an expired session.
-  const { data } = await supabase.auth.getClaims();
+  const { data } = await w.step("auth", () => supabase.auth.getClaims());
   const user = data?.claims ?? null;
 
   const path = request.nextUrl.pathname;
@@ -36,7 +38,10 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
+    w.done();
     return NextResponse.redirect(url);
   }
+  w.done();
+  response.headers.set("Server-Timing", w.header());
   return response;
 }

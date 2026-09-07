@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { decodeSelections, findPackage, loadCatalogue } from "@shared/catalogue";
+import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { PackageConfigurator } from "./PackageConfigurator";
@@ -14,7 +15,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   const { code } = await params;
   const { sel, adjust } = await searchParams;
   const supabase = await createClient();
-  const [{ packages }, { data: auth }] = await Promise.all([loadCatalogue(supabase), supabase.auth.getUser()]);
+  const [{ packages }, signedIn] = await Promise.all([loadCatalogue(supabase), isSignedIn(supabase)]);
   const pkg = findPackage(packages, code);
   if (!pkg || pkg.availability === "coming_soon") notFound();
   const back = pkg.tile_group === "more" ? "/packages/more" : "/packages";
@@ -32,7 +33,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
             <h1>{pkg.availability === "quote" ? "This one gets a person, not a price." : "Tell us in a sentence."}</h1>
             <p className="lead">{pkg.description}</p>
           </div>
-          <QuoteForm code={pkg.code} signedIn={!!auth.user} />
+          <QuoteForm code={pkg.code} signedIn={signedIn} />
         </div>
       </Screen>
     );
@@ -60,7 +61,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
           </ul>
         </Card>
 
-        <PackageConfigurator pkg={pkg} initial={selections} signedIn={!!auth.user} openAdjust={adjust === "1"} />
+        <PackageConfigurator pkg={pkg} initial={selections} signedIn={signedIn} openAdjust={adjust === "1"} />
       </div>
     </Screen>
   );

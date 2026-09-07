@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@shared/supabase/server";
+import { sessionClaims } from "@shared/supabase/session";
 import { townForZip } from "@shared/bergen";
 
 // Where a Google sign-up lands after /auth/confirm: the session exists and
@@ -13,11 +14,11 @@ export async function GET(request: NextRequest) {
   const rawNext = searchParams.get("next") ?? "/welcome";
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/welcome";
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return NextResponse.redirect(new URL("/login?error=link", request.url));
+  const claims = await sessionClaims(supabase);
+  if (!claims) return NextResponse.redirect(new URL("/login?error=link", request.url));
   if (/^\d{5}$/.test(zip)) {
     const { error } = await supabase.rpc("homeowner_register", {
-      p_full_name: name || (auth.user.user_metadata?.full_name as string | undefined) || null,
+      p_full_name: name || claims.user_metadata?.full_name || null,
       p_zip: zip, p_town: townForZip(zip), p_ref: ref && /^[0-9a-f-]{36}$/i.test(ref) ? ref : null,
     });
     if (error) console.warn("homeowner_register:", error.message);

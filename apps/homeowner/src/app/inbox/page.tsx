@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
+import { stopwatch } from "@shared/perf";
 import { getMe } from "@/lib/me";
 import { ago, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
@@ -25,13 +26,17 @@ type Task = { id: string; action: string; status: string; priority: string | nul
 
 export default async function InboxPage({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string }> }) {
   const { error, ok } = await searchParams;
-  const me = await getMe();
-  if (!me.signed_in) redirect("/login?next=/inbox");
+  const w = stopwatch("/inbox");
   const supabase = await createClient();
-  const [{ data: inv }, { data: tasks }] = await Promise.all([
-    rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites"),
-    rpc<Task[]>(supabase, "portal_tasks", { p_project_id: null, p_open_limit: 60, p_closed_limit: 0, p_domain: "construction" }),
+  // All three reads leave together - the invitations and tasks do not depend
+  // on the profile, so waiting for it first only added its latency to theirs.
+  const [me, { data: inv }, { data: tasks }] = await Promise.all([
+    w.step("me", () => getMe()),
+    w.step("invites", () => rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites")),
+    w.step("tasks", () => rpc<Task[]>(supabase, "portal_tasks", { p_project_id: null, p_open_limit: 60, p_closed_limit: 0, p_domain: "construction" })),
   ]);
+  w.done();
+  if (!me.signed_in) redirect("/login?next=/inbox");
   const incoming = inv?.incoming ?? [];
   const outcomes = inv?.outcomes ?? [];
   const open = (tasks ?? []).filter((t) => t.state === "open");

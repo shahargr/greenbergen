@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { isSignedIn } from "@shared/supabase/session";
 import { COMMUNITY_SERVICES } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
@@ -16,7 +17,7 @@ export default async function ServicePage({ params }: { params: Promise<{ code: 
   const s = COMMUNITY_SERVICES.find((x) => x.code === code);
   if (!s) notFound();
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
+  const signedIn = await isSignedIn(supabase);
   return (
     <Screen>
       <AppBar back="/packages/more" />
@@ -35,7 +36,7 @@ export default async function ServicePage({ params }: { params: Promise<{ code: 
             <div><span className="k">Neighbors signed up on your street</span><span className="text-muted">Not yet counted</span></div>
           </div>
         </Card>
-        <QuoteForm code={s.code} signedIn={!!auth.user} prompt="Anything we should know? (gate code, where to leave the bags)" cta="Sign up for the season" />
+        <QuoteForm code={s.code} signedIn={signedIn} prompt="Anything we should know? (gate code, where to leave the bags)" cta="Sign up for the season" />
         <p className="small text-muted" style={{ margin: 0 }}>We&apos;ll ask for your address and a card when the season opens. Nothing is charged until a delivery lands.</p>
       </div>
     </Screen>

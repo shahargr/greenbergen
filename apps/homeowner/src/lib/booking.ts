@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@shared/supabase/server";
 import { isMissingFunction, rpc } from "@shared/rpc";
+import { timed } from "@shared/perf";
 import type { Package } from "@shared/catalogue";
 import type { BookingState, Progress, TargetWindow } from "@/lib/me";
 
@@ -36,7 +37,7 @@ export type Booking = {
 
 export async function getBooking(projectId: string): Promise<{ booking: Booking | null; missing: boolean; supabase: SupabaseClient }> {
   const supabase = await createClient();
-  const { data, error } = await rpc<Booking>(supabase, "homeowner_booking", { p_project: projectId });
+  const { data, error } = await timed("booking.rpc", () => rpc<Booking>(supabase, "homeowner_booking", { p_project: projectId }));
   if (error) {
     if (isMissingFunction(error)) return { booking: null, missing: true, supabase };
     console.error("homeowner_booking:", error.message);
@@ -49,7 +50,7 @@ export async function getBooking(projectId: string): Promise<{ booking: Booking 
 export async function signedUrls(supabase: SupabaseClient, paths: string[]): Promise<Record<string, string>> {
   const unique = Array.from(new Set(paths.filter(Boolean)));
   if (unique.length === 0) return {};
-  const { data } = await supabase.storage.from("project-media").createSignedUrls(unique, 3600);
+  const { data } = await timed("signedUrls", () => supabase.storage.from("project-media").createSignedUrls(unique, 3600));
   const out: Record<string, string> = {};
   for (const row of data ?? []) if (row.path && row.signedUrl) out[row.path] = row.signedUrl;
   return out;

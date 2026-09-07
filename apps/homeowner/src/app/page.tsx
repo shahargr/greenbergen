@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { isSignedIn } from "@shared/supabase/session";
 import { rpc } from "@shared/rpc";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { House } from "@shared/Illustrations";
@@ -18,8 +19,8 @@ const SHOW_MEMBER_COUNT = false;
 export default async function Landing({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string }> }) {
   const { ref, name } = await searchParams;
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (auth.user && !ref) redirect("/project");
+  const signedIn = await isSignedIn(supabase);
+  if (signedIn && !ref) redirect("/project");
 
   let inviter: RefPreview | null = null;
   if (ref && /^[0-9a-f-]{36}$/i.test(ref)) {

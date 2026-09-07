@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import data from "./catalogue.data.json";
 import { isMissingFunction, rpc } from "./rpc";
+import { timed } from "./perf";
 
 // The package catalogue. The database (blueprint_packages and friends,
 // read through homeowner_catalogue()) is the source of truth; the JSON
@@ -35,7 +36,7 @@ export const COMMUNITY_SERVICES = data.community_services as CommunityService[];
 export type Catalogue = { packages: Package[]; source: "database" | "static" };
 
 export async function loadCatalogue(supabase: SupabaseClient): Promise<Catalogue> {
-  const { data: rows, error } = await rpc<Package[]>(supabase, "homeowner_catalogue");
+  const { data: rows, error } = await timed("catalogue.rpc", () => rpc<Package[]>(supabase, "homeowner_catalogue"));
   if (!error && Array.isArray(rows) && rows.length > 0) return { packages: rows, source: "database" };
   if (error && !isMissingFunction(error)) {
     // A real error on the live catalogue still leaves the static set usable.
