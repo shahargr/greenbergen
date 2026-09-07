@@ -61,7 +61,7 @@ export function AppBar({
         <button type="button" onClick={back} className="btn btn-ghost btn-icon" aria-label="Back"><BackIcon /></button>
       )}
       {brand && !title && (
-        <div className="brand grow"><Wordmark /><span className="sub">Community · Bergen County, NJ</span></div>
+        <div className="brand grow"><Wordmark /><span className="sub">Bergen County community, not a marketplace.</span></div>
       )}
       {title && (
         <div className="title">{title}{sub && <span className="sub">{sub}</span>}</div>

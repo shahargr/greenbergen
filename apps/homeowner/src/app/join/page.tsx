@@ -10,7 +10,7 @@ export const metadata = { title: "Join" };
 export default async function JoinPage({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string; next?: string }> }) {
   const { ref, name, next } = await searchParams;
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (auth.user) redirect(next && next.startsWith("/") ? next : "/welcome");
+  const { data: claims } = await supabase.auth.getClaims();
+  if (claims?.claims?.sub) redirect(next && next.startsWith("/") ? next : "/welcome");
   return <JoinForm refId={ref && /^[0-9a-f-]{36}$/i.test(ref) ? ref : null} prefillName={name ?? ""} next={next && next.startsWith("/") ? next : "/welcome"} />;
 }

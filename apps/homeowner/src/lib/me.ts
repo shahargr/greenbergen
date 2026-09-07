@@ -26,7 +26,7 @@ export type BookingSummary = {
 export type Me =
   | { signed_in: false; missing?: boolean; email?: string | null }
   | {
-      signed_in: true; missing?: boolean;
+      signed_in: true; missing?: boolean; degraded?: boolean;
       profile: { app_user_id: string; full_name: string | null; email: string | null; home_zip: string | null; home_town: string | null; contact_id: string | null; is_superadmin: boolean };
       home: { project_id: string; address: string | null; name: string | null; facts: Record<string, unknown> | null } | null;
       homes: Home[];
@@ -34,22 +34,24 @@ export type Me =
       bookings: BookingSummary[];
     };
 
-// The signed-in shell in one call. When the homeowner functions are not in
-// the database yet (db/ not applied), fall back to the auth user so the app
-// still renders and says what is missing.
+// The signed-in shell in one call. Signed-in is decided from the session
+// cookie's claims (verified locally, no round trip) - the same test the
+// proxy and /join use - so two pages can never disagree and bounce a
+// member between them. When homeowner_me() cannot be read the member is
+// still signed in: `missing` when the functions are not in the database,
+// `degraded` for any other failure; screens say so instead of redirecting.
 export async function getMe(): Promise<Me> {
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return { signed_in: false };
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims as { sub?: string; email?: string; user_metadata?: { full_name?: string } } | undefined;
+  if (!claims?.sub) return { signed_in: false };
   const { data, error } = await rpc<Me>(supabase, "homeowner_me");
   if (!error && data && data.signed_in) return data;
-  if (error && isMissingFunction(error)) {
-    return {
-      signed_in: true, missing: true,
-      profile: { app_user_id: auth.user.id, full_name: (auth.user.user_metadata?.full_name as string) ?? null, email: auth.user.email ?? null, home_zip: null, home_town: null, contact_id: null, is_superadmin: false },
-      home: null, homes: [], home_quota: null, bookings: [],
-    };
-  }
   if (error) console.error("homeowner_me:", error.message);
-  return { signed_in: false, email: auth.user.email ?? null };
+  else console.error("homeowner_me: signed_in false for auth user", claims.sub);
+  return {
+    signed_in: true, missing: !!error && isMissingFunction(error), degraded: !error || !isMissingFunction(error),
+    profile: { app_user_id: claims.sub, full_name: claims.user_metadata?.full_name ?? null, email: claims.email ?? null, home_zip: null, home_town: null, contact_id: null, is_superadmin: false },
+    home: null, homes: [], home_quota: null, bookings: [],
+  };
 }

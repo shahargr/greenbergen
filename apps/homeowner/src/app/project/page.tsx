@@ -32,6 +32,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
         <AppBar brand />
         <div className="body">
           {me.missing && <Notice title="Preview mode">The database migration in db/ has not been applied yet, so homes and projects cannot be read. The catalogue still works.</Notice>}
+          {me.degraded && <Notice kind="error" title="We couldn't load your homes just now.">Nothing is lost. <Link href="/project">Try again</Link>, and if it keeps happening tell us.</Notice>}
           <div className="illus"><House /></div>
           <Card pad>
             <h1>No home on file yet. That&apos;s the whole screen.</h1>

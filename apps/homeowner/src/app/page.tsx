@@ -42,13 +42,11 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
               </div>
             </div>
           </Card>
-        ) : (
-          <div className="kicker">A community, not a marketplace</div>
-        )}
+        ) : null}
 
         <div className="hero">
           <h1 style={{ fontSize: 26 }}>
-            {inviter && name ? <>Welcome, {name}. The safe and fast way to meet contractors that service our community.</> : <>The safe and fast way to meet contractors that service our community.</>}
+            {inviter && name ? <>Welcome, {name}. The safe way to meet contractors in our community.</> : <>The safe way to meet contractors in our community.</>}
           </h1>
         </div>
 
