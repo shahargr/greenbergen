@@ -75,6 +75,36 @@ export function AppBar({
   );
 }
 
+// The two icons that sit at the top right of every signed-in screen: the
+// inbox (with its count) and the gear. Small, quiet, and always in the same
+// place, so the shell never has to explain where the settings went.
+export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/inbox" }: { unread?: number; gearHref?: string; inboxHref?: string }) {
+  return (
+    <span className="shell-icons">
+      <Link href={inboxHref} className="btn btn-ghost btn-icon" aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}>
+        <InboxIcon />
+        {unread > 0 && <span className="dot-n">{unread > 9 ? "9+" : unread}</span>}
+      </Link>
+      <Link href={gearHref} className="btn btn-ghost btn-icon" aria-label="Your account">
+        <GearIcon />
+      </Link>
+    </span>
+  );
+}
+
+export const InboxIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 13h5l1.5 3h5L16 13h5" /><path d="M4.5 5.5h15L21 13v5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18v-5z" />
+  </svg>
+);
+
+export const GearIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3" />
+  </svg>
+);
+
 export function StepKicker({ children }: { children: ReactNode }) {
   return <div className="step-kicker">{children}</div>;
 }

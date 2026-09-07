@@ -5,7 +5,7 @@ import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { getMe } from "@/lib/me";
 import { ago, shortDate } from "@shared/format";
-import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
 import { PhotoBanner } from "@/components/PhotoBanner";
@@ -49,7 +49,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand />
+      <AppBar brand right={<ShellIcons unread={unread} />} />
       <div className="body">
         <div className="hero">
           <h1>Inbox</h1>

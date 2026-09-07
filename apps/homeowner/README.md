@@ -96,6 +96,16 @@ exist until the three files in `apps/shared/db/` are applied, in order:
    closes the request the moment the last one lands - whichever path it came
    in by. Also `homeowner_catalogue_tiles()`: the grid's seven fields per
    package, 2.9 kB against the full catalogue's 37 kB.
+7. `007_homeowner_task_update.sql` - an update is not a completion. The
+   inbox's only verb was "Done", so saying "I called the town" or "here are
+   the photos the inspector wanted" meant closing the task; the log lost the
+   middle of every job. `homeowner_task_update(project, action, note,
+   file_ids[], complete)` posts one entry - a comment and any number of
+   attachments - and only closes the task when `complete` is true (through
+   `close_action`, never a direct status UPDATE). `homeowner_task_close`
+   stays for the one-tap close on the job screen. Blinds & shades also moves
+   from the front grid to More, leaving the eight the home screen prices on
+   the spot. Folded into 003.
 
 They were dry-run against the live project inside a rolled-back transaction
 (schema + seed + functions + a full booking → accept → pay → close → share

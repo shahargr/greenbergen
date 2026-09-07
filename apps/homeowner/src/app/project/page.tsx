@@ -1,20 +1,24 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary, type Home } from "@/lib/me";
+import { loadTiles } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
-import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen } from "@shared/ui";
-import { House, Illustration } from "@shared/Illustrations";
+import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen, ShellIcons } from "@shared/ui";
+import { Illustration } from "@shared/Illustrations";
+import { MoreTile, PackageTile } from "@/components/PackageTile";
 import { HomeTabs } from "@/components/HomeTabs";
 import { PhotoBanner } from "@/components/PhotoBanner";
 import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "My home" };
+export const metadata = { title: "Green Bergen" };
 
-// The member's homes, one line each with its mark, then every job across
-// them: planned, in progress, done, cancelled. Tapping a home narrows the
-// list to that home (?home=); the state chips narrow it further. E4 when
-// there is nothing at all.
+// The home screen leads with the QUESTION, not the filing cabinet: eight
+// packages we can price on the spot, four to a row, then More. Everything
+// the member already has - homes, jobs planned, live, done and cancelled -
+// sits underneath, because a returning member scrolls to it while a new one
+// never has to. Tapping a home narrows the jobs to that home (?home=); the
+// state chips narrow them further.
 type Bucket = "all" | "planned" | "live" | "done" | "cancelled";
 const BUCKETS: { key: Bucket; label: string }[] = [
   { key: "all", label: "All" }, { key: "planned", label: "Planned" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" }, { key: "cancelled", label: "Cancelled" },
@@ -25,34 +29,18 @@ const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> =>
 export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string; home?: string }> }) {
   const { ok, show, home } = await searchParams;
   const w = stopwatch("/project");
-  const me = await w.step("me", () => getMe());
+  // The catalogue is template data behind a shared cache; it does not wait
+  // on the member's own read and the member's read does not wait on it.
+  const [me, { tiles }] = await Promise.all([
+    w.step("me", () => getMe()),
+    w.step("tiles", () => loadTiles()),
+  ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/project");
   const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
   const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";
-
-  if (me.homes.length === 0 && me.bookings.length === 0) {
-    return (
-      <Screen>
-        <AppBar brand />
-        <div className="body">
-          {me.missing && <Notice title="Preview mode">The database migration in db/ has not been applied yet, so homes and projects cannot be read. The catalogue still works.</Notice>}
-          {me.degraded && <Notice kind="error" title="We couldn't load your homes just now.">Nothing is lost. <Link href="/project">Try again</Link>, and if it keeps happening tell us.</Notice>}
-          <div className="illus"><House /></div>
-          <Card pad>
-            <h1>No home on file yet. That&apos;s the whole screen.</h1>
-            <p className="lead text-muted" style={{ margin: 0 }}>Book a package or plan one for later, and your home appears here with a progress line, a folder and a timeline. Most neighbors start with something small.</p>
-          </Card>
-        </div>
-        <div className="actions">
-          <Link href="/packages" className="btn btn-primary btn-block">Pick a package</Link>
-          <Link href="/homes/new" className="btn btn-secondary btn-block">Just add my home for now</Link>
-          <Link href="/packages/something_else" className="btn btn-ghost btn-block">I already work with a contractor</Link>
-        </div>
-        <HomeTabs current="project" />
-      </Screen>
-    );
-  }
+  const front = tiles.filter((p) => p.tile_group === "front" && p.availability !== "coming_soon");
+  const more = tiles.filter((p) => p.tile_group === "more" || p.availability === "coming_soon");
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
   const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;
@@ -71,54 +59,74 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
   return (
     <Screen>
-      <AppBar brand right={<Link href="/packages" className="btn btn-ghost">+ Package</Link>} />
+      <AppBar brand right={<ShellIcons unread={unread} />} />
       <div className="body">
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
         {ok === "removed" && <div className="banner-ok">Plan removed. Nothing was ever sent.</div>}
+        {me.missing && <Notice title="Preview mode">The database migration in db/ has not been applied yet, so homes and projects cannot be read. The catalogue still works.</Notice>}
+        {me.degraded && <Notice kind="error" title="We couldn&apos;t load your homes just now.">Nothing is lost. <Link href="/project">Try again</Link>, and if it keeps happening tell us.</Notice>}
         <PhotoBanner bookings={me.bookings} />
+
         <div className="hero">
-          <h1>{onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : manyHomes ? "Your homes" : (me.homes[0]?.address?.split(",")[0] ?? "Your home")}</h1>
-          <p className="lead">{onlyHome ? onlyHome.address?.split(",").slice(1).join(",").trim() : manyHomes ? `${me.homes.length} homes · ${me.bookings.length} job${me.bookings.length === 1 ? "" : "s"}` : me.homes[0]?.address?.split(",").slice(1).join(",").trim()}</p>
+          <h1>What can we price for you?</h1>
+          <p className="lead">Every one of these has a number before anyone comes to look. Tap one to see what&apos;s included.</p>
+        </div>
+        <div className="tiles quad">
+          {front.map((p) => <PackageTile key={p.code} pkg={p} />)}
+        </div>
+        <div className="tiles" style={{ marginTop: -2 }}>
+          <MoreTile count={more.length} />
         </div>
 
-        {onlyHome ? (
-          <Link href="/project" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }}>← All homes</Link>
-        ) : (
-          <section className="homes">
-            {me.homes.map((h) => <HomeLine key={h.project_id} home={h} />)}
-          </section>
-        )}
+        {(me.homes.length > 0 || me.bookings.length > 0) ? (
+          <>
+            <div className="divider-label" style={{ marginTop: 6 }}>
+              {onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : manyHomes ? `Your homes · ${me.homes.length}` : "Your home"}
+            </div>
 
-        <nav className="chips" aria-label="Filter projects">
-          {BUCKETS.filter((x) => x.key === "all" || counts[x.key] > 0).map((x) => (
-            <Link key={x.key} href={href(x.key)} className={`tag ${filter === x.key ? "" : "tag-neutral"}`} aria-current={filter === x.key ? "page" : undefined} style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }}>
-              {x.label} · {counts[x.key]}
+            {onlyHome ? (
+              <Link href="/project" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }}>← All homes</Link>
+            ) : (
+              <section className="homes">
+                {me.homes.map((h) => <HomeLine key={h.project_id} home={h} />)}
+              </section>
+            )}
+
+            {mine.length > 0 && (
+              <nav className="chips" aria-label="Filter projects">
+                {BUCKETS.filter((x) => x.key === "all" || counts[x.key] > 0).map((x) => (
+                  <Link key={x.key} href={href(x.key)} className={`tag ${filter === x.key ? "" : "tag-neutral"}`} aria-current={filter === x.key ? "page" : undefined} style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }}>
+                    {x.label} · {counts[x.key]}
+                  </Link>
+                ))}
+              </nav>
+            )}
+
+            {(filter === "all" ? order : [filter as Exclude<Bucket, "all">]).map((k) => {
+              const rows = shown.filter((b) => bucketOf(b) === k);
+              if (rows.length === 0) return null;
+              return (
+                <section className="stack" style={{ gap: 10 }} key={k}>
+                  {filter === "all" && <div className="divider-label">{BUCKETS.find((x) => x.key === k)?.label}</div>}
+                  {rows.map((b) => <BookingRow key={b.project_id} b={b} showHome={manyHomes && !onlyHome} />)}
+                </section>
+              );
+            })}
+
+            <Link href="/homes/new" className={`home-row add ${canAdd ? "" : "disabled"}`} style={canAdd ? undefined : { opacity: 0.6 }}>
+              <span className="ic">+</span>
+              <span className="grow">
+                <span className="t">Add another home</span>
+                <span className="m" style={{ display: "block" }}>{canAdd ? "A rental, a second home, a parent's place." : `Your agreement covers ${me.home_quota?.allowed ?? 1} home${(me.home_quota?.allowed ?? 1) === 1 ? "" : "s"}.`}</span>
+              </span>
+              <ChevronIcon />
             </Link>
-          ))}
-        </nav>
-
-        {shown.length === 0 && (
-          <Card soft pad><div className="small">Nothing {filter === "all" ? "yet" : BUCKETS.find((x) => x.key === filter)?.label.toLowerCase()}. <Link href="/packages">Pick a package</Link> or plan one for later.</div></Card>
+          </>
+        ) : (
+          <Card soft pad>
+            <div className="small">No home on file yet — picking a package adds one. Or <Link href="/homes/new">just add your home</Link> and plan something for later.</div>
+          </Card>
         )}
-        {(filter === "all" ? order : [filter as Exclude<Bucket, "all">]).map((k) => {
-          const rows = shown.filter((b) => bucketOf(b) === k);
-          if (rows.length === 0) return null;
-          return (
-            <section className="stack" style={{ gap: 10 }} key={k}>
-              {filter === "all" && <div className="divider-label">{BUCKETS.find((x) => x.key === k)?.label}</div>}
-              {rows.map((b) => <BookingRow key={b.project_id} b={b} showHome={manyHomes && !onlyHome} />)}
-            </section>
-          );
-        })}
-
-        <Link href="/homes/new" className={`home-row add ${canAdd ? "" : "disabled"}`} style={canAdd ? undefined : { opacity: 0.6 }}>
-          <span className="ic">+</span>
-          <span className="grow">
-            <span className="t">Add another home</span>
-            <span className="m" style={{ display: "block" }}>{canAdd ? "A rental, a second home, a parent's place." : `Your agreement covers ${me.home_quota?.allowed ?? 1} home${(me.home_quota?.allowed ?? 1) === 1 ? "" : "s"}.`}</span>
-          </span>
-          <ChevronIcon />
-        </Link>
       </div>
       <HomeTabs current="project" unread={unread} />
     </Screen>
