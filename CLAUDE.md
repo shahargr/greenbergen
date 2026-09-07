@@ -51,8 +51,13 @@ No version comparison. Rebuild every time.
   and `db/` - the database contract for the consumer apps (`homeowner_*`
   functions, `blueprint_packages`, `project_bookings`). Read help topic
   `homeowner_app` once that migration is applied.
-- A future contractor app goes in `apps/contractor/` and imports from
-  `apps/shared/`; contractor code never lives inside the homeowner app.
+- Three consumer apps are planned, each its own folder under `apps/` and its
+  own Vercel project, all on the same Supabase Auth login (email code or
+  Google) and the same `app_users` row: (a) `apps/homeowner/` - built;
+  (b) `apps/contractor/` - offers, accept at the community price, the job
+  from the pro's side; (c) `apps/gc/` - the GC / project manager view across
+  jobs and crews. Each imports from `apps/shared/` and never from another
+  app. The root portal keeps its own URL and is not touched by any of them.
 - `npm install` runs at the repo root (`"workspaces": ["apps/*"]`); the root
   tsconfig and eslint exclude `apps/`, each app checks itself and the shared
   sources it imports.

@@ -209,7 +209,10 @@ begin
                                      'person', coalesce(c.person_name, c.name), 'phone', coalesce(c.phone, co.main_phone))
              from public.contacts c left join public.companies co on co.id = c.company_id where c.id = b.contractor_contact_id) end,
         'progress', public.homeowner_progress(b.project_id),
-        'unread', (select count(*) from public.messages m where m.project_id = b.project_id and m.to_contact_id = u.contact_id and m.read_at is null)
+        'unread', (select count(*) from public.messages m where m.project_id = b.project_id and m.to_contact_id = u.contact_id and m.read_at is null),
+        'last_message', (select jsonb_build_object('body', left(m.body, 140), 'sent_at', m.sent_at, 'mine', m.from_contact_id = u.contact_id,
+                                                   'who', coalesce((select coalesce(c.person_name, c.name) from public.contacts c where c.id = m.from_contact_id), m.sender, 'Green Bergen'))
+                           from public.messages m where m.project_id = b.project_id and m.channel = 'in app' order by m.sent_at desc limit 1)
       ) order by (b.state = 'closed'), (b.state = 'done'), (b.state = 'planned'), b.created_at desc)
       from public.project_bookings b
       join public.blueprint_packages bp on bp.code = b.package_code

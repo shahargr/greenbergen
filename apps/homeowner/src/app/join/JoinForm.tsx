@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
+import { GoogleMark } from "@/app/login/page";
 import { isBergenZip, townForZip } from "@shared/bergen";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Notice, Screen } from "@shared/ui";
@@ -65,6 +66,25 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
       return;
     }
     setStep("code");
+  }
+
+  // Same three fields, then Google instead of a code. The finish route
+  // registers the ZIP and referral once Google sends the browser back.
+  async function google() {
+    const errs: typeof errors = {};
+    if (!name.trim()) errs.name = "Your name, so the contractor knows who to ask for.";
+    if (!/^\d{5}$/.test(zip.trim())) errs.zip = "A 5-digit ZIP code.";
+    else if (!isBergenZip(zip.trim())) { errs.zip = `${zip.trim()} is outside Bergen County. We're Bergen-only for now.`; setOutside(true); }
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+    setBusy(true);
+    const supabase = createClient();
+    const finish = `/join/finish?${new URLSearchParams({ name: name.trim(), zip: zip.trim(), ...(refId ? { ref: refId } : {}), next }).toString()}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(finish)}` },
+    });
+    if (error) { setBusy(false); setErrors({ submit: /not enabled|unsupported provider/i.test(error.message) ? "Google sign-in isn't switched on for this project yet. Use the email code." : error.message }); }
   }
 
   async function verify(e: React.FormEvent) {
@@ -154,8 +174,9 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
 
         <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
           <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || outside}>
-            {busy ? <><span className="spin" /> Sending your code…</> : errors.submit ? "Try again" : "Continue"}
+            {busy ? <><span className="spin" /> One moment…</> : errors.submit ? "Try again" : "Continue"}
           </button>
+          <button type="button" className="btn btn-secondary btn-block" onClick={() => void google()} disabled={busy || outside}><GoogleMark /> Continue with Google</button>
           <p className="small text-muted center" style={{ margin: "4px 0 0" }}>Already in? <Link href="/login">Sign in</Link></p>
         </div>
       </form>

@@ -28,6 +28,7 @@ vendor/contractor screens until the contractor app exists under `apps/`.
 | `/my/invite` | Every share card carries the owner's invite (`?ref=`), and the landing page shows who invited you. No "invite a neighbor" button of its own - see gaps. |
 | `/my` welcome video | `/welcome` orientation. |
 | `/my/profile` | Name, email and ZIP are captured at join. No edit screen - see gaps. |
+| `/login` Google sign-in | Kept: **Continue with Google** on `/login` and `/join` (same Supabase provider; the join path registers ZIP and referral through `/join/finish`). |
 | `/my/settings` assets & warranties | The warranty line of a done job is shown on the job. No home-level asset registry - see gaps. |
 | `/p/[slug]` public showcase | `/s/[slug]` share card (address hidden by default, no photos in public). |
 
@@ -41,10 +42,12 @@ vendor/contractor screens until the contractor app exists under `apps/`.
 
 ## No home yet - needs a decision
 
-1. **People with access to a home** (`/my/house/[id]`). A spouse or a tenant
-   who should see the job. The data model has it (`project_members`); the new
-   app has no screen. Suggest: a "Who can see this home" row on `/project`
-   later, invite by email.
+1. ~~People with access~~ **Built 2026-09-07**: `/project/[id]/people` lists
+   who is on a job and invites an existing account as co-owner, viewer or
+   contractor (`portal_invite_to_project`), or makes a join link for a
+   contractor who is not on Green Bergen yet (`invite_peer`). Invitations are
+   answered from `/inbox` (`portal_my_invites`, `portal_invite_respond`).
+   Still per job, not per home.
 2. **Home details**: rooms, a home photo, assets & warranties, "your
    contractors" (`/my/new-home`, `/my/settings`). Suggest: a **home folder**
    per home (photos, warranties, the contractors who worked there) as a next
@@ -56,9 +59,9 @@ vendor/contractor screens until the contractor app exists under `apps/`.
    Suggest: drop unless it is a retention hook we want.
 5. **Profile edit** (`/my/profile`): change name, email, ZIP. Small; suggest
    a `/me` sheet under the app bar.
-6. **Unified inbox and task list** (`/my/inbox`, `/my/tasks`). The new app is
-   per job by design, with unread badges on the home tab. Suggest: keep it per
-   job; add a cross-home list only if members hold several live jobs.
+6. ~~Unified inbox and task list~~ **Built 2026-09-07**: `/inbox` - invitations,
+   conversations with unread first, every open task across the member's
+   projects (`portal_tasks`), closable in place. Third tab in the shell.
 7. **Invite a neighbor** without a finished job. Suggest: a share button on
    `/welcome` and on `/project` that carries the same `?ref=`.
 8. **Direct-sale listing** (`/my/settings`). Drop; different product.

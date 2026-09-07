@@ -35,6 +35,16 @@ function LoginInner() {
     setStep("code");
   }
 
+  async function google() {
+    setBusy(true); setErr("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}` },
+    });
+    if (error) { setBusy(false); setErr(/not enabled|unsupported provider/i.test(error.message) ? "Google sign-in isn't switched on for this project yet. Use the email code." : error.message); }
+  }
+
   async function verify(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setErr("");
@@ -71,12 +81,22 @@ function LoginInner() {
           <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || (step === "code" && code.length < 6)}>
             {busy ? <><span className="spin" /> One moment…</> : step === "email" ? "Send my code" : "Sign in"}
           </button>
+          {step === "email" && (
+            <>
+              <div className="divider-label" style={{ justifyContent: "center" }}><span>or</span></div>
+              <button type="button" className="btn btn-secondary btn-block" onClick={() => void google()} disabled={busy}><GoogleMark /> Continue with Google</button>
+            </>
+          )}
           <p className="small text-muted center" style={{ margin: "4px 0 0" }}>New here? <Link href="/join">Join the community</Link></p>
         </div>
       </form>
     </Screen>
   );
 }
+
+export const GoogleMark = () => (
+  <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6C12.3 13.4 17.7 9.5 24 9.5z" /><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 7.1-10 7.1-17.5z" /><path fill="#FBBC05" d="M10.4 28.8A14.5 14.5 0 0 1 9.5 24c0-1.7.3-3.3.8-4.8l-7.8-6A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.8l7.8-6z" /><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.3 0-11.7-3.9-13.6-9.6l-7.8 6C6.5 42.6 14.6 48 24 48z" /></svg>
+);
 
 export default function LoginPage() {
   return <Suspense fallback={null}><LoginInner /></Suspense>;

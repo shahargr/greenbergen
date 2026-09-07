@@ -20,6 +20,7 @@ export type BookingSummary = {
   share_slug: string | null;
   contractor: { contact_id: string; name: string; person: string; phone: string | null } | null;
   progress: Progress | null; unread: number;
+  last_message: { body: string; sent_at: string; mine: boolean; who: string } | null;
 };
 
 export type Me =

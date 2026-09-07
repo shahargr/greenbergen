@@ -87,3 +87,31 @@ export async function closeTask(formData: FormData) {
   if (error || !data?.ok) redirect(`${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
   redirect(back);
 }
+
+// Invite an existing account to this job as a co-owner, a viewer or the
+// contractor (portal_invite_to_project - nobody is seated until they accept).
+export async function inviteToProject(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const email = String(formData.get("email") ?? "").trim() || null;
+  const phone = String(formData.get("phone") ?? "").trim() || null;
+  const seat = String(formData.get("seat") ?? "viewer");
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_invite_to_project", { p_project: projectId, p_email: email, p_phone: phone, p_seat: seat === "peer" ? "resident" : seat, p_note: note });
+  revalidatePath(`/project/${projectId}/people`);
+  if (error || !data?.ok) redirect(`/project/${projectId}/people?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  redirect(`/project/${projectId}/people?ok=${encodeURIComponent(data.name ?? "invited")}`);
+}
+
+// Invite a contractor who is not on Green Bergen yet (invite_peer): a link
+// they redeem on the portal's join page. The link comes back to the page.
+export async function inviteContractor(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const email = String(formData.get("email") ?? "").trim() || null;
+  const name = String(formData.get("name") ?? "").trim() || null;
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("invite_peer", { p_kind: "contractor", p_email: email, p_name: name, p_note: note, p_minutes: null, p_quota: 1, p_phone: null });
+  if (error || !data?.ok || !data?.token) redirect(`/project/${projectId}/people?error=${encodeURIComponent(friendly(data?.reason ?? error?.message ?? "Could not make the link."))}`);
+  redirect(`/project/${projectId}/people?token=${encodeURIComponent(data.token)}&who=${encodeURIComponent(name ?? email ?? "your contractor")}`);
+}

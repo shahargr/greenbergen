@@ -1,0 +1,127 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@shared/supabase/server";
+import { rpc } from "@shared/rpc";
+import { getMe } from "@/lib/me";
+import { ago, shortDate } from "@shared/format";
+import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
+import { Illustration } from "@shared/Illustrations";
+import { HomeTabs } from "@/components/HomeTabs";
+import { closeTask } from "@/app/project/[id]/actions";
+import { respondInvite } from "./actions";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Inbox" };
+
+// One inbox across every home and job: invitations waiting for an answer,
+// conversations with unread messages first, then every open task on a
+// project the member is on. All read through existing functions
+// (homeowner_me, portal_my_invites, portal_tasks); nothing is stored twice.
+type Invite = { id: string; project_id: string; project_name: string; address: string | null; by: string; seat: string; message: string | null; created_at: string };
+type Outcome = { id: string; project_id: string; project_name: string; who: string; status: string; at: string };
+type Task = { id: string; action: string; status: string; priority: string | null; target_date: string | null; last_updated: string | null; project: string; project_id: string; state: "open" | "closed"; assignee: string | null };
+
+export default async function InboxPage({ searchParams }: { searchParams: Promise<{ error?: string; ok?: string }> }) {
+  const { error, ok } = await searchParams;
+  const me = await getMe();
+  if (!me.signed_in) redirect("/login?next=/inbox");
+  const supabase = await createClient();
+  const [{ data: inv }, { data: tasks }] = await Promise.all([
+    rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites"),
+    rpc<Task[]>(supabase, "portal_tasks", { p_project_id: null, p_open_limit: 60, p_closed_limit: 0, p_domain: null }),
+  ]);
+  const incoming = inv?.incoming ?? [];
+  const outcomes = inv?.outcomes ?? [];
+  const open = (tasks ?? []).filter((t) => t.state === "open");
+  const threads = me.bookings.filter((b) => b.last_message || b.unread > 0).sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || (b.last_message?.sent_at ?? "").localeCompare(a.last_message?.sent_at ?? ""));
+  const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
+  const empty = incoming.length === 0 && outcomes.length === 0 && threads.length === 0 && open.length === 0;
+
+  return (
+    <Screen>
+      <AppBar brand />
+      <div className="body">
+        <div className="hero">
+          <h1>Inbox</h1>
+          <p className="lead">Invitations, conversations and open tasks across every home. Nothing here means nothing needs you.</p>
+        </div>
+        {me.missing && <Notice title="Preview mode">The database migration has not been applied yet, so conversations cannot be read. Invitations and tasks still can.</Notice>}
+        {error && <Notice kind="error">{error}</Notice>}
+        {ok === "accepted" && <div className="banner-ok">You&apos;re on the project. It&apos;s under My home.</div>}
+        {ok === "declined" && <div className="banner-ok">Declined. They&apos;ll see that.</div>}
+
+        {incoming.length > 0 && (
+          <section className="stack" style={{ gap: 10 }}>
+            <div className="divider-label">Invitations</div>
+            {incoming.map((i) => (
+              <Card pad key={i.id}>
+                <div className="card-title">{i.by} invited you to {i.project_name}</div>
+                <div className="small text-muted">{i.address?.split(",")[0] ?? ""} · as {seatLabel(i.seat)} · {ago(i.created_at)}</div>
+                {i.message && <blockquote>{i.message}</blockquote>}
+                <div className="row" style={{ marginTop: 6 }}>
+                  <form action={respondInvite}><input type="hidden" name="id" value={i.id} /><input type="hidden" name="accept" value="1" /><button className="btn btn-primary">Accept</button></form>
+                  <form action={respondInvite}><input type="hidden" name="id" value={i.id} /><button className="btn btn-ghost">Decline</button></form>
+                </div>
+              </Card>
+            ))}
+          </section>
+        )}
+
+        {outcomes.length > 0 && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">Answers to your invitations</div>
+            {outcomes.map((o) => (
+              <Link key={o.id} href={`/project/${o.project_id}/people`} className="home-row">
+                <span className="grow"><span className="t">{o.who} {o.status} · {o.project_name}</span><span className="m" style={{ display: "block" }}>{shortDate(o.at)}</span></span>
+                <ChevronIcon />
+              </Link>
+            ))}
+          </section>
+        )}
+
+        {threads.length > 0 && (
+          <section className="stack" style={{ gap: 10 }}>
+            <div className="divider-label">Conversations</div>
+            {threads.map((b) => (
+              <Link key={b.project_id} href={`/project/${b.project_id}/timeline`} className="home-row">
+                <span className="ic"><Illustration name={b.illustration} /></span>
+                <span className="grow">
+                  <span className="t">{b.name}{b.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{b.unread}</span>}</span>
+                  <span className="m" style={{ display: "block" }}>{b.last_message ? `${b.last_message.mine ? "You" : b.last_message.who}: ${b.last_message.body}` : "No messages yet"}</span>
+                </span>
+                <span className="pill-time">{b.last_message ? ago(b.last_message.sent_at) : ""}</span>
+              </Link>
+            ))}
+          </section>
+        )}
+
+        {open.length > 0 && (
+          <section className="stack" style={{ gap: 10 }}>
+            <div className="divider-label">Open tasks · {open.length}</div>
+            {open.map((t) => (
+              <Card pad key={t.id} className="tight">
+                <div className="between">
+                  <div className="grow">
+                    <div className="card-title" style={{ fontSize: 15 }}>{t.action}</div>
+                    <div className="small text-muted"><Link href={`/project/${t.project_id}`}>{t.project}</Link>{t.assignee ? ` · ${t.assignee}` : ""}{t.target_date ? ` · due ${shortDate(t.target_date)}` : ""}{t.status !== "Not Started" ? ` · ${t.status}` : ""}</div>
+                  </div>
+                  <form action={closeTask}>
+                    <input type="hidden" name="project" value={t.project_id} /><input type="hidden" name="action_id" value={t.id} /><input type="hidden" name="back" value="/inbox" />
+                    <button className="btn btn-secondary" style={{ minHeight: 40 }}>Done</button>
+                  </form>
+                </div>
+              </Card>
+            ))}
+          </section>
+        )}
+
+        {empty && (
+          <Card soft pad><div className="small">All clear. When a contractor writes, a neighbor invites you, or a job needs a hand from you, it lands here.</div></Card>
+        )}
+      </div>
+      <HomeTabs current="inbox" unread={unread + incoming.length} />
+    </Screen>
+  );
+}
+
+const seatLabel = (seat: string | null) => (seat === "asset owner" ? "a co-owner" : seat === "contractor" ? "the contractor" : "a viewer");

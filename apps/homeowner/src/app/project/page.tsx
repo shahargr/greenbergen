@@ -1,22 +1,30 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getMe, targetWindowLabel, type BookingSummary, type Home } from "@/lib/me";
+import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
 import { dollars, shortDate } from "@shared/format";
-import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { House, Illustration } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "My home" };
 
-// The member's home(s): what is live, what is planned, what is done on
-// each. One home with one job is still one screen, not a list of one -
-// the job card is right there. E4 when there is nothing at all.
-export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
-  const { ok } = await searchParams;
+// One view of every job across every home: planned, in progress, done,
+// cancelled. A filter narrows it; each row says which home it is on when
+// there is more than one. E4 when there is nothing at all.
+type Bucket = "all" | "planned" | "live" | "done" | "cancelled";
+const BUCKETS: { key: Bucket; label: string }[] = [
+  { key: "all", label: "All" }, { key: "planned", label: "Planned" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" }, { key: "cancelled", label: "Cancelled" },
+];
+const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> =>
+  b.state === "planned" ? "planned" : b.state === "closed" ? "cancelled" : b.state === "done" ? "done" : "live";
+
+export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string }> }) {
+  const { ok, show } = await searchParams;
   const me = await getMe();
   if (!me.signed_in) redirect("/login?next=/project");
   const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
+  const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";
 
   if (me.homes.length === 0 && me.bookings.length === 0) {
     return (
@@ -40,9 +48,12 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
     );
   }
 
-  const byHome = new Map<string, BookingSummary[]>();
-  for (const b of me.bookings) byHome.set(b.home_project_id, [...(byHome.get(b.home_project_id) ?? []), b]);
+  const counts = { all: me.bookings.length, planned: 0, live: 0, done: 0, cancelled: 0 } as Record<Bucket, number>;
+  for (const b of me.bookings) counts[bucketOf(b)]++;
+  const shown = filter === "all" ? me.bookings : me.bookings.filter((b) => bucketOf(b) === filter);
+  const manyHomes = me.homes.length > 1;
   const canAdd = me.home_quota?.can_add ?? true;
+  const order: Exclude<Bucket, "all">[] = ["live", "planned", "done", "cancelled"];
 
   return (
     <Screen>
@@ -51,11 +62,32 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
         {ok === "removed" && <div className="banner-ok">Plan removed. Nothing was ever sent.</div>}
         <div className="hero">
-          <h1>{me.homes.length === 1 ? (me.homes[0]!.address?.split(",")[0] ?? "Your home") : "Your homes"}</h1>
-          {me.homes.length === 1 && <p className="lead">{me.homes[0]!.address?.split(",").slice(1).join(",").trim()}</p>}
+          <h1>{manyHomes ? "Your homes" : (me.homes[0]?.address?.split(",")[0] ?? "Your home")}</h1>
+          <p className="lead">{manyHomes ? me.homes.map((h) => h.address?.split(",")[0] ?? h.name).join(" · ") : me.homes[0]?.address?.split(",").slice(1).join(",").trim()}</p>
         </div>
-        {me.homes.map((h) => <HomeSection key={h.project_id} home={h} bookings={byHome.get(h.project_id) ?? []} single={me.homes.length === 1} />)}
-        {me.bookings.filter((b) => !me.homes.some((h) => h.project_id === b.home_project_id)).map((b) => <BookingRow key={b.project_id} b={b} />)}
+
+        <nav className="chips" aria-label="Filter projects">
+          {BUCKETS.filter((x) => x.key === "all" || counts[x.key] > 0).map((x) => (
+            <Link key={x.key} href={x.key === "all" ? "/project" : `/project?show=${x.key}`} className={`tag ${filter === x.key ? "" : "tag-neutral"}`} aria-current={filter === x.key ? "page" : undefined} style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }}>
+              {x.label} · {counts[x.key]}
+            </Link>
+          ))}
+        </nav>
+
+        {shown.length === 0 && (
+          <Card soft pad><div className="small">Nothing {filter === "all" ? "yet" : BUCKETS.find((x) => x.key === filter)?.label.toLowerCase()}. <Link href="/packages">Pick a package</Link> or plan one for later.</div></Card>
+        )}
+        {(filter === "all" ? order : [filter as Exclude<Bucket, "all">]).map((k) => {
+          const rows = shown.filter((b) => bucketOf(b) === k);
+          if (rows.length === 0) return null;
+          return (
+            <section className="stack" style={{ gap: 10 }} key={k}>
+              {filter === "all" && <div className="divider-label">{BUCKETS.find((x) => x.key === k)?.label}</div>}
+              {rows.map((b) => <BookingRow key={b.project_id} b={b} showHome={manyHomes} />)}
+            </section>
+          );
+        })}
+
         <Link href="/homes/new" className={`home-row add ${canAdd ? "" : "disabled"}`} style={canAdd ? undefined : { opacity: 0.6 }}>
           <span className="ic">+</span>
           <span className="grow">
@@ -70,53 +102,26 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   );
 }
 
-function HomeSection({ home: h, bookings, single }: { home: Home; bookings: BookingSummary[]; single: boolean }) {
-  const live = bookings.filter((b) => b.state === "posted" || b.state === "accepted");
-  const planned = bookings.filter((b) => b.state === "planned");
-  const past = bookings.filter((b) => b.state === "done" || b.state === "closed");
-  return (
-    <section className="stack" style={{ gap: 10 }}>
-      {!single && (
-        <div className="row" style={{ marginTop: 6 }}>
-          <span className="ic" style={{ color: "var(--color-text)" }}><HouseIcon /></span>
-          <div className="grow">
-            <div className="card-title">{h.address?.split(",")[0] ?? h.name ?? "Home"}</div>
-            <div className="small text-muted">{h.address?.split(",").slice(1).join(",").trim() || h.town}</div>
-          </div>
-        </div>
-      )}
-      {live.length > 0 && <><div className="divider-label">Live</div>{live.map((b) => <BookingRow key={b.project_id} b={b} />)}</>}
-      {planned.length > 0 && <><div className="divider-label">Planned</div>{planned.map((b) => <BookingRow key={b.project_id} b={b} />)}</>}
-      {bookings.length === 0 && (
-        <Card soft pad>
-          <div className="small">Nothing on this home yet. <Link href="/packages">Pick a package</Link> and choose it, or plan one for later.</div>
-        </Card>
-      )}
-      {past.length > 0 && <><div className="divider-label">Done</div>{past.map((b) => <BookingRow key={b.project_id} b={b} />)}</>}
-    </section>
-  );
-}
-
-function BookingRow({ b }: { b: BookingSummary }) {
+function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boolean }) {
   const pill =
     b.state === "planned" ? <span className="tag tag-neutral">{targetWindowLabel(b.target_window)}</span>
     : b.state === "posted" && b.no_taker ? <span className="tag tag-status">Needs you</span>
     : b.state === "posted" ? <span className="tag tag-outline">Matching</span>
     : b.state === "accepted" ? <span className="tag tag-status">{b.progress ? `${b.progress.done_count}/${b.progress.total}` : "In progress"}</span>
     : b.state === "done" ? <span className="tag tag-ok">Done</span>
-    : <span className="tag tag-neutral">Closed</span>;
+    : <span className="tag tag-neutral">Cancelled</span>;
   const line =
     b.state === "planned" ? `${dollars(b.price_cents)} when planned · ${b.config_label ?? ""}`
     : b.state === "accepted" ? `${b.contractor?.name ?? "Contractor"} · ${b.progress?.current?.name ?? "in progress"}`
     : b.state === "posted" ? `${dollars(b.price_cents)} · posted ${shortDate(b.posted_at)}`
     : b.state === "done" ? `${dollars(b.price_cents)} · ${shortDate(b.done_at)}`
-    : `closed ${shortDate(b.closed_at)}`;
+    : `cancelled ${shortDate(b.closed_at)}`;
   return (
     <Link href={`/project/${b.project_id}`} className="home-row">
       <span className="ic"><Illustration name={b.illustration} /></span>
       <span className="grow">
         <span className="t">{b.name}{b.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{b.unread}</span>}</span>
-        <span className="m" style={{ display: "block" }}>{line}</span>
+        <span className="m" style={{ display: "block" }}>{showHome && b.address ? `${b.address.split(",")[0]} · ` : ""}{line}</span>
       </span>
       {pill}
     </Link>

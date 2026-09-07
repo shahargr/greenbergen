@@ -174,6 +174,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         </div>
         <div className="actions">
           <Link href={`/project/${b.project_id}/folder`} className="btn btn-secondary btn-block">Open the job folder</Link>
+          <Link href={`/project/${b.project_id}/people`} className="btn btn-ghost btn-block">Who can see this job</Link>
           <form action={bookingAction.bind(null, b.project_id, "close")}><button className="btn btn-ghost btn-block">Cancel this request</button></form>
         </div>
         <HomeTabs current="project" />
@@ -238,6 +239,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <Link href={`/project/${b.project_id}`} aria-current="page">Progress</Link>
         <Link href={`/project/${b.project_id}/timeline`}>Timeline{b.unread > 0 && <span className="n">{b.unread}</span>}</Link>
         <Link href={`/project/${b.project_id}/folder`}>Folder</Link>
+        <Link href={`/project/${b.project_id}/people`}>People</Link>
       </nav>
     </Screen>
   );

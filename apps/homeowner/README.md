@@ -43,6 +43,27 @@ in this app. Supabase Auth needs the new domain in its redirect allow-list
 
 ## The database migration (not yet applied)
 
+**Nothing moves and nothing is deleted.** The migration is additive: it
+creates new tables and functions beside the existing ones and adds two
+nullable columns. No row of `projects`, `contracts`, `payment_stages`,
+`actions`, `files` or `messages` is updated or removed, so every open
+project (55 Walnut Drive included) reads exactly as before in the root
+portal, which keeps its own URL. In full, it writes:
+
+- New tables: `blueprint_packages` and five children (items, levers, lever
+  options, photos, milestones), `project_bookings`. Empty until someone
+  books.
+- New nullable columns: `messages.file_id`, `app_users.home_zip`. Existing
+  rows keep NULL.
+- New functions: `homeowner_*` (and `homeowner_post_internal`, internal).
+  No existing function is changed.
+- Two existing rows touched: the single `config` row (`schema_version` 216
+  to 217 plus release notes) and one new `help` row for topic
+  `homeowner_app`.
+- The seed inserts the launch catalogue into the new tables only.
+
+Rolling back is dropping the new objects; there is no data to restore.
+
 Everything the app writes goes through `homeowner_*` functions that do not
 exist until the three files in `apps/shared/db/` are applied, in order:
 
