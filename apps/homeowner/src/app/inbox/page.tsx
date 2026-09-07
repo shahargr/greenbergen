@@ -7,7 +7,7 @@ import { ago, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
-import { closeTask } from "@/app/project/[id]/actions";
+import { TaskDone } from "@/components/TaskDone";
 import { respondInvite } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,8 @@ export const metadata = { title: "Inbox" };
 // conversations with unread messages first, then every open task on a
 // project the member is on. All read through existing functions
 // (homeowner_me, portal_my_invites, portal_tasks); nothing is stored twice.
+// Tasks are the construction domain only - a member's business projects
+// stay in the portal. Done opens a confirm sheet (TaskDone), never one tap.
 type Invite = { id: string; project_id: string; project_name: string; address: string | null; by: string; seat: string; message: string | null; created_at: string };
 type Outcome = { id: string; project_id: string; project_name: string; who: string; status: string; at: string };
 type Task = { id: string; action: string; status: string; priority: string | null; target_date: string | null; last_updated: string | null; project: string; project_id: string; state: "open" | "closed"; assignee: string | null };
@@ -28,7 +30,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient();
   const [{ data: inv }, { data: tasks }] = await Promise.all([
     rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites"),
-    rpc<Task[]>(supabase, "portal_tasks", { p_project_id: null, p_open_limit: 60, p_closed_limit: 0, p_domain: null }),
+    rpc<Task[]>(supabase, "portal_tasks", { p_project_id: null, p_open_limit: 60, p_closed_limit: 0, p_domain: "construction" }),
   ]);
   const incoming = inv?.incoming ?? [];
   const outcomes = inv?.outcomes ?? [];
@@ -105,10 +107,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                     <div className="card-title" style={{ fontSize: 15 }}>{t.action}</div>
                     <div className="small text-muted"><Link href={`/project/${t.project_id}`}>{t.project}</Link>{t.assignee ? ` · ${t.assignee}` : ""}{t.target_date ? ` · due ${shortDate(t.target_date)}` : ""}{t.status !== "Not Started" ? ` · ${t.status}` : ""}</div>
                   </div>
-                  <form action={closeTask}>
-                    <input type="hidden" name="project" value={t.project_id} /><input type="hidden" name="action_id" value={t.id} /><input type="hidden" name="back" value="/inbox" />
-                    <button className="btn btn-secondary" style={{ minHeight: 40 }}>Done</button>
-                  </form>
+                  <TaskDone projectId={t.project_id} actionId={t.id} title={t.action} />
                 </div>
               </Card>
             ))}

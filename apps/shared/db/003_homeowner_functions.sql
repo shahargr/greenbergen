@@ -157,6 +157,27 @@ begin
 end $$;
 comment on function public.homeowner_progress(uuid) is 'The progress line of a booking, DERIVED (rulebook 34): booked from posted_at, accepted from the contract, payment nodes from payment_stages, task nodes from actions, done from the project status. Never a stored stage.';
 
+-- ---------------------------------------------------------------- which projects are HOMES
+-- A home is the top-most project of a property asset the member owns: it
+-- carries an address and an asset_id, and its parent (if any) is not on the
+-- same asset. A home may therefore sit under a business container - Shahar's
+-- three sit under "Green Bergen Development" - and a job (same asset as its
+-- parent) never counts. One rule, used by every homeowner_* function.
+create or replace function public.homeowner_home_ids(p_user uuid default public.current_app_user_id())
+returns setof uuid
+language sql stable security definer set search_path = public as $$
+  select p.id
+    from public.projects p
+    left join public.projects par on par.id = p.parent_project_id
+   where p.owner_user_id = p_user
+     and p.trashed_at is null
+     and coalesce(p.is_template, false) = false
+     and p.address is not null
+     and (p.parent_project_id is null
+          or (p.asset_id is not null and par.asset_id is distinct from p.asset_id));
+$$;
+comment on function public.homeowner_home_ids(uuid) is 'The member''s HOMES: the top-most project of each property asset they own (address + asset_id, parent not on the same asset). A home may sit under a business container; a job on the same asset never counts. Every homeowner_* function reads homes through this, never through parent_project_id is null.';
+
 -- ---------------------------------------------------------------- me
 create or replace function public.homeowner_me()
 returns jsonb
@@ -166,9 +187,8 @@ begin
   if me is null then return jsonb_build_object('signed_in', false); end if;
   select * into u from public.app_users where id = me;
   select * into v_home from public.projects p
-   where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false
-     and p.trashed_at is null and p.address is not null
-   order by p.created_at limit 1;
+   where p.id in (select public.homeowner_home_ids(me))
+   order by (select count(*) from public.project_bookings b where b.home_project_id = p.id and b.state in ('posted','accepted')) desc, p.created_at limit 1;
 
   return jsonb_build_object(
     'signed_in', true,
@@ -189,7 +209,7 @@ begin
         'done', (select count(*) from public.project_bookings b join public.projects j on j.id = b.project_id where b.home_project_id = h.id and j.trashed_at is null and b.state = 'done')
       ) order by (select count(*) from public.project_bookings b where b.home_project_id = h.id and b.state in ('posted','accepted')) desc, h.created_at)
       from public.projects h
-      where h.owner_user_id = me and h.parent_project_id is null and coalesce(h.is_template,false) = false and h.trashed_at is null and h.address is not null), '[]'::jsonb),
+      where h.id in (select public.homeowner_home_ids(me))), '[]'::jsonb),
     'home_quota', (
       select jsonb_build_object('allowed', c.assets_allowed,
         'have', (select count(*) from public.projects p where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false),
@@ -360,14 +380,13 @@ begin
   -- address, else a new one (governed by the agreement's quota).
   if p_home_project_id is not null then
     select * into v_home from public.projects p
-     where p.id = p_home_project_id and p.owner_user_id = me and p.parent_project_id is null and p.trashed_at is null;
+     where p.id = p_home_project_id and p.id in (select public.homeowner_home_ids(me));
     if v_home.id is null then return jsonb_build_object('ok', false, 'reason', 'That home is not one of yours.'); end if;
     v_addr := coalesce(v_addr, v_home.address);
   else
     if v_addr is null then return jsonb_build_object('ok', false, 'reason', 'We need the address for the price and the permit.'); end if;
     select * into v_home from public.projects p
-     where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false
-       and p.trashed_at is null and p.address is not null and lower(p.address) = lower(v_addr)
+     where p.id in (select public.homeowner_home_ids(me)) and lower(p.address) = lower(v_addr)
      order by p.created_at limit 1;
     if v_home.id is null then
       v_town := nullif(btrim(split_part(v_addr, ',', 2)), '');
@@ -433,8 +452,7 @@ language plpgsql security definer set search_path = public as $$
 declare v_addr text := nullif(btrim(p_address), '');
 begin
   if v_addr is null then return jsonb_build_object('ok', false, 'reason', 'We need the address.'); end if;
-  if exists (select 1 from public.projects p where p.owner_user_id = public.current_app_user_id() and p.parent_project_id is null
-              and p.trashed_at is null and lower(p.address) = lower(v_addr)) then
+  if exists (select 1 from public.projects p where p.id in (select public.homeowner_home_ids()) and lower(p.address) = lower(v_addr)) then
     return jsonb_build_object('ok', false, 'reason', 'That home is already on your account.');
   end if;
   return public.create_home_asset(coalesce(nullif(btrim(p_name), ''), split_part(v_addr, ',', 1)), v_addr,
@@ -779,20 +797,48 @@ end $$;
 comment on function public.homeowner_milestone_mark(uuid, text, text, text, uuid) is 'The homeowner (or contractor, for task steps) marks a milestone. task -> close_action; payment -> stage Approved, then record_manual_payment for check / cash / Zelle / Venmo (card is not wired and says so), evidence photo linked to the stage; done -> project Closed - Completed once every step is closed and every payment settled.';
 
 -- ---------------------------------------------------------------- closing a task on the job
-create or replace function public.homeowner_task_close(p_project uuid, p_action_id uuid)
+create or replace function public.homeowner_task_close(p_project uuid, p_action_id uuid, p_note text default null, p_file_id uuid default null)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare a public.actions;
+declare a public.actions; v_note text := nullif(btrim(coalesce(p_note, '')), ''); me_c uuid := public.my_contact_id(); v_to uuid; pr public.projects; b public.project_bookings; v_who text;
 begin
   perform public.assert_own_hands();
   if not public.is_project_member(p_project) then return jsonb_build_object('ok', false, 'reason', 'You are not on this job.'); end if;
   select * into a from public.actions where id = p_action_id and project_id = p_project;
   if a.id is null then return jsonb_build_object('ok', false, 'reason', 'No such task on this job.'); end if;
   if a.status in ('Completed','Cancelled','Force Cancelled') then return jsonb_build_object('ok', true, 'already', true); end if;
+  if p_file_id is not null and not public.can_see_file(p_file_id) then return jsonb_build_object('ok', false, 'reason', 'That file is not yours.'); end if;
+
+  -- The member's own words and evidence go on the task itself (notes) so the
+  -- log keeps them, then the task closes through close_action - never a
+  -- direct status UPDATE.
+  select coalesce(u.full_name, u.email, 'a member') into v_who from public.app_users u where u.id = public.current_app_user_id();
+  if v_note is not null or p_file_id is not null then
+    update public.actions
+       set notes = coalesce(notes || E'\n\n', '') || to_char(now(), 'YYYY-MM-DD HH24:MI') || ' - marked done by ' || v_who ||
+                   coalesce(': ' || v_note, '') || case when p_file_id is not null then ' [attachment ' || p_file_id::text || ']' else '' end
+     where id = a.id;
+  end if;
+  if p_file_id is not null and not exists (select 1 from public.file_links fl where fl.file_id = p_file_id and fl.action_id = a.id) then
+    insert into public.file_links (file_id, action_id, role) values (p_file_id, a.id, 'evidence');
+  end if;
   perform public.close_action(a.id, false, 'portal:homeowner-app', 'Completed', true);
+
+  -- On a booked job with a counterpart, the timeline gets the same line so
+  -- the other side sees what was done and why.
+  select * into pr from public.projects where id = p_project;
+  select * into b from public.project_bookings where project_id = p_project;
+  if b.id is not null and me_c is not null then
+    v_to := case when me_c = (select u.contact_id from public.app_users u where u.id = pr.owner_user_id) then b.contractor_contact_id
+                 else (select u.contact_id from public.app_users u where u.id = pr.owner_user_id) end;
+    if v_to is not null then
+      insert into public.messages (body, direction, channel, status, sent_at, project_id, from_contact_id, to_contact_id, file_id, created_by)
+      values ('Done: ' || a.action || coalesce(E'\n' || v_note, ''), 'inbound', 'in app', 'new', now(), p_project, me_c, v_to, p_file_id, 'homeowner-app');
+    end if;
+  end if;
   return jsonb_build_object('ok', true);
 end $$;
-comment on function public.homeowner_task_close(uuid, uuid) is 'A member of the job closes one of its open tasks through close_action - typically the payment-confirmation task fn_transactions_notify_task raises after a payment (closing it files the receipt), or a milestone task. Never a direct status UPDATE.';
+comment on function public.homeowner_task_close(uuid, uuid, text, uuid) is 'A member of the job closes one of its open tasks through close_action, with an optional comment and one attachment (photo or voice memo, already recorded in files): both land on the task''s notes and file_links, and on the timeline when there is a counterpart. Typically the payment-confirmation task fn_transactions_notify_task raises after a payment, or a milestone task. Never a direct status UPDATE.';
 
 -- ---------------------------------------------------------------- share
 create or replace function public.homeowner_share_publish(p_project uuid, p_quote text, p_hide_address boolean, p_after_file_id uuid)
@@ -851,9 +897,7 @@ begin
   v_label := coalesce(v_label, initcap(replace(coalesce(p_code, 'request'), '_', ' ')));
   -- The request sits on the requester's home when they have one, else on
   -- the Master Template project (rulebook: every action has a project).
-  select p.id into v_home from public.projects p
-   where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false and p.trashed_at is null
-   order by p.created_at limit 1;
+  select p.id into v_home from public.projects p where p.id in (select public.homeowner_home_ids(me)) order by p.created_at limit 1;
   if v_home is null then select id into v_home from public.projects where project_name = 'Master Template' limit 1; end if;
   select id into v_persona from public.personas where name = 'Bobby';
 
@@ -877,10 +921,10 @@ begin
   foreach f in array array[
     'homeowner_catalogue()', 'homeowner_ref_preview(uuid)', 'homeowner_register(text,text,text,uuid)', 'homeowner_progress(uuid)',
     'homeowner_me()', 'homeowner_book(text,jsonb,text,text,jsonb,text,text,uuid,text,text)', 'homeowner_booking(uuid)', 'homeowner_booking_action(uuid,text)',
-    'homeowner_price(text,jsonb)', 'homeowner_plan_update(uuid,text,text)', 'homeowner_home_add(text,text)',
+    'homeowner_price(text,jsonb)', 'homeowner_plan_update(uuid,text,text)', 'homeowner_home_add(text,text)', 'homeowner_home_ids(uuid)',
     'homeowner_offers()', 'homeowner_offer_accept(uuid,uuid)', 'homeowner_offer_decline(uuid)', 'homeowner_message_send(uuid,text,uuid)',
     'homeowner_messages_seen(uuid)', 'homeowner_milestone_mark(uuid,text,text,text,uuid)', 'homeowner_share_publish(uuid,text,boolean,uuid)', 'homeowner_share(text)',
-    'homeowner_quote_request(text,text,text)', 'homeowner_task_close(uuid,uuid)']
+    'homeowner_quote_request(text,text,text)', 'homeowner_task_close(uuid,uuid,text,uuid)']
   loop
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to authenticated, service_role', f);

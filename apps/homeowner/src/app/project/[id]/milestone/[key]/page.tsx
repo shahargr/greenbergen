@@ -4,7 +4,7 @@ import { getBooking } from "@/lib/booking";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, Notice, Screen, StatusHero } from "@shared/ui";
 import { MilestoneForm } from "./MilestoneForm";
-import { closeTask } from "../../actions";
+import { TaskDone } from "@/components/TaskDone";
 
 export const dynamic = "force-dynamic";
 
@@ -76,16 +76,13 @@ export default async function MilestonePage({ params, searchParams }: { params: 
           <Card pad={false}>
             <div style={{ padding: "10px 14px 4px" }}><div className="kicker">Still open</div></div>
             {b.open_tasks.map((t) => (
-              <form key={t.id} action={closeTask} className="frow" style={{ alignItems: "flex-start" }}>
-                <input type="hidden" name="project" value={id} />
-                <input type="hidden" name="action_id" value={t.id} />
-                <input type="hidden" name="back" value={`/project/${id}/milestone/${key}`} />
+              <div key={t.id} className="frow" style={{ alignItems: "flex-start" }}>
                 <span className="grow">
                   <div className="t" style={{ fontSize: 14 }}>{t.kind === "payment_confirmation" ? t.action.replace(/^Awaiting confirmation from /, "Did ") .replace(/ - \$/, " confirm the $") + "?" : t.action}</div>
                   <div className="m">{t.kind === "payment_confirmation" ? "Closing this files the receipt against the payment." : t.pending_reason ?? "A step on the line."}</div>
                 </span>
-                <button className="btn btn-secondary">{t.kind === "payment_confirmation" ? "Yes, confirmed" : "Done"}</button>
-              </form>
+                <TaskDone projectId={id} actionId={t.id} title={t.action} />
+              </div>
             ))}
           </Card>
         )}

@@ -41,9 +41,9 @@ it keeps Root Directory `/` and ignores `apps/`. No service-role key anywhere
 in this app. Supabase Auth needs the new domain in its redirect allow-list
 (`/auth/confirm`).
 
-## The database migration (not yet applied)
+## The database migration (applied 2026-09-07)
 
-**Nothing moves and nothing is deleted.** The migration is additive: it
+**Applied to the live project on 2026-09-07** (`001`-`003`, then `004` the same day). **Nothing moved and nothing was deleted.** The migration is additive: it
 creates new tables and functions beside the existing ones and adds two
 nullable columns. No row of `projects`, `contracts`, `payment_stages`,
 `actions`, `files` or `messages` is updated or removed, so every open
@@ -74,13 +74,18 @@ exist until the three files in `apps/shared/db/` are applied, in order:
    `apps/shared/src/catalogue.data.json` by `npm run seed` in `apps/shared`.
    Edit the JSON, regenerate; never both.
 3. `003_homeowner_functions.sql` - the function surface and its grants.
+4. `004_homeowner_homes.sql` - the delta applied after 001-003 went live:
+   a home is the top-most project of a property asset the member owns
+   (`homeowner_home_ids`), not "a top-level project with an address" - three
+   real homes sat under a business container and had vanished. 003 carries
+   the same definitions, so a fresh apply of 001-003 is complete.
 
 They were dry-run against the live project inside a rolled-back transaction
 (schema + seed + functions + a full booking → accept → pay → close → share
 walk-through, then a plan → post → remove pass and the home picker) and
-passed. Until they are applied the app runs in preview: the landing, join,
-catalogue and package pages work from the JSON; the booking wizard stops at
-Book and says why; `/project` shows the empty state.
+passed, then applied. If a function is ever missing the app still runs in
+preview: the catalogue works from the JSON and each screen says what it
+cannot do.
 
 ## Where things live
 
