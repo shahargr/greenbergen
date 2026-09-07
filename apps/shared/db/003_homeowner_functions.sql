@@ -189,7 +189,7 @@ begin
         'done', (select count(*) from public.project_bookings b join public.projects j on j.id = b.project_id where b.home_project_id = h.id and j.trashed_at is null and b.state = 'done')
       ) order by (select count(*) from public.project_bookings b where b.home_project_id = h.id and b.state in ('posted','accepted')) desc, h.created_at)
       from public.projects h
-      where h.owner_user_id = me and h.parent_project_id is null and coalesce(h.is_template,false) = false and h.trashed_at is null), '[]'::jsonb),
+      where h.owner_user_id = me and h.parent_project_id is null and coalesce(h.is_template,false) = false and h.trashed_at is null and h.address is not null), '[]'::jsonb),
     'home_quota', (
       select jsonb_build_object('allowed', c.assets_allowed,
         'have', (select count(*) from public.projects p where p.owner_user_id = me and p.parent_project_id is null and coalesce(p.is_template,false) = false),
