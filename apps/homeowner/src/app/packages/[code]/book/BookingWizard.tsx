@@ -16,6 +16,9 @@ import type { Home, HomeQuota } from "@/lib/me";
 // across steps and upload only after the booking row exists (the storage
 // path must start with the job's project id).
 //   book:  home -> (address) -> facts -> photos -> budget -> booked
+//          the facts step is SKIPPED when we already know the house (the
+//          member told us on an earlier job); the photos step says so and
+//          links back if anything changed.
 //   plan:  home -> (address) -> when -> planned          (nothing sent)
 //   post:  facts -> photos -> budget -> booked            (a plan, ordered)
 // "home" appears only when the member already has one or more homes.
@@ -47,7 +50,9 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
   const price = priceFor(pkg, selections);
   const deposit = depositCents(pkg, price);
   const hasHomes = homes.length > 0;
-  const [step, setStep] = useState<Step>(mode === "post" ? "facts" : hasHomes ? "home" : "address");
+  const knownHouse = told(knownFacts);
+  const [step, setStep] = useState<Step>(mode === "post" ? (knownHouse ? "photos" : "facts") : hasHomes ? "home" : "address");
+  const [reusedFacts, setReusedFacts] = useState(mode === "post" && knownHouse);
   const [homeId, setHomeId] = useState<string | null>(hasHomes ? homes[0]!.project_id : null);
   const [address, setAddress] = useState(planned?.address ?? knownAddress ?? "");
   const [unit, setUnit] = useState("");
@@ -74,12 +79,13 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
     const h = homes.find((x) => x.project_id === homeId);
     if (!h) { setErr("Pick a home."); return; }
     setAddress(h.address ?? "");
-    if (h.facts && !facts.sqft && !facts.year_built) {
-      const f = h.facts as Record<string, string | number>;
-      setFacts({ sqft: String(f.sqft ?? ""), year_built: String(f.year_built ?? ""), beds: String(f.beds ?? ""), baths: String(f.baths ?? "") });
-    }
+    // Already told us about this house? Take what we have and skip the step.
+    const f = (h.facts ?? null) as Record<string, string | number> | null;
+    const known = told(f);
+    if (known) setFacts({ sqft: String(f?.sqft ?? ""), year_built: String(f?.year_built ?? ""), beds: String(f?.beds ?? ""), baths: String(f?.baths ?? "") });
+    setReusedFacts(known);
     setErr("");
-    setStep(afterHome);
+    setStep(afterHome === "facts" && known ? "photos" : afterHome);
   }
 
   // ---- address (a new home) ---------------------------------------------
@@ -401,6 +407,11 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
             <h1>{n === 1 ? "One photo, and the contractor can confirm the price." : n === 3 ? `Three photos for a ${pkg.tile_title.toLowerCase()}.` : `${words[n] ?? n} and the contractor can confirm the price.`}</h1>
             <p className="lead">{pkg.code === "generator" ? "Don't know your panel's amperage or gas line size? You don't need to — the photo answers it." : "Phone photos are perfect. Nobody's judging the basement."}</p>
           </div>
+          {reusedFacts && (
+            <Card soft pad>
+              <div className="small">Using the details you gave us for {address.split(",")[0]}: {factLine(facts)}. <button type="button" className="btn btn-ghost" style={{ padding: 0, minHeight: 0 }} onClick={() => { setReusedFacts(false); setStep("facts"); }}>Change them</button></div>
+            </Card>
+          )}
           {pkg.photos.map((req, i) => <PhotoSlot key={req.key} index={i + 1} label={req.label} hint={req.hint} shot={shots[req.key]} onPick={(f) => take(req.key, f)} />)}
           <p className="small text-muted" style={{ margin: 0 }}>Photos go into your job folder. Only the contractor who accepts your job sees them.</p>
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
@@ -512,6 +523,12 @@ const cleanFacts = (f: Facts) => {
   for (const [k, v] of Object.entries(f)) if (v && /^\d+$/.test(v)) out[k] = Number(v);
   return out;
 };
+// Have we been told about this house before? Size or year is enough to
+// skip the step; the contractor confirms on site either way.
+const told = (f: Record<string, string | number> | null | undefined) =>
+  !!f && (!!f.sqft || !!f.year_built || !!f.beds || !!f.baths);
+const factLine = (f: Facts) =>
+  [f.sqft && `${Number(f.sqft).toLocaleString()} sq ft`, f.year_built && `built ${f.year_built}`, f.beds && `${f.beds} bed`, f.baths && `${f.baths} bath`].filter(Boolean).join(", ") || "what you told us";
 const homeSummary = (h: Home) => {
   const bits: string[] = [];
   if (h.live) bits.push(`${h.live} live`);

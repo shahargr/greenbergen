@@ -37,13 +37,16 @@ export const WarnIcon = () => (
   <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2.5 20h19L12 3z" /><path d="M12 10v4M12 17h.01" /></svg>
 );
 
-// Wordmark - the logo as type: "green" in the brand green, "bergen" in ink,
-// one word, lowercase, heading weight. Swap for the SVG file when it lands;
-// keep the same class so nothing else moves.
-export function Wordmark({ size = 20 }: { size?: number }) {
+// Wordmark - the logo: a little house in the brand green, then "green" in
+// the same green and "bergen" in ink, one lowercase word. Swap for the SVG
+// file when it lands; keep the same classes so nothing else moves.
+export function Wordmark({ size = 15 }: { size?: number }) {
   return (
-    <span className="wordmark" style={{ fontSize: size }} aria-label="Green Bergen">
-      <span className="wm-green">green</span><span className="wm-ink">bergen</span>
+    <span className="mark">
+      <svg width={size + 3} height={size + 3} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" /></svg>
+      <span className="wordmark" style={{ fontSize: size }} aria-label="Green Bergen">
+        <span className="wm-green">green</span><span className="wm-ink">bergen</span>
+      </span>
     </span>
   );
 }
@@ -61,7 +64,7 @@ export function AppBar({
         <button type="button" onClick={back} className="btn btn-ghost btn-icon" aria-label="Back"><BackIcon /></button>
       )}
       {brand && !title && (
-        <div className="brand grow"><Wordmark /><span className="sub">Bergen County community, not a marketplace.</span></div>
+        <Link href="/" className="brand grow"><Wordmark /><span className="sub">Bergen County community, not a marketplace.</span></Link>
       )}
       {title && (
         <div className="title">{title}{sub && <span className="sub">{sub}</span>}</div>
