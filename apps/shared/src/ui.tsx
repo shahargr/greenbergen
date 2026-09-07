@@ -37,6 +37,17 @@ export const WarnIcon = () => (
   <svg className="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2.5 20h19L12 3z" /><path d="M12 10v4M12 17h.01" /></svg>
 );
 
+// Wordmark - the logo as type: "green" in the brand green, "bergen" in ink,
+// one word, lowercase, heading weight. Swap for the SVG file when it lands;
+// keep the same class so nothing else moves.
+export function Wordmark({ size = 20 }: { size?: number }) {
+  return (
+    <span className="wordmark" style={{ fontSize: size }} aria-label="Green Bergen">
+      <span className="wm-green">green</span><span className="wm-ink">bergen</span>
+    </span>
+  );
+}
+
 // AppBar - brand / back + title / trailing action.
 export function AppBar({
   back, title, sub, right, brand = false,
@@ -50,7 +61,7 @@ export function AppBar({
         <button type="button" onClick={back} className="btn btn-ghost btn-icon" aria-label="Back"><BackIcon /></button>
       )}
       {brand && !title && (
-        <div className="brand grow">Green Bergen<span className="sub">Bergen County, NJ</span></div>
+        <div className="brand grow"><Wordmark /><span className="sub">Community · Bergen County, NJ</span></div>
       )}
       {title && (
         <div className="title">{title}{sub && <span className="sub">{sub}</span>}</div>

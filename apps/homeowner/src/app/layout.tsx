@@ -5,9 +5,9 @@ import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
 
 export const metadata: Metadata = {
-  title: { default: "Green Bergen", template: "%s · Green Bergen" },
-  description: "The Bergen community: best-in-class contractors, transparent pricing.",
-  applicationName: "Green Bergen",
+  title: { default: "Green Bergen Community", template: "%s · Green Bergen Community" },
+  description: "A community, not a marketplace. The safe and fast way to meet contractors that service our community.",
+  applicationName: "Green Bergen Community",
   appleWebApp: { capable: true, title: "Green Bergen", statusBarStyle: "default" },
 };
 

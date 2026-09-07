@@ -47,10 +47,9 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
         )}
 
         <div className="hero">
-          <h1>
-            {inviter && name ? <>Welcome, {name}. This is the Bergen community.</> : <>Welcome to the Bergen community.</>}
+          <h1 style={{ fontSize: 26 }}>
+            {inviter && name ? <>Welcome, {name}. The safe and fast way to meet contractors that service our community.</> : <>The safe and fast way to meet contractors that service our community.</>}
           </h1>
-          <p className="lead">Best-in-class local contractors. Transparent pricing we negotiated together, so you don&apos;t have to.</p>
         </div>
 
         <div className="illus short">
