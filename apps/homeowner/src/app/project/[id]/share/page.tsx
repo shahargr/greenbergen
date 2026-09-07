@@ -20,7 +20,10 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   const photos = b.files.filter((f) => f.kind === "photo");
   const urls = await signedUrls(supabase, photos.map((p) => p.path));
   const first = b.contractor?.person?.split(" ")[0] ?? "the contractor";
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  // Where this app is served: the explicit env, else the Vercel domain.
+  const base = process.env.NEXT_PUBLIC_APP_URL
+    ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
   const shareSlug = slug ?? b.share.slug;
   const done = b.state === "done";
 
