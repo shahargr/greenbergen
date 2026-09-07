@@ -389,6 +389,15 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 
 /* misc */
 .banner-ok { padding: var(--space-3) var(--space-4); background: var(--color-ok-soft); color: var(--color-ok); border-radius: 18px; font-size: 14px; font-weight: 600; }
+/* The standing ask - a photo request waiting on a booked job. Warm, not
+   alarming: nothing is wrong, something is simply still owed to the job. */
+.banner-ask { display: flex; gap: 12px; align-items: flex-start; padding: var(--space-3) var(--space-4); background: #fdeee9; color: var(--color-text);
+  border: 1px solid #f6cbbf; border-radius: 18px; font-size: 13px; line-height: 1.45; text-decoration: none; }
+.banner-ask .ic { flex: 0 0 auto; color: var(--color-status); margin-top: 1px; }
+.banner-ask strong { font-size: 14px; }
+.banner-ask span > span { color: var(--muted); margin-top: 2px; }
+.banner-ask .go { flex: 0 0 auto; color: var(--color-status); font-weight: 700; align-self: center; }
+.banner-ask:hover { border-color: var(--color-status); }
 .pill-time { font-size: 11px; color: var(--muted); }
 .divider-label { display: flex; align-items: center; gap: var(--space-2); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .divider-label::after { content: ""; flex: 1; height: 1px; background: var(--color-divider); }

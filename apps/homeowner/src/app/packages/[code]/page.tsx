@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
-import { decodeSelections, findPackage, loadCatalogue } from "@shared/catalogue";
+import { decodeSelections, loadPackage } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
@@ -15,8 +15,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   const { code } = await params;
   const { sel, adjust } = await searchParams;
   const supabase = await createClient();
-  const [{ packages }, signedIn] = await Promise.all([loadCatalogue(supabase), isSignedIn(supabase)]);
-  const pkg = findPackage(packages, code);
+  const [{ pkg }, signedIn] = await Promise.all([loadPackage(code), isSignedIn(supabase)]);
   if (!pkg || pkg.availability === "coming_soon") notFound();
   const back = pkg.tile_group === "more" ? "/packages/more" : "/packages";
 

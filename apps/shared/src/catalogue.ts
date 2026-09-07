@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import data from "./catalogue.data.json";
 import { isMissingFunction, rpc } from "./rpc";
 import { timed } from "./perf";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase/keys";
 
 // The package catalogue. The database (blueprint_packages and friends,
 // read through homeowner_catalogue()) is the source of truth; the JSON
@@ -34,28 +35,72 @@ export const STATIC_PACKAGES = data.packages as Package[];
 export const COMMUNITY_SERVICES = data.community_services as CommunityService[];
 
 export type Catalogue = { packages: Package[]; source: "database" | "static" };
+// What a tile draws, and nothing else: the grid never touched items, levers,
+// photos or milestones, but was paid 37 kB to receive them.
+export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_group" | "availability" | "illustration" | "sort_order">;
 
-// The catalogue is 37 kB of template data, identical for every visitor and
-// readable by anon - so one copy per server instance is safe and correct.
-// Measured: the query costs 5 ms in Postgres but 190 ms warm (700 ms on a
-// cold instance) over the wire, on EVERY package view. Holding it for five
-// minutes turns that into one call per instance per five minutes. Only a
-// real database answer is ever memoised; the JSON fallback is not, so a
-// blip never sticks.
-const HOLD_MS = 5 * 60 * 1000;
-let held: { at: number; packages: Package[] } | null = null;
+// ---------------------------------------------------------------------------
+// WHY THIS IS A fetch AND NOT supabase.rpc().
+//
+// The catalogue is template data: identical for every visitor, readable by
+// anon, and changed only when a price is edited. Measured on production it
+// costs 5 ms in Postgres and ~190 ms warm (700 ms cold) over the wire - so the
+// round trip IS the cost, and the fix is to stop making it.
+//
+// supabase.rpc() carries the visitor's cookie, so no cache can ever be shared.
+// Calling PostgREST directly with the publishable key sends no identity at
+// all, which makes the response a pure function of the URL - and lets the
+// framework's data cache answer it for every instance, not one memo per
+// server. One call per five minutes for the whole deployment; every other
+// render pays nothing.
+// ---------------------------------------------------------------------------
+const CATALOGUE_TTL = 300;
 
+async function catalogueRpc<T>(fn: string, body: Record<string, unknown> = {}, ttl = CATALOGUE_TTL): Promise<T | null> {
+  try {
+    const res = await timed(`catalogue.${fn}`, () =>
+      fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+        method: "POST",
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "force-cache",
+        next: { revalidate: ttl, tags: ["catalogue"] },
+      }));
+    if (!res.ok) {
+      if (res.status !== 404) console.error(`${fn}: ${res.status} ${await res.text().catch(() => "")}`);
+      return null;
+    }
+    return (await res.json()) as T;
+  } catch (e) {
+    console.error(`${fn}:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// The grid. ~3 kB, cached for everyone; the static set covers a cold database.
+export async function loadTiles(): Promise<{ tiles: Tile[]; source: "database" | "static" }> {
+  const rows = await catalogueRpc<Tile[]>("homeowner_catalogue_tiles");
+  if (Array.isArray(rows) && rows.length > 0) return { tiles: rows, source: "database" };
+  return { tiles: STATIC_PACKAGES, source: "static" };
+}
+
+// One package, whole. ~4.5 kB - what the package page and the wizard need.
+export async function loadPackage(code: string): Promise<{ pkg: Package | null; source: "database" | "static" }> {
+  const row = await catalogueRpc<Package | null>("homeowner_package", { p_code: code });
+  if (row && typeof row === "object" && row.code) return { pkg: row, source: "database" };
+  return { pkg: findPackage(STATIC_PACKAGES, code), source: "static" };
+}
+
+// The whole catalogue, still here for anything that genuinely needs every
+// package's detail at once. Nothing on the hot path does any more.
 export async function loadCatalogue(supabase: SupabaseClient): Promise<Catalogue> {
-  if (held && Date.now() - held.at < HOLD_MS) return { packages: held.packages, source: "database" };
-  const { data: rows, error } = await timed("catalogue.rpc", () => rpc<Package[]>(supabase, "homeowner_catalogue"));
-  if (!error && Array.isArray(rows) && rows.length > 0) {
-    held = { at: Date.now(), packages: rows };
-    return { packages: rows, source: "database" };
-  }
-  if (error && !isMissingFunction(error)) {
-    // A real error on the live catalogue still leaves the static set usable.
-    console.error("homeowner_catalogue:", error.message);
-  }
+  const rows = await catalogueRpc<Package[]>("homeowner_catalogue");
+  if (Array.isArray(rows) && rows.length > 0) return { packages: rows, source: "database" };
+  // The cached fetch cannot see a signed-in session, so a fall back through
+  // the caller's client keeps a private catalogue working if we ever have one.
+  const { data, error } = await timed("catalogue.rpc", () => rpc<Package[]>(supabase, "homeowner_catalogue"));
+  if (!error && Array.isArray(data) && data.length > 0) return { packages: data, source: "database" };
+  if (error && !isMissingFunction(error)) console.error("homeowner_catalogue:", error.message);
   return { packages: STATIC_PACKAGES, source: "static" };
 }
 

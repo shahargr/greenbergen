@@ -85,6 +85,17 @@ exist until the three files in `apps/shared/db/` are applied, in order:
    fields the inbox draws (7 kB for 25 tasks, where the portal's own
    `portal_tasks` returned whole rows: 23 kB for the same 25). Folded into
    003 as well.
+6. `006_homeowner_photos.sql` - the photo gate comes down. Booking no longer
+   waits for a photo: the job posts at the locked price and what is missing
+   becomes a REQUEST - one row in `public.actions`, the single task list, so
+   the inbox draws it and the banner reads it. `homeowner_photos_outstanding`
+   counts what is still wanted (a photo keyed to a slot via
+   `files.vantage_point` fills it; any other photo on the job counts down the
+   ask too), `homeowner_photos` is the checklist the screen draws,
+   `homeowner_photo_add` uploads one against a slot, and a trigger on `files`
+   closes the request the moment the last one lands - whichever path it came
+   in by. Also `homeowner_catalogue_tiles()`: the grid's seven fields per
+   package, 2.9 kB against the full catalogue's 37 kB.
 
 They were dry-run against the live project inside a rolled-back transaction
 (schema + seed + functions + a full booking → accept → pay → close → share

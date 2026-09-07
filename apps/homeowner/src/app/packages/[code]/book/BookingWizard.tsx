@@ -9,6 +9,7 @@ import { dollars, shortDate } from "@shared/format";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Card, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@shared/ui";
 import { HouseIcon } from "@shared/ui";
+import { PhotoRequest } from "@/components/PhotoRequest";
 import { TARGET_WINDOWS, targetWindowLabel, type TargetWindow } from "@/lib/plan";
 import type { Home, HomeQuota } from "@/lib/me";
 
@@ -119,8 +120,13 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
     });
   }
   const shotCount = pkg.photos.filter((p) => shots[p.key]).length;
-  const required = Math.min(pkg.photos.length, 1); // at least the first photo; the rest are encouraged
-  const photosOk = shotCount >= required;
+  // Nothing here blocks the booking. Photos let a contractor confirm the
+  // price without a visit, but demanding them at the last step turns away
+  // everyone who isn't standing in the room - and they have already agreed
+  // the price by then. Booking first secures that price; the ones still
+  // missing become a request in the inbox (homeowner_post_internal).
+  // Still wanted: never taken, or taken and the upload did not land.
+  const missingSlots = pkg.photos.filter((p) => !shots[p.key] || shots[p.key]!.state === "failed");
 
   // ---- plan (nothing sent) ----------------------------------------------
   async function plan() {
@@ -174,11 +180,13 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
       const { path, ext } = storagePath(projectId, req.key, shot.file.name);
       const { error: upErr } = await supabase.storage.from("project-media").upload(path, shot.file, { contentType: shot.file.type || undefined });
       if (upErr) { issues.push(`${req.label}: ${upErr.message}`); setShots((s) => ({ ...s, [req.key]: { ...shot, state: "failed", progress: 0, error: upErr.message } })); continue; }
-      const { error: recErr } = await supabase.rpc("record_project_file", {
-        p_project_id: projectId, p_path: path, p_file_name: shot.file.name || `${req.key}${ext}`, p_mime: shot.file.type || "image/jpeg",
-        p_size: shot.file.size, p_caption: req.label, p_kind: "photo",
+      // homeowner_photo_add keys the file to this slot and closes the photo
+      // request the moment the last one lands.
+      const { data: added, error: recErr } = await supabase.rpc("homeowner_photo_add", {
+        p_project: projectId, p_path: path, p_key: req.key, p_file_name: shot.file.name || `${req.key}${ext}`,
+        p_mime: shot.file.type || "image/jpeg", p_size: shot.file.size,
       });
-      if (recErr) { issues.push(`${req.label}: ${friendly(recErr.message)}`); setShots((s) => ({ ...s, [req.key]: { ...shot, state: "failed", progress: 0, error: recErr.message } })); continue; }
+      if (recErr || !added?.ok) { const m = friendly(added?.reason ?? recErr?.message); issues.push(`${req.label}: ${m}`); setShots((s) => ({ ...s, [req.key]: { ...shot, state: "failed", progress: 0, error: m } })); continue; }
       setShots((s) => ({ ...s, [req.key]: { ...shot, state: "done", progress: 100 } }));
     }
     setUploadIssues(issues);
@@ -246,7 +254,18 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
             <Notice title="Heads up">No contractor for this trade is signed in to the community yet, so the job waits for one. A person at Green Bergen sees every booking and will bring one in.</Notice>
           )}
           {uploadIssues.length > 0 && (
-            <Notice kind="error" title="Booked, but a photo didn't attach.">{uploadIssues.join("; ")}. You can add photos from the job folder.</Notice>
+            <Notice kind="error" title="Booked, but a photo didn&apos;t attach.">{uploadIssues.join("; ")}. Add it again below or from the job folder — nothing else is affected.</Notice>
+          )}
+          {/* The photos we still want. The job is already out; this is what
+              lets the contractor confirm the price without coming to look. */}
+          {missingSlots.length > 0 && (
+            <Card pad>
+              <div className="card-title" style={{ fontSize: 16 }}>{missingSlots.length === 1 ? "One photo left" : `${missingSlots.length} photos left`}</div>
+              <p className="small text-muted" style={{ margin: "2px 0 10px" }}>
+                Add {missingSlots.length === 1 ? "it" : "them"} whenever you&apos;re next near the work — today, tonight, tomorrow. Your price doesn&apos;t move. Until then the request waits in your inbox, and the contractor confirms once they&apos;re in.
+              </p>
+              <PhotoRequest projectId={result.project_id} slots={missingSlots.map((p) => ({ key: p.key, label: p.label, hint: p.hint, file_id: null }))} />
+            </Card>
           )}
         </div>
         <div className="actions">
@@ -404,8 +423,8 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
         <div className="body">
           <StepKicker>{stepLabel}</StepKicker>
           <div className="hero">
-            <h1>{n === 1 ? "One photo, and the contractor can confirm the price." : n === 3 ? `Three photos for a ${pkg.tile_title.toLowerCase()}.` : `${words[n] ?? n} and the contractor can confirm the price.`}</h1>
-            <p className="lead">{pkg.code === "generator" ? "Don't know your panel's amperage or gas line size? You don't need to — the photo answers it." : "Phone photos are perfect. Nobody's judging the basement."}</p>
+            <h1>{n === 1 ? "One photo, whenever you're near it." : `${words[n] ?? n}, whenever you're near them.`}</h1>
+            <p className="lead">{pkg.code === "generator" ? "Don't know your panel's amperage or gas line size? You don't need to — the photo answers it. Not at home? Book now and send them later." : "Phone photos are perfect, and nobody's judging the basement. Not at home? Book now and send them later — the price is locked either way."}</p>
           </div>
           {reusedFacts && (
             <Card soft pad>
@@ -415,10 +434,16 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
           {pkg.photos.map((req, i) => <PhotoSlot key={req.key} index={i + 1} label={req.label} hint={req.hint} shot={shots[req.key]} onPick={(f) => take(req.key, f)} />)}
           <p className="small text-muted" style={{ margin: 0 }}>Photos go into your job folder. Only the contractor who accepts your job sees them.</p>
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-            <button className="btn btn-primary btn-block" disabled={!photosOk} onClick={() => setStep("budget")}>
-              Continue · {shotCount} of {n} added
+            <button className="btn btn-primary btn-block" onClick={() => setStep("budget")}>
+              {shotCount === 0 ? "Not home — I'll add them after" : `Continue · ${shotCount} of ${n} added`}
             </button>
-            {!photosOk && <p className="tiny text-muted center" style={{ margin: 0 }}>At least the first photo — it&apos;s what lets a contractor say yes without a visit.</p>}
+            <p className="tiny text-muted center" style={{ margin: 0 }}>
+              {shotCount === 0
+                ? "Booking now locks today's price. We'll ask for the photos in your inbox, and the contractor confirms once they're there."
+                : shotCount < n
+                  ? `${n - shotCount} still to come — we'll ask for ${n - shotCount === 1 ? "it" : "them"} after you book.`
+                  : "That's all of them."}
+            </p>
           </div>
         </div>
       </Screen>

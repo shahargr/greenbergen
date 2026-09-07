@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@shared/supabase/server";
-import { COMMUNITY_SERVICES, loadCatalogue } from "@shared/catalogue";
+import { COMMUNITY_SERVICES, loadTiles } from "@shared/catalogue";
 import { AppBar, Screen } from "@shared/ui";
 import { PackageTile } from "@/components/PackageTile";
 import { Illustration } from "@shared/Illustrations";
@@ -12,9 +11,8 @@ export const metadata = { title: "More packages" };
 // track (kitchen, bath), the something-else escape hatch, and the
 // community-services slot.
 export default async function MorePage() {
-  const supabase = await createClient();
-  const { packages } = await loadCatalogue(supabase);
-  const more = packages
+  const { tiles } = await loadTiles();
+  const more = tiles
     .filter((p) => p.tile_group === "more" || p.availability === "coming_soon")
     .sort((a, b) => rank(a.availability) - rank(b.availability) || a.sort_order - b.sort_order);
   return (

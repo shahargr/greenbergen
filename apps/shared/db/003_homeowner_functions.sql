@@ -231,6 +231,12 @@ begin
         'state', b.state, 'created_at', b.created_at, 'posted_at', b.posted_at, 'target_window', b.target_window, 'reply_by', b.reply_by, 'accepted_at', b.accepted_at,
         'closed_at', b.closed_at, 'done_at', b.done_at, 'repost_count', b.repost_count, 'offered_count', b.offered_count,
         'no_taker', (b.state = 'posted' and b.reply_by is not null and b.reply_by < now()),
+        -- The photo request, for the banner: how many are still wanted and the
+        -- open task that asks for them. Null action_id means nothing to nag about.
+        'photos_needed', case when b.state in ('posted','accepted') then public.homeowner_photos_outstanding(b.project_id) else 0 end,
+        'photos_action_id', (select a.id from public.actions a
+                              where a.project_id = b.project_id and a.source = 'homeowner_app' and a.scope_milestone = 'photos'
+                                and a.status not in ('Completed','Cancelled','Force Cancelled','Superseded') limit 1),
         'share_slug', case when b.shared_at is not null then b.share_slug end,
         'contractor', case when b.contractor_contact_id is null then null else (
            select jsonb_build_object('contact_id', c.id, 'name', coalesce(co.company_name, c.person_name, c.name),
@@ -248,7 +254,7 @@ begin
       where p.trashed_at is null and public.is_project_member(b.project_id)), '[]'::jsonb)
   );
 end $$;
-comment on function public.homeowner_me() is 'One round trip to render the homeowner shell: profile, every home the member owns with live/planned/done counts, the agreement''s home quota, every booking with its derived progress and unread count.';
+comment on function public.homeowner_me() is 'One round trip to render the homeowner shell: profile, every home the member owns with live/planned/done counts, the agreement''s home quota, every booking with its derived progress, unread count and outstanding photo request.';
 
 -- ---------------------------------------------------------------- book / plan
 -- Two halves. homeowner_book() makes the HOME (if needed), the JOB project,
@@ -275,6 +281,155 @@ begin
   config_label := coalesce(nullif(array_to_string(v_cfg, ' · '), ''), pkg.config_label);
 end $$;
 comment on function public.homeowner_price(text, jsonb) is 'The community price of a package with the chosen levers, computed on the server from blueprint_packages - the browser only ever proposes selections, never a number.';
+
+-- ------------------------------------------------------------ how many wanted
+-- A photo counts against a slot when it carries that slot's key
+-- (files.vantage_point). Photos that arrived some other way - the job folder,
+-- the timeline, or the wizard before this migration - carry no key, so each
+-- one still counts down the ask. Being forgiving here matters: the request
+-- exists to get a price confirmed, not to police filenames.
+create or replace function public.homeowner_photos_outstanding(p_project uuid)
+returns integer
+language plpgsql stable security definer set search_path = public as $$
+declare v_code text; v_req int; v_keyed int; v_loose int;
+begin
+  select package_code into v_code from public.project_bookings where project_id = p_project;
+  if v_code is null then return 0; end if;
+  select count(*) into v_req from public.blueprint_package_photos where package_code = v_code;
+  if coalesce(v_req, 0) = 0 then return 0; end if;
+
+  select count(distinct f.vantage_point) into v_keyed
+    from public.files f
+   where f.project_id = p_project and f.kind = 'photo' and f.vantage_point is not null
+     and exists (select 1 from public.blueprint_package_photos pp where pp.package_code = v_code and pp.key = f.vantage_point);
+
+  select count(*) into v_loose
+    from public.files f
+   where f.project_id = p_project and f.kind = 'photo'
+     and (f.vantage_point is null
+          or not exists (select 1 from public.blueprint_package_photos pp where pp.package_code = v_code and pp.key = f.vantage_point));
+
+  return greatest(coalesce(v_req, 0) - coalesce(v_keyed, 0) - coalesce(v_loose, 0), 0);
+end $$;
+comment on function public.homeowner_photos_outstanding(uuid) is 'How many of the package''s photos are still wanted on this job. A photo keyed to a slot (files.vantage_point) fills that slot; any other photo on the job counts down the ask too, so a picture added from the folder is not asked for twice. Internal - homeowner_photos() is the granted read.';
+
+revoke all on function public.homeowner_photos_outstanding(uuid) from public, anon, authenticated;
+
+-- --------------------------------------------------------------- the slots
+create or replace function public.homeowner_photos(p_project uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare v_code text; v_out int;
+begin
+  if not public.is_project_member(p_project) then return null; end if;
+  select package_code into v_code from public.project_bookings where project_id = p_project;
+  if v_code is null then return null; end if;
+  v_out := public.homeowner_photos_outstanding(p_project);
+
+  return jsonb_build_object(
+    'outstanding', v_out,
+    'required', (select count(*) from public.blueprint_package_photos where package_code = v_code),
+    'have', (select count(*) from public.files f where f.project_id = p_project and f.kind = 'photo'),
+    'action_id', (select a.id from public.actions a
+                   where a.project_id = p_project and a.source = 'homeowner_app' and a.scope_milestone = 'photos'
+                     and a.status not in ('Completed','Cancelled','Force Cancelled','Superseded') limit 1),
+    'slots', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'key', pp.key, 'label', pp.label, 'hint', pp.hint,
+        'file_id', (select f.id from public.files f
+                     where f.project_id = p_project and f.kind = 'photo' and f.vantage_point = pp.key
+                     order by f.created_at desc limit 1)) order by pp.sort_order)
+      from public.blueprint_package_photos pp where pp.package_code = v_code), '[]'::jsonb));
+end $$;
+comment on function public.homeowner_photos(uuid) is 'The photo request on one job as the app draws it: each slot with the file that fills it, how many are still outstanding, and the id of the open request task (null once it is closed). Members only.';
+
+revoke all on function public.homeowner_photos(uuid) from public, anon;
+grant execute on function public.homeowner_photos(uuid) to authenticated, service_role;
+
+-- ------------------------------------------------------- close the request
+create or replace function public.homeowner_photo_request_settle(p_project uuid)
+returns integer
+language plpgsql security definer set search_path = public as $$
+declare v_out int := public.homeowner_photos_outstanding(p_project);
+begin
+  if v_out <= 0 then
+    update public.actions
+       set status = 'Completed', completed_on = current_date, last_updated = now(), last_modified_by = 'system:photo-request'
+     where project_id = p_project and source = 'homeowner_app' and scope_milestone = 'photos'
+       and status not in ('Completed','Cancelled','Force Cancelled','Superseded');
+  end if;
+  return v_out;
+end $$;
+comment on function public.homeowner_photo_request_settle(uuid) is 'Closes the open photo request on a job once nothing is outstanding. Called by the trigger on files and by homeowner_photo_add. Internal - no grant.';
+
+revoke all on function public.homeowner_photo_request_settle(uuid) from public, anon, authenticated;
+
+create or replace function public.fn_homeowner_photo_request_close()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.kind = 'photo' and new.project_id is not null
+     and exists (select 1 from public.actions a
+                  where a.project_id = new.project_id and a.source = 'homeowner_app' and a.scope_milestone = 'photos'
+                    and a.status not in ('Completed','Cancelled','Force Cancelled','Superseded'))
+  then
+    perform public.homeowner_photo_request_settle(new.project_id);
+  end if;
+  return null;
+end $$;
+comment on function public.fn_homeowner_photo_request_close() is 'After a photo is recorded on a job - from the wizard, the job folder, or the timeline - closes the photo request if that was the last one wanted. The check is one index lookup on actions and does nothing at all for every project without an open request.';
+
+drop trigger if exists trg_homeowner_photo_request on public.files;
+create trigger trg_homeowner_photo_request
+  after insert on public.files
+  for each row execute function public.fn_homeowner_photo_request_close();
+
+-- --------------------------------------------------------- add one photo
+create or replace function public.homeowner_photo_add(
+  p_project uuid, p_path text, p_key text, p_file_name text default null,
+  p_mime text default null, p_size bigint default null)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_key text := nullif(btrim(p_key), ''); v_label text; v_file uuid;
+begin
+  perform public.assert_own_hands();
+  if not public.is_project_member(p_project) then return jsonb_build_object('ok', false, 'reason', 'That job is not one of yours.'); end if;
+  select pp.label into v_label
+    from public.blueprint_package_photos pp
+    join public.project_bookings b on b.package_code = pp.package_code
+   where b.project_id = p_project and pp.key = v_key;
+
+  v_file := public.record_project_file(p_project, p_path, p_file_name, p_mime, p_size, v_label, 'photo');
+  if v_key is not null then update public.files set vantage_point = v_key where id = v_file; end if;
+  perform public.homeowner_photo_request_settle(p_project);
+
+  return jsonb_build_object('ok', true, 'file_id', v_file, 'photos', public.homeowner_photos(p_project));
+end $$;
+comment on function public.homeowner_photo_add(uuid, text, text, text, text, bigint) is 'Records a photo the owner added for a named slot of the package (p_key -> files.vantage_point, the slot label as the caption), then closes the photo request if that was the last one. Wraps record_project_file, which keeps the entitlement and quota checks in one place.';
+
+revoke all on function public.homeowner_photo_add(uuid, text, text, text, text, bigint) from public, anon;
+grant execute on function public.homeowner_photo_add(uuid, text, text, text, text, bigint) to authenticated, service_role;
+
+-- ------------------------------------------------------------- the grid's read
+-- The grid draws seven fields per package; homeowner_catalogue() returns the
+-- whole 37 kB - items, levers, options, photos, milestones - on every view of
+-- /packages, and the package page reads its one package through
+-- homeowner_package() anyway. This is the same list at about a tenth of a kB
+-- each. anon may call it: the grid is browsable before joining.
+create or replace function public.homeowner_catalogue_tiles()
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'code', p.code, 'tile_title', p.tile_title, 'tile_line2', p.tile_line2,
+    'tile_group', p.tile_group, 'availability', p.availability,
+    'illustration', p.illustration, 'sort_order', p.sort_order)
+    order by p.sort_order, p.name), '[]'::jsonb)
+  from public.blueprint_packages p
+  where p.is_active;
+$$;
+comment on function public.homeowner_catalogue_tiles() is 'The package grid and nothing else: the seven fields a tile draws, ~3 kB for the whole catalogue where homeowner_catalogue() is 37 kB. The package page reads its one package through homeowner_package().';
+
+grant execute on function public.homeowner_catalogue_tiles() to anon, authenticated;
 
 create or replace function public.homeowner_post_internal(p_project uuid)
 returns jsonb
@@ -308,6 +463,23 @@ begin
               coalesce(m.trigger_description, ''), 1, m.name || ' on ' || pkg.name || ' at ' || pr.address || '.');
     end if;
   end loop;
+
+  -- The photos. They confirm the price without a site visit, but they never
+  -- block the booking: someone at work cannot photograph their own basement.
+  -- The ask goes on the one task list, where the inbox and the banner read it,
+  -- and the trigger on files closes it the moment the last one lands.
+  if public.homeowner_photos_outstanding(p_project) > 0
+     and not exists (select 1 from public.actions a
+                      where a.project_id = p_project and a.source = 'homeowner_app' and a.scope_milestone = 'photos')
+  then
+    insert into public.actions (action, domain, status, priority, project_id, source, created_by, notes, depth_level,
+                                desired_outcome, scope_milestone, requires_photo_evidence, target_date)
+    values ('Add photos for ' || pkg.name, 'construction', 'Not Started', 'High', p_project, 'homeowner_app', 'system:photo-request',
+            'The contractor confirms the price from these instead of coming to look: ' ||
+            coalesce((select string_agg(pp.label, '; ' order by pp.sort_order) from public.blueprint_package_photos pp where pp.package_code = pkg.code), 'a photo of the work area') || '.',
+            1, 'Photos on file so the contractor can confirm ' || pkg.name || ' at ' || coalesce(pr.address, 'the address') || ' without a site visit.',
+            'photos', true, (current_date + 2));
+  end if;
 
   -- Billing plan: the home's, mirrored so a milestone on this job can be
   -- priced (stage_payment_quote reads the plan of the stage's own project).
@@ -362,7 +534,7 @@ begin
   return jsonb_build_object('ok', true, 'project_id', p_project, 'home_project_id', b.home_project_id, 'booking_id', b.id,
                             'price_cents', v_price, 'reply_by', v_reply, 'offered_count', v_n, 'instant_book', pkg.instant_book);
 end $$;
-comment on function public.homeowner_post_internal(uuid) is 'The ORDER half of a booking, shared by homeowner_book and homeowner_booking_action(post): re-prices from the live catalogue, writes payment stages and milestone tasks, mirrors the billing plan, opens the bid package with one invited bid per contractor with a login and the trade, and starts the 24-hour clock. Internal - no grant.';
+comment on function public.homeowner_post_internal(uuid) is 'The ORDER half of a booking, shared by homeowner_book and homeowner_booking_action(post): re-prices from the live catalogue, writes payment stages and milestone tasks, OPENS THE PHOTO REQUEST when photos are still wanted, mirrors the billing plan, opens the bid package with one invited bid per contractor with a login and the trade, and starts the 24-hour clock. Internal - no grant.';
 
 create or replace function public.homeowner_book(
   p_code text, p_selections jsonb, p_address text, p_unit text, p_facts jsonb, p_budget_band text, p_note text,
@@ -490,6 +662,7 @@ begin
     'live_price_cents', case when b.state = 'planned' then (select price_cents from public.homeowner_price(b.package_code, b.selections)) end,
     'accepted_at', b.accepted_at, 'closed_at', b.closed_at, 'close_reason', b.close_reason, 'done_at', b.done_at,
     'no_taker', (b.state = 'posted' and b.reply_by is not null and b.reply_by < now()),
+    'photos', public.homeowner_photos(p_project),
     'is_owner', v_is_owner, 'my_contact_id', my_contact,
     'share', jsonb_build_object('slug', b.share_slug, 'shared_at', b.shared_at, 'quote', b.share_quote, 'hide_address', b.share_hide_address, 'after_file_id', b.share_after_file_id),
     'owner', (select jsonb_build_object('contact_id', u.contact_id, 'name', u.full_name) from public.app_users u where u.id = pr.owner_user_id),
@@ -528,13 +701,14 @@ begin
     'unread', (select count(*) from public.messages m where m.project_id = p_project and m.to_contact_id = my_contact and m.read_at is null),
     'open_tasks', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'action', a.action, 'status', a.status,
                  'kind', case when a.source like 'system:transaction:%' then 'payment_confirmation'
+                              when a.created_by = 'system:photo-request' then 'photos'
                               when a.created_by = 'system:package-blueprint' then 'milestone' else 'other' end,
                  'pending_reason', a.pending_reason, 'created_at', a.created_at) order by a.created_at)
                from public.actions a where a.project_id = p_project
                 and a.status in ('Not Started','In Progress','Parked','Pending on Others','Completed Pending Approval','Completed Pending')), '[]'::jsonb)
   );
 end $$;
-comment on function public.homeowner_booking(uuid) is 'Everything the project view, folder and timeline need for one booking, in one call. budget_band and facts are returned only to the owner.';
+comment on function public.homeowner_booking(uuid) is 'One job as the app draws it: the booking, its package (homeowner_package), scope, progress, contractor, files, messages and the photo request. Members only - non-members get null, not an error.';
 
 -- ---------------------------------------------------------------- matching actions
 create or replace function public.homeowner_booking_action(p_project uuid, p_action text)
@@ -960,7 +1134,8 @@ begin
     'homeowner_catalogue()', 'homeowner_ref_preview(uuid)', 'homeowner_register(text,text,text,uuid)', 'homeowner_progress(uuid)',
     'homeowner_me()', 'homeowner_book(text,jsonb,text,text,jsonb,text,text,uuid,text,text)', 'homeowner_booking(uuid)', 'homeowner_booking_action(uuid,text)',
     'homeowner_price(text,jsonb)', 'homeowner_plan_update(uuid,text,text)', 'homeowner_home_add(text,text)', 'homeowner_home_ids(uuid)',
-    'homeowner_package(text)', 'homeowner_tasks(integer)',
+    'homeowner_package(text)', 'homeowner_tasks(integer)', 'homeowner_catalogue_tiles()',
+    'homeowner_photos(uuid)', 'homeowner_photo_add(uuid,text,text,text,text,bigint)',
     'homeowner_offers()', 'homeowner_offer_accept(uuid,uuid)', 'homeowner_offer_decline(uuid)', 'homeowner_message_send(uuid,text,uuid)',
     'homeowner_messages_seen(uuid)', 'homeowner_milestone_mark(uuid,text,text,text,uuid)', 'homeowner_share_publish(uuid,text,boolean,uuid)', 'homeowner_share(text)',
     'homeowner_quote_request(text,text,text)', 'homeowner_task_close(uuid,uuid,text,uuid)']
@@ -968,10 +1143,14 @@ begin
     execute format('revoke all on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to authenticated, service_role', f);
   end loop;
-  -- Internal: the order half runs only inside homeowner_book / homeowner_booking_action.
+  -- Internal: the order half runs only inside homeowner_book / homeowner_booking_action,
+  -- and the two photo helpers only inside the readers and the trigger on files.
   revoke all on function public.homeowner_post_internal(uuid) from public, anon, authenticated;
+  revoke all on function public.homeowner_photos_outstanding(uuid) from public, anon, authenticated;
+  revoke all on function public.homeowner_photo_request_settle(uuid) from public, anon, authenticated;
   -- Deliberately anon: read-only, public by design.
   grant execute on function public.homeowner_catalogue() to anon;
+  grant execute on function public.homeowner_catalogue_tiles() to anon;  -- the grid, browsable before joining
   grant execute on function public.homeowner_package(text) to anon;  -- the catalogue is built from it
   grant execute on function public.homeowner_share(text) to anon;
   grant execute on function public.homeowner_ref_preview(uuid) to anon;

@@ -1,10 +1,10 @@
 import Link from "next/link";
-import type { Package } from "@shared/catalogue";
+import type { Tile } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 
 // PackageTile - icon, title, kicker; variants: default, coming-soon, quote,
 // escape-hatch, skeleton.
-export function PackageTile({ pkg }: { pkg: Package }) {
+export function PackageTile({ pkg }: { pkg: Tile }) {
   const title = (
     <div className="card-title">
       {pkg.tile_title}

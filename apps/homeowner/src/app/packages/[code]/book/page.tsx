@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@shared/supabase/server";
-import { decodeSelections, findPackage, loadCatalogue } from "@shared/catalogue";
+import { decodeSelections, loadPackage } from "@shared/catalogue";
 import { getMe, type TargetWindow } from "@/lib/me";
 import { getBooking } from "@/lib/booking";
 import { BookingWizard, type WizardMode } from "./BookingWizard";
@@ -14,9 +13,7 @@ export const metadata = { title: "Book" };
 export default async function BookPage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string; mode?: string; from?: string }> }) {
   const { code } = await params;
   const { sel, mode: modeParam, from } = await searchParams;
-  const supabase = await createClient();
-  const [{ packages }, me] = await Promise.all([loadCatalogue(supabase), getMe()]);
-  const pkg = findPackage(packages, code);
+  const [{ pkg }, me] = await Promise.all([loadPackage(code), getMe()]);
   if (!pkg || pkg.availability !== "priced") notFound();
   const here = `/packages/${code}/book?${new URLSearchParams({ ...(sel ? { sel } : {}), ...(modeParam ? { mode: modeParam } : {}), ...(from ? { from } : {}) }).toString()}`;
   if (!me.signed_in) redirect(`/join?next=${encodeURIComponent(here)}`);

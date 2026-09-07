@@ -20,6 +20,12 @@ export type Contractor = {
   insurance: { coverage: string | null; limit: number | null; expires: string | null } | null;
   rating: { score: number; responses: number; rehire_pct: number | null; provisional: boolean } | null; jobs: number;
 };
+// The photo request on a job: what the package asks for, which slots are
+// filled, and the open task that carries the ask (null once it is closed).
+export type PhotoRequestState = {
+  outstanding: number; required: number; have: number; action_id: string | null;
+  slots: { key: string; label: string; hint: string | null; file_id: string | null }[];
+};
 export type Booking = {
   project_id: string; home_project_id: string; package_code: string; package: Package | null; address: string | null; unit: string | null;
   project_status: string; price_cents: number; base_price_cents: number; selections: Record<string, string>; config_label: string | null;
@@ -27,12 +33,13 @@ export type Booking = {
   state: BookingState; created_at: string; posted_at: string | null; target_window: TargetWindow | null; live_price_cents: number | null;
   reply_by: string | null; repost_count: number; offered_count: number;
   accepted_at: string | null; closed_at: string | null; close_reason: string | null; done_at: string | null; no_taker: boolean;
+  photos: PhotoRequestState | null;
   is_owner: boolean; my_contact_id: string | null;
   share: { slug: string | null; shared_at: string | null; quote: string | null; hide_address: boolean; after_file_id: string | null };
   owner: { contact_id: string | null; name: string | null } | null;
   contractor: Contractor | null; progress: Progress; stages: Stage[]; scope: { item: string; detail: string | null }[];
   files: JobFile[]; messages: Message[]; unread: number;
-  open_tasks: { id: string; action: string; status: string; kind: "payment_confirmation" | "milestone" | "other"; pending_reason: string | null; created_at: string }[];
+  open_tasks: { id: string; action: string; status: string; kind: "payment_confirmation" | "milestone" | "photos" | "other"; pending_reason: string | null; created_at: string }[];
 };
 
 export async function getBooking(projectId: string): Promise<{ booking: Booking | null; missing: boolean; supabase: SupabaseClient }> {

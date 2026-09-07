@@ -18,6 +18,9 @@ export type BookingSummary = {
   requires_permit: boolean; instant_book: boolean; address: string | null; home_project_id: string; price_cents: number; config_label: string | null;
   state: BookingState; created_at: string; posted_at: string | null; target_window: TargetWindow | null; reply_by: string | null; accepted_at: string | null;
   closed_at: string | null; done_at: string | null; repost_count: number; offered_count: number; no_taker: boolean;
+  // The photo request: how many the package still wants, and the open task
+  // that asks for them. A null action_id means there is nothing to nag about.
+  photos_needed: number; photos_action_id: string | null;
   share_slug: string | null;
   contractor: { contact_id: string; name: string; person: string; phone: string | null } | null;
   progress: Progress | null; unread: number;

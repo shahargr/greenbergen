@@ -5,6 +5,7 @@ import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen } from "@shared/ui";
 import { House, Illustration } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
+import { PhotoBanner } from "@/components/PhotoBanner";
 import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
       <div className="body">
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
         {ok === "removed" && <div className="banner-ok">Plan removed. Nothing was ever sent.</div>}
+        <PhotoBanner bookings={me.bookings} />
         <div className="hero">
           <h1>{onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : manyHomes ? "Your homes" : (me.homes[0]?.address?.split(",")[0] ?? "Your home")}</h1>
           <p className="lead">{onlyHome ? onlyHome.address?.split(",").slice(1).join(",").trim() : manyHomes ? `${me.homes.length} homes · ${me.bookings.length} job${me.bookings.length === 1 ? "" : "s"}` : me.homes[0]?.address?.split(",").slice(1).join(",").trim()}</p>

@@ -8,6 +8,7 @@ import { ago, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
+import { PhotoBanner } from "@/components/PhotoBanner";
 import { TaskDone } from "@/components/TaskDone";
 import { respondInvite } from "./actions";
 
@@ -58,6 +59,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         {error && <Notice kind="error">{error}</Notice>}
         {ok === "accepted" && <div className="banner-ok">You&apos;re on the project. It&apos;s under My home.</div>}
         {ok === "declined" && <div className="banner-ok">Declined. They&apos;ll see that.</div>}
+        <PhotoBanner bookings={me.bookings} />
 
         {incoming.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>

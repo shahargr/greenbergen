@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@shared/supabase/server";
-import { loadCatalogue } from "@shared/catalogue";
+import { loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Screen, StepKicker } from "@shared/ui";
 import { MoreTile, PackageTile } from "@/components/PackageTile";
@@ -13,9 +13,9 @@ export const metadata = { title: "Packages" };
 // instantly; a More tile holds the rest.
 export default async function PackagesPage() {
   const supabase = await createClient();
-  const [{ packages }, signedIn] = await Promise.all([loadCatalogue(supabase), isSignedIn(supabase)]);
-  const front = packages.filter((p) => p.tile_group === "front" && p.availability !== "coming_soon");
-  const more = packages.filter((p) => p.tile_group === "more" || p.availability === "coming_soon");
+  const [{ tiles }, signedIn] = await Promise.all([loadTiles(), isSignedIn(supabase)]);
+  const front = tiles.filter((p) => p.tile_group === "front" && p.availability !== "coming_soon");
+  const more = tiles.filter((p) => p.tile_group === "more" || p.availability === "coming_soon");
   return (
     <Screen>
       <AppBar brand right={signedIn ? undefined : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />

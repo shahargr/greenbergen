@@ -8,6 +8,7 @@ import { AppBar, Avatar, Card, Notice, NumberedNotes, Screen, StatusHero } from 
 import { ProgressLine } from "@shared/ProgressLine";
 import { stopwatch } from "@shared/perf";
 import { HomeTabs } from "@/components/HomeTabs";
+import { PhotoRequest } from "@/components/PhotoRequest";
 import { WaitingCard } from "./WaitingCard";
 import { bookingAction, updatePlan } from "./actions";
 
@@ -31,6 +32,22 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (!b) notFound();
   const pkg = b.package;
   const town = b.address?.split(",")[1]?.trim().replace(/\s+NJ.*$/, "") ?? "your town";
+
+  // The photos the job is still short of. The work is already out to
+  // contractors at the locked price - this is only what lets one of them
+  // confirm it without driving over, so it sits above the fold and never
+  // stops anything. It vanishes when the last photo lands or the owner
+  // closes the request from the inbox.
+  const wants = b.photos && b.photos.action_id && b.photos.outstanding > 0 ? b.photos : null;
+  const photosCard = wants ? (
+    <div id="photos" className="card pad">
+      <div className="card-title" style={{ fontSize: 16 }}>{wants.outstanding === 1 ? "One photo still to add" : `${wants.outstanding} photos still to add`}</div>
+      <p className="small text-muted" style={{ margin: "2px 0 10px" }}>
+        Your price is locked at {dollars(b.price_cents)} — this doesn&apos;t change it. It&apos;s what lets {b.contractor?.person?.split(" ")[0] ?? "the contractor"} confirm the job without a visit. Add them whenever you&apos;re next near the work.
+      </p>
+      <PhotoRequest projectId={b.project_id} slots={wants.slots} />
+    </div>
+  ) : null;
 
   const switcher = me.bookings.length > 1 && me.homes.length <= 1 && (
     <div className="seg" role="tablist" aria-label="Your projects" style={{ marginBottom: 4 }}>
@@ -172,6 +189,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {ok === "bump" && <div className="banner-ok">Reposted at {dollars(b.price_cents)}. The clock starts again.</div>}
           {ok === "wait" && <div className="banner-ok">Still posted at {dollars(b.price_cents)} for another 48 hours.</div>}
           {error && <Notice kind="error">{error}</Notice>}
+          {photosCard}
           <WaitingCard postedAt={b.posted_at ?? b.created_at} replyBy={b.reply_by} instant={pkg?.instant_book ?? true} />
           <NumberedNotes items={[
             <>{b.offered_count > 0 ? `${numberWord(b.offered_count)} licensed ${pluralTrade(pkg?.trade, b.offered_count)} in the community serve ${town}. Each sees your scope and photos, not your name.` : `Your scope and photos are ready for the community's ${pluralTrade(pkg?.trade, 2)} — none are signed in yet, so a person at Green Bergen is bringing one in.`}</>,
@@ -203,6 +221,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <div className="kicker">Your project · {b.address?.split(",")[0]}</div>
         <div className="hero"><h1>{pkg?.name}</h1></div>
         {error && <Notice kind="error">{error}</Notice>}
+        {photosCard}
 
         {c && (
           <Card pad={false}>
