@@ -19,4 +19,8 @@ npm run dev
 - All business logic lives in the database: the portal calls RPCs
   (`consumer_home`, `create_home_asset`, ...) and renders what they return.
 
+- `apps/homeowner` - the homeowner app (packages, booking, one project):
+  a second Next.js app on the same database, deployed as its own Vercel
+  project with Root Directory `apps/homeowner`. See `apps/homeowner/README.md`.
+
 Deployed on Vercel (project `greenbergen`) from this repo's `main`.

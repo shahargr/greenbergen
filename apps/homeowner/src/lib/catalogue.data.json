@@ -1,0 +1,457 @@
+{
+  "_comment": "The launch catalogue. Single authoring source: the app reads it as a fallback until the database holds blueprint_packages, and db/gen-seed.mjs turns it into db/002_homeowner_seed.sql. Prices are cents. Levers: price = base + sum of the chosen option deltas.",
+  "packages": [
+    {
+      "code": "water_heater",
+      "name": "Water heater replacement",
+      "tile_title": "Water heater",
+      "tile_line2": "replacement",
+      "trade": "Plumbing",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 218000,
+      "config_label": "40-gallon gas, installed in the same spot",
+      "requires_permit": true,
+      "permit_deposit_pct": 10,
+      "instant_book": true,
+      "approval_note": null,
+      "illustration": "water_heater",
+      "description": "A like-for-like tank replacement in a mechanical room or basement, permit filed and closed by the contractor.",
+      "sort_order": 10,
+      "items": [
+        { "label": "Town permits", "detail": "filed by the contractor" },
+        { "label": "Decommissioning the old unit", "detail": null },
+        { "label": "Installing the new unit", "detail": null },
+        { "label": "Testing", "detail": null },
+        { "label": "Inspection, town approval, permit closed", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": null },
+        { "label": "Haul-away & disposal", "detail": null }
+      ],
+      "levers": [
+        { "key": "tank", "label": "Tank size", "control": "seg", "question": "How many people live in the house? That sets the tank size.",
+          "options": [
+            { "key": "40", "label": "40 gal", "price_delta_cents": 0, "is_default": true, "chip": "1–2" },
+            { "key": "50", "label": "50 gal", "price_delta_cents": 16000, "is_default": false, "chip": "3–4" },
+            { "key": "75", "label": "75 gal", "price_delta_cents": 42000, "is_default": false, "chip": "5 or more" }
+          ] },
+        { "key": "fuel", "label": "Fuel", "control": "seg", "question": "Is your heater gas or electric? A metal flue pipe on top means gas.",
+          "options": [
+            { "key": "gas", "label": "Gas", "price_delta_cents": 0, "is_default": true, "chip": "Gas, there's a pipe on top" },
+            { "key": "electric", "label": "Electric", "price_delta_cents": -12000, "is_default": false, "chip": "Electric, no pipe" },
+            { "key": "tankless", "label": "Tankless", "price_delta_cents": 145000, "is_default": false, "chip": "I want tankless" }
+          ] },
+        { "key": "location", "label": "Location", "control": "radio", "question": "Is the new heater going where the old one is, or somewhere else?",
+          "options": [
+            { "key": "same", "label": "Same spot as the old one", "price_delta_cents": 0, "is_default": true, "chip": "Same spot" },
+            { "key": "move", "label": "Move it somewhere else", "price_delta_cents": 65000, "is_default": false, "chip": "Move it" }
+          ] },
+        { "key": "access", "label": "Access", "control": "seg", "question": "Is it easy to get to, or tucked in a crawlspace or attic?",
+          "options": [
+            { "key": "easy", "label": "Easy", "price_delta_cents": 0, "is_default": true, "chip": "Easy" },
+            { "key": "tight", "label": "Tight (crawlspace, attic)", "price_delta_cents": 18000, "is_default": false, "chip": "Tight" }
+          ] }
+      ],
+      "photos": [
+        { "key": "unit", "label": "The current unit", "hint": "Label and pipes in frame if you can." },
+        { "key": "space", "label": "The space around it", "hint": "Step back so the walls, pipes and any stairs are in frame." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Booked", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You booked the package." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A licensed plumber took the job at the community price." },
+        { "key": "permit_meeting", "kind": "payment", "name": "Permit meeting & signing", "sequence_no": 3, "percent_of_contract": 10, "typical_range": "within a week", "trigger_description": "You meet the contractor to sign the town forms. 10% is due at this meeting, paid to the contractor." },
+        { "key": "permit_issued", "kind": "task", "name": "Permit issued", "sequence_no": 4, "percent_of_contract": null, "typical_range": "2–4 wks", "trigger_description": "The town issues the permit." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 5, "percent_of_contract": 90, "typical_range": "1 day", "trigger_description": "Old unit out, new unit in and tested. The balance is due to the contractor." },
+        { "key": "inspection", "kind": "task", "name": "Inspection passed", "sequence_no": 6, "percent_of_contract": null, "typical_range": "1–2 wks", "trigger_description": "The town inspector signs off and the permit is closed." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 7, "percent_of_contract": null, "typical_range": null, "trigger_description": "Hot water, permit closed, inspector gone." }
+      ]
+    },
+    {
+      "code": "toilet",
+      "name": "Toilet replacement",
+      "tile_title": "Toilet",
+      "tile_line2": "replacement",
+      "trade": "Plumbing",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 54000,
+      "config_label": "Standard height, one toilet, old one hauled away",
+      "requires_permit": false,
+      "permit_deposit_pct": null,
+      "instant_book": true,
+      "approval_note": null,
+      "illustration": "toilet",
+      "description": "Remove the old toilet, set a new one on a fresh wax ring, test for leaks, take the old one away.",
+      "sort_order": 20,
+      "items": [
+        { "label": "New toilet, standard height", "detail": "supplied by the contractor" },
+        { "label": "Removing the old toilet", "detail": null },
+        { "label": "New wax ring, bolts and supply line", "detail": null },
+        { "label": "Setting and levelling", "detail": null },
+        { "label": "Leak test", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": null },
+        { "label": "Haul-away & disposal", "detail": null }
+      ],
+      "levers": [
+        { "key": "height", "label": "Height", "control": "seg", "question": "Standard height, or the taller comfort height?",
+          "options": [
+            { "key": "standard", "label": "Standard", "price_delta_cents": 0, "is_default": true, "chip": "Standard" },
+            { "key": "comfort", "label": "Comfort height", "price_delta_cents": 6000, "is_default": false, "chip": "Comfort height" }
+          ] },
+        { "key": "count", "label": "How many", "control": "seg", "question": "How many toilets are we replacing?",
+          "options": [
+            { "key": "1", "label": "1", "price_delta_cents": 0, "is_default": true, "chip": "One" },
+            { "key": "2", "label": "2", "price_delta_cents": 46000, "is_default": false, "chip": "Two" },
+            { "key": "3", "label": "3", "price_delta_cents": 90000, "is_default": false, "chip": "Three" }
+          ] },
+        { "key": "supply", "label": "Who buys the toilet", "control": "radio", "question": "Should the contractor bring the toilet, or have you already got one?",
+          "options": [
+            { "key": "contractor", "label": "Contractor supplies it", "price_delta_cents": 0, "is_default": true, "chip": "Contractor brings it" },
+            { "key": "owner", "label": "I already have one", "price_delta_cents": -22000, "is_default": false, "chip": "I have one" }
+          ] }
+      ],
+      "photos": [
+        { "key": "toilet", "label": "The toilet", "hint": "Whole thing, tank to floor." },
+        { "key": "shutoff", "label": "The shutoff valve behind it", "hint": "Low on the wall, to the left usually." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Booked", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You booked the package." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A licensed plumber took the job." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 3, "percent_of_contract": 100, "typical_range": "half a day", "trigger_description": "New toilet set and leak-tested. Paid to the contractor on completion." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 4, "percent_of_contract": null, "typical_range": null, "trigger_description": "Done." }
+      ]
+    },
+    {
+      "code": "faucet",
+      "name": "Faucet replacement",
+      "tile_title": "Faucet",
+      "tile_line2": "replacement",
+      "trade": "Plumbing",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 32000,
+      "config_label": "One kitchen or bathroom faucet, you supply the faucet",
+      "requires_permit": false,
+      "permit_deposit_pct": null,
+      "instant_book": true,
+      "approval_note": null,
+      "illustration": "faucet",
+      "description": "Swap a kitchen or bathroom faucet, new supply lines, tested for drips.",
+      "sort_order": 30,
+      "items": [
+        { "label": "Removing the old faucet", "detail": null },
+        { "label": "Installing yours", "detail": "you pick it, they fit it" },
+        { "label": "New supply lines", "detail": null },
+        { "label": "Drip and pressure test", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": null },
+        { "label": "Old faucet taken away", "detail": null }
+      ],
+      "levers": [
+        { "key": "where", "label": "Where", "control": "seg", "question": "Kitchen or bathroom?",
+          "options": [
+            { "key": "bath", "label": "Bathroom", "price_delta_cents": 0, "is_default": true, "chip": "Bathroom" },
+            { "key": "kitchen", "label": "Kitchen", "price_delta_cents": 6000, "is_default": false, "chip": "Kitchen" }
+          ] },
+        { "key": "count", "label": "How many", "control": "seg", "question": "How many faucets?",
+          "options": [
+            { "key": "1", "label": "1", "price_delta_cents": 0, "is_default": true, "chip": "One" },
+            { "key": "2", "label": "2", "price_delta_cents": 24000, "is_default": false, "chip": "Two" }
+          ] },
+        { "key": "supply", "label": "Who buys the faucet", "control": "radio", "question": "Do you have the faucet, or should the contractor bring a good mid-range one?",
+          "options": [
+            { "key": "owner", "label": "I have the faucet", "price_delta_cents": 0, "is_default": true, "chip": "I have it" },
+            { "key": "contractor", "label": "Contractor supplies a mid-range one", "price_delta_cents": 18000, "is_default": false, "chip": "Bring one" }
+          ] }
+      ],
+      "photos": [
+        { "key": "faucet", "label": "The faucet", "hint": "From above, so the holes in the sink show." },
+        { "key": "under", "label": "Under the sink", "hint": "Cabinet door open, valves visible." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Booked", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You booked the package." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A licensed plumber took the job." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 3, "percent_of_contract": 100, "typical_range": "1–2 hours", "trigger_description": "Fitted and tested. Paid to the contractor on completion." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 4, "percent_of_contract": null, "typical_range": null, "trigger_description": "Done." }
+      ]
+    },
+    {
+      "code": "driveway",
+      "name": "Driveway (asphalt)",
+      "tile_title": "Driveway",
+      "tile_line2": "(asphalt)",
+      "trade": "Hardscaping",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 690000,
+      "config_label": "Tear-out and repave, about 900 sq ft, 2-car",
+      "requires_permit": false,
+      "permit_deposit_pct": null,
+      "instant_book": false,
+      "approval_note": "Driveways are priced by area, so one of our paving contractors checks yours — by satellite or a drive-by — before the price is final. You'll approve any change.",
+      "illustration": "driveway",
+      "description": "Remove the old asphalt, regrade and compact the base, lay and roll new asphalt, seal the edges.",
+      "sort_order": 40,
+      "items": [
+        { "label": "Tear-out of the old surface", "detail": null },
+        { "label": "Base regrading and compaction", "detail": null },
+        { "label": "New asphalt, 2 inches compacted", "detail": null },
+        { "label": "Edge sealing", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": null },
+        { "label": "Haul-away & disposal", "detail": null }
+      ],
+      "levers": [
+        { "key": "size", "label": "Size", "control": "seg", "question": "Roughly how big is it? A 2-car driveway is about 900 sq ft.",
+          "options": [
+            { "key": "1car", "label": "1-car (~450 sq ft)", "price_delta_cents": -300000, "is_default": false, "chip": "1 car" },
+            { "key": "2car", "label": "2-car (~900 sq ft)", "price_delta_cents": 0, "is_default": true, "chip": "2 cars" },
+            { "key": "long", "label": "Long (~1,400 sq ft)", "price_delta_cents": 380000, "is_default": false, "chip": "Longer" }
+          ] },
+        { "key": "apron", "label": "Street apron", "control": "radio", "question": "Should we redo the apron where it meets the street?",
+          "options": [
+            { "key": "no", "label": "Leave the apron", "price_delta_cents": 0, "is_default": true, "chip": "Leave it" },
+            { "key": "yes", "label": "Redo the apron too", "price_delta_cents": 90000, "is_default": false, "chip": "Redo it" }
+          ] }
+      ],
+      "photos": [
+        { "key": "wide", "label": "The whole driveway from the street", "hint": "Include the garage and the apron. Add measurements in the note if you have them." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Requested", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You requested the package; a contractor confirms the area first." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A paving contractor confirmed the square footage and took the job." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 3, "percent_of_contract": 100, "typical_range": "1–2 days", "trigger_description": "Paved and rolled. Paid to the contractor on completion." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 4, "percent_of_contract": null, "typical_range": null, "trigger_description": "Stay off it for three days." }
+      ]
+    },
+    {
+      "code": "interior_painting",
+      "name": "Interior painting",
+      "tile_title": "Interior",
+      "tile_line2": "painting",
+      "trade": "Painting",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 78000,
+      "config_label": "One room, walls only, two coats, you pick the color",
+      "requires_permit": false,
+      "permit_deposit_pct": null,
+      "instant_book": true,
+      "approval_note": null,
+      "illustration": "painting",
+      "description": "Walls prepped, patched and painted two coats in a standard room. Paint included.",
+      "sort_order": 50,
+      "items": [
+        { "label": "Furniture moved and covered", "detail": null },
+        { "label": "Patching and light sanding", "detail": null },
+        { "label": "Two coats on the walls", "detail": "paint included" },
+        { "label": "Clean-up", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": null }
+      ],
+      "levers": [
+        { "key": "rooms", "label": "Rooms", "control": "seg", "question": "How many rooms?",
+          "options": [
+            { "key": "1", "label": "1", "price_delta_cents": 0, "is_default": true, "chip": "One" },
+            { "key": "2", "label": "2", "price_delta_cents": 70000, "is_default": false, "chip": "Two" },
+            { "key": "3", "label": "3", "price_delta_cents": 135000, "is_default": false, "chip": "Three" }
+          ] },
+        { "key": "trim", "label": "Ceilings & trim", "control": "seg", "question": "Walls only, or ceilings and trim too?",
+          "options": [
+            { "key": "walls", "label": "Walls only", "price_delta_cents": 0, "is_default": true, "chip": "Walls only" },
+            { "key": "ceiling", "label": "+ ceiling", "price_delta_cents": 22000, "is_default": false, "chip": "Ceiling too" },
+            { "key": "all", "label": "+ ceiling & trim", "price_delta_cents": 42000, "is_default": false, "chip": "Everything" }
+          ] }
+      ],
+      "photos": [
+        { "key": "room", "label": "The room", "hint": "From the doorway, so the size reads." },
+        { "key": "damage", "label": "Any damage", "hint": "Cracks, holes, water marks. Skip if none." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Booked", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You booked the package." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A painter took the job." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 3, "percent_of_contract": 100, "typical_range": "1–2 days", "trigger_description": "Two coats, dry, room put back. Paid to the contractor on completion." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 4, "percent_of_contract": null, "typical_range": null, "trigger_description": "Done." }
+      ]
+    },
+    {
+      "code": "ev_charger",
+      "name": "EV charger install",
+      "tile_title": "EV charger",
+      "tile_line2": "install",
+      "trade": "Electrical",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 125000,
+      "config_label": "Level 2, within 25 ft of the panel, charger supplied by you",
+      "requires_permit": true,
+      "permit_deposit_pct": 10,
+      "instant_book": true,
+      "approval_note": null,
+      "illustration": "ev_charger",
+      "description": "A dedicated 240 V circuit from your panel to a Level 2 charger in the garage or driveway, permitted and inspected.",
+      "sort_order": 60,
+      "items": [
+        { "label": "Town electrical permit", "detail": "filed by the contractor" },
+        { "label": "New 50 A breaker and dedicated circuit", "detail": null },
+        { "label": "Mounting and wiring your charger", "detail": null },
+        { "label": "Testing", "detail": null },
+        { "label": "Inspection, town approval, permit closed", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": null }
+      ],
+      "levers": [
+        { "key": "distance", "label": "Run from the panel", "control": "seg", "question": "How far is the charger spot from your electrical panel?",
+          "options": [
+            { "key": "near", "label": "Under 25 ft", "price_delta_cents": 0, "is_default": true, "chip": "Close" },
+            { "key": "mid", "label": "25–60 ft", "price_delta_cents": 45000, "is_default": false, "chip": "Across the house" },
+            { "key": "far", "label": "Over 60 ft", "price_delta_cents": 95000, "is_default": false, "chip": "Far" }
+          ] },
+        { "key": "charger", "label": "Charger", "control": "radio", "question": "Do you already have the charger?",
+          "options": [
+            { "key": "owner", "label": "I have the charger", "price_delta_cents": 0, "is_default": true, "chip": "I have it" },
+            { "key": "contractor", "label": "Contractor supplies one", "price_delta_cents": 60000, "is_default": false, "chip": "Bring one" }
+          ] }
+      ],
+      "photos": [
+        { "key": "panel", "label": "Electrical panel", "hint": "Door open, breakers legible — the electrician reads the amperage off it." },
+        { "key": "spot", "label": "Where the charger goes", "hint": "Wall or post, with the car's parking spot in frame." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Booked", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You booked the package." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A licensed electrician took the job." },
+        { "key": "permit_meeting", "kind": "payment", "name": "Permit meeting & signing", "sequence_no": 3, "percent_of_contract": 10, "typical_range": "within a week", "trigger_description": "You sign the town forms. 10% is due at this meeting, paid to the contractor." },
+        { "key": "permit_issued", "kind": "task", "name": "Permit issued", "sequence_no": 4, "percent_of_contract": null, "typical_range": "1–3 wks", "trigger_description": "The town issues the electrical permit." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 5, "percent_of_contract": 90, "typical_range": "half a day", "trigger_description": "Circuit run, charger mounted and tested. The balance is due to the contractor." },
+        { "key": "inspection", "kind": "task", "name": "Inspection passed", "sequence_no": 6, "percent_of_contract": null, "typical_range": "1–2 wks", "trigger_description": "The town inspector signs off." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 7, "percent_of_contract": null, "typical_range": null, "trigger_description": "Plug in." }
+      ]
+    },
+    {
+      "code": "generator",
+      "name": "Standby generator",
+      "tile_title": "Standby",
+      "tile_line2": "generator",
+      "trade": "Electrical",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 1180000,
+      "config_label": "22 kW whole-house, natural gas, transfer switch, pad",
+      "requires_permit": true,
+      "permit_deposit_pct": 10,
+      "instant_book": true,
+      "approval_note": null,
+      "illustration": "generator",
+      "description": "A whole-house standby generator on a pad beside the house, gas line, automatic transfer switch, permits and inspections.",
+      "sort_order": 70,
+      "items": [
+        { "label": "Town electrical, plumbing and zoning permits", "detail": "filed by the contractor" },
+        { "label": "Concrete pad", "detail": null },
+        { "label": "Generator, delivered and set", "detail": null },
+        { "label": "Gas line from the meter", "detail": null },
+        { "label": "Automatic transfer switch", "detail": null },
+        { "label": "Start-up and load test", "detail": null },
+        { "label": "Inspections, town approval, permits closed", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": null }
+      ],
+      "levers": [
+        { "key": "size", "label": "Size", "control": "seg", "question": "Whole house, or just the essentials?",
+          "options": [
+            { "key": "14", "label": "14 kW essentials", "price_delta_cents": -240000, "is_default": false, "chip": "Essentials" },
+            { "key": "22", "label": "22 kW whole house", "price_delta_cents": 0, "is_default": true, "chip": "Whole house" },
+            { "key": "26", "label": "26 kW large home", "price_delta_cents": 210000, "is_default": false, "chip": "Big house" }
+          ] },
+        { "key": "gas", "label": "Gas", "control": "seg", "question": "Natural gas from the street, or propane?",
+          "options": [
+            { "key": "natural", "label": "Natural gas", "price_delta_cents": 0, "is_default": true, "chip": "Natural gas" },
+            { "key": "propane", "label": "Propane", "price_delta_cents": 120000, "is_default": false, "chip": "Propane" }
+          ] }
+      ],
+      "photos": [
+        { "key": "panel", "label": "Electrical panel", "hint": "Door open, breakers legible." },
+        { "key": "meter", "label": "Gas meter", "hint": "Generators sometimes need a bigger gas line. The photo tells the contractor before they quote." },
+        { "key": "spot", "label": "Where it should go", "hint": "Along the house, with the windows nearest it in frame." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Booked", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You booked the package." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A licensed electrician took the job." },
+        { "key": "permit_meeting", "kind": "payment", "name": "Permit meeting & signing", "sequence_no": 3, "percent_of_contract": 10, "typical_range": "within a week", "trigger_description": "You sign the town forms. 10% is due at this meeting, paid to the contractor." },
+        { "key": "permit_issued", "kind": "task", "name": "Permits issued", "sequence_no": 4, "percent_of_contract": null, "typical_range": "3–6 wks", "trigger_description": "The town issues the permits." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 5, "percent_of_contract": 90, "typical_range": "2–3 days", "trigger_description": "Set, wired, gas connected, load-tested. The balance is due to the contractor." },
+        { "key": "inspection", "kind": "task", "name": "Inspections passed", "sequence_no": 6, "percent_of_contract": null, "typical_range": "2–3 wks", "trigger_description": "Electrical, plumbing and final inspections signed off." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 7, "percent_of_contract": null, "typical_range": null, "trigger_description": "Next outage, you won't notice." }
+      ]
+    },
+    {
+      "code": "gutters",
+      "name": "Gutter cleaning & minor repair",
+      "tile_title": "Gutter cleaning",
+      "tile_line2": "& minor repair",
+      "trade": "Gutters",
+      "tile_group": "front",
+      "availability": "priced",
+      "base_price_cents": 34000,
+      "config_label": "Single-family, 2 stories, all gutters and downspouts",
+      "requires_permit": false,
+      "permit_deposit_pct": null,
+      "instant_book": true,
+      "approval_note": null,
+      "illustration": "gutters",
+      "description": "Every gutter and downspout cleared and flushed, loose hangers re-secured, small leaks sealed.",
+      "sort_order": 80,
+      "items": [
+        { "label": "All gutters cleared by hand", "detail": null },
+        { "label": "Downspouts flushed", "detail": null },
+        { "label": "Loose hangers re-secured", "detail": "up to 6" },
+        { "label": "Small leaks sealed", "detail": null },
+        { "label": "Debris bagged and removed", "detail": null },
+        { "label": "Insurance coverage", "detail": null },
+        { "label": "Warranty", "detail": "90 days on repairs" }
+      ],
+      "levers": [
+        { "key": "stories", "label": "Stories", "control": "seg", "question": "How many stories is the house?",
+          "options": [
+            { "key": "1", "label": "1", "price_delta_cents": -10000, "is_default": false, "chip": "One" },
+            { "key": "2", "label": "2", "price_delta_cents": 0, "is_default": true, "chip": "Two" },
+            { "key": "3", "label": "3", "price_delta_cents": 16000, "is_default": false, "chip": "Three" }
+          ] },
+        { "key": "guards", "label": "Gutter guards", "control": "radio", "question": "Do you have gutter guards on now?",
+          "options": [
+            { "key": "no", "label": "No guards", "price_delta_cents": 0, "is_default": true, "chip": "No guards" },
+            { "key": "yes", "label": "Guards on (removed and refitted)", "price_delta_cents": 9000, "is_default": false, "chip": "Yes, guards" }
+          ] }
+      ],
+      "photos": [
+        { "key": "front", "label": "Front of the house", "hint": "From the sidewalk, roofline in frame." },
+        { "key": "problem", "label": "Any problem spot", "hint": "Overflowing corner, sagging run. Skip if none." }
+      ],
+      "milestones": [
+        { "key": "booked", "kind": "booked", "name": "Booked", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You booked the package." },
+        { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A gutter crew took the job." },
+        { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 3, "percent_of_contract": 100, "typical_range": "2–3 hours", "trigger_description": "Cleared, flushed, hangers fixed. Paid to the contractor on completion." },
+        { "key": "done", "kind": "done", "name": "Done", "sequence_no": 4, "percent_of_contract": null, "typical_range": null, "trigger_description": "Done." }
+      ]
+    },
+    { "code": "windows_doors", "name": "Windows & doors", "tile_title": "Windows & doors", "tile_line2": null, "trade": "Supply: Windows", "tile_group": "more", "availability": "priced", "base_price_cents": 145000, "config_label": "One replacement window, vinyl, standard size, installed", "requires_permit": false, "permit_deposit_pct": null, "instant_book": false, "approval_note": "Window sizes vary; a contractor confirms the opening before the price is final.", "illustration": "window", "description": "A like-for-like replacement window, installed and sealed.", "sort_order": 110,
+      "items": [ { "label": "Measuring and ordering", "detail": null }, { "label": "Removal of the old unit", "detail": null }, { "label": "Installing and sealing the new window", "detail": null }, { "label": "Interior trim touched up", "detail": null }, { "label": "Insurance coverage", "detail": null }, { "label": "Warranty", "detail": null }, { "label": "Haul-away & disposal", "detail": null } ],
+      "levers": [ { "key": "count", "label": "How many", "control": "seg", "question": "How many windows?", "options": [ { "key": "1", "label": "1", "price_delta_cents": 0, "is_default": true, "chip": "One" }, { "key": "3", "label": "3", "price_delta_cents": 260000, "is_default": false, "chip": "Three" }, { "key": "6", "label": "6", "price_delta_cents": 620000, "is_default": false, "chip": "Six" } ] } ],
+      "photos": [ { "key": "outside", "label": "The window from outside", "hint": "Whole frame in view." }, { "key": "inside", "label": "The window from inside", "hint": "Sill and trim visible." } ],
+      "milestones": [ { "key": "booked", "kind": "booked", "name": "Requested", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You requested the package." }, { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A contractor confirmed the size and took the job." }, { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 3, "percent_of_contract": 100, "typical_range": "half a day, after the order arrives", "trigger_description": "Installed and sealed. Paid to the contractor on completion." }, { "key": "done", "kind": "done", "name": "Done", "sequence_no": 4, "percent_of_contract": null, "typical_range": null, "trigger_description": "Done." } ] },
+    { "code": "deck_fence", "name": "Deck & fence", "tile_title": "Deck & fence", "tile_line2": null, "trade": "Decks", "tile_group": "more", "availability": "priced", "base_price_cents": 420000, "config_label": "100 ft of 6-ft wood privacy fence, installed", "requires_permit": true, "permit_deposit_pct": 10, "instant_book": false, "approval_note": "Fence runs are priced by length; a contractor confirms the line before the price is final.", "illustration": "fence", "description": "A wood privacy fence along one property line, posts set in concrete, permit filed.", "sort_order": 120,
+      "items": [ { "label": "Town zoning permit", "detail": "filed by the contractor" }, { "label": "Posts set in concrete", "detail": null }, { "label": "Panels and one gate", "detail": null }, { "label": "Old fence removed", "detail": null }, { "label": "Insurance coverage", "detail": null }, { "label": "Warranty", "detail": null }, { "label": "Haul-away & disposal", "detail": null } ],
+      "levers": [ { "key": "length", "label": "Length", "control": "seg", "question": "Roughly how long is the run?", "options": [ { "key": "50", "label": "50 ft", "price_delta_cents": -200000, "is_default": false, "chip": "50 ft" }, { "key": "100", "label": "100 ft", "price_delta_cents": 0, "is_default": true, "chip": "100 ft" }, { "key": "200", "label": "200 ft", "price_delta_cents": 400000, "is_default": false, "chip": "200 ft" } ] } ],
+      "photos": [ { "key": "line", "label": "The fence line", "hint": "Stand at one end and shoot down the line." } ],
+      "milestones": [ { "key": "booked", "kind": "booked", "name": "Requested", "sequence_no": 1, "percent_of_contract": null, "typical_range": null, "trigger_description": "You requested the package." }, { "key": "accepted", "kind": "accepted", "name": "Contractor accepted", "sequence_no": 2, "percent_of_contract": null, "typical_range": "24–48 h", "trigger_description": "A fence contractor confirmed the run and took the job." }, { "key": "permit_meeting", "kind": "payment", "name": "Permit meeting & signing", "sequence_no": 3, "percent_of_contract": 10, "typical_range": "within a week", "trigger_description": "You sign the zoning forms. 10% is due at this meeting, paid to the contractor." }, { "key": "permit_issued", "kind": "task", "name": "Permit issued", "sequence_no": 4, "percent_of_contract": null, "typical_range": "2–4 wks", "trigger_description": "The town issues the permit." }, { "key": "work_done", "kind": "payment", "name": "Work done", "sequence_no": 5, "percent_of_contract": 90, "typical_range": "2–3 days", "trigger_description": "Fence up, gate hung. The balance is due to the contractor." }, { "key": "done", "kind": "done", "name": "Done", "sequence_no": 6, "percent_of_contract": null, "typical_range": null, "trigger_description": "Done." } ] },
+    { "code": "siding", "name": "Siding", "tile_title": "Siding", "tile_line2": null, "trade": "Siding", "tile_group": "more", "availability": "coming_soon", "base_price_cents": null, "config_label": null, "requires_permit": true, "permit_deposit_pct": 10, "instant_book": false, "approval_note": null, "illustration": "siding", "description": null, "sort_order": 130, "items": [], "levers": [], "photos": [], "milestones": [] },
+    { "code": "solar", "name": "Solar", "tile_title": "Solar", "tile_line2": null, "trade": "Electrical", "tile_group": "more", "availability": "coming_soon", "base_price_cents": null, "config_label": null, "requires_permit": true, "permit_deposit_pct": 10, "instant_book": false, "approval_note": null, "illustration": "solar", "description": null, "sort_order": 140, "items": [], "levers": [], "photos": [], "milestones": [] },
+    { "code": "basement", "name": "Basement finishing", "tile_title": "Basement finishing", "tile_line2": null, "trade": "General Contractor", "tile_group": "more", "availability": "coming_soon", "base_price_cents": null, "config_label": null, "requires_permit": true, "permit_deposit_pct": 10, "instant_book": false, "approval_note": null, "illustration": "basement", "description": null, "sort_order": 150, "items": [], "levers": [], "photos": [], "milestones": [] },
+    { "code": "kitchen", "name": "Kitchen", "tile_title": "Kitchen", "tile_line2": null, "trade": "General Contractor", "tile_group": "more", "availability": "quote", "base_price_cents": null, "config_label": null, "requires_permit": true, "permit_deposit_pct": 10, "instant_book": false, "approval_note": null, "illustration": "kitchen", "description": "Kitchens can't be priced blind. Tell us what you have in mind and a person comes back with a quote.", "sort_order": 160, "items": [], "levers": [], "photos": [], "milestones": [] },
+    { "code": "bathroom", "name": "Bathroom", "tile_title": "Bathroom", "tile_line2": null, "trade": "General Contractor", "tile_group": "more", "availability": "quote", "base_price_cents": null, "config_label": null, "requires_permit": true, "permit_deposit_pct": 10, "instant_book": false, "approval_note": null, "illustration": "bathroom", "description": "Bathrooms can't be priced blind. Tell us what you have in mind and a person comes back with a quote.", "sort_order": 170, "items": [], "levers": [], "photos": [], "milestones": [] },
+    { "code": "something_else", "name": "Something else", "tile_title": "Something else", "tile_line2": "Tell us in a sentence", "trade": "Handyman", "tile_group": "more", "availability": "custom", "base_price_cents": null, "config_label": null, "requires_permit": false, "permit_deposit_pct": null, "instant_book": false, "approval_note": null, "illustration": "something_else", "description": "Not on the grid? Say what it is in a sentence. A person reads it and comes back to you.", "sort_order": 999, "items": [], "levers": [], "photos": [], "milestones": [] }
+  ],
+  "community_services": [
+    { "code": "salt_bags", "name": "Salt bags before the snow", "cadence": "Weekly", "summary": "Two 50 lb bags on your driveway before each storm · $20, card in-app", "description": "Whenever a storm is forecast for Bergen, two 50 lb bags land on your driveway the day before. Delivered by a neighbor on the route, not a truck from out of county.", "price_cents": 2000, "price_label": "Per delivery", "charged": "Card in-app, after each drop", "season": "Nov – Mar · pause anytime", "illustration": "salt" }
+  ]
+}

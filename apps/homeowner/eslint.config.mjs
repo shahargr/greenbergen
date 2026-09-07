@@ -12,8 +12,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Nested apps lint themselves (apps/homeowner has its own config).
-    "apps/**",
   ]),
 ]);
 

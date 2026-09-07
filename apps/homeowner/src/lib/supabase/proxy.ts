@@ -1,0 +1,42 @@
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./keys";
+
+// Refreshes the Supabase session cookie on every request and sends a
+// signed-out visitor to /login for anything that is not public. Public:
+// the landing, the catalogue (browse before joining), the join and login
+// flows, the auth callback and shared job cards.
+const PUBLIC_PREFIXES = ["/login", "/auth", "/join", "/packages", "/services", "/s/", "/welcome"];
+
+export async function updateSession(request: NextRequest) {
+  request.headers.set("x-pathname", request.nextUrl.pathname + request.nextUrl.search);
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+      },
+    },
+  });
+
+  // getClaims verifies the JWT locally and still refreshes an expired session.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
+
+  const path = request.nextUrl.pathname;
+  const isPublic = path === "/" || PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+
+  if (!user && !isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
+    return NextResponse.redirect(url);
+  }
+  return response;
+}

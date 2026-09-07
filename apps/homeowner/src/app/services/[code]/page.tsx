@@ -1,0 +1,43 @@
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { COMMUNITY_SERVICES } from "@/lib/catalogue";
+import { dollars } from "@/lib/format";
+import { AppBar, Blueprint, Screen } from "@/components/ui";
+import { Illustration } from "@/components/Illustrations";
+import { QuoteForm } from "@/app/packages/[code]/QuoteForm";
+
+export const dynamic = "force-dynamic";
+
+// Screen 4d - a community service: low-ticket, recurring, delivered by a
+// neighbor on the route. One representative design establishes the pattern;
+// signing up records interest as a task until the season opens.
+export default async function ServicePage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = await params;
+  const s = COMMUNITY_SERVICES.find((x) => x.code === code);
+  if (!s) notFound();
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  return (
+    <Screen>
+      <AppBar back="/packages/more" />
+      <div className="body">
+        <span className="tag tag-accent" style={{ alignSelf: "flex-start" }}>Community service</span>
+        <div className="illus"><Illustration name={s.illustration} /></div>
+        <div className="hero">
+          <h1>{s.name}</h1>
+          <p className="lead">{s.description}</p>
+        </div>
+        <Blueprint pad={false}>
+          <div className="kv-rows" style={{ padding: "4px 14px" }}>
+            <div><span className="k">{s.price_label}</span><strong>{dollars(s.price_cents)}</strong></div>
+            <div><span className="k">Charged</span><span>{s.charged}</span></div>
+            <div><span className="k">Season</span><span>{s.season}</span></div>
+            <div><span className="k">Neighbors signed up on your street</span><span className="text-muted">Not yet counted</span></div>
+          </div>
+        </Blueprint>
+        <QuoteForm code={s.code} signedIn={!!auth.user} prompt="Anything we should know? (gate code, where to leave the bags)" cta="Sign up for the season" />
+        <p className="small text-muted" style={{ margin: 0 }}>We&apos;ll ask for your address and a card when the season opens. Nothing is charged until a delivery lands.</p>
+      </div>
+    </Screen>
+  );
+}
