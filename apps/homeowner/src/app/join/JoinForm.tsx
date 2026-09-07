@@ -8,7 +8,8 @@ import { isBergenZip, townForZip } from "@shared/bergen";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Notice, Screen } from "@shared/ui";
 
-// Three fields, then a six-digit code from the email. Signing up and
+// Three fields, then the code from the email (Supabase issues 8 digits;
+// the field takes 6 to 10 so a project setting can't strand anyone). Signing up and
 // signing in are the same act (Supabase email OTP); the database trigger
 // makes the app_users row and the customer agreement, then
 // homeowner_register adds the ZIP, the town and the silent referral.
@@ -68,7 +69,7 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
 
   async function verify(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^\d{6}$/.test(code.trim())) { setErrors({ submit: "The code is six digits." }); return; }
+    if (!/^\d{6,10}$/.test(code.trim())) { setErrors({ submit: "Type the whole code from the email." }); return; }
     setBusy(true);
     setErrors({});
     const supabase = createClient();
@@ -94,12 +95,12 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
         <form className="body" onSubmit={verify} noValidate>
           <div className="hero">
             <h1>Check your email.</h1>
-            <p className="lead">We sent a six-digit code to <strong>{email.trim()}</strong>. It&apos;s good for five minutes. The link in the email works too.</p>
+            <p className="lead">We sent a sign-in code to <strong>{email.trim()}</strong>. It&apos;s good for five minutes. The link in the email works too.</p>
           </div>
           <label className="field">
             <span className="field-label">Code</span>
-            <input className="input mono" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6}
-              placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus
+            <input className="input mono" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={10}
+              placeholder="12345678" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus
               style={{ fontSize: 28, letterSpacing: "0.3em", textAlign: "center", fontFamily: "var(--font-heading)" }} />
           </label>
           {errors.submit && <Notice kind="error">{errors.submit}</Notice>}

@@ -7,7 +7,8 @@ import { Suspense } from "react";
 import { createClient } from "@shared/supabase/client";
 import { AppBar, Notice, Screen } from "@shared/ui";
 
-// Returning members: email, then the six-digit code. Same OTP as /join.
+// Returning members: email, then the code from the email (8 digits today;
+// the field takes 6 to 10). Same OTP as /join.
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -50,7 +51,7 @@ function LoginInner() {
       <form className="body" onSubmit={step === "email" ? send : verify} noValidate>
         <div className="hero">
           <h1>{step === "email" ? "Welcome back." : "Check your email."}</h1>
-          <p className="lead">{step === "email" ? "Your email, and we'll send a six-digit code. No password to remember." : <>A six-digit code went to <strong>{email.trim()}</strong>. Good for five minutes.</>}</p>
+          <p className="lead">{step === "email" ? "Your email, and we'll send a sign-in code. No password to remember." : <>A sign-in code went to <strong>{email.trim()}</strong>. Good for five minutes.</>}</p>
         </div>
         {step === "email" ? (
           <label className="field">
@@ -60,7 +61,7 @@ function LoginInner() {
         ) : (
           <label className="field">
             <span className="field-label">Code</span>
-            <input className="input mono" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" value={code}
+            <input className="input mono" inputMode="numeric" autoComplete="one-time-code" maxLength={10} placeholder="12345678" value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus
               style={{ fontSize: 28, letterSpacing: "0.3em", textAlign: "center", fontFamily: "var(--font-heading)" }} />
           </label>
