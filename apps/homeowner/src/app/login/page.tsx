@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { AppBar, Notice, Screen } from "@/components/ui";
+import { createClient } from "@shared/supabase/client";
+import { AppBar, Notice, Screen } from "@shared/ui";
 
 // Returning members: email, then the six-digit code. Same OTP as /join.
 function LoginInner() {

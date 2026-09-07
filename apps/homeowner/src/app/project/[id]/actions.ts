@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { friendly } from "@/lib/rpc";
+import { createClient } from "@shared/supabase/server";
+import { friendly } from "@shared/rpc";
 
 // Server actions for the project view. Each is one RPC; the database holds
 // the rules and answers {ok, reason}.

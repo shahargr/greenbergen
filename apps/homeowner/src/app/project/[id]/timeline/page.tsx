@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getBooking, signedUrls } from "@/lib/booking";
-import { AppBar, Screen } from "@/components/ui";
+import { AppBar, Screen } from "@shared/ui";
 import { Timeline } from "./Timeline";
 import { markSeen } from "../actions";
 

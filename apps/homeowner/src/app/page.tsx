@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { rpc } from "@/lib/rpc";
-import { AppBar, Blueprint, Screen } from "@/components/ui";
-import { House } from "@/components/Illustrations";
+import { createClient } from "@shared/supabase/server";
+import { rpc } from "@shared/rpc";
+import { AppBar, Blueprint, Screen } from "@shared/ui";
+import { House } from "@shared/Illustrations";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +76,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           {inviter ? `Join ${inviter.first} in the community` : "Join the community"}
         </Link>
         <Link href="/packages" className="btn btn-ghost btn-block">See the packages first</Link>
+        <p className="small text-muted center" style={{ margin: "4px 0 0" }}>Already a member? <Link href="/login">Sign in</Link></p>
       </div>
     </Screen>
   );

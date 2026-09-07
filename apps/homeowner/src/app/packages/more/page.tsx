@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { COMMUNITY_SERVICES, loadCatalogue } from "@/lib/catalogue";
-import { AppBar, Screen } from "@/components/ui";
+import { createClient } from "@shared/supabase/server";
+import { COMMUNITY_SERVICES, loadCatalogue } from "@shared/catalogue";
+import { AppBar, Screen } from "@shared/ui";
 import { PackageTile } from "@/components/PackageTile";
-import { Illustration } from "@/components/Illustrations";
+import { Illustration } from "@shared/Illustrations";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "More packages" };

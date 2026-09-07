@@ -387,6 +387,55 @@ insert into public.blueprint_package_milestones (package_code, key, kind, name, 
 insert into public.blueprint_package_milestones (package_code, key, kind, name, sequence_no, percent_of_contract, typical_range, trigger_description) values ('gutters', 'work_done', 'payment', 'Work done', 3, 100, '2–3 hours', 'Cleared, flushed, hangers fixed. Paid to the contractor on completion.');
 insert into public.blueprint_package_milestones (package_code, key, kind, name, sequence_no, percent_of_contract, typical_range, trigger_description) values ('gutters', 'done', 'done', 'Done', 4, null, null, 'Done.');
 
+-- Blinds & shades installation
+insert into public.blueprint_packages
+  (code, name, tile_title, tile_line2, trade, tile_group, availability, base_price_cents, config_label,
+   requires_permit, permit_deposit_pct, instant_book, approval_note, illustration, description, sort_order, created_by)
+values ('blinds', 'Blinds & shades installation', 'Blinds & shades', 'installation', 'Handyman', 'front', 'priced', 24000, 'Up to 5 windows, blinds you already bought, inside mount',
+        false, null, true, null, 'blinds', 'Your blinds or shades measured, mounted level and tested, packaging taken away.', 85, 'seed 2026-09-07')
+on conflict (code) do update set
+  name = excluded.name, tile_title = excluded.tile_title, tile_line2 = excluded.tile_line2, trade = excluded.trade,
+  tile_group = excluded.tile_group, availability = excluded.availability, base_price_cents = excluded.base_price_cents,
+  config_label = excluded.config_label, requires_permit = excluded.requires_permit, permit_deposit_pct = excluded.permit_deposit_pct,
+  instant_book = excluded.instant_book, approval_note = excluded.approval_note, illustration = excluded.illustration,
+  description = excluded.description, sort_order = excluded.sort_order, last_modified_at = now(), last_modified_by = 'seed';
+delete from public.blueprint_package_items where package_code = 'blinds';
+delete from public.blueprint_package_levers where package_code = 'blinds';
+delete from public.blueprint_package_photos where package_code = 'blinds';
+delete from public.blueprint_package_milestones where package_code = 'blinds';
+insert into public.blueprint_package_items (package_code, label, detail, sort_order) values ('blinds', 'Brackets mounted level, inside or outside the frame', null, 10);
+insert into public.blueprint_package_items (package_code, label, detail, sort_order) values ('blinds', 'Blinds hung, cords and wands fitted', null, 20);
+insert into public.blueprint_package_items (package_code, label, detail, sort_order) values ('blinds', 'Each one tested up and down', null, 30);
+insert into public.blueprint_package_items (package_code, label, detail, sort_order) values ('blinds', 'Child-safety cord cleats where needed', null, 40);
+insert into public.blueprint_package_items (package_code, label, detail, sort_order) values ('blinds', 'Packaging taken away', null, 50);
+insert into public.blueprint_package_items (package_code, label, detail, sort_order) values ('blinds', 'Insurance coverage', null, 60);
+insert into public.blueprint_package_items (package_code, label, detail, sort_order) values ('blinds', 'Warranty', '90 days on the mounting', 70);
+with lv as (insert into public.blueprint_package_levers (package_code, key, label, control, question, sort_order) values ('blinds', 'count', 'How many windows', 'seg', 'How many windows are we doing?', 10) returning id)
+insert into public.blueprint_package_lever_options (lever_id, key, label, price_delta_cents, is_default, chip, sort_order)
+select lv.id, v.key, v.label, v.delta, v.dflt, v.chip, v.ord from lv, (values
+  ('5', 'Up to 5', 0, true, 'Up to five', 10),
+  ('10', '6–10', 20000, false, 'Six to ten', 20),
+  ('15', '11–15', 40000, false, 'More than ten', 30)
+) as v(key, label, delta, dflt, chip, ord);
+with lv as (insert into public.blueprint_package_levers (package_code, key, label, control, question, sort_order) values ('blinds', 'supply', 'Who buys the blinds', 'radio', 'Do you have the blinds already, or should the contractor measure and bring standard ones?', 20) returning id)
+insert into public.blueprint_package_lever_options (lever_id, key, label, price_delta_cents, is_default, chip, sort_order)
+select lv.id, v.key, v.label, v.delta, v.dflt, v.chip, v.ord from lv, (values
+  ('owner', 'I have them', 0, true, 'I have them', 10),
+  ('contractor', 'Measure and supply standard cordless blinds', 42000, false, 'Bring them', 20)
+) as v(key, label, delta, dflt, chip, ord);
+with lv as (insert into public.blueprint_package_levers (package_code, key, label, control, question, sort_order) values ('blinds', 'motor', 'Motorized', 'radio', 'Any motorized shades? They take a little longer to set up and pair.', 30) returning id)
+insert into public.blueprint_package_lever_options (lever_id, key, label, price_delta_cents, is_default, chip, sort_order)
+select lv.id, v.key, v.label, v.delta, v.dflt, v.chip, v.ord from lv, (values
+  ('no', 'No, manual', 0, true, 'Manual', 10),
+  ('yes', 'Yes, motorized (setup and pairing)', 15000, false, 'Motorized', 20)
+) as v(key, label, delta, dflt, chip, ord);
+insert into public.blueprint_package_photos (package_code, key, label, hint, sort_order) values ('blinds', 'window', 'One of the windows', 'Whole frame in view, so the mount depth reads.', 10);
+insert into public.blueprint_package_photos (package_code, key, label, hint, sort_order) values ('blinds', 'blinds', 'The blinds, still boxed', 'The label with the size is enough.', 20);
+insert into public.blueprint_package_milestones (package_code, key, kind, name, sequence_no, percent_of_contract, typical_range, trigger_description) values ('blinds', 'booked', 'booked', 'Booked', 1, null, null, 'You booked the package.');
+insert into public.blueprint_package_milestones (package_code, key, kind, name, sequence_no, percent_of_contract, typical_range, trigger_description) values ('blinds', 'accepted', 'accepted', 'Contractor accepted', 2, null, '24–48 h', 'A handyman from the community took the job.');
+insert into public.blueprint_package_milestones (package_code, key, kind, name, sequence_no, percent_of_contract, typical_range, trigger_description) values ('blinds', 'work_done', 'payment', 'Work done', 3, 100, '2–3 hours', 'Every blind hung and tested. Paid to the contractor on completion.');
+insert into public.blueprint_package_milestones (package_code, key, kind, name, sequence_no, percent_of_contract, typical_range, trigger_description) values ('blinds', 'done', 'done', 'Done', 4, null, null, 'Done.');
+
 -- Windows & doors
 insert into public.blueprint_packages
   (code, name, tile_title, tile_line2, trade, tile_group, availability, base_price_cents, config_label,

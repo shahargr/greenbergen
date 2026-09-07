@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getBooking, signedUrls } from "@/lib/booking";
 import { formsFor } from "@/lib/forms";
-import { dayClock, dollars, shortDate } from "@/lib/format";
-import { AppBar, Blueprint, ChevronIcon, Screen } from "@/components/ui";
+import { dayClock, dollars, shortDate } from "@shared/format";
+import { AppBar, Blueprint, ChevronIcon, Screen } from "@shared/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Job folder" };

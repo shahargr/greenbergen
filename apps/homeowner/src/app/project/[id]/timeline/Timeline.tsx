@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { friendly } from "@/lib/rpc";
-import { clock } from "@/lib/format";
+import { createClient } from "@shared/supabase/client";
+import { friendly } from "@shared/rpc";
+import { clock } from "@shared/format";
 import type { Message } from "@/lib/booking";
-import { Notice } from "@/components/ui";
+import { Notice } from "@shared/ui";
 
 // Composer - attachment tray, input, photo / mic / send. A message goes out
 // as: upload (if any) -> record_project_file -> homeowner_message_send. An

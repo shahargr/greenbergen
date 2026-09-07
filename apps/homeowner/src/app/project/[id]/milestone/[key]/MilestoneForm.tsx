@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { dollars } from "@/lib/format";
-import { friendly } from "@/lib/rpc";
-import { Blueprint, Notice } from "@/components/ui";
+import { createClient } from "@shared/supabase/client";
+import { dollars } from "@shared/format";
+import { friendly } from "@shared/rpc";
+import { Blueprint, Notice } from "@shared/ui";
 import { markMilestone } from "../../actions";
 
 // 15a confirm + pay choice; 15c photograph the check. The photo uploads

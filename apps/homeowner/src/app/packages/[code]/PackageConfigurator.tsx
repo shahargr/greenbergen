@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@/lib/catalogue";
-import { dollars } from "@/lib/format";
-import { Blueprint, NumberedNotes } from "@/components/ui";
-import { PriceBlock } from "@/components/PriceBlock";
+import { configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { dollars } from "@shared/format";
+import { Blueprint, NumberedNotes } from "@shared/ui";
+import { PriceBlock } from "@shared/PriceBlock";
 import { AdjustPanel } from "./AdjustPanel";
 
 // Screen 5b + 6: price, "adjust it", good-to-know, book. The price moves

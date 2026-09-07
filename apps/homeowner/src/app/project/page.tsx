@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/me";
-import { AppBar, Blueprint, Notice, Screen } from "@/components/ui";
-import { House } from "@/components/Illustrations";
+import { AppBar, Blueprint, Notice, Screen } from "@shared/ui";
+import { House } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
 
 export const dynamic = "force-dynamic";

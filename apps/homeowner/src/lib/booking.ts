@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import { isMissingFunction, rpc } from "@/lib/rpc";
-import type { Package } from "@/lib/catalogue";
+import { createClient } from "@shared/supabase/server";
+import { isMissingFunction, rpc } from "@shared/rpc";
+import type { Package } from "@shared/catalogue";
 import type { Progress } from "@/lib/me";
 
 export type Stage = {

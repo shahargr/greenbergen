@@ -1,4 +1,4 @@
-import { AppBar, Blueprint, Screen, Skeleton } from "@/components/ui";
+import { AppBar, Blueprint, Screen, Skeleton } from "@shared/ui";
 
 // E1 - skeleton with the shape of the real package page. Shown after
 // 300 ms by the browser's own paint timing; never flashed on purpose.

@@ -1,4 +1,4 @@
-import { AppBar, Blueprint, Screen, Skeleton } from "@/components/ui";
+import { AppBar, Blueprint, Screen, Skeleton } from "@shared/ui";
 
 export default function Loading() {
   return (

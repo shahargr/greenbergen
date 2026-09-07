@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { configLabel, depositCents, priceFor, type Package, type Selections } from "@/lib/catalogue";
-import { dollars, shortDate } from "@/lib/format";
-import { friendly, isMissingFunction } from "@/lib/rpc";
-import { AppBar, Blueprint, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@/components/ui";
+import { createClient } from "@shared/supabase/client";
+import { configLabel, depositCents, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { dollars, shortDate } from "@shared/format";
+import { friendly, isMissingFunction } from "@shared/rpc";
+import { AppBar, Blueprint, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@shared/ui";
 
 // One client-side wizard, so the photos a homeowner takes stay in memory
 // across steps and upload only after the booking row exists (the storage

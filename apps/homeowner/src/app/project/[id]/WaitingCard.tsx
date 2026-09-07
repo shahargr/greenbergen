@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ago, dayClock } from "@/lib/format";
-import { Blueprint } from "@/components/ui";
+import { ago, dayClock } from "@shared/format";
+import { Blueprint } from "@shared/ui";
 
 // WaitingCard - pulsing icon, copy, the 24 h progress bar. Client-side so
 // the bar keeps moving without a reload.

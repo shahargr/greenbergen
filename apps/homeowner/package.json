@@ -6,7 +6,7 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
-    "lint": "eslint",
+    "lint": "eslint . && npm run lint --prefix ../shared",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

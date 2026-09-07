@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { friendly, isMissingFunction } from "@/lib/rpc";
-import { Blueprint, Notice, StatusHero } from "@/components/ui";
+import { createClient } from "@shared/supabase/client";
+import { friendly, isMissingFunction } from "@shared/rpc";
+import { Blueprint, Notice, StatusHero } from "@shared/ui";
 
 // The get-a-quote track and the "something else" tile: one sentence from
 // the homeowner becomes one task in the unified list, for a person to

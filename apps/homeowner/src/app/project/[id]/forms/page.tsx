@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getBooking } from "@/lib/booking";
 import { formsFor } from "@/lib/forms";
-import { AppBar, Blueprint, Screen } from "@/components/ui";
+import { AppBar, Blueprint, Screen } from "@shared/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Permit forms" };

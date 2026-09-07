@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getBooking } from "@/lib/booking";
-import { dollars, shortDate } from "@/lib/format";
-import { AppBar, Blueprint, Notice, Screen, StatusHero } from "@/components/ui";
+import { dollars, shortDate } from "@shared/format";
+import { AppBar, Blueprint, Notice, Screen, StatusHero } from "@shared/ui";
 import { MilestoneForm } from "./MilestoneForm";
 import { closeTask } from "../../actions";
 

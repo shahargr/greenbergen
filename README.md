@@ -22,5 +22,10 @@ npm run dev
 - `apps/homeowner` - the homeowner app (packages, booking, one project):
   a second Next.js app on the same database, deployed as its own Vercel
   project with Root Directory `apps/homeowner`. See `apps/homeowner/README.md`.
+- `apps/shared` - code every app shares (design system, Supabase glue, the
+  package catalogue, UI primitives) and `db/`, the database contract for the
+  consumer apps. See `apps/shared/README.md`.
+
+The repo is one npm workspace: run `npm install` at the root.
 
 Deployed on Vercel (project `greenbergen`) from this repo's `main`.

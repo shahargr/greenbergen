@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { COMMUNITY_SERVICES } from "@/lib/catalogue";
-import { dollars } from "@/lib/format";
-import { AppBar, Blueprint, Screen } from "@/components/ui";
-import { Illustration } from "@/components/Illustrations";
+import { createClient } from "@shared/supabase/server";
+import { COMMUNITY_SERVICES } from "@shared/catalogue";
+import { dollars } from "@shared/format";
+import { AppBar, Blueprint, Screen } from "@shared/ui";
+import { Illustration } from "@shared/Illustrations";
 import { QuoteForm } from "@/app/packages/[code]/QuoteForm";
 
 export const dynamic = "force-dynamic";

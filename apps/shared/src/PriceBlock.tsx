@@ -1,4 +1,4 @@
-import { dollars } from "@/lib/format";
+import { dollars } from "./format";
 
 // PriceBlock - kicker, big number, config line, the one pending label.
 export function PriceBlock({

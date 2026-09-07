@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { decodeSelections, findPackage, loadCatalogue } from "@/lib/catalogue";
+import { createClient } from "@shared/supabase/server";
+import { decodeSelections, findPackage, loadCatalogue } from "@shared/catalogue";
 import { getMe } from "@/lib/me";
 import { BookingWizard } from "./BookingWizard";
 

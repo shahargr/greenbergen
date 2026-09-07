@@ -1,6 +1,6 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@shared/supabase/server";
 
 // The emailed link lands here (PKCE ?code= or token_hash + type), then on
 // to `next` - /welcome for a new member, /project for a returning one.

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { decodeSelections, findPackage, loadCatalogue } from "@/lib/catalogue";
-import { AppBar, Blueprint, CheckIcon, Screen } from "@/components/ui";
-import { Illustration } from "@/components/Illustrations";
+import { createClient } from "@shared/supabase/server";
+import { decodeSelections, findPackage, loadCatalogue } from "@shared/catalogue";
+import { AppBar, Blueprint, CheckIcon, Screen } from "@shared/ui";
+import { Illustration } from "@shared/Illustrations";
 import { PackageConfigurator } from "./PackageConfigurator";
 import { QuoteForm } from "./QuoteForm";
 

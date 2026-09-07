@@ -1,9 +1,15 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
-// The homeowner app. Photos and voice notes go straight from the browser to
-// Supabase Storage, so server actions stay small; the limit is raised only
-// for the odd form that carries a file.
+// The homeowner app imports the design system, the Supabase glue and the
+// catalogue from apps/shared (tsconfig path @shared/*). Turbopack must know
+// the repo root so files outside this folder are in bounds; the same root
+// keeps output tracing right on Vercel, where Root Directory is apps/homeowner.
+const repoRoot = path.join(__dirname, "..", "..");
+
 const nextConfig: NextConfig = {
+  turbopack: { root: repoRoot },
+  outputFileTracingRoot: repoRoot,
   experimental: {
     serverActions: { bodySizeLimit: "10mb" },
   },

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AppBar, Blueprint, Screen } from "@/components/ui";
+import { AppBar, Blueprint, Screen } from "@shared/ui";
 
 export default function NotFound() {
   return (

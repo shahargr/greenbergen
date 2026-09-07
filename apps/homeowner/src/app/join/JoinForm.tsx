@@ -3,10 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { isBergenZip, townForZip } from "@/lib/bergen";
-import { friendly, isMissingFunction } from "@/lib/rpc";
-import { AppBar, Notice, Screen } from "@/components/ui";
+import { createClient } from "@shared/supabase/client";
+import { isBergenZip, townForZip } from "@shared/bergen";
+import { friendly, isMissingFunction } from "@shared/rpc";
+import { AppBar, Notice, Screen } from "@shared/ui";
 
 // Three fields, then a six-digit code from the email. Signing up and
 // signing in are the same act (Supabase email OTP); the database trigger

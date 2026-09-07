@@ -11,11 +11,14 @@ column, centred on desktop.
 ## Run it
 
 ```bash
+npm install                     # once, at the repo root (one npm workspace)
 cd apps/homeowner
-cp .env.example .env.local      # anon key; NEXT_PUBLIC_APP_URL for share links
-npm install
+cp .env.example .env.local      # anon key; NEXT_PUBLIC_APP_URL for share links (optional on Vercel)
 npm run dev                     # http://localhost:3001
 ```
+
+Shared code (design system, Supabase glue, catalogue, UI primitives) lives
+in `apps/shared` and is imported as `@shared/*`. See `apps/shared/README.md`.
 
 `npm run build`, `npm run lint` and `npm run typecheck` are the checks.
 
@@ -30,20 +33,24 @@ Create a **second** Vercel project from the same GitHub repo:
 | Production branch| `main`                                  |
 | Env              | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL` (the app's own https URL) |
 
-The root project (`greenbergen`) is untouched: it keeps Root Directory `/`
-and ignores `apps/`. No service-role key anywhere in this app. Supabase Auth
-needs the new domain in its redirect allow-list (`/auth/confirm`).
+Live as project `greenbergen-homeowner` at https://greenbergen-homeowner.vercel.app.
+Vercel installs at the repo root (it detects the npm workspace) and builds
+this folder; `next.config.ts` points Turbopack at the repo root so
+`apps/shared` is in bounds. The root project (`greenbergen`) is untouched:
+it keeps Root Directory `/` and ignores `apps/`. No service-role key anywhere
+in this app. Supabase Auth needs the new domain in its redirect allow-list
+(`/auth/confirm`).
 
 ## The database migration (not yet applied)
 
 Everything the app writes goes through `homeowner_*` functions that do not
-exist until the three files in `db/` are applied, in order:
+exist until the three files in `apps/shared/db/` are applied, in order:
 
 1. `001_homeowner_schema.sql` - the catalogue tables (`blueprint_packages`
    and children), `project_bookings`, `messages.file_id`,
    `app_users.home_zip`, RLS, loggers, the help row, schema_version 217.
 2. `002_homeowner_seed.sql` - the launch catalogue. **Generated** from
-   `src/lib/catalogue.data.json` by `node db/gen-seed.mjs > db/002_homeowner_seed.sql`.
+   `apps/shared/src/catalogue.data.json` by `npm run seed` in `apps/shared`.
    Edit the JSON, regenerate; never both.
 3. `003_homeowner_functions.sql` - the function surface and its grants.
 
@@ -66,11 +73,10 @@ booking wizard stops at Book and says why; `/project` shows the empty state.
   line, `folder/`, `forms/`, `timeline/` (photo + voice composer),
   `milestone/[key]/` (confirm + pay + photograph the check), `share/`.
 - `src/app/s/[slug]/` the public shared card.
-- `src/lib/catalogue.ts` catalogue types, pricing (base + option deltas),
-  static fallback; `me.ts` and `booking.ts` the two shell reads;
-  `bergen.ts` ZIP → town; `forms.ts` the NJ UCC permit PDFs.
-- `src/app/globals.css` the Industry design system (tokens, components,
-  the phone column). Fonts are vendored (Barlow / Barlow Condensed, OFL).
+- `src/lib/me.ts` and `booking.ts` the two shell reads; `forms.ts` the NJ
+  UCC permit PDFs. `src/components/` the route-aware pieces (tiles, tabs).
+- Everything else comes from `apps/shared`: the catalogue and its pricing,
+  the design system (`industry.css`), fonts, UI primitives, Supabase glue.
 
 ## Deliberately not in v1
 

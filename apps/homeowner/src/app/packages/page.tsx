@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { loadCatalogue } from "@/lib/catalogue";
-import { AppBar, Screen, StepKicker } from "@/components/ui";
+import { createClient } from "@shared/supabase/server";
+import { loadCatalogue } from "@shared/catalogue";
+import { AppBar, Screen, StepKicker } from "@shared/ui";
 import { MoreTile, PackageTile } from "@/components/PackageTile";
 import { HomeTabs } from "@/components/HomeTabs";
 

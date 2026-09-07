@@ -1,5 +1,5 @@
-import type { Progress } from "@/lib/me";
-import { shortDay } from "@/lib/format";
+import type { Progress } from "./progress";
+import { shortDay } from "./format";
 import { CheckIcon } from "./ui";
 
 // ProgressLine - generated milestones; done, current, upcoming nodes with a

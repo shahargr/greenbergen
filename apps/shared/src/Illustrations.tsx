@@ -115,6 +115,17 @@ export const Window = ({ className }: P) => (
   </Frame>
 );
 
+export const Blinds = ({ className }: P) => (
+  <Frame className={className}>
+    <rect x="30" y="12" width="60" height="56" />
+    <path d="M30 20h60M30 28h60M30 36h60M30 44h60" />
+    <path d="M30 52h60M30 60h60" opacity=".4" />
+    <path d="M84 44v22" strokeDasharray="2 3" />
+    <circle cx="84" cy="68" r="2" />
+    <path d="M14 74h92" opacity=".5" />
+  </Frame>
+);
+
 export const Fence = ({ className }: P) => (
   <Frame className={className}>
     <path d="M20 30l6-8 6 8v44H20zM44 30l6-8 6 8v44H44zM68 30l6-8 6 8v44H68zM92 30l6-8 6 8v44H92z" />
@@ -217,7 +228,7 @@ export const Checkmark = ({ className }: P) => (
 
 const MAP: Record<string, (p: P) => React.JSX.Element> = {
   water_heater: WaterHeater, toilet: Toilet, faucet: Faucet, driveway: Driveway, painting: Painting,
-  ev_charger: EvCharger, generator: Generator, gutters: Gutters, window: Window, fence: Fence, siding: Siding,
+  ev_charger: EvCharger, generator: Generator, gutters: Gutters, blinds: Blinds, window: Window, fence: Fence, siding: Siding,
   solar: Solar, basement: Basement, kitchen: Kitchen, bathroom: Bathroom, something_else: SomethingElse,
   salt: Salt, house: House, steps: Steps, check: Checkmark,
 };

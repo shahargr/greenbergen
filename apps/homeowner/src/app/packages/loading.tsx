@@ -1,4 +1,4 @@
-import { AppBar, Screen, StepKicker } from "@/components/ui";
+import { AppBar, Screen, StepKicker } from "@shared/ui";
 import { TileSkeleton } from "@/components/PackageTile";
 
 // Screen 4c - grid loading. Skeletons keep the shape; never a spinner.

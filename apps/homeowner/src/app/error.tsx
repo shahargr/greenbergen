@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { AppBar, Blueprint, Screen } from "@/components/ui";
+import { AppBar, Blueprint, Screen } from "@shared/ui";
 
 // E2 - full-screen failure to load. Our side, not theirs; a reference so a
 // person can find it in the logs.

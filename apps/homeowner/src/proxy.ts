@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/proxy";
+import { updateSession } from "@shared/supabase/proxy";
 
 // Next 16: middleware is called proxy. Same job - session refresh and the
 // signed-out redirect - on everything but static assets.

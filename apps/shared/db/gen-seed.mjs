@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const data = JSON.parse(readFileSync(join(here, "../src/lib/catalogue.data.json"), "utf8"));
+const data = JSON.parse(readFileSync(join(here, "../src/catalogue.data.json"), "utf8"));
 
 const q = (v) => (v == null ? "null" : `'${String(v).replace(/'/g, "''")}'`);
 const n = (v) => (v == null ? "null" : String(v));

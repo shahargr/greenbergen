@@ -1,16 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
-import { isMissingFunction, rpc } from "@/lib/rpc";
-
-export type Progress = {
-  nodes: {
-    key: string; kind: "booked" | "accepted" | "payment" | "task" | "done"; name: string; sequence_no: number;
-    percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null;
-    status: "done" | "current" | "upcoming"; at: string | null;
-    stage_id?: string; amount_cents?: number; stage_status?: string; settlement_status?: string; paid_at?: string | null; settled?: boolean; unsettled?: boolean;
-    action_id?: string; action_status?: string;
-  }[];
-  done_count: number; total: number; current: Progress["nodes"][number] | null;
-};
+import { createClient } from "@shared/supabase/server";
+import { isMissingFunction, rpc } from "@shared/rpc";
+import type { Progress } from "@shared/progress";
+export type { Progress };
 
 export type BookingSummary = {
   project_id: string; package_code: string; name: string; tile_title: string; illustration: string;

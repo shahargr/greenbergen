@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getBooking, signedUrls } from "@/lib/booking";
-import { shortDate } from "@/lib/format";
-import { AppBar, Blueprint, Notice, Screen } from "@/components/ui";
+import { shortDate } from "@shared/format";
+import { AppBar, Blueprint, Notice, Screen } from "@shared/ui";
 import { ShareForm } from "./ShareForm";
 import { ShareLink } from "./ShareLink";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { Package } from "@/lib/catalogue";
-import { Illustration } from "./Illustrations";
+import type { Package } from "@shared/catalogue";
+import { Illustration } from "@shared/Illustrations";
 
 // PackageTile - icon, title, kicker; variants: default, coming-soon, quote,
 // escape-hatch, skeleton.

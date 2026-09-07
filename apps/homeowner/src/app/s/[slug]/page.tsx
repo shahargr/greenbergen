@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { rpc } from "@/lib/rpc";
-import { dollars, shortDay, shortName } from "@/lib/format";
-import { AppBar, Avatar, Blueprint, Screen } from "@/components/ui";
-import { Illustration } from "@/components/Illustrations";
+import { createClient } from "@shared/supabase/server";
+import { rpc } from "@shared/rpc";
+import { dollars, shortDay, shortName } from "@shared/format";
+import { AppBar, Avatar, Blueprint, Screen } from "@shared/ui";
+import { Illustration } from "@shared/Illustrations";
 
 export const dynamic = "force-dynamic";
 

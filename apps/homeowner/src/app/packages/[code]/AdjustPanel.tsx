@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deltaNotes, priceFor, type Package, type Selections } from "@/lib/catalogue";
-import { dollars } from "@/lib/format";
-import { CloseIcon } from "@/components/ui";
+import { deltaNotes, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { dollars } from "@shared/format";
+import { CloseIcon } from "@shared/ui";
 
 // Screen 6 - the Adjust panel. Two tabs over the same levers: direct
 // control (segmented controls and radios) and a chat that asks one fixed

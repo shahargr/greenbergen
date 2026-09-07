@@ -1,27 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
+import "@shared/styles/industry.css";
 import "./globals.css";
-import { OfflineBanner } from "@/components/OfflineBanner";
-
-// Barlow and Barlow Condensed (OFL), vendored from the design pass so the
-// build never depends on a font CDN.
-const barlow = localFont({
-  src: [
-    { path: "../fonts/barlow-400.woff2", weight: "400", style: "normal" },
-    { path: "../fonts/barlow-500.woff2", weight: "500", style: "normal" },
-    { path: "../fonts/barlow-700.woff2", weight: "700", style: "normal" },
-  ],
-  variable: "--font-barlow",
-  display: "swap",
-});
-const barlowCondensed = localFont({
-  src: [
-    { path: "../fonts/barlow-condensed-400.woff2", weight: "400", style: "normal" },
-    { path: "../fonts/barlow-condensed-600.woff2", weight: "600", style: "normal" },
-  ],
-  variable: "--font-barlow-condensed",
-  display: "swap",
-});
+import { fontClassName } from "@shared/fonts";
+import { OfflineBanner } from "@shared/OfflineBanner";
 
 export const metadata: Metadata = {
   title: { default: "Green Bergen", template: "%s · Green Bergen" },
@@ -39,7 +20,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable}`}>
+    <html lang="en" className={fontClassName}>
       <body>
         <div className="app">
           <OfflineBanner />

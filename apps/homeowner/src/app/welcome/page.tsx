@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { getMe } from "@/lib/me";
-import { AppBar, Blueprint, Screen } from "@/components/ui";
-import { Steps } from "@/components/Illustrations";
-import { firstName } from "@/lib/format";
+import { AppBar, Blueprint, Screen } from "@shared/ui";
+import { Steps } from "@shared/Illustrations";
+import { firstName } from "@shared/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Welcome" };
