@@ -35,9 +35,23 @@ export const COMMUNITY_SERVICES = data.community_services as CommunityService[];
 
 export type Catalogue = { packages: Package[]; source: "database" | "static" };
 
+// The catalogue is 37 kB of template data, identical for every visitor and
+// readable by anon - so one copy per server instance is safe and correct.
+// Measured: the query costs 5 ms in Postgres but 190 ms warm (700 ms on a
+// cold instance) over the wire, on EVERY package view. Holding it for five
+// minutes turns that into one call per instance per five minutes. Only a
+// real database answer is ever memoised; the JSON fallback is not, so a
+// blip never sticks.
+const HOLD_MS = 5 * 60 * 1000;
+let held: { at: number; packages: Package[] } | null = null;
+
 export async function loadCatalogue(supabase: SupabaseClient): Promise<Catalogue> {
+  if (held && Date.now() - held.at < HOLD_MS) return { packages: held.packages, source: "database" };
   const { data: rows, error } = await timed("catalogue.rpc", () => rpc<Package[]>(supabase, "homeowner_catalogue"));
-  if (!error && Array.isArray(rows) && rows.length > 0) return { packages: rows, source: "database" };
+  if (!error && Array.isArray(rows) && rows.length > 0) {
+    held = { at: Date.now(), packages: rows };
+    return { packages: rows, source: "database" };
+  }
   if (error && !isMissingFunction(error)) {
     // A real error on the live catalogue still leaves the static set usable.
     console.error("homeowner_catalogue:", error.message);
