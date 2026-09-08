@@ -59,7 +59,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons unread={unread} />} />
+      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} />} />
       <div className="body">
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
         {ok === "removed" && <div className="banner-ok">Plan removed. Nothing was ever sent.</div>}

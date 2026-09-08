@@ -52,7 +52,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons gearHref="/settings" inboxHref="/inbox" />} />
+      <AppBar brand door="builder" right={<ShellIcons gearHref="/settings" inboxHref="/inbox" />} />
       <div className="body">
         {board.degraded && (
           <Notice kind="error" title="We couldn&apos;t load the whole board.">

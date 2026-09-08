@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { DOORS, DOOR_ORDER, type DoorKey } from "./doors";
 
 // The reusable pieces named in the design's component list. Plain CSS
 // classes from warm-ink.css; no client state here.
@@ -53,8 +54,8 @@ export function Wordmark({ size = 15 }: { size?: number }) {
 
 // AppBar - brand / back + title / trailing action.
 export function AppBar({
-  back, title, sub, right, brand = false,
-}: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean }) {
+  back, title, sub, right, brand = false, door,
+}: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean; door?: DoorKey }) {
   return (
     <header className="appbar">
       {typeof back === "string" && (
@@ -64,7 +65,15 @@ export function AppBar({
         <button type="button" onClick={back} className="btn btn-ghost btn-icon" aria-label="Back"><BackIcon /></button>
       )}
       {brand && !title && (
-        <Link href="/" className="brand grow"><Wordmark /><span className="sub">Bergen County community, not a marketplace.</span></Link>
+        <Link href="/" className="brand grow">
+          <Wordmark />
+          {/* Signed in, the line under the wordmark says which door you are
+              standing in. Signed out it sells - a stranger needs the pitch,
+              and someone already inside needs to know where they are. */}
+          {door
+            ? <DoorPill door={door} />
+            : <span className="sub">Bergen County community, not a marketplace.</span>}
+        </Link>
       )}
       {title && (
         <div className="title">{title}{sub && <span className="sub">{sub}</span>}</div>
@@ -72,6 +81,66 @@ export function AppBar({
       {!brand && !title && <span className="grow" />}
       {right}
     </header>
+  );
+}
+
+// Which door you are standing in. A glyph and a word on a soft pill - no new
+// colour, because Warm Ink reserves coral for status and a role is not a
+// status. The glyph is what you recognise at a glance in a screenshot; the
+// word is what you read the first time.
+// A span, not a link: the brand it sits inside is already a link, and a link
+// inside a link is invalid HTML that browsers silently unnest.
+export function DoorPill({ door }: { door: DoorKey }) {
+  return (
+    <span className="door-pill" title={DOORS[door].blurb}>
+      <DoorIcon door={door} />
+      <span>{DOORS[door].label}</span>
+    </span>
+  );
+}
+
+export function DoorIcon({ door, size = 13 }: { door: DoorKey; size?: number }) {
+  const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+    strokeWidth: 2.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  if (door === "homeowner") {
+    return <svg {...p}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" /></svg>;
+  }
+  if (door === "contractor") {
+    // A wrench: the trade's own tool.
+    return <svg {...p}><path d="M15.5 3.5a5.5 5.5 0 0 0-6.9 6.9L3.4 15.6a2 2 0 0 0 0 2.8l2.2 2.2a2 2 0 0 0 2.8 0l5.2-5.2a5.5 5.5 0 0 0 6.9-6.9l-3 3-2.9-.7-.7-2.9z" /></svg>;
+  }
+  if (door === "builder") {
+    // A plumb line over a base: someone setting the work out, not doing it.
+    return <svg {...p}><path d="M12 3v9" /><path d="m8.5 12 3.5 6 3.5-6z" /><path d="M3 21h18" /></svg>;
+  }
+  // The portal: everything, in rows.
+  return <svg {...p}><path d="M4 5h16M4 12h16M4 19h16" /></svg>;
+}
+
+// The switcher. Only the doors this person actually holds, and never the one
+// they are standing in - a list that offers you the room you are in reads as
+// broken. These are separate deployments on separate origins, so each is a
+// plain link out, not a tab.
+export function DoorSwitch({ held, current }: { held: DoorKey[]; current: DoorKey }) {
+  const others = DOOR_ORDER.filter((k) => k !== current && held.includes(k));
+  if (others.length === 0) return null;
+  return (
+    <section className="stack" style={{ gap: 8 }}>
+      <div className="divider-label">Also yours</div>
+      {others.map((k) => (
+        <a key={k} href={DOORS[k].url} className="home-row">
+          <span className="ic"><DoorIcon door={k} size={20} /></span>
+          <span className="grow" style={{ minWidth: 0 }}>
+            <span className="t">{DOORS[k].full}</span>
+            <span className="m" style={{ display: "block" }}>{DOORS[k].blurb}</span>
+          </span>
+          <ChevronIcon />
+        </a>
+      ))}
+      <p className="tiny text-muted" style={{ margin: 0 }}>
+        Same sign-in, same account — these are different views of it, not different logins.
+      </p>
+    </section>
   );
 }
 

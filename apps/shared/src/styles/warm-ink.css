@@ -190,6 +190,20 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .wordmark .wm-green { color: var(--color-brand); }
 .wordmark .wm-ink { color: var(--color-text); }
 .brand .sub { display: block; font-family: var(--font-body); font-weight: 500; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); }
+
+/* Which door you are in. Sits in the same slot the tagline uses when signed
+   out. Deliberately NOT coloured per role: coral is reserved for status, and
+   which app you are in is not a status. The glyph carries the recognition. */
+.door-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 3px; padding: 3px 9px 3px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-soft);
+  color: var(--color-text);
+  font-family: var(--font-heading); font-weight: 700; font-size: 11px;
+  letter-spacing: 0.02em; line-height: 1.4;
+}
+.door-pill > svg { flex: none; opacity: 0.75; }
 .step-kicker { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-family: var(--font-heading); font-weight: 700; }
 
 /* headline block */

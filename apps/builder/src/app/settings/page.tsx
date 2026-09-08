@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AppBar, Card, Screen } from "@shared/ui";
+import { AppBar, Card, DoorSwitch, Screen } from "@shared/ui";
+import { loadDoors } from "@shared/doors.server";
 import { getBoard, runs } from "@/lib/me";
 import { signOut } from "./actions";
 
@@ -8,7 +9,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Your account" };
 
 export default async function SettingsPage() {
-  const board = await getBoard();
+  // Neither read depends on the other, so they leave together.
+  const [board, doors] = await Promise.all([getBoard(), loadDoors()]);
   if (!board.signed_in) redirect("/login?next=/settings");
   const manages = board.seats.filter(runs).length;
 
@@ -25,6 +27,8 @@ export default async function SettingsPage() {
             {board.me?.is_superadmin ? " · admin" : ""}
           </div>
         </Card>
+
+        <DoorSwitch held={doors.held} current="builder" />
 
         <Card soft pad>
           <div className="kicker">Next</div>

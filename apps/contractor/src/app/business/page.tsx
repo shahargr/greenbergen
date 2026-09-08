@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe, outstanding } from "@/lib/me";
-import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, DoorSwitch, Notice, Screen } from "@shared/ui";
+import { loadDoors } from "@shared/doors.server";
 import { saveBusiness, signOut } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,8 @@ export const metadata = { title: "Your business" };
 // contact, so there is no company id to tamper with.
 export default async function BusinessPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { ok, error } = await searchParams;
-  const me = await getMe();
+  // Neither depends on the other, so they leave together.
+  const [me, doors] = await Promise.all([getMe(), loadDoors()]);
   if (!me.signed_in) redirect("/login?next=/business");
   const c = me.company;
   const left = outstanding(me);
@@ -112,6 +114,8 @@ export default async function BusinessPage({ searchParams }: { searchParams: Pro
             </div>
           </Card>
         )}
+
+        <DoorSwitch held={doors.held} current="contractor" />
 
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Account</div>

@@ -18,7 +18,7 @@ export default async function PackagesPage() {
   const more = tiles.filter((p) => p.tile_group === "more" || p.availability === "coming_soon");
   return (
     <Screen>
-      <AppBar brand right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
+      <AppBar brand door={signedIn ? "homeowner" : undefined} right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">

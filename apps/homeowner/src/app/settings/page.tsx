@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getMe } from "@/lib/me";
-import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, DoorSwitch, Notice, Screen } from "@shared/ui";
+import { loadDoors } from "@shared/doors.server";
 import { CopyLink } from "../project/[id]/people/CopyLink";
 import { HomeTabs } from "@/components/HomeTabs";
 import { invitePerson, signOut } from "./actions";
@@ -15,7 +16,8 @@ const PORTAL = process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://greenbergen.vercel
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; token?: string; who?: string; kind?: string }> }) {
   const { error, token, who, kind } = await searchParams;
-  const me = await getMe();
+  // Neither depends on the other, so they leave together.
+  const [me, doors] = await Promise.all([getMe(), loadDoors()]);
   const link = token ? `${PORTAL}/join?invite=${encodeURIComponent(token)}` : null;
 
   if (!me.signed_in) {
@@ -114,6 +116,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             </Card>
           )}
         </section>
+
+        <DoorSwitch held={doors.held} current="homeowner" />
 
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Account</div>

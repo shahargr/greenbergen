@@ -23,7 +23,7 @@ export default async function WorkPage() {
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand door="contractor" right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
       <div className="body">
         {me.missing && <Notice title="Preview mode">The contractor migration has not been applied to this database yet, so your profile cannot be read.</Notice>}
         {me.degraded && <Notice kind="error" title="We couldn&apos;t load your account just now.">Nothing is lost. <Link href="/work">Try again</Link>, and if it keeps happening tell us.</Notice>}
