@@ -26,6 +26,7 @@ apps/shared/
     ├── 006_homeowner_photos.sql      delta: photos are asked for AFTER booking (a request on public.actions) + homeowner_catalogue_tiles
     ├── 007_homeowner_task_update.sql delta: an update is not a completion (homeowner_task_update); blinds moves to the More grid
     ├── 008_address_after_award.sql   THE ADDRESS RULE: no street line to a contractor until the bid is awarded; town always
+    ├── 009_contractor_identity.sql   the contractor app: contractor_approvals, register, me, business, trades
     └── gen-seed.mjs
 ```
 
