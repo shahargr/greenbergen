@@ -8,8 +8,24 @@ and the code in this repo. This is a **brief for drawing screens**, not a spec
 for building them: it says what has to be on each screen and what is true
 underneath, and leaves the layout to the designer.
 
-Its sibling is `apps/homeowner/docs/retiring-the-old-portal.md`, which does the
-same job for the homeowner side. Where the two apps meet, this document says so.
+**Read `apps/contractor/BUILD.md` first.** That is the SPEC - what to build, in
+what order, on which tables, and the four decisions the app is built on
+(pooling is opt-in on the homeowner's side and is never a contractor discount;
+browsing is free but documents gate the first accept; "ask for details" never
+releases the address). This file is the SCREEN BRIEF: what has to be on each
+screen and which RPC feeds it. Where the two disagree, BUILD.md wins and this
+file is wrong.
+
+Its sibling for the homeowner side is `apps/homeowner/docs/retiring-the-old-portal.md`;
+`docs/PORTAL-DEPRECATION.md` maps what the root portal still holds that no app
+has replaced.
+
+**Status, 2026-09-08:** §3 (getting in) and §4.1 (business, trades, documents)
+ARE BUILT and live at `greenbergen-contractor.vercel.app`. Everything from §5
+onward - the offer feed, both bid doors, the job, money, finishing - is not.
+Read the [live]/[wired]/[new] tags below as describing the DATABASE, not the
+contractor app: "[live]" means the root portal renders it today, not that this
+app does.
 
 ## How to read it
 
@@ -31,8 +47,8 @@ keeps the drawing honest.
 
 Green Bergen is one Supabase database with several front ends. The homeowner
 app (`apps/homeowner`, live) is where a resident picks a pre-priced package and
-books it. The contractor app (`apps/contractor`, **not started**) is the other
-side of the same glass: the offer that homeowner created arrives here, and one
+books it. The contractor app (`apps/contractor`, **signup and business built,
+the rest not**) is the other side of the same glass: the offer that homeowner created arrives here, and one
 contractor takes it.
 
 Same Supabase Auth, same `app_users` row, same login (email code or Google).

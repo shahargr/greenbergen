@@ -463,6 +463,20 @@ price.
 
 ## 12. Open decisions
 
+> **Tracked in the database, not here.** Each of the decisions below is a row in
+> `public.actions` (domain `system`, on Master Template) under the parent
+> *"Contractor app: settle the seven open decisions (BUILD.md §12)"*. They are
+> **gate children**, so `trg_actions_gate_block` will not let the parent close
+> while any is open — the app cannot quietly ship past an unanswered decision.
+>
+> Every one has a stated default, so silence ships the default. That is the
+> point: these exist so it is a choice and not an accident.
+>
+> **When one is answered:** close the child AND write the answer into this
+> section in the same breath, so the spec and the task list never disagree.
+> Tasks live in `public.actions` — never start a second list (CLAUDE.md).
+
+
 Answer these before the migration that touches them; each has a stated
 default so the build is not blocked.
 

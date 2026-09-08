@@ -202,3 +202,16 @@ export const decodeSelections = (pkg: Package, raw: string | undefined | null): 
   }
   return sel;
 };
+
+// ---------------------------------------------------------------------------
+// Public copy. The tagline under the wordmark on signed-out pages, editable in
+// Admin (config.public_tagline, migration 013) so five words of marketing do
+// not need a deploy.
+//
+// Cached exactly like the catalogue and for the same reason: it is identical
+// for every visitor and changes when someone edits it, not per request. Up to
+// five minutes between an edit and every deployment seeing it.
+export async function loadTagline(): Promise<string | null> {
+  const row = await catalogueRpc<{ tagline?: string | null }>("public_settings");
+  return row?.tagline ?? null;
+}

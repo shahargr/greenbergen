@@ -85,6 +85,20 @@ export async function saveTrashRetention(formData: FormData) {
     : `/admin?saved=1`);
 }
 
+// The line under the wordmark on PUBLIC pages, across all four apps. Signed
+// in, the logo carries the app's own name instead, so this is the pitch a
+// stranger reads and nothing else. public_tagline_set checks is_superadmin
+// itself rather than trusting this file.
+export async function savePublicTagline(formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("public_tagline_set", {
+    p_tagline: String(formData.get("tagline") ?? "").trim(),
+  });
+  redirect(error || !data?.ok
+    ? `/admin?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save.")}`
+    : `/admin?saved=1`);
+}
+
 // The welcome video shown to first-run users (YouTube link or MP4 URL).
 export async function saveWelcomeVideo(formData: FormData) {
   const supabase = await createClient();

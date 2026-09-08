@@ -6,7 +6,7 @@ import { OfflineBanner } from "@shared/OfflineBanner";
 
 export const metadata: Metadata = {
   title: { default: "Green Bergen Community", template: "%s · Green Bergen Community" },
-  description: "Bergen County community, not a marketplace. The safe way to meet contractors in our community.",
+  description: "A real community, not just a marketplace. The safe way to meet contractors in our community.",
   applicationName: "Green Bergen Community",
   appleWebApp: { capable: true, title: "Green Bergen", statusBarStyle: "default" },
 };

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@shared/supabase/server";
-import { loadTiles } from "@shared/catalogue";
+import { loadTagline, loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Screen, ShellIcons, StepKicker } from "@shared/ui";
 import { MoreTile, PackageTile } from "@/components/PackageTile";
@@ -13,12 +13,12 @@ export const metadata = { title: "Packages" };
 // instantly; a More tile holds the rest.
 export default async function PackagesPage() {
   const supabase = await createClient();
-  const [{ tiles }, signedIn] = await Promise.all([loadTiles(), isSignedIn(supabase)]);
+  const [{ tiles }, signedIn, tagline] = await Promise.all([loadTiles(), isSignedIn(supabase), loadTagline()]);
   const front = tiles.filter((p) => p.tile_group === "front" && p.availability !== "coming_soon");
   const more = tiles.filter((p) => p.tile_group === "more" || p.availability === "coming_soon");
   return (
     <Screen>
-      <AppBar brand door={signedIn ? "homeowner" : undefined} right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
+      <AppBar brand door={signedIn ? "homeowner" : undefined} tagline={tagline} right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">

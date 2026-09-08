@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
+import { loadTagline } from "@shared/catalogue";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,16 @@ export const dynamic = "force-dynamic";
 export default async function Landing() {
   const supabase = await createClient();
   if (await isSignedIn(supabase)) redirect("/work");
+  const tagline = await loadTagline();
 
   return (
     <Screen>
-      <AppBar brand />
+      <AppBar brand tagline={tagline} />
       <div className="body">
         <div className="hero">
           <h1>Work from the people who live here.</h1>
           <p className="lead">
-            Green Bergen is a Bergen County community, not a marketplace. Neighbours book pre-priced
+            Green Bergen is a real community, not just a marketplace. Neighbours book pre-priced
             packages; you accept the ones you want at the community price.
           </p>
         </div>

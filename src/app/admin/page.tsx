@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { saveBanner, saveTips, saveTrashRetention, saveWelcomeVideo, setGodMode } from "./actions";
+import { saveBanner, savePublicTagline, saveTips, saveTrashRetention, saveWelcomeVideo, setGodMode } from "./actions";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -18,7 +18,7 @@ export default async function AdminHome() {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
   const godOn = (await cookies()).get("gb_god")?.value === "1";
-  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url").maybeSingle();
+  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url, public_tagline").maybeSingle();
   const trashDays = cfgRow?.trash_retention_days ?? 14;
   const { data: bannerRows } = await supabase
     .from("community_banners")
@@ -62,6 +62,22 @@ export default async function AdminHome() {
             {!s.live && <span className="small" style={{ color: "var(--brand)" }}>To be developed</span>}
           </Link>
         ))}
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 8 }}>
+        <h2 className="section-title">Public tagline</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          The line under the logo on public pages, in all four apps. Signed-in
+          screens show the app&apos;s own name there instead, so this is what a
+          stranger reads. Up to 120 characters; edits reach every app within
+          five minutes.
+        </p>
+        <form action={savePublicTagline} className="btn-row">
+          <input name="tagline" className="input" maxLength={120}
+            defaultValue={cfgRow?.public_tagline ?? ""}
+            placeholder="A real community, not just a marketplace." style={{ maxWidth: 420 }} />
+          <button className="btn">Save</button>
+        </form>
       </div>
 
       <div className="card" style={{ display: "grid", gap: 8 }}>

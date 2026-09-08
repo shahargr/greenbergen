@@ -2,6 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { DOORS, DOOR_ORDER, type DoorKey } from "./doors";
 
+// The wording of last resort, if config.public_tagline is unset and the
+// database is unreachable. Editable in Admin; see migration 013.
+export const DEFAULT_TAGLINE = "A real community, not just a marketplace.";
+
 // The reusable pieces named in the design's component list. Plain CSS
 // classes from warm-ink.css; no client state here.
 
@@ -67,8 +71,12 @@ export function Wordmark({ size = 15, door }: { size?: number; door?: DoorKey })
 
 // AppBar - brand / back + title / trailing action.
 export function AppBar({
-  back, title, sub, right, brand = false, door,
-}: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean; door?: DoorKey }) {
+  back, title, sub, right, brand = false, door, tagline,
+}: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean; door?: DoorKey;
+     // Public pages only - signed in, the logo carries the app name instead.
+     // Editable in Admin (config.public_tagline); this is the fallback if the
+     // database has not answered.
+     tagline?: string | null }) {
   return (
     <header className="appbar">
       {typeof back === "string" && (
@@ -83,7 +91,7 @@ export function AppBar({
               sells - a stranger needs the pitch, and someone already inside
               needs to know where they are. One line either way. */}
           <Wordmark door={door} />
-          {!door && <span className="sub">Bergen County community, not a marketplace.</span>}
+          {!door && <span className="sub">{tagline ?? DEFAULT_TAGLINE}</span>}
         </Link>
       )}
       {title && (

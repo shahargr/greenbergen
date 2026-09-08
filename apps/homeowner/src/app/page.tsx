@@ -4,6 +4,7 @@ import { createClient } from "@shared/supabase/server";
 import { isSignedIn } from "@shared/supabase/session";
 import { rpc } from "@shared/rpc";
 import { AppBar, Card, Screen } from "@shared/ui";
+import { loadTagline } from "@shared/catalogue";
 import { House } from "@shared/Illustrations";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ const SHOW_MEMBER_COUNT = false;
 export default async function Landing({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string }> }) {
   const { ref, name } = await searchParams;
   const supabase = await createClient();
-  const signedIn = await isSignedIn(supabase);
+  const [signedIn, tagline] = await Promise.all([isSignedIn(supabase), loadTagline()]);
   if (signedIn && !ref) redirect("/project");
 
   let inviter: RefPreview | null = null;
@@ -31,7 +32,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
 
   return (
     <Screen>
-      <AppBar brand />
+      <AppBar brand tagline={tagline} />
       <div className="body">
         {inviter ? (
           <Card pad>
