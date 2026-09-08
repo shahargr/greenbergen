@@ -4,7 +4,7 @@ import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
-import { AppBar, Card, Notice, Screen } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { getBoard, money, runs, type Task } from "@/lib/me";
 import { BuildTabs } from "@/components/BuildTabs";
 
@@ -44,6 +44,16 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   if (!seat) notFound();
   const manages = runs(seat);
 
+  // What sits beneath this project, and where "back" goes - both come out of
+  // the board read we already have, so neither costs a query.
+  const kids = board.seats.filter((s) => s.parent_project_id === id);
+  const parent = seat.parent_project_id && board.seats.some((s) => s.project_id === seat.parent_project_id)
+    ? seat.parent_project_id : null;
+  const openByProject = new Map<string, number>();
+  for (const t of board.tasks) {
+    if (t.state === "open" && t.project_id) openByProject.set(t.project_id, (openByProject.get(t.project_id) ?? 0) + 1);
+  }
+
   const open = (tasksData ?? []).filter((t) => t.state === "open");
   const today = new Date().toISOString().slice(0, 10);
   const late = open.filter((t) => t.target_date && t.target_date < today);
@@ -52,7 +62,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   return (
     <Screen>
-      <AppBar back="/" title={seat.project_name} sub={seat.address ?? seat.parent_name ?? undefined} />
+      <AppBar back={parent ? `/project/${parent}` : "/"} title={seat.project_name}
+        sub={seat.address ?? seat.parent_name ?? undefined} />
       <div className="body">
         <div className="kicker">
           {manages ? "You run this" : seat.seat ?? "Your seat"} · {seat.status}
@@ -61,7 +72,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
         {/* The three numbers a GC checks first. */}
         <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-          <Stat n={String(open.length)} label={open.length === 1 ? "open task" : "open tasks"} tone={late.length ? "status" : undefined} />
+          <Stat n={String(open.length)}
+            label={kids.length ? "open here" : open.length === 1 ? "open task" : "open tasks"}
+            tone={late.length ? "status" : undefined} />
           <Stat n={String(packages.filter((p) => p.status === "open").length)} label="out to bid" />
           <Stat n={money(roll?.owed ?? seat.owed) ?? "—"} label="owed" />
         </div>
@@ -69,6 +82,35 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <Notice kind="error" title={`${late.length} ${late.length === 1 ? "task is" : "tasks are"} late.`}>
             The oldest was due {shortDate(late.sort((a, b) => (a.target_date ?? "").localeCompare(b.target_date ?? ""))[0]!.target_date)}.
           </Notice>
+        )}
+
+        {/* What sits beneath this one. A development lists its homes, a home
+            lists its jobs - the same order as the board, busiest first. */}
+        {kids.length > 0 && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">
+              {kids.length} {kids.length === 1 ? "job beneath" : "jobs beneath"}
+            </div>
+            {[...kids]
+              .sort((a, b) => (openByProject.get(b.project_id) ?? 0) - (openByProject.get(a.project_id) ?? 0)
+                || a.project_name.localeCompare(b.project_name))
+              .map((k) => {
+                const n = openByProject.get(k.project_id) ?? 0;
+                return (
+                  <Link href={`/project/${k.project_id}`} className="home-row" key={k.project_id}>
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t">{k.project_name}</span>
+                      <span className="m" style={{ display: "block" }}>
+                        {[k.seat && !runs(k) ? k.seat : null, k.status].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                    {n > 0
+                      ? <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>{n} open</span>
+                      : <ChevronIcon />}
+                  </Link>
+                );
+              })}
+          </section>
         )}
 
         {/* Bids. The address rule applies here too: a trade invited to bid

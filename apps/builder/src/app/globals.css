@@ -1,2 +1,33 @@
 /* Builder app - anything specific to this app goes here. The design
    system itself is apps/shared/src/styles/warm-ink.css. */
+
+/* The board is a tree: a development holds homes, a home holds jobs. Only
+   the top level is on the page; <details> folds the rest away with no state
+   and no second request. */
+.branch > summary { list-style: none; user-select: none; }
+.branch > summary::-webkit-details-marker { display: none; }
+.branch > summary::before {
+  content: "";
+  display: inline-block;
+  width: 0; height: 0;
+  margin-right: 6px;
+  vertical-align: 1px;
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform 0.12s ease;
+}
+.branch[open] > summary::before { transform: rotate(90deg); }
+.branch > summary:hover { color: var(--color-text); }
+
+/* A job under a home reads as part of it, not as a peer of it. */
+.home-row.sub {
+  background: var(--color-soft-2);
+  box-shadow: none;
+  border-left: 2px solid var(--color-divider-strong);
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.home-row.sub .t { font-size: 13.5px; }

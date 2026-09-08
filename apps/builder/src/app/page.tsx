@@ -2,16 +2,24 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { stopwatch } from "@shared/perf";
-import { BUCKETS, getBoard, money, runs, type BucketKey, type Seat } from "@/lib/me";
+import {
+  BUCKETS, anyRuns, buildTree, getBoard, money, prune, runs,
+  type BucketKey, type Node,
+} from "@/lib/me";
 import { BuildTabs } from "@/components/BuildTabs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your board" };
 
-// The board: every project you hold a seat on, split by whether you RUN it
-// (a manager seat - PM or GC) or work on it. portal_my_work() computes the
-// whole thing, buckets included, so this screen is arrangement and nothing
-// else. The portal's /contractor builds the same list by querying
+// The board: every project you hold a seat on, arranged the way the work is
+// actually arranged - a development holds homes, a home holds jobs. Only the
+// top of each tree is on the page; what is beneath it is one tap away and
+// counted on the row, so the board answers "where is the work" before it
+// answers "what is the work".
+//
+// portal_my_work() computes the whole thing - seat, rank, buckets, money -
+// and hands over parent_project_id with it, so the hierarchy costs no extra
+// read. The portal's /contractor builds the same list by querying
 // project_members and projects by hand; that is the thing not to copy.
 export default async function BoardPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const { show } = await searchParams;
@@ -21,16 +29,20 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   if (!board.signed_in) redirect("/login?next=/");
 
   const filter: BucketKey = BUCKETS.some((b) => b.key === show) ? (show as BucketKey) : "all";
-  const inBucket = (s: Seat) => filter === "all" || (s.buckets ?? []).includes(filter);
   const counts: Record<string, number> = { all: board.seats.length };
   for (const s of board.seats) for (const b of s.buckets ?? []) counts[b] = (counts[b] ?? 0) + 1;
 
-  const shown = board.seats.filter(inBucket);
-  const mine = shown.filter(runs);
-  const theirs = shown.filter((s) => !runs(s));
-  const openTasks = board.tasks.filter((t) => t.state === "open");
+  const full = buildTree(board.seats, board.tasks, board.me?.contact_id ?? null);
+  // A filter hides rows, never the row that leads to them - so a development
+  // survives on the strength of a job three levels down, and opens itself.
+  const tree = filter === "all" ? full : prune(full, (s) => (s.buckets ?? []).includes(filter));
+  const mine = tree.filter(anyRuns);
+  const theirs = tree.filter((n) => !anyRuns(n));
+
+  const openTasks = board.tasks.filter((t) => t.state === "open").length;
   const owed = board.seats.reduce((a, s) => a + (s.owed ?? 0), 0);
   const first = board.me?.full_name?.trim().split(" ")[0] ?? null;
+  const beneath = full.reduce((a, n) => a + n.count, 0);
 
   return (
     <Screen>
@@ -47,7 +59,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
           <p className="lead">
             {board.seats.length === 0
               ? "No project seats yet. When a project hands you the PM or GC seat, it lands here."
-              : `${mine.length || "No"} ${mine.length === 1 ? "project" : "projects"} you run${theirs.length ? `, ${theirs.length} you work on` : ""}${openTasks.length ? ` · ${openTasks.length} open ${openTasks.length === 1 ? "task" : "tasks"}` : ""}${money(owed) ? ` · ${money(owed)} owed` : ""}.`}
+              : `${full.length} ${full.length === 1 ? "property" : "properties"}${beneath ? `, ${beneath} ${beneath === 1 ? "job" : "jobs"} beneath` : ""}${openTasks ? ` · ${openTasks} open ${openTasks === 1 ? "task" : "tasks"}` : ""}${money(owed) ? ` · ${money(owed)} owed` : ""}.`}
           </p>
         </div>
 
@@ -63,18 +75,18 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
         {mine.length > 0 && (
           <section className="stack" style={{ gap: 8 }}>
             <div className="divider-label">Projects you run · {mine.length}</div>
-            {mine.map((s) => <SeatRow key={s.project_id} s={s} />)}
+            {mine.map((n) => <Branch key={n.seat.project_id} n={n} open={filter !== "all"} />)}
           </section>
         )}
 
         {theirs.length > 0 && (
           <section className="stack" style={{ gap: 8 }}>
             <div className="divider-label">Projects you work on · {theirs.length}</div>
-            {theirs.map((s) => <SeatRow key={s.project_id} s={s} />)}
+            {theirs.map((n) => <Branch key={n.seat.project_id} n={n} open={filter !== "all"} />)}
           </section>
         )}
 
-        {shown.length === 0 && board.seats.length > 0 && (
+        {tree.length === 0 && board.seats.length > 0 && (
           <Card soft pad><div className="small">Nothing in that filter. <Link href="/">Show everything</Link>.</div></Card>
         )}
 
@@ -88,7 +100,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
           </Card>
         )}
       </div>
-      <BuildTabs current="board" tasks={openTasks.length} />
+      <BuildTabs current="board" tasks={openTasks} />
     </Screen>
   );
 }
@@ -103,27 +115,60 @@ function Chip({ k, label, n, on }: { k: string; label: string; n: number; on: bo
   );
 }
 
+// One top-level property, with everything beneath it folded away. <details>
+// keeps the fold server-rendered and free - no state, no second request, and
+// it still works with JavaScript off.
+function Branch({ n, open }: { n: Node; open: boolean }) {
+  return (
+    <div className="stack" style={{ gap: 0 }}>
+      <Row n={n} />
+      {n.children.length > 0 && (
+        <details open={open} className="branch">
+          <summary className="tiny text-muted" style={{ cursor: "pointer", padding: "6px 4px 2px 14px", listStyle: "none" }}>
+            {n.count} {n.count === 1 ? "job" : "jobs"} beneath
+          </summary>
+          <div className="stack" style={{ gap: 6, paddingTop: 4 }}>
+            {n.children.map((c) => <Twig key={c.seat.project_id} n={c} depth={1} />)}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function Twig({ n, depth }: { n: Node; depth: number }) {
+  return (
+    <>
+      <Row n={n} depth={depth} />
+      {n.children.map((c) => <Twig key={c.seat.project_id} n={c} depth={depth + 1} />)}
+    </>
+  );
+}
+
 // One project. The line has to say where it is and what it wants from you,
-// because a GC with fifteen seats reads this list and nothing else.
-function SeatRow({ s }: { s: Seat }) {
-  const where = s.address ?? null;
+// because a GC with fifteen seats reads this list and nothing else. The
+// counts are rolled up: a development's number is the work under it.
+function Row({ n, depth = 0 }: { n: Node; depth?: number }) {
+  const s = n.seat;
   const bits = [
-    s.parent_name ? `under ${s.parent_name}` : null,
-    where,
+    depth === 0 ? s.address : null,
     s.seat && !runs(s) ? s.seat : null,
     s.status,
+    n.count > 0 && depth > 0 ? `${n.count} beneath` : null,
   ].filter(Boolean) as string[];
-  const owed = money(s.owed);
+  const owed = money(n.owed);
   return (
-    <Link href={`/project/${s.project_id}`} className="home-row">
+    <Link href={`/project/${s.project_id}`} className={depth ? "home-row sub" : "home-row"}
+      style={depth ? { marginLeft: 14 + (depth - 1) * 12 } : undefined}>
       <span className="grow" style={{ minWidth: 0 }}>
-        <span className="t">{s.project_name}</span>
-        <span className="m" style={{ display: "block" }}>{bits.join(" · ")}</span>
+        <span className="t" style={depth ? { fontSize: 15 } : undefined}>{s.project_name}</span>
+        {bits.length > 0 && <span className="m" style={{ display: "block" }}>{bits.join(" · ")}</span>}
       </span>
       <span className="stack" style={{ gap: 4, alignItems: "flex-end" }}>
-        {s.my_open_tasks > 0 && <span className="tag tag-status">{s.my_open_tasks} open</span>}
-        {owed && <span className="tag tag-outline">{owed}</span>}
-        {s.my_open_tasks === 0 && !owed && <ChevronIcon />}
+        {n.open > 0 && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>{n.open} open</span>}
+        {n.mine > 0 && <span className="tag tag-status" style={{ whiteSpace: "nowrap" }}>{n.mine} on you</span>}
+        {owed && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>{owed}</span>}
+        {n.open === 0 && n.mine === 0 && !owed && <ChevronIcon />}
       </span>
     </Link>
   );
