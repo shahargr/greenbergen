@@ -106,6 +106,16 @@ exist until the three files in `apps/shared/db/` are applied, in order:
    stays for the one-tap close on the job screen. Blinds & shades also moves
    from the front grid to More, leaving the eight the home screen prices on
    the spot. Folded into 003.
+8. `008_address_after_award.sql` - **the address rule**, and the one rule in
+   here that is about the community rather than a screen: a contractor who is
+   invited to bid, or who bid and lost, is told the TOWN and nothing else. The
+   street line arrives when the job is theirs. `bid_may_see_address(project)`
+   is the single test (you manage it, you are seated on it, you won its bid,
+   or you hold its contract); `project_town` and `project_label_no_address`
+   are what everyone else gets. It lives in the database, not in a screen,
+   because the portal, this app and the contractor app that does not exist yet
+   all have to pass through it. NOT folded into 003 - it narrows portal
+   functions that predate the homeowner app.
 
 They were dry-run against the live project inside a rolled-back transaction
 (schema + seed + functions + a full booking → accept → pay → close → share

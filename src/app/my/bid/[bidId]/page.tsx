@@ -21,6 +21,8 @@ type Bid = {
     // The home the job hangs under: what tells two jobs of the same name
     // apart for a bidder who prices work on five sites.
     project_parent_id: string | null; project_parent_name: string | null;
+    // Withheld by the database until this bid is awarded; town always comes.
+    town: string | null; may_see_address: boolean; address: string | null;
     phase: string | null; category: string | null; trade: string | null;
     scope_summary: string | null; reply_by: string | null; status: string; budget_amount: number | null;
     deposit_pct: number | null; retainage_pct: number | null; retainage_release_trigger: string | null; net_days: number | null;
@@ -82,7 +84,18 @@ export default async function BidReplyPage({
       <p className="muted small" style={{ margin: "0 0 2px" }}>
         {pk.project_parent_name && <>{pk.project_parent_name} <span aria-hidden>›</span> </>}
         <strong style={{ color: "var(--ink)" }}>{pk.project_name ?? "Project"}</strong>
+        {pk.town && <> · {pk.town}</>}
       </p>
+      {/* The address is the community's rule, not an oversight: the street
+          line arrives when the job is yours. The town is here for permits. */}
+      {!pk.may_see_address && (
+        <p className="muted small" style={{ margin: "0 0 12px" }}>
+          Address shared on award{pk.town ? ` — the job is in ${pk.town}` : ""}.
+        </p>
+      )}
+      {pk.may_see_address && pk.address && (
+        <p className="small" style={{ margin: "0 0 12px" }}><strong>{pk.address}</strong></p>
+      )}
       <p className="muted small" style={{ margin: "0 0 12px" }}>
         {b.bidder ? `${b.bidder} · ` : ""}status <strong>{b.status}</strong> · reply by {pk.reply_by ?? "—"}
         {pk.status !== "open" && <> · <span style={{ color: "#a8842c" }}>package {pk.status}</span></>}

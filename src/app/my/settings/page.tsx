@@ -44,7 +44,9 @@ export default async function SettingsPage({
   ]);
   // The trades you offer, shown under your name.
   const myTrades = [...new Set(((myTradeRows ?? []) as { trade: string }[]).map((t) => t.trade))].sort();
-  type BidProj = { project_id: string; project_name: string; address: string | null; status: string; parent_name: string | null; kind: "awarded" | "pending you" | "pending customer" | "not awarded"; bids: number; amount: number | null };
+  // address and parent_name come back null until the bid is awarded - the
+  // database withholds them (bid_may_see_address). town always comes.
+  type BidProj = { project_id: string; project_name: string; address: string | null; town: string | null; may_see_address: boolean; status: string; parent_name: string | null; kind: "awarded" | "pending you" | "pending customer" | "not awarded"; bids: number; amount: number | null };
   const bidProjects = ((bidProjData ?? []) as BidProj[]);
   type OwnerProj = { project_id: string; project_name: string; address: string | null; status: string;
     stage: string | null; parent_name: string | null; packages: number; contracts: number;
@@ -287,7 +289,7 @@ export default async function SettingsPage({
                     <div key={title} style={{ display: "grid", gap: 4 }}>
                       <strong className="small">{icon} {title} · {rows.length}</strong>
                       {rows.length === 0 && <span className="muted small">None.</span>}
-                      {rows.map((b) => line(`/my/project/${b.project_id}`, b.project_name, b.parent_name,
+                      {rows.map((b) => line(`/my/project/${b.project_id}`, b.project_name, b.parent_name ?? b.town,
                         `${b.amount != null ? `$${Math.round(b.amount).toLocaleString()} · ` : ""}${b.bids} bid${b.bids === 1 ? "" : "s"}`))}
                     </div>
                   ))}
@@ -295,7 +297,7 @@ export default async function SettingsPage({
                     <details>
                       <summary className="small muted" style={{ cursor: "pointer" }}>Not awarded · {lost.length}</summary>
                       <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
-                        {lost.map((b) => line(`/my/project/${b.project_id}`, b.project_name, b.parent_name, b.status))}
+                        {lost.map((b) => line(`/my/project/${b.project_id}`, b.project_name, b.parent_name ?? b.town, b.status))}
                       </div>
                     </details>
                   )}

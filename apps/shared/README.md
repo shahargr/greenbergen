@@ -25,6 +25,7 @@ apps/shared/
     ├── 005_homeowner_perf.sql        delta: homeowner_package (one package, not all 17) and homeowner_tasks (the inbox's five fields)
     ├── 006_homeowner_photos.sql      delta: photos are asked for AFTER booking (a request on public.actions) + homeowner_catalogue_tiles
     ├── 007_homeowner_task_update.sql delta: an update is not a completion (homeowner_task_update); blinds moves to the More grid
+    ├── 008_address_after_award.sql   THE ADDRESS RULE: no street line to a contractor until the bid is awarded; town always
     └── gen-seed.mjs
 ```
 
