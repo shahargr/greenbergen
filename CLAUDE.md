@@ -51,7 +51,7 @@ No version comparison. Rebuild every time.
   and `db/` - the database contract for the consumer apps (`homeowner_*`
   functions, `blueprint_packages`, `project_bookings`). Read help topic
   `homeowner_app` once that migration is applied.
-- Three consumer apps, each its own folder under `apps/` and its own Vercel
+- Consumer apps, each its own folder under `apps/` and its own Vercel
   project, all on the same Supabase Auth login (email code or Google) and
   the same `app_users` row: (a) `apps/homeowner/` - built;
   (b) `apps/contractor/` - offers, accept at the community price, the job
@@ -62,8 +62,14 @@ No version comparison. Rebuild every time.
   HOMEOWNER's side and is never a contractor discount; browsing is free but
   documents gate the first accept; "ask for details" never releases the
   address). (c) `apps/gc/` - the GC / project manager view across jobs and
-  crews, planned. Each imports from `apps/shared/` and never from another
-  app. The root portal keeps its own URL and is not touched by any of them.
+  crews. The board, the task list and a project overview are built; scope,
+  bids, site visits and money are not. **Read `apps/builder/BUILD.md`** -
+  its headline is that the GC surface is ALREADY 74 `portal_*` database
+  functions, so this app is a view, not a re-platform, and needs almost no
+  migration. Each imports from `apps/shared/` and never from another app.
+  The root portal keeps its own URL and is not touched by any of them; when
+  the four apps have replaced its surface, BUILD.md §8 maps what may come
+  out and what must stay (all of `/admin`, `/deals`, `/vision`, `/help`).
 - `npm install` runs at the repo root (`"workspaces": ["apps/*"]`); the root
   tsconfig and eslint exclude `apps/`, each app checks itself and the shared
   sources it imports.
