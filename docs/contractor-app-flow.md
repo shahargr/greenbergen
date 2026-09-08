@@ -200,13 +200,21 @@ Returns, per open offer: `package` name, `trade`, `price_cents`, `config_label`
 from the address — `posted_at`, `reply_by`, `scope` (the scope lines as an
 array), **`photos` as a count, not the photos**, and the bid `status`.
 
-Two design constraints fall straight out of that return:
+**Decided 2026-09-08 (Shahar): the contractor sees the owner's photos and the
+town, but not the street address, before accepting.**
 
-- **No street address until you accept.** You get the town. Draw the card so it
-  is still decidable: package, config, price, scope lines, town, clock.
-- **The photo count is a number, not an image.** "3 photos" is what the
-  contractor gets before committing. If we want thumbnails pre-accept, that is a
-  database change and a privacy decision — flagged in §10.
+- **The photos are shown.** A contractor cannot price or judge a job blind, so
+  the pictures the owner uploaded are part of the offer card. Draw them as the
+  card's evidence — a strip, tappable to full screen.
+- **No street address until you accept.** The town, not the line. Draw the card
+  so it is still decidable: package, config, price, scope lines, photos, town,
+  clock. The address arrives at the moment of acceptance, with the phone number.
+
+⚠️ **This needs a database change before it can be drawn against real data.**
+`homeowner_offers()` today returns `photos` as a **count**, not paths. It needs
+to return the file rows, and `project-media` is a private bucket — so the app
+needs signed URLs for a contractor who is invited but not yet seated. Until that
+lands, design against the intent and treat the count as a placeholder.
 
 The clock: `reply_by` is `posted_at + 24 hours`. A visible countdown, and a card
 that changes character in the last hours, is the single highest-value thing on
@@ -347,12 +355,24 @@ counts photos linked to the task and:
 Design the camera as the primary action on a task, not a secondary one. The
 unlock should feel like what it is: a thing that goes on the record.
 
-⚠️ **A conflict to resolve before this is drawn.** Rulebook §14 says the
-override belongs to the **project manager, not the closer** — a contractor
-cannot bypass on their own, and the PM may instead return the task to In
-Progress asking for the photo. `portal_close_task` as written lets the closer
-unlock it themselves with a typed reason. Either the function needs a PM
-approval path or the rulebook needs amending. **Flagged, not decided.**
+**Decided 2026-09-08 (Shahar): the PM *and the homeowner* may close without an
+image, as an override with a comment. A contractor may not.**
+
+So the unlock is a **seat-dependent control**, and the screen changes shape by
+who is looking:
+
+| Who | Closing a photo-required task with no photo |
+| --- | --- |
+| Homeowner (project owner) | May override, with a comment |
+| PM / GC | May override, with a comment |
+| Contractor, sub, crew | **May not.** The close control stays disabled; the ask is "add a photo", and the route out is to message the PM |
+
+⚠️ **Two things must change to make that true.** `portal_close_task` as written
+lets *anyone* who passes `can_edit_project` unlock with a typed reason — it does
+not distinguish a contractor from a PM. And rulebook §14 currently names the PM
+alone as the override holder; the homeowner has to be added to it. Neither is a
+design question, but the contractor screen must not offer a control the seat
+will not be allowed to keep.
 
 ### 6.6 Timeline **[live]**
 **Source:** `messages` between the two contacts, channel `in app`; photos via
@@ -409,8 +429,17 @@ then Paid, and the contractor confirms receipt.
 
 Rulebook §51 requires a **lien waiver at handover** — partial waivers during the
 job, a final unconditional one with the last payment, and *never a final payment
-without one*. Nothing in the app does this yet. It is the largest genuinely new
-screen on the contractor side and it protects both parties.
+without one*. Nothing in the app does this yet.
+
+**Decided 2026-09-08 (Shahar): the waiver is baked into every signed addendum as
+a hard requirement.** It is not an optional step at the end and not a separate
+document to chase — the signature that releases a payment carries the waiver
+with it. For the designer that means there is no "send a waiver" screen to draw:
+there is a **signing** screen, and the waiver language is part of what is being
+signed, shown plainly above the signature rather than buried in a link.
+
+This is the largest genuinely new surface on the contractor side and it protects
+both parties: one signature proves payment and releases lien rights to that date.
 
 **Retainage:** on a package job it is 0. On a bid job `stage_payment_quote`
 deducts `contracts.retainage_pct` from every milestone and a stage flagged
@@ -469,23 +498,34 @@ homeowner shell — **Work · Inbox · Business**.
 
 ---
 
-## 10. Decisions needed before or during the design
+## 10. Decisions
 
-1. **Photos before accepting.** `homeowner_offers()` returns a photo *count*.
-   Should a contractor see the pictures before committing at a fixed price?
-   Arguably yes, and it is a database change plus a privacy call.
-2. **Address before accepting.** Today: town only. Same question — a contractor
-   choosing between two jobs cares about the drive.
-3. **The photo-close override** (§6.5) — the function and rulebook §14 disagree
-   about whether the closer or the PM may unlock. Resolve before drawing.
-4. **Consumables and finish material on package jobs** (§5.2) — the accept
-   function sets *both* to `subcontractor`, departing from the house default.
-   Intended for all-in package pricing? Say so explicitly.
-5. **Auto-bid.** `contractor_settings.auto_bid` exists and nothing reads it.
-   Auto-accepting a package offer at a stated price is a plausible, and
-   dangerous, feature. Design it deliberately or hide the switch.
-6. **The pending-review wait** (§3.4) — what an applicant sees, and for how long.
-7. **Lien waiver signing** (§7.3) — the biggest genuinely new surface.
+### Settled 2026-09-08 (Shahar)
+
+1. **Photos before accepting — YES.** The contractor sees the photos the owner
+   uploaded. §5.1. *Carries database work: `homeowner_offers()` must return the
+   file rows, and `project-media` is private, so signed URLs are needed for an
+   invited-but-not-seated contractor.*
+2. **Address before accepting — NO.** Town only; the address arrives with the
+   acceptance. §5.1.
+3. **The photo-close override — the PM and the homeowner may override with a
+   comment; the contractor may not.** §6.5. *Carries work: `portal_close_task`
+   does not currently distinguish the seats, and rulebook §14 names the PM
+   alone and must be widened to include the homeowner.*
+4. **Lien waiver — baked into every signed addendum as a hard requirement.**
+   Not a separate document, not an optional final step. §7.3.
+
+### Still open — deliberately parked
+
+5. **Consumables and finish material on package jobs** (§5.2). The accept
+   function sets *both* to `subcontractor`, departing from the rulebook §53
+   default where the owner supplies finish material. Probably right for all-in
+   package pricing, but it lives only in a function body and should be stated.
+   **Still needs an answer** — it changes a sentence on the contract screen.
+6. **Auto-bid.** `contractor_settings.auto_bid` exists and nothing reads it.
+   Auto-accepting at a stated price is plausible and dangerous. Design it
+   deliberately or hide the switch.
+7. **The pending-review wait** (§3.4) — what an applicant sees, and for how long.
 8. **Notifications.** A 24-hour offer window is worthless if the app has to be
    open. Push, SMS or email is a product decision that predates the screens.
 
