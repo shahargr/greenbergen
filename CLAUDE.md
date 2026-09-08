@@ -61,7 +61,7 @@ No version comparison. Rebuild every time.
   records four decisions that are settled (pooling is opt-in on the
   HOMEOWNER's side and is never a contractor discount; browsing is free but
   documents gate the first accept; "ask for details" never releases the
-  address). (c) `apps/gc/` - the GC / project manager view across jobs and
+  address). (c) `apps/builder/` - the GC / project manager view across jobs and
   crews. The board, the task list and a project overview are built; scope,
   bids, site visits and money are not. **Read `apps/builder/BUILD.md`** -
   its headline is that the GC surface is ALREADY 74 `portal_*` database
