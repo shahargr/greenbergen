@@ -69,17 +69,6 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
           </p>
         </div>
 
-        {roof && (
-          <Link href={`/project/${roof.seat.project_id}`} className="home-row"
-            style={{ background: "var(--color-soft-2)", boxShadow: "none" }}>
-            <span className="grow" style={{ minWidth: 0 }}>
-              <span className="tiny text-muted" style={{ display: "block" }}>Everything sits under</span>
-              <span className="t">{roof.seat.project_name}</span>
-            </span>
-            <ChevronIcon />
-          </Link>
-        )}
-
         {board.seats.length > 0 && (
           <nav className="chips" aria-label="Filter projects">
             <Chip k="all" label="All" n={counts.all} on={filter === "all"} />
@@ -91,7 +80,14 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
         {mine.length > 0 && (
           <section className="stack" style={{ gap: 8 }}>
-            <div className="divider-label">Projects you run · {mine.length}</div>
+            {/* When one root holds everything, its name replaces the generic
+                heading rather than taking a row of its own - same line, no
+                extra height, and still the way in to the development. */}
+            <div className="divider-label">
+              {roof
+                ? <Link href={`/project/${roof.seat.project_id}`} style={{ color: "inherit" }}>{roof.seat.project_name}</Link>
+                : "Projects you run"} · {mine.length}
+            </div>
             {mine.map((n) => <Branch key={n.seat.project_id} n={n} open={filter !== "all"} />)}
           </section>
         )}

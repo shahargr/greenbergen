@@ -147,22 +147,28 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <div className="divider-label">Open work · {open.length}</div>
           {open.length === 0 && <Card soft pad><div className="small">Nothing open on this project.</div></Card>}
           {open.slice(0, 12).map((t) => (
-            <Card pad key={t.id} className="tight">
-              <div className="between">
-                <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="card-title" style={{ fontSize: 15 }}>{t.action}</div>
-                  <div className="small text-muted">
-                    {[t.trade, t.assignee ?? (manages ? "unassigned" : null), t.status !== "Not Started" ? t.status : null]
-                      .filter(Boolean).join(" · ")}
+            <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(`/project/${id}`)}`}
+              style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+              <Card pad className="tight">
+                <div className="between">
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="card-title" style={{ fontSize: 15 }}>{t.action}</div>
+                    <div className="small text-muted">
+                      {[t.trade, t.assignee ?? (manages ? "unassigned" : null), t.status !== "Not Started" ? t.status : null]
+                        .filter(Boolean).join(" · ")}
+                    </div>
                   </div>
-                </div>
-                {t.target_date && (
-                  <span className={`tag ${t.target_date < today ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
-                    {shortDate(t.target_date)}
+                  <span className="stack" style={{ gap: 4, alignItems: "flex-end" }}>
+                    {t.target_date && (
+                      <span className={`tag ${t.target_date < today ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
+                        {shortDate(t.target_date)}
+                      </span>
+                    )}
+                    {t.priority === "High" && <span className="tag tag-outline">High</span>}
                   </span>
-                )}
-              </div>
-            </Card>
+                </div>
+              </Card>
+            </Link>
           ))}
           {open.length > 12 && (
             <p className="small text-muted" style={{ margin: 0 }}>

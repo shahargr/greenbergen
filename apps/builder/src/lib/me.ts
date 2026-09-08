@@ -146,6 +146,37 @@ export function prune(nodes: Node[], keep: (s: Seat) => boolean): Node[] {
 
 export const anyRuns = (n: Node): boolean => runs(n.seat) || n.children.some(anyRuns);
 
+// Which property a job belongs to. The task list groups by this, so it has
+// to agree with the board: when every seat hangs off one root, that root is
+// the board rather than a row on it, and the top level is one step down.
+export function topLevels(seats: Seat[]): { map: Map<string, Seat>; roof: Seat | null } {
+  const byId = new Map(seats.map((s) => [s.project_id, s]));
+  const rootIds = seats
+    .filter((s) => !(s.parent_project_id && byId.has(s.parent_project_id)))
+    .map((s) => s.project_id);
+  const roof = rootIds.length === 1 ? byId.get(rootIds[0]!) ?? null : null;
+
+  const map = new Map<string, Seat>();
+  for (const s of seats) {
+    const chain: Seat[] = [s];
+    const seen = new Set([s.project_id]);
+    let cur = s;
+    while (cur.parent_project_id && byId.has(cur.parent_project_id) && !seen.has(cur.parent_project_id)) {
+      cur = byId.get(cur.parent_project_id)!;
+      seen.add(cur.project_id);
+      chain.unshift(cur);
+    }
+    map.set(s.project_id, roof && chain.length > 1 ? chain[1]! : chain[0]!);
+  }
+  return { map, roof };
+}
+
+// High first, then Medium, then anything unset, then Low - an unset priority
+// is unknown, not unimportant, so it must not sort below Low.
+export const PRIORITY = ["High", "Medium", "Low"] as const;
+export const priorityRank = (p: string | null) =>
+  p === "High" ? 0 : p === "Medium" ? 1 : p === "Low" ? 3 : 2;
+
 // The buckets are computed in the database (active, lead, decision, payment,
 // done); the app only names them.
 export const BUCKETS = [

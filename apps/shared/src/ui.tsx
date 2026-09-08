@@ -98,10 +98,13 @@ export const InboxIcon = () => (
   </svg>
 );
 
+// A real cog. The previous mark was a circle with eight radial spokes,
+// which at 20px reads as a sun or an asterisk, not as settings - the teeth
+// have to sit ON the rim for the shape to say "configuration".
 export const GearIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="3.2" />
-    <path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6M18.7 18.7l-1.6-1.6M6.9 6.9 5.3 5.3" />
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M10.4 3.3a1.3 1.3 0 0 1 1.29-1.1h.62a1.3 1.3 0 0 1 1.29 1.1l.16 1.06c.44.15.86.34 1.24.58l.87-.63a1.3 1.3 0 0 1 1.68.13l.44.44a1.3 1.3 0 0 1 .13 1.68l-.63.87c.24.38.43.8.58 1.24l1.06.16a1.3 1.3 0 0 1 1.1 1.29v.62a1.3 1.3 0 0 1-1.1 1.29l-1.06.16c-.15.44-.34.86-.58 1.24l.63.87a1.3 1.3 0 0 1-.13 1.68l-.44.44a1.3 1.3 0 0 1-1.68.13l-.87-.63c-.38.24-.8.43-1.24.58l-.16 1.06a1.3 1.3 0 0 1-1.29 1.1h-.62a1.3 1.3 0 0 1-1.29-1.1l-.16-1.06a6.6 6.6 0 0 1-1.24-.58l-.87.63a1.3 1.3 0 0 1-1.68-.13l-.44-.44a1.3 1.3 0 0 1-.13-1.68l.63-.87a6.6 6.6 0 0 1-.58-1.24l-1.06-.16a1.3 1.3 0 0 1-1.1-1.29v-.62a1.3 1.3 0 0 1 1.1-1.29l1.06-.16c.15-.44.34-.86.58-1.24l-.63-.87a1.3 1.3 0 0 1 .13-1.68l.44-.44a1.3 1.3 0 0 1 1.68-.13l.87.63c.38-.24.8-.43 1.24-.58z" />
+    <circle cx="12" cy="12" r="2.9" />
   </svg>
 );
 
