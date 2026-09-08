@@ -7,7 +7,9 @@ export async function GET(request: NextRequest) {
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/my";
+  // The default lands on /after-login, which sends people to their own
+  // app; an explicit ?next= still wins, so deep links keep working.
+  const next = searchParams.get("next") ?? "/after-login";
 
   const supabase = await createClient();
 

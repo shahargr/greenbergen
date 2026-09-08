@@ -14,6 +14,7 @@ export type Company = {
   phone: string | null; email: string | null; website: string | null; address: string | null;
   ein: string | null; license_number: string | null; service_zip: string | null;
   service_radius_miles: number | null;
+  serves_adjacent_states: boolean | null;
   rating: { score: number; responses: number; rehire_pct: number | null; provisional: boolean } | null;
 };
 export type ApprovalStatus = "browsing" | "submitted" | "approved" | "more needed" | "suspended";

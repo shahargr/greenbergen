@@ -195,8 +195,11 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
    out. Deliberately NOT coloured per role: coral is reserved for status, and
    which app you are in is not a status. The glyph carries the recognition. */
 .door-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  margin-top: 3px; padding: 3px 9px 3px 7px;
+  /* flex, not inline-flex: a block-level box breaks onto its own line, so
+     the door sits UNDER the wordmark where the tagline used to, rather than
+     flowing beside it. width:max-content keeps the pill hugging its text. */
+  display: flex; width: max-content; align-items: center; gap: 5px;
+  margin-top: 4px; padding: 3px 9px 3px 7px;
   border-radius: var(--radius-pill);
   background: var(--color-soft);
   color: var(--color-text);
@@ -458,3 +461,23 @@ blockquote { margin: 0; padding: 0 0 0 var(--space-3); border-left: 2px solid va
 .home-row .t { font-family: var(--font-heading); font-weight: 800; font-size: 14.5px; line-height: 1.15; }
 .home-row .m { font-size: 12px; color: var(--muted); }
 .home-row.add { background: transparent; box-shadow: none; border: 1.5px dashed var(--color-divider-strong); }
+
+/* A unit that belongs to the field, not to the value: the input stays a
+   plain number and the suffix sits inside the same rounded box. */
+.input-suffix { position: relative; display: block; }
+.input-suffix > .input { padding-right: 56px; }
+.input-suffix > span {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; color: var(--muted); pointer-events: none;
+}
+
+/* A checkbox with a line of explanation under it. */
+.check-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface); border-radius: var(--radius-input);
+  box-shadow: var(--shadow-card); cursor: pointer;
+}
+.check-row input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--color-accent); flex: none; }
+.check-row .t { font-family: var(--font-heading); font-weight: 700; font-size: 14px; display: block; }
+.check-row .m { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }

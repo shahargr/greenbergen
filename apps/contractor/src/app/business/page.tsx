@@ -64,10 +64,20 @@ export default async function BusinessPage({ searchParams }: { searchParams: Pro
             </label>
             <label className="field grow">
               <span className="field-label">How far you travel</span>
-              <input className="input" name="service_radius_miles" inputMode="numeric" defaultValue={c?.service_radius_miles ?? ""} placeholder="15" />
+              <span className="input-suffix">
+                <input className="input" name="service_radius_miles" inputMode="numeric" defaultValue={c?.service_radius_miles ?? ""} placeholder="15" />
+                <span aria-hidden="true">miles</span>
+              </span>
             </label>
           </div>
-          <p className="tiny text-muted" style={{ margin: 0 }}>Bergen County only for now. We use this to decide which work is worth showing you.</p>
+          <label className="check-row">
+            <input type="checkbox" name="serves_adjacent_states" value="1" defaultChecked={!!c?.serves_adjacent_states} />
+            <span>
+              <span className="t">I&apos;ll cross a state line</span>
+              <span className="m">Work in New York or Connecticut is fine, not only New Jersey.</span>
+            </span>
+          </label>
+          <p className="tiny text-muted" style={{ margin: 0 }}>We use this to decide which work is worth showing you.</p>
 
           <div className="divider-label">For the paperwork</div>
           <div className="row" style={{ gap: 10 }}>

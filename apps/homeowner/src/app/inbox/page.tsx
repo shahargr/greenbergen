@@ -10,6 +10,8 @@ import { Illustration } from "@shared/Illustrations";
 import { HomeTabs } from "@/components/HomeTabs";
 import { PhotoBanner } from "@/components/PhotoBanner";
 import { TaskDone } from "@/components/TaskDone";
+import { Messages } from "@shared/inbox/Inbox";
+import { loadInbox } from "@shared/inbox/data";
 import { respondInvite } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +35,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient();
   // All three reads leave together - the invitations and tasks do not depend
   // on the profile, so waiting for it first only added its latency to theirs.
-  const [me, { data: inv }, { data: tasks }] = await Promise.all([
+  const [me, { data: inv }, { data: tasks }, portal] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("invites", () => rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites")),
     w.step("tasks", () => rpc<Task[]>(supabase, "homeowner_tasks", { p_limit: 25 })),
+    // The portal's messages, ADDED to this inbox rather than replacing it -
+    // booking conversations and open tasks above are not in portal_my_messages
+    // and would be lost by a swap.
+    w.step("messages", () => loadInbox()),
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/inbox");
@@ -123,9 +129,11 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           </section>
         )}
 
-        {empty && (
+        {empty && portal.messages.length === 0 && (
           <Card soft pad><div className="small">All clear. When a contractor writes, a neighbor invites you, or a job needs a hand from you, it lands here.</div></Card>
         )}
+
+        <Messages data={portal} base="/inbox" projectHref={(id) => `/project/${id}`} heading="From your projects" />
       </div>
       <HomeTabs current="inbox" unread={unread + incoming.length} />
     </Screen>

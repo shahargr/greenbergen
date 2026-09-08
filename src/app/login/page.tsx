@@ -10,7 +10,7 @@ import { Wordmark } from "@/components/SiteHeader";
 // The emailed magic link also still works (handled by /auth/confirm).
 function nextPath() {
   const n = new URLSearchParams(window.location.search).get("next");
-  return n && n.startsWith("/") && !n.startsWith("//") ? n : "/my";
+  return n && n.startsWith("/") && !n.startsWith("//") ? n : "/after-login";
 }
 
 const MailIcon = () => (
@@ -83,7 +83,7 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/confirm` },
+      options: { redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(nextPath())}` },
     });
     if (error) {
       setBusy(false);

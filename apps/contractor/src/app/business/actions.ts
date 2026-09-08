@@ -17,6 +17,10 @@ export async function saveBusiness(formData: FormData) {
     p_ein: text(formData, "ein"), p_license_number: text(formData, "license_number"),
     p_service_zip: text(formData, "service_zip"),
     p_service_radius_miles: Number.isFinite(radius) && radius > 0 ? Math.round(radius) : null,
+    // An unchecked box posts nothing at all, so the boolean has to be built
+    // from presence - sending null instead would mean "leave it as it was"
+    // and the box could never be turned back off.
+    p_serves_adjacent_states: formData.get("serves_adjacent_states") === "1",
   });
   revalidatePath("/business");
   revalidatePath("/work");
