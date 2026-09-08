@@ -54,7 +54,10 @@ export async function getBoard(): Promise<Board> {
   const [{ data: me, error: meErr }, { data: work }, { data: tasks }] = await Promise.all([
     timed("me", () => rpc<Me>(supabase, "me")),
     timed("work", () => rpc<Seat[]>(supabase, "portal_my_work")),
-    timed("tasks", () => rpc<Task[]>(supabase, "portal_tasks", { p_domain: "construction", p_closed_limit: 0 })),
+    // The board counts open work per project out of this one read, so the
+    // limit has to sit above the real total or the roll-up silently
+    // undercounts and the sort goes wrong. 164 open today; 500 is headroom.
+    timed("tasks", () => rpc<Task[]>(supabase, "portal_tasks", { p_domain: "construction", p_closed_limit: 0, p_open_limit: 500 })),
   ]);
   if (meErr) console.error("me:", meErr.message);
 
