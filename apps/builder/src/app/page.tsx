@@ -32,7 +32,13 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   const counts: Record<string, number> = { all: board.seats.length };
   for (const s of board.seats) for (const b of s.buckets ?? []) counts[b] = (counts[b] ?? 0) + 1;
 
-  const full = buildTree(board.seats, board.tasks, board.me?.contact_id ?? null);
+  const built = buildTree(board.seats, board.tasks, board.me?.contact_id ?? null);
+  // A single root is not a board, it IS the board - every seat hangs off it,
+  // so a row for it would be the only row. Promote its children to the top
+  // level and let the development become the heading over them.
+  const roof = built.length === 1 && built[0]!.children.length > 0 ? built[0]! : null;
+  const full = roof ? roof.children : built;
+
   // A filter hides rows, never the row that leads to them - so a development
   // survives on the strength of a job three levels down, and opens itself.
   const tree = filter === "all" ? full : prune(full, (s) => (s.buckets ?? []).includes(filter));
@@ -62,6 +68,17 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
               : `${full.length} ${full.length === 1 ? "property" : "properties"}${beneath ? `, ${beneath} ${beneath === 1 ? "job" : "jobs"} beneath` : ""}${openTasks ? ` · ${openTasks} open ${openTasks === 1 ? "task" : "tasks"}` : ""}${money(owed) ? ` · ${money(owed)} owed` : ""}.`}
           </p>
         </div>
+
+        {roof && (
+          <Link href={`/project/${roof.seat.project_id}`} className="home-row"
+            style={{ background: "var(--color-soft-2)", boxShadow: "none" }}>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="tiny text-muted" style={{ display: "block" }}>Everything sits under</span>
+              <span className="t">{roof.seat.project_name}</span>
+            </span>
+            <ChevronIcon />
+          </Link>
+        )}
 
         {board.seats.length > 0 && (
           <nav className="chips" aria-label="Filter projects">
