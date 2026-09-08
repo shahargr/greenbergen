@@ -21,7 +21,7 @@ export const metadata = { title: "Green Bergen" };
 // state chips narrow them further.
 type Bucket = "all" | "planned" | "live" | "done" | "cancelled";
 const BUCKETS: { key: Bucket; label: string }[] = [
-  { key: "all", label: "All" }, { key: "planned", label: "Planned" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" }, { key: "cancelled", label: "Cancelled" },
+  { key: "all", label: "All" }, { key: "planned", label: "DIY" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" }, { key: "cancelled", label: "Cancelled" },
 ];
 const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> =>
   b.state === "planned" ? "planned" : b.state === "closed" ? "cancelled" : b.state === "done" ? "done" : "live";
@@ -62,14 +62,18 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
       <AppBar brand door="homeowner" right={<ShellIcons unread={unread} />} />
       <div className="body">
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
-        {ok === "removed" && <div className="banner-ok">Plan removed. Nothing was ever sent.</div>}
+        {ok === "removed" && <div className="banner-ok">Removed from your DIY projects. Nothing was ever sent.</div>}
         {me.missing && <Notice title="Preview mode">The database migration in db/ has not been applied yet, so homes and projects cannot be read. The catalogue still works.</Notice>}
         {me.degraded && <Notice kind="error" title="We couldn&apos;t load your homes just now.">Nothing is lost. <Link href="/project">Try again</Link>, and if it keeps happening tell us.</Notice>}
         <PhotoBanner bookings={me.bookings} />
 
         <div className="hero">
-          <h1>What can we price for you?</h1>
-          <p className="lead">Every one of these has a number before anyone comes to look. Tap one to see what&apos;s included.</p>
+          <h1>Ready to take on a new project?</h1>
+          <p className="lead">
+            Every one of these has a number before anyone comes to look. Take it on yourself and
+            keep it in your DIY list, or hand it over turn-key and we run it. Tap one to see
+            what&apos;s included.
+          </p>
         </div>
         <div className="tiles quad">
           {front.map((p) => <PackageTile key={p.code} pkg={p} />)}
@@ -124,7 +128,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </>
         ) : (
           <Card soft pad>
-            <div className="small">No home on file yet — picking a package adds one. Or <Link href="/homes/new">just add your home</Link> and plan something for later.</div>
+            <div className="small">No home on file yet — picking a package adds one. Or <Link href="/homes/new">just add your home</Link> and start a DIY project for it.</div>
           </Card>
         )}
       </div>
@@ -136,7 +140,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 function HomeLine({ home: h }: { home: Home }) {
   const bits: string[] = [];
   if (h.live) bits.push(`${h.live} in progress`);
-  if (h.planned) bits.push(`${h.planned} planned`);
+  if (h.planned) bits.push(`${h.planned} DIY`);
   if (h.done) bits.push(`${h.done} done`);
   return (
     <Link href={`/project?home=${h.project_id}`} className="home-row">
@@ -159,7 +163,7 @@ function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boolean }) {
     : b.state === "done" ? <span className="tag tag-ok">Done</span>
     : <span className="tag tag-neutral">Cancelled</span>;
   const line =
-    b.state === "planned" ? `${dollars(b.price_cents)} when planned · ${b.config_label ?? ""}`
+    b.state === "planned" ? `${dollars(b.price_cents)} reference · ${b.config_label ?? ""}`
     : b.state === "accepted" ? `${b.contractor?.name ?? "Contractor"} · ${b.progress?.current?.name ?? "in progress"}`
     : b.state === "posted" ? `${dollars(b.price_cents)} · posted ${shortDate(b.posted_at)}`
     : b.state === "done" ? `${dollars(b.price_cents)} · ${shortDate(b.done_at)}`

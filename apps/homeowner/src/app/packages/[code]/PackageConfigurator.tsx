@@ -50,15 +50,26 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pk
         <NumberedNotes items={notes} />
       </div>
 
+      {/* Two ways to take this on, named and equal. The old screen made one
+          the button and the other a reluctant "not yet", which framed doing
+          it yourself as failing to buy - when it is a real choice, and the
+          one a lot of people want. Either can become the other later. */}
       <div className="actions" style={{ padding: 0, marginTop: 8 }}>
+        <div className="divider-label">How do you want to take it on?</div>
+
         <Link href={bookHref} className="btn btn-primary btn-block">
-          {pkg.instant_book ? `Book at ${dollars(price)}` : `Request at ${dollars(price)}`}
+          {pkg.instant_book ? `Turn-key · ${dollars(price)}` : `Turn-key · request at ${dollars(price)}`}
         </Link>
-        <p className="small text-muted center" style={{ margin: 0 }}>
-          Next: your address, then {pkg.photos.length === 1 ? "one photo" : `${["", "one", "two", "three", "four"][pkg.photos.length] ?? pkg.photos.length} photos`}. No payment today.
+        <p className="small text-muted center" style={{ margin: "0 0 6px" }}>
+          We match the contractor and hold this price. Next: your address, then{" "}
+          {pkg.photos.length === 1 ? "one photo" : `${["", "one", "two", "three", "four"][pkg.photos.length] ?? pkg.photos.length} photos`}. No payment today.
         </p>
-        <Link href={planHref} className="btn btn-secondary btn-block">Not yet — plan it for later</Link>
-        <p className="tiny text-muted center" style={{ margin: 0 }}>Saves it on your home at today&apos;s price as a reference. Nothing goes to contractors until you say so.</p>
+
+        <Link href={planHref} className="btn btn-secondary btn-block">Add to my DIY projects</Link>
+        <p className="tiny text-muted center" style={{ margin: 0 }}>
+          Yours to do, at your pace. Keeps the scope and today&apos;s price as your reference, and
+          nothing goes to contractors. Switch it to turn-key whenever you want.
+        </p>
       </div>
 
       {open && <AdjustPanel pkg={pkg} value={sel} onChange={setSel} onClose={() => setOpen(false)} />}

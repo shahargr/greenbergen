@@ -71,7 +71,7 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
   const [result, setResult] = useState<{ project_id: string; reply_by: string; offered_count: number; instant_book: boolean; price_cents: number; planned?: boolean } | null>(null);
   const [uploadIssues, setUploadIssues] = useState<string[]>([]);
   const afterHome: Step = mode === "plan" ? "when" : "facts";
-  const stepLabel = mode === "plan" ? "Plan it" : "Step 2 of 3 · Your home";
+  const stepLabel = mode === "plan" ? "DIY project" : "Step 2 of 3 · Your home";
 
   // ---- which home --------------------------------------------------------
   function chooseHome(e: React.FormEvent) {
@@ -202,12 +202,12 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
       <Screen>
         <AppBar brand />
         <div className="body">
-          <StatusHero variant="outline" kicker={`Planned · ${targetWindowLabel(when)}`} title={`Your ${pkg.tile_title.toLowerCase()} is on the list for ${address.split(",")[0] || "your home"}.`}>
-            Nothing was sent to anyone. When you&apos;re ready, one tap posts it to the community at that day&apos;s price.
+          <StatusHero variant="outline" kicker={`DIY · ${targetWindowLabel(when)}`} title={`Your ${pkg.tile_title.toLowerCase()} is in your DIY projects for ${address.split(",")[0] || "your home"}.`}>
+            Yours to do, at your pace. Nothing was sent to anyone. Change your mind and one tap makes it turn-key, at that day&apos;s community price.
           </StatusHero>
           <Card pad>
             <div className="kv-rows">
-              <div><span className="k">Today&apos;s price</span><span>{dollars(result.price_cents)} · {configLabel(pkg, selections)}</span></div>
+              <div><span className="k">Your reference price</span><span>{dollars(result.price_cents)} · {configLabel(pkg, selections)}</span></div>
               <div><span className="k">When</span><span>{targetWindowLabel(when)}</span></div>
               <div><span className="k">Sent to contractors</span><span>Not yet</span></div>
             </div>
@@ -348,7 +348,7 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
       <Screen>
         <AppBar back={() => setStep(homeId === "new" || !hasHomes ? "address" : "home")} />
         <div className="body">
-          <StepKicker>Plan it · {address.split(",")[0]}</StepKicker>
+          <StepKicker>DIY project · {address.split(",")[0]}</StepKicker>
           <div className="hero">
             <h1>When do you have in mind?</h1>
             <p className="lead">Roughly is fine. It orders your list and tells us when a nudge is welcome — nobody is held to it.</p>
@@ -367,10 +367,19 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
           </label>
           {err && <Notice kind="error" title="That didn't save.">{err}</Notice>}
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
+            {/* The price is a REFERENCE, never a charge - and a button reading
+                "Save the plan · $2,180 today" says the opposite of that. It
+                names the action; the number stays a note beneath it. */}
             <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => void plan()}>
-              {busy ? <><span className="spin" /> {busy}</> : `Save the plan · ${dollars(price)} today`}
+              {busy ? <><span className="spin" /> {busy}</> : "Add to my DIY projects"}
             </button>
-            {!busy && <p className="tiny text-muted center" style={{ margin: 0 }}>Nothing is sent to contractors. The price is today&apos;s reference; you book at the community price of the day you post.</p>}
+            {!busy && (
+              <p className="tiny text-muted center" style={{ margin: 0 }}>
+                Nothing charged, nothing sent to contractors. {dollars(price)} is today&apos;s community
+                price, kept as your reference — switch to turn-key whenever you want and you book at
+                the price of that day.
+              </p>
+            )}
           </div>
         </div>
       </Screen>

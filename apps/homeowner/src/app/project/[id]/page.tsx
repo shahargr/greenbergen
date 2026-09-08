@@ -54,7 +54,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       {me.bookings.filter((x) => x.state !== "closed" || x.project_id === id).slice(0, 3).map((x) => (
         <Link key={x.project_id} href={`/project/${x.project_id}`} className="seg-opt" role="tab" aria-selected={x.project_id === id}
           style={x.project_id === id ? { background: "var(--color-accent)", color: "var(--color-bg)", textDecoration: "none" } : { textDecoration: "none", color: "inherit" }}>
-          {x.tile_title} · {x.state === "done" ? "done" : x.state === "planned" ? "planned" : x.state === "posted" ? "matching" : pkg?.requires_permit ? "permit" : "booked"}
+          {x.tile_title} · {x.state === "done" ? "done" : x.state === "planned" ? "DIY" : x.state === "posted" ? "matching" : pkg?.requires_permit ? "permit" : "booked"}
         </Link>
       ))}
     </div>
@@ -70,8 +70,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <div className="body">
           {ok === "plan" && <div className="banner-ok">Plan updated.</div>}
           {error && <Notice kind="error">{error}</Notice>}
-          <StatusHero variant="neutral" kicker={`Planned · ${targetWindowLabel(b.target_window)}`} title={`On the list since ${shortDate(b.created_at)}. Nobody has been asked yet.`}>
-            When you&apos;re ready, one tap posts it to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price. Photos and a budget come at that point.
+          <StatusHero variant="neutral" kicker={`DIY · ${targetWindowLabel(b.target_window)}`} title={`Yours since ${shortDate(b.created_at)}. Nobody has been asked yet.`}>
+            Do it at your pace — the scope and the price below are your reference. Changed your mind? One tap makes it turn-key: it goes to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price, and photos and a budget come at that point.
           </StatusHero>
           <Card pad={false}>
             <div className="price">
@@ -100,9 +100,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           </details>
         </div>
         <div className="actions">
-          <Link href={`/packages/${b.package_code}/book?from=${b.project_id}`} className="btn btn-primary btn-block">Book it now</Link>
+          <Link href={`/packages/${b.package_code}/book?from=${b.project_id}`} className="btn btn-primary btn-block">Switch to turn-key</Link>
           <Link href={`/packages/${b.package_code}?sel=${encodeURIComponent(encodeSelections(b.selections))}`} className="btn btn-secondary btn-block">Adjust the package</Link>
-          <form action={bookingAction.bind(null, b.project_id, "remove")}><button className="btn btn-ghost btn-block">Remove from the list</button></form>
+          <form action={bookingAction.bind(null, b.project_id, "remove")}><button className="btn btn-ghost btn-block">Remove from my DIY projects</button></form>
         </div>
         <HomeTabs current="project" />
       </Screen>
