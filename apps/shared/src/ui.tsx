@@ -41,12 +41,25 @@ export const WarnIcon = () => (
 // Wordmark - the logo: a little house in the brand green, then "green" in
 // the same green and "bergen" in ink, one lowercase word. Swap for the SVG
 // file when it lands; keep the same classes so nothing else moves.
-export function Wordmark({ size = 15 }: { size?: number }) {
+//
+// With a door, it becomes a LOCKUP: the app's name set under the wordmark,
+// aligned to it, in the way a product family names its members. That is more
+// truthful than a badge beside it - the word says what this PRODUCT is, not
+// what the person is, and the same person holds three of them. It also costs
+// no height, because it takes the line the tagline had.
+//
+// No per-door glyph here on purpose: the house IS the Green Bergen mark, and
+// a second icon next to it competes with it. The glyphs earn their place in
+// DoorSwitch, where there is a list to scan.
+export function Wordmark({ size = 15, door }: { size?: number; door?: DoorKey }) {
   return (
     <span className="mark">
       <svg width={size + 3} height={size + 3} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" /></svg>
-      <span className="wordmark" style={{ fontSize: size }} aria-label="Green Bergen">
-        <span className="wm-green">green</span><span className="wm-ink">bergen</span>
+      <span className="wm-stack">
+        <span className="wordmark" style={{ fontSize: size }} aria-label="Green Bergen">
+          <span className="wm-green">green</span><span className="wm-ink">bergen</span>
+        </span>
+        {door && <span className="wm-door">{DOORS[door].label}</span>}
       </span>
     </span>
   );
@@ -66,13 +79,11 @@ export function AppBar({
       )}
       {brand && !title && (
         <Link href="/" className="brand grow">
-          <Wordmark />
-          {/* Signed in, the line under the wordmark says which door you are
-              standing in. Signed out it sells - a stranger needs the pitch,
-              and someone already inside needs to know where they are. */}
-          {door
-            ? <DoorPill door={door} />
-            : <span className="sub">Bergen County community, not a marketplace.</span>}
+          {/* Signed in, the logo names the app you are in. Signed out it
+              sells - a stranger needs the pitch, and someone already inside
+              needs to know where they are. One line either way. */}
+          <Wordmark door={door} />
+          {!door && <span className="sub">Bergen County community, not a marketplace.</span>}
         </Link>
       )}
       {title && (
@@ -81,21 +92,6 @@ export function AppBar({
       {!brand && !title && <span className="grow" />}
       {right}
     </header>
-  );
-}
-
-// Which door you are standing in. A glyph and a word on a soft pill - no new
-// colour, because Warm Ink reserves coral for status and a role is not a
-// status. The glyph is what you recognise at a glance in a screenshot; the
-// word is what you read the first time.
-// A span, not a link: the brand it sits inside is already a link, and a link
-// inside a link is invalid HTML that browsers silently unnest.
-export function DoorPill({ door }: { door: DoorKey }) {
-  return (
-    <span className="door-pill" title={DOORS[door].blurb}>
-      <DoorIcon door={door} />
-      <span>{DOORS[door].label}</span>
-    </span>
   );
 }
 

@@ -185,28 +185,23 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .appbar .title .sub { display: block; font-family: var(--font-body); font-weight: 500; font-size: 12px; color: var(--muted); }
 .brand { font-family: var(--font-heading); font-weight: 800; font-size: 15px; letter-spacing: -0.01em; text-decoration: none; color: inherit; }
 .brand .mark { display: inline-flex; align-items: center; gap: 6px; }
+/* The lockup: the app's name set under the wordmark and aligned to it, the
+   way a product family names its members. The stack keeps the house centred
+   against BOTH lines rather than against the first one. */
+.wm-stack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.wm-door {
+  font-family: var(--font-heading); font-weight: 700;
+  font-size: 9.5px; letter-spacing: 0.17em; text-transform: uppercase;
+  color: var(--muted); line-height: 1;
+  /* Optically flush with the "g" of green: uppercase sits inside its box. */
+  margin-left: 1px;
+}
 .brand .mark > svg { flex: none; color: var(--color-brand); }
 .wordmark { display: inline-block; font-family: var(--font-heading); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
 .wordmark .wm-green { color: var(--color-brand); }
 .wordmark .wm-ink { color: var(--color-text); }
 .brand .sub { display: block; font-family: var(--font-body); font-weight: 500; font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); }
 
-/* Which door you are in. Sits in the same slot the tagline uses when signed
-   out. Deliberately NOT coloured per role: coral is reserved for status, and
-   which app you are in is not a status. The glyph carries the recognition. */
-.door-pill {
-  /* flex, not inline-flex: a block-level box breaks onto its own line, so
-     the door sits UNDER the wordmark where the tagline used to, rather than
-     flowing beside it. width:max-content keeps the pill hugging its text. */
-  display: flex; width: max-content; align-items: center; gap: 5px;
-  margin-top: 4px; padding: 3px 9px 3px 7px;
-  border-radius: var(--radius-pill);
-  background: var(--color-soft);
-  color: var(--color-text);
-  font-family: var(--font-heading); font-weight: 700; font-size: 11px;
-  letter-spacing: 0.02em; line-height: 1.4;
-}
-.door-pill > svg { flex: none; opacity: 0.75; }
 .step-kicker { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-family: var(--font-heading); font-weight: 700; }
 
 /* headline block */
