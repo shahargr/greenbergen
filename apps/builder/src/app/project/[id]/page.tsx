@@ -19,6 +19,8 @@ type Rollup = {
   approved?: number | null; stages?: number | null; open_stages?: number | null;
 } | null;
 
+type ScopeTrade = { trade: string; chosen: boolean; scope_lines: number };
+
 type BidPackage = {
   id: string; trade: string | null; category: string | null; phase: string | null;
   status: string; reply_by: string | null; bids: number | null;
@@ -31,11 +33,15 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const supabase = await createClient();
 
   // The shell and the project's own reads do not depend on each other.
-  const [board, { data: tasksData }, { data: pkgData }, { data: rollupData }] = await Promise.all([
+  // portal_scope_trades is one row per worker trade carrying its counts, so
+  // the scope summary costs a small read - the scope lines themselves are
+  // only fetched on the screen that shows them.
+  const [board, { data: tasksData }, { data: pkgData }, { data: rollupData }, { data: scopeData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("tasks", () => rpc<Task[]>(supabase, "portal_tasks", { p_project_id: id, p_domain: "construction", p_closed_limit: 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
+    w.step("scope", () => rpc<ScopeTrade[]>(supabase, "portal_scope_trades", { p_project: id })),
   ]);
   w.done();
   if (!board.signed_in) redirect(`/login?next=/project/${id}`);
@@ -59,6 +65,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const late = open.filter((t) => t.target_date && t.target_date < today);
   const packages = pkgData ?? [];
   const roll = rollupData ?? null;
+  const scopeLines = (scopeData ?? []).reduce((n, t) => n + t.scope_lines, 0);
+  const scopeTrades = (scopeData ?? []).filter((t) => t.chosen).length;
 
   return (
     <Screen>
@@ -112,6 +120,23 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               })}
           </section>
         )}
+
+        {/* Scope. Nobody works without one, so it is the step before a bid,
+            a contract or a start - and the way in to the bid packages. */}
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="divider-label">Scope</div>
+          <Link href={`/project/${id}/scope`} className="home-row">
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">{scopeLines === 0 ? "Write the scope" : `${scopeLines} line${scopeLines === 1 ? "" : "s"} in scope`}</span>
+              <span className="m" style={{ display: "block" }}>
+                {scopeLines === 0
+                  ? "Trades, their blueprint lines, then the bid packages"
+                  : `${scopeTrades} trade${scopeTrades === 1 ? "" : "s"} on this job`}
+              </span>
+            </span>
+            <ChevronIcon />
+          </Link>
+        </section>
 
         {/* Bids. The address rule applies here too: a trade invited to bid
             sees the town until they win it. */}
@@ -180,7 +205,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         <Card soft pad>
           <div className="kicker">Next</div>
           <p className="small" style={{ margin: "6px 0 0" }}>
-            Scope, site visits, crew days, the full task detail and the money screens are steps 2 to 6.
+            Site visits, crew days and the money screens are steps 5 and 6.
             Every one of them already has its database function — see <code>apps/builder/BUILD.md</code>.
           </p>
         </Card>
