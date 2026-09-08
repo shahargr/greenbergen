@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary, type Home } from "@/lib/me";
-import { loadTiles } from "@shared/catalogue";
+import { currentMonth, loadSections, loadTiles, seasonal, type Tile } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
@@ -31,9 +31,10 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   const w = stopwatch("/project");
   // The catalogue is template data behind a shared cache; it does not wait
   // on the member's own read and the member's read does not wait on it.
-  const [me, { tiles }] = await Promise.all([
+  const [me, { tiles }, sections] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("tiles", () => loadTiles()),
+    w.step("sections", () => loadSections()),
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/project");
@@ -41,6 +42,18 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";
   const front = tiles.filter((p) => p.tile_group === "front" && p.availability !== "coming_soon");
   const more = tiles.filter((p) => p.tile_group === "more" || p.availability === "coming_soon");
+
+  // Sections group by what is going on in the house; the season is a rail
+  // ACROSS them, not one of them, so a job in its month is surfaced without
+  // being filed away from where people look the other eleven.
+  const month = currentMonth();
+  const now = seasonal(tiles, month).filter((t) => t.availability !== "coming_soon");
+  const byCategory = new Map<string, Tile[]>();
+  for (const t of tiles) {
+    const k = t.category ?? "other";
+    byCategory.set(k, [...(byCategory.get(k) ?? []), t]);
+  }
+  const monthName = new Date(2000, month - 1, 1).toLocaleString("en-US", { month: "long" });
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
   const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;
@@ -75,9 +88,44 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             what&apos;s included.
           </p>
         </div>
+        {/* The shortcut, kept: eight tiles, four to a row. They appear again
+            in their own sections below, which is the point - this row is a
+            fast path, not a different set. */}
+        <div className="divider-label">Most booked</div>
         <div className="tiles quad">
           {front.map((p) => <PackageTile key={p.code} pkg={p} />)}
         </div>
+
+        {/* In season now. A rail, never a section - the same package still
+            lives in its own group the rest of the year. */}
+        {now.length > 0 && (
+          <section className="stack" style={{ gap: 8, marginTop: 4 }}>
+            <div className="divider-label">Worth doing in {monthName}</div>
+            <div className="tiles quad">
+              {now.slice(0, 4).map((p) => <PackageTile key={p.code} pkg={p} />)}
+            </div>
+          </section>
+        )}
+
+        {/* Everything, by what is going on in the house. Sections and their
+            order come from the database so they are tunable without a
+            deploy; an empty one never renders. */}
+        {sections.map((sec) => {
+          const rows = (byCategory.get(sec.key) ?? []).filter((t) => t.availability !== "coming_soon");
+          if (rows.length === 0) return null;
+          return (
+            <section className="stack" style={{ gap: 8 }} key={sec.key}>
+              <div className="divider-label">{sec.label}</div>
+              {sec.blurb && <p className="tiny text-muted" style={{ margin: "-4px 0 2px" }}>{sec.blurb}</p>}
+              <div className="tiles quad">
+                {rows.map((p) => <PackageTile key={p.code} pkg={p} />)}
+              </div>
+            </section>
+          );
+        })}
+
+        {/* Last: what has no price yet. More is now the coming-soon shelf
+            rather than the overflow drawer everything fell into. */}
         <div className="tiles" style={{ marginTop: -2 }}>
           <MoreTile count={more.length} />
         </div>

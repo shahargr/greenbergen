@@ -37,7 +37,47 @@ export const COMMUNITY_SERVICES = data.community_services as CommunityService[];
 export type Catalogue = { packages: Package[]; source: "database" | "static" };
 // What a tile draws, and nothing else: the grid never touched items, levers,
 // photos or milestones, but was paid 37 kB to receive them.
-export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_group" | "availability" | "illustration" | "sort_order">;
+export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_group" | "availability" | "illustration" | "sort_order"> & {
+  // Added by migration 012. Optional because the STATIC_PACKAGES fallback,
+  // which covers a cold database, predates them.
+  category?: string | null;
+  season_months?: number[] | null;
+};
+
+// A section of the catalogue, grouped by what is going on in the owner's
+// life rather than by trade. Labels and order live in the database so they
+// can be tuned without a deploy.
+export type Section = { key: string; label: string; blurb: string | null; sort_order: number };
+
+// The fallback if the database has never answered. Same keys and order as the
+// blueprint_package_categories seed, so the screens look the same either way.
+export const STATIC_SECTIONS: Section[] = [
+  { key: "fix", label: "Fix something", blurb: "It broke. Get it working again.", sort_order: 10 },
+  { key: "upkeep", label: "Keep it up", blurb: "The recurring jobs that stop bigger ones.", sort_order: 20 },
+  { key: "inside", label: "Inside", blurb: "Rooms, surfaces and everything under the roof.", sort_order: 30 },
+  { key: "outside", label: "Outside", blurb: "The yard, the drive and the shell of the house.", sort_order: 40 },
+  { key: "systems", label: "Power, safety & tech", blurb: "Electricity, back-up, charging and what watches the house.", sort_order: 50 },
+  { key: "services", label: "Bills & services", blurb: "The last mile: what the house pays for every month.", sort_order: 60 },
+  { key: "other", label: "Something else", blurb: "Not on the list? Describe it and we will price it.", sort_order: 900 },
+];
+
+// Seasonality is a WINDOW, not a section. A package filed under "Seasonal"
+// disappears from where people look the rest of the year; a package that
+// knows its months can be shown in its own section AND surfaced on a rail
+// when its time comes. null months = all year.
+//
+// The month is a parameter with a default rather than a call inside the
+// function body, because the React compiler rejects clock reads during
+// render and this is called from server components that render tiles.
+export const inSeason = (t: Tile, month: number) =>
+  !t.season_months || t.season_months.length === 0 || t.season_months.includes(month);
+
+export const currentMonth = () => new Date().getMonth() + 1;
+
+// Only worth a rail when the season genuinely narrows the list: a package
+// that runs all year is not news in November.
+export const seasonal = (tiles: Tile[], month: number) =>
+  tiles.filter((t) => t.season_months?.length && t.season_months.includes(month));
 
 // ---------------------------------------------------------------------------
 // WHY THIS IS A fetch AND NOT supabase.rpc().
@@ -82,6 +122,13 @@ export async function loadTiles(): Promise<{ tiles: Tile[]; source: "database" |
   const rows = await catalogueRpc<Tile[]>("homeowner_catalogue_tiles");
   if (Array.isArray(rows) && rows.length > 0) return { tiles: rows, source: "database" };
   return { tiles: STATIC_PACKAGES, source: "static" };
+}
+
+// The sections. Tiny, cached the same way and for the same reason as the
+// grid: it is template data, identical for every visitor.
+export async function loadSections(): Promise<Section[]> {
+  const rows = await catalogueRpc<Section[]>("homeowner_catalogue_sections");
+  return Array.isArray(rows) && rows.length > 0 ? rows : STATIC_SECTIONS;
 }
 
 // One package, whole. ~4.5 kB - what the package page and the wizard need.
