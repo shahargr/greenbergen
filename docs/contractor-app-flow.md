@@ -531,6 +531,16 @@ homeowner shell — **Work · Inbox · Business**.
 4. **Lien waiver — baked into every signed addendum as a hard requirement.**
    Not a separate document, not an optional final step. §7.3.
 
+> **The open ones are tracked in `public.actions`**, as gate children under
+> *"Contractor app: settle the seven open decisions (BUILD.md §12)"* — together
+> with the seven from that section, so there is ONE register and not two
+> (CLAUDE.md: tasks live in `public.actions`, never a second list). Answering
+> one means closing the child AND writing the answer here in the same breath.
+>
+> The two settled decisions that carry database work — photos before accepting
+> (§10.1) and the photo-close override (§10.3) — are their own action rows,
+> because they are build work now, not decisions.
+
 ### Still open — deliberately parked
 
 5. **Consumables and finish material on package jobs** (§5.2). The accept
