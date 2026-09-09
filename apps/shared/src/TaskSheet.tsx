@@ -30,9 +30,12 @@ let seq = 0;
 const nextId = () => `a${++seq}`;
 
 export function TaskSheet({
-  projectId, actionId, title, onDone, trigger, completeFirst = false,
+  projectId, actionId, title, onDone, onPosted, trigger, completeFirst = false,
 }: {
-  projectId: string; actionId: string; title: string; onDone?: () => void;
+  projectId: string; actionId: string; title: string;
+  // onDone fires when the entry also closed the task; onPosted after ANY
+  // successful entry, so whatever shows the thread can re-read it.
+  onDone?: () => void; onPosted?: () => void;
   // What opens it. Default is the plain Update button; a row can pass its
   // own (a small "Complete" button that opens the sheet with closing in mind).
   trigger?: ReactNode;
@@ -127,6 +130,7 @@ export function TaskSheet({
     if (error || !data?.ok) { setBusy(""); setErr(friendly(data?.reason ?? error?.message)); return; }
     reset(); setOpen(false);
     if (complete) onDone?.();
+    onPosted?.();
     router.refresh();
   }
 

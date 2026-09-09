@@ -6,7 +6,6 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { getBoard } from "@/lib/board";
-import { ExpertTabs } from "@/components/ExpertTabs";
 import { AddEvidence } from "./AddEvidence";
 
 export const dynamic = "force-dynamic";
@@ -157,7 +156,6 @@ export default async function ScopeEvidencePage({
           </>
         )}
       </div>
-      <ExpertTabs manages current="projects" tasks={board.tasks.filter((t) => t.state === "open").length} />
     </Screen>
   );
 }

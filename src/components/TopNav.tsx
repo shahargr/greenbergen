@@ -162,7 +162,9 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           {realAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined}
             people={people} borrowed={borrowed ? { id: String(borrowed), canAct } : null} here={here} selfId={realId} />}
           <BackNav />
-          <Link href="/pro/inbox" className="iconlink"
+          {/* One inbox for the person; ?door=admin keeps this door's chrome
+              on it (name under the logo, wordmark back here). */}
+          <Link href="/pro/inbox?door=admin" className="iconlink"
             title={inbound > 0
               ? `${inbound} waiting on you${waitingMessages > 0 ? ` · ${waitingMessages} message${waitingMessages === 1 ? "" : "s"} to review` : ""}`
               : "Inbox"}

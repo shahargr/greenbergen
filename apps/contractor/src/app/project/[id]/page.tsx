@@ -6,7 +6,6 @@ import { dayClock, shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { bucketTasks, coverUrls, getBoard, money, runs } from "@/lib/board";
-import { ExpertTabs } from "@/components/ExpertTabs";
 import { siteCheck } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -293,7 +292,6 @@ export default async function ProjectPage({
           ))}
         </section>
       </div>
-      <ExpertTabs manages current="projects" tasks={board.tasks.filter((t) => t.state === "open").length} />
     </Screen>
   );
 }

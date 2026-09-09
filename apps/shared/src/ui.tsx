@@ -97,11 +97,15 @@ export function Wordmark({ size = 15, door = APP_DOOR }: { size?: number; door?:
 
 // AppBar - brand / back + title / trailing action.
 export function AppBar({
-  back, title, sub, right, brand = false, door,
+  back, title, sub, right, brand = false, door, home = "/",
 }: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean;
      // Overrides the build's door for the logo line. Rarely needed: the app
-     // already knows which door it is.
-     door?: DoorKey }) {
+     // already knows which door it is - the exception is the inbox, which is
+     // one page serving every door and names the one you came through.
+     door?: DoorKey;
+     // Where the wordmark goes. This app's root unless the page is standing
+     // in for another door, in which case it goes back to that door.
+     home?: string }) {
   return (
     <header className="appbar">
       {typeof back === "string" && (
@@ -111,7 +115,7 @@ export function AppBar({
         <button type="button" onClick={back} className="btn btn-ghost btn-icon" aria-label="Back"><BackIcon /></button>
       )}
       {brand && !title && (
-        <Link href="/" className="brand grow">
+        <Link href={home} className="brand grow">
           {/* The logo names the app you are in, signed in or not. The pitch
               (config.public_tagline) lives in the landing hero, not here. */}
           <Wordmark door={door} />

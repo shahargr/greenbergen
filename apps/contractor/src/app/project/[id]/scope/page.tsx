@@ -5,7 +5,6 @@ import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { getBoard } from "@/lib/board";
-import { ExpertTabs } from "@/components/ExpertTabs";
 import { setTrades, copyLines, makePackages, addOwnerLine } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -322,7 +321,6 @@ export default async function ScopePage({
           <ChevronIcon />
         </Link>
       </div>
-      <ExpertTabs manages current="projects" tasks={board.tasks.filter((t) => t.state === "open").length} />
     </Screen>
   );
 }

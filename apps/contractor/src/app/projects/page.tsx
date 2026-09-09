@@ -7,7 +7,6 @@ import {
   BUCKETS, anyRuns, buildTree, getBoard, money, prune, runs,
   type BucketKey, type Node,
 } from "@/lib/board";
-import { ExpertTabs } from "@/components/ExpertTabs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your board" };
@@ -63,7 +62,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand  right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" homeHref="/work" />} />
       <div className="body">
         {board.degraded && (
           <Notice kind="error" title="We couldn&apos;t load the whole board.">
@@ -124,7 +123,6 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
           </Card>
         )}
       </div>
-      <ExpertTabs manages current="projects" tasks={openTasks} />
     </Screen>
   );
 }

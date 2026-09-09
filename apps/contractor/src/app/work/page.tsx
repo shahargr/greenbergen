@@ -7,7 +7,6 @@ import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
 import { anyRuns, buildTree, coverUrls, getBoard } from "@/lib/board";
-import { ExpertTabs } from "@/components/ExpertTabs";
 import { PropertyCard } from "@/components/PropertyCard";
 import { ReadyCard } from "@/components/ReadyCard";
 
@@ -92,6 +91,34 @@ export default async function WorkPage() {
           </section>
         )}
 
+        {/* WHERE THE BOTTOM BAR WENT. Shahar: "remove the bottom bar across
+            the entire site." The sections it named are rows here, on the one
+            screen everyone starts from; the wordmark brings you back to it.
+            The manager's rows only appear when there is something to manage,
+            as the bar's middle used to. */}
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="divider-label">Around your work</div>
+          <Link href="/jobs" className="home-row nav-row">
+            <span className="grow"><span className="t">My jobs</span></span><ChevronIcon />
+          </Link>
+          {manages && (
+            <>
+              <Link href="/projects" className="home-row nav-row">
+                <span className="grow"><span className="t">Projects</span>
+                  <span className="m" style={{ display: "block" }}>The board: everything you run, live and finished</span></span>
+                <ChevronIcon />
+              </Link>
+              <Link href="/tasks" className="home-row nav-row">
+                <span className="grow"><span className="t">Tasks{openTasks > 0 && <span className="n">{openTasks}</span>}</span></span>
+                <ChevronIcon />
+              </Link>
+              <Link href="/money" className="home-row nav-row">
+                <span className="grow"><span className="t">Money</span></span><ChevronIcon />
+              </Link>
+            </>
+          )}
+        </section>
+
         <Link href="/business/trades?from=work" className="home-row" style={{ alignItems: "flex-start" }}>
           <span className="grow" style={{ minWidth: 0 }}>
             <span className="t">Your trades</span>
@@ -117,7 +144,6 @@ export default async function WorkPage() {
           </p>
         </Card>
       </div>
-      <ExpertTabs manages={manages} current="work" offers={me.counts.open_offers} tasks={openTasks} />
     </Screen>
   );
 }

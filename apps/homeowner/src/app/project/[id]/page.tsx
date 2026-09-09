@@ -4,7 +4,7 @@ import { getMe, TARGET_WINDOWS, targetWindowLabel } from "@/lib/me";
 import { getBooking, type Booking } from "@/lib/booking";
 import { encodeSelections } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
-import { AppBar, Avatar, Card, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
+import { AppBar, Avatar, Card, ChevronIcon, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
 import { ProgressLine } from "@shared/ProgressLine";
 import { stopwatch } from "@shared/perf";
 import { PhotoRequest } from "@/components/PhotoRequest";
@@ -280,12 +280,28 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <Notice title="Permit meeting logged, payment not yet.">We&apos;ll remind you tomorrow. <Link href={`/project/${b.project_id}/milestone/permit_meeting`}>Record it now</Link>.</Notice>
         )}
       </div>
-      <nav className="tabs" aria-label="Project sections">
-        <Link href={`/project/${b.project_id}`} aria-current="page">Progress</Link>
-        <Link href={`/project/${b.project_id}/timeline`}>Timeline{b.unread > 0 && <span className="n">{b.unread}</span>}</Link>
-        <Link href={`/project/${b.project_id}/folder`}>Folder</Link>
-        <Link href={`/project/${b.project_id}/people`}>People</Link>
-      </nav>
+      {/* The job's other rooms, as rows - the bottom bar that pointed at
+          them is gone from every screen (Shahar). */}
+      <div className="body" style={{ paddingTop: 0 }}>
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="divider-label">This job</div>
+          <Link href={`/project/${b.project_id}/timeline`} className="home-row nav-row">
+            <span className="grow"><span className="t">Timeline{b.unread > 0 && <span className="n">{b.unread}</span>}</span>
+              <span className="m" style={{ display: "block" }}>The record between you and {first}</span></span>
+            <ChevronIcon />
+          </Link>
+          <Link href={`/project/${b.project_id}/folder`} className="home-row nav-row">
+            <span className="grow"><span className="t">Folder</span>
+              <span className="m" style={{ display: "block" }}>Scope, photos, permits, payments</span></span>
+            <ChevronIcon />
+          </Link>
+          <Link href={`/project/${b.project_id}/people`} className="home-row nav-row">
+            <span className="grow"><span className="t">People</span>
+              <span className="m" style={{ display: "block" }}>Who can see this job</span></span>
+            <ChevronIcon />
+          </Link>
+        </section>
+      </div>
     </Screen>
   );
 }

@@ -17,8 +17,33 @@ function base(formData: FormData): string {
   return s.startsWith("/") && !s.startsWith("//") ? s : "/inbox";
 }
 
+// The base may already carry a query (the admin door reads the inbox at
+// /inbox?door=admin), so the flash joins it rather than starting a second one.
 const back = (b: string, msg: string, isError = false) =>
-  `${b}?${isError ? "error" : "ok"}=${encodeURIComponent(msg)}`;
+  `${b}${b.includes("?") ? "&" : "?"}${isError ? "error" : "ok"}=${encodeURIComponent(msg)}`;
+
+// The notes on one task, with their evidence signed, for the thread under an
+// inbox row. Read on demand - when the row opens - not for every task on the
+// page, because twenty-five tasks would be twenty-five reads for a screen
+// most people scan and rarely expand.
+export type TaskNote = {
+  id: string; body: string | null; author: string | null; created_at: string | null;
+  files: { file_id: string; path: string; kind: string | null; mime: string | null; name: string | null; url: string | null }[];
+};
+
+export async function taskNotes(actionId: string): Promise<TaskNote[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("portal_task_notes", { p_action_id: actionId });
+  type Raw = Omit<TaskNote, "files"> & { files?: Omit<TaskNote["files"][number], "url">[] };
+  const notes = (Array.isArray(data) ? data : []) as Raw[];
+  const paths = [...new Set(notes.flatMap((n) => (n.files ?? []).map((f) => f.path)))];
+  const urls: Record<string, string> = {};
+  if (paths.length > 0) {
+    const { data: signed } = await supabase.storage.from("project-media").createSignedUrls(paths, 3600);
+    for (const row of signed ?? []) if (row.path && row.signedUrl) urls[row.path] = row.signedUrl;
+  }
+  return notes.map((n) => ({ ...n, files: (n.files ?? []).map((f) => ({ ...f, url: urls[f.path] ?? null })) }));
+}
 
 export async function messageSeen(formData: FormData) {
   const b = base(formData);

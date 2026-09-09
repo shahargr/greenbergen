@@ -58,8 +58,10 @@ const nextConfig: NextConfig = {
       // -> /inbox in all four - one shared model"). It had drifted: Delete on
       // every row, a compose that asked for the project first and then
       // offered nobody, no attachments. One inbox, seen through every door.
-      { source: "/my/inbox", destination: "/pro/inbox", permanent: false },
-      { source: "/my/inbox/:path*", destination: "/pro/inbox", permanent: false },
+      // ?door=admin: the page keeps this door's chrome for a person who
+      // holds it, so Inbox from Admin does not read as Home expert.
+      { source: "/my/inbox", destination: "/pro/inbox?door=admin", permanent: false },
+      { source: "/my/inbox/:path*", destination: "/pro/inbox?door=admin", permanent: false },
     ];
   },
   async rewrites() {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, ChevronIcon, Notice } from "../ui";
 import { shortDate } from "../format";
-import { TaskSheet } from "../TaskSheet";
+import { TaskThread } from "./TaskThread";
 import { Compose } from "./Compose";
 import { messageSeen, messageSend, messageSet, messageToTask } from "./actions";
 import type { InboxData, InboxTask, Msg, MsgKind } from "./data";
@@ -31,8 +31,20 @@ import type { InboxData, InboxTask, Msg, MsgKind } from "./data";
 // Everything reads and writes through the same functions from every app, so
 // a message archived here is archived everywhere - one inbox seen through
 // several doors, not several inboxes.
-const when = (t: string) =>
-  new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+//
+// THE CLOSED ROW IS ONE LINE. Shahar, looking at three-line cards: "either
+// you ignore me on my previous asks, or you have not committed the code."
+// The ask was Outlook: who, subject, when, on a line you scan - so that is
+// the row now. The left slot is the sender when there is one and what the
+// thing IS when there is not (Task, Offer, Question, Green Bergen); the
+// subject fills the middle and clips; the date sits right. Everything else -
+// the project, the assignee, the status, the body, the buttons - is behind
+// the tap.
+const when = (t: string) => {
+  const d = new Date(t);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "2-digit" });
+};
 
 export function InboxScreen({
   data, base, tasks = [], taskBase, projectHref, offerHref,
@@ -197,33 +209,21 @@ function TaskRow({ t, taskBase, projectHref }: { t: InboxTask; taskBase?: string
     <Card pad={false} className={late ? "msg unread" : "msg"}>
       <details>
         <summary className="msg-head">
-          <span className="grow" style={{ minWidth: 0 }}>
-            <span className="msg-from">
-              Task<span className="tag tag-neutral" style={{ marginLeft: 8 }}>{late ? "Late" : "Open"}</span>
-            </span>
-            <span className="msg-subject">{t.action}</span>
-            <span className="msg-meta">{meta}</span>
-          </span>
           {late && <span className="msg-dot" aria-label="Late" />}
+          <span className={`msg-from ${late ? "late" : ""}`}>{late ? "Late" : "Task"}</span>
+          <span className="msg-subject">{t.action}</span>
+          {t.target_date && <span className={`msg-when ${late ? "late" : ""}`}>{shortDate(t.target_date)}</span>}
         </summary>
         <div className="msg-body">
-          {t.project_id && projectHref && (
-            <p className="tiny text-muted" style={{ margin: "0 0 10px" }}>
-              On <Link href={projectHref(t.project_id)}>{t.project ?? "a project"}</Link>
-              {taskBase && <> · <Link href={`${taskBase}/${t.id}`}>Open the task</Link></>}
-            </p>
-          )}
-          {/* UPDATE and COMPLETE: the same sheet, entered from either end.
-              No Reply - a task is not from anyone - and no Archive: a task
-              that is open is open, and closing it is what Complete is for. */}
-          {t.project_id && (
-            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-              <TaskSheet projectId={t.project_id} actionId={t.id} title={t.action}
-                trigger={<button type="button" className="btn btn-primary small">Update</button>} />
-              <TaskSheet projectId={t.project_id} actionId={t.id} title={t.action} completeFirst
-                trigger={<button type="button" className="btn btn-secondary small">Complete</button>} />
-            </div>
-          )}
+          <p className="msg-meta" style={{ margin: "0 0 10px" }}>
+            {meta}
+            {t.project_id && projectHref && <> · <Link href={projectHref(t.project_id)}>Open the project</Link></>}
+            {taskBase && <> · <Link href={`${taskBase}/${t.id}`}>Open the task</Link></>}
+          </p>
+          {/* UPDATE and COMPLETE, and the history they add to. No Reply - a
+              task is not from anyone - and no Archive: a task that is open is
+              open, and closing it is what Complete is for. */}
+          {t.project_id && <TaskThread projectId={t.project_id} actionId={t.id} title={t.action} />}
         </div>
       </details>
     </Card>
@@ -257,24 +257,25 @@ function Row({
   // open the same sheet a task row does, on the task it names.
   const aboutTask = !!m.action_id && !!m.project_id;
 
+  // The left slot: a person when there is one, otherwise what the thing is.
+  // A note from someone is theirs; an offer, a question or a system message
+  // is better named by kind than by "Green Bergen" three times in a row.
+  const from = m.mine ? `To ${m.who}` : m.kind === "note" || m.kind === "task" ? m.who : tag?.label ?? m.who;
+
   return (
     <Card pad={false} className={m.pending ? "msg unread" : "msg"}>
       <details>
         <summary className="msg-head">
-          <span className="grow" style={{ minWidth: 0 }}>
-            <span className="msg-from">
-              {m.mine ? `To ${m.who}` : m.who}
-              {tag && <span className={`tag ${tag.tone}`} style={{ marginLeft: 8 }}>{tag.label}</span>}
-            </span>
-            <span className="msg-subject">{m.subject || "(no subject)"}</span>
-            <span className="msg-meta">
-              {[m.project_name, when(m.sent_at), m.file ? "1 attachment" : null].filter(Boolean).join(" · ")}
-            </span>
-          </span>
           {m.pending && <span className="msg-dot" aria-label="Unread" />}
+          <span className="msg-from">{from}</span>
+          <span className="msg-subject">{m.subject || "(no subject)"}</span>
+          <span className="msg-when">{when(m.sent_at)}</span>
         </summary>
 
         <div className="msg-body">
+          <p className="msg-meta" style={{ margin: "0 0 8px" }}>
+            {[m.mine ? null : `From ${m.who}`, tag ? tag.label : null, m.project_name, m.file ? "1 attachment" : null].filter(Boolean).join(" · ")}
+          </p>
           {rest && <p className="small" style={{ margin: 0, whiteSpace: "pre-wrap" }}>{rest}</p>}
           {m.action && <p className="tiny text-muted" style={{ margin: "8px 0 0" }}>About the task: {m.action}</p>}
 
@@ -304,14 +305,6 @@ function Row({
                 {offer && <Link href={offer} className="btn btn-primary small">
                   {m.kind === "question" ? "Open the job" : "Open the offer"}
                 </Link>}
-                {aboutTask && (
-                  <>
-                    <TaskSheet projectId={m.project_id!} actionId={m.action_id!} title={m.action ?? m.subject}
-                      trigger={<button type="button" className="btn btn-primary small">Update</button>} />
-                    <TaskSheet projectId={m.project_id!} actionId={m.action_id!} title={m.action ?? m.subject} completeFirst
-                      trigger={<button type="button" className="btn btn-secondary small">Complete</button>} />
-                  </>
-                )}
                 {m.pending && !aboutTask && (
                   <form action={messageSeen}>
                     <input type="hidden" name="base" value={base} />
@@ -329,6 +322,15 @@ function Row({
               </>
             )}
           </div>
+
+          {/* A message ABOUT a task carries the task's thread: Update and
+              Complete open the same sheet a task row does, and the history
+              they add to shows underneath. */}
+          {aboutTask && (
+            <div style={{ marginTop: 10 }}>
+              <TaskThread projectId={m.project_id!} actionId={m.action_id!} title={m.action ?? m.subject} />
+            </div>
+          )}
 
           {/* Reply, to a person, about the project you already share. An
               offer is not replied to here - it is answered on the offer. */}
