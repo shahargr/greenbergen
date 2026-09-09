@@ -306,6 +306,13 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .msg-meta { font-size: 11.5px; color: var(--muted); display: block; }
 .msg-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--color-status); }
 .msg.unread .msg-subject { font-weight: 700; }
+/* OPEN, the subject is the whole thing. Shahar: "when opening a task, you
+   should allow me to see the entire task description and not cut it." The
+   clip is for scanning a closed list; an open row wraps its full title and
+   the date moves to the top corner beside it. */
+.msg details[open] > .msg-head { align-items: flex-start; }
+.msg details[open] > .msg-head .msg-subject { white-space: normal; overflow: visible; text-overflow: clip; font-weight: 700; line-height: 1.3; }
+.msg details[open] > .msg-head .msg-dot { margin-top: 5px; }
 .msg-body { padding: 0 var(--space-4) var(--space-4); border-top: 1px solid var(--color-divider); padding-top: 12px; }
 /* One entry in a task's history, under the row. */
 .note { padding: 8px 10px; border-radius: 10px; background: var(--color-soft); }
