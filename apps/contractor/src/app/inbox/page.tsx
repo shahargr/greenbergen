@@ -26,7 +26,9 @@ export default async function InboxPage({
       <div className="body">
         {ok && <div className="banner-ok">{ok}</div>}
         {error && <Notice kind="error">{error}</Notice>}
-        <InboxScreen data={data} base="/inbox" />
+        {/* An offer message opens the offer, not the project: the project is
+            behind the address rule until someone accepts. */}
+        <InboxScreen data={data} base="/inbox" offerHref={(id) => `/offer/${id}`} />
       </div>
       <ExpertTabs manages={doors.manages} current="inbox" />
     </Screen>

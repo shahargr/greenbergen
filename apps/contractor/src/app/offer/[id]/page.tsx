@@ -1,0 +1,156 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getMe } from "@/lib/me";
+import { loadOffer } from "@/lib/offers";
+import { dollars, shortDate } from "@shared/format";
+import { AppBar, Card, Notice, Screen } from "@shared/ui";
+import { acceptOffer, askAboutOffer, passOffer } from "./actions";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "An offer" };
+
+// AN OFFER, OPENED. Shahar: "once open, you should see the project, accept
+// as is, accept but asking for more details (price is not approved), or
+// archive (not interest)."
+//
+// So the screen is the job first and the buttons last, and the three ways
+// out are named for what they actually do:
+//
+//   Accept at the community price  - homeowner_offer_accept. First wins.
+//   Ask before you accept          - homeowner_offer_ask. NOT an acceptance:
+//                                    the price is not agreed and nothing
+//                                    about your position changes.
+//   Not interested                 - homeowner_offer_decline.
+//
+// TOWN ONLY, and said out loud. homeowner_offers() never returns an address
+// (migration 008), so this screen cannot leak one even by accident - but a
+// person deciding whether to drive somewhere deserves to be told why they
+// cannot see where, rather than left to notice it missing.
+export default async function OfferPage({
+  params, searchParams,
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
+  const { id } = await params;
+  const { ok, error } = await searchParams;
+  const [me, offer] = await Promise.all([getMe(), loadOffer(id)]);
+  if (!me.signed_in) redirect(`/login?next=/offer/${id}`);
+  // Gone means taken, passed or withdrawn - all of which read the same to
+  // the person holding a stale link, and none of which is an error.
+  if (!offer) {
+    return (
+      <Screen>
+        <AppBar back="/inbox" title="That offer has closed" />
+        <div className="body">
+          <Card pad>
+            <div className="card-title">It is no longer open.</div>
+            <p className="small text-muted" style={{ margin: "4px 0 0" }}>
+              Someone took it, or it was withdrawn. Nothing was held against you for not answering.
+            </p>
+          </Card>
+        </div>
+        <div className="actions"><Link href="/work" className="btn btn-primary btn-block">Back to work</Link></div>
+      </Screen>
+    );
+  }
+
+  const scope = offer.scope ?? [];
+  const asked = ok === "asked";
+
+  return (
+    <Screen>
+      <AppBar back="/inbox" title={offer.package} sub={offer.town ?? undefined} />
+      <div className="body">
+        {error && <Notice kind="error">{error}</Notice>}
+        {asked && (
+          <div className="banner-ok">
+            Your question is with us. The offer stays open and the price is not agreed — you have given nothing up.
+          </div>
+        )}
+
+        <div className="hero">
+          <h1>{offer.package}</h1>
+          <p className="lead">
+            {[offer.trade, offer.town, offer.config_label].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+
+        <Card pad={false}>
+          <div className="price">
+            <div className="kicker">The community price</div>
+            <div className="big mono">{dollars(offer.price_cents)}</div>
+            <div className="delta">
+              {offer.config_label ?? "the most common setup"}
+              {offer.reply_by ? ` · reply by ${shortDate(offer.reply_by)}` : ""}
+            </div>
+          </div>
+        </Card>
+
+        {scope.length > 0 && (
+          <Card pad>
+            <div className="kicker">What the job is</div>
+            <ul className="scope" style={{ marginTop: 4 }}>
+              {scope.map((s, i) => <li key={i}><span className="ic">·</span><span>{s}</span></li>)}
+            </ul>
+          </Card>
+        )}
+
+        <Card soft pad>
+          <div className="kv-rows" style={{ padding: "2px 0" }}>
+            <div><span className="k">Where</span><span>{offer.town ?? "Bergen County"} — the address is shared the moment you accept</span></div>
+            <div><span className="k">Photos</span><span>{offer.photos > 0 ? `${offer.photos} from the homeowner` : "None yet"}</span></div>
+            <div><span className="k">Posted</span><span>{offer.posted_at ? shortDate(offer.posted_at) : "—"}</span></div>
+          </div>
+        </Card>
+
+        {!me.can_accept && (
+          <Notice title="You can look, but you can't accept yet.">
+            Your licence and certificates have to be on file and approved first.{" "}
+            <Link href="/business/documents">Finish that</Link> and this button comes alive.
+          </Notice>
+        )}
+
+        {/* ACCEPT AS IS. The only one of the three that commits you. */}
+        <form action={acceptOffer.bind(null, id, me.profile.contact_id ?? "")}>
+          <button className="btn btn-primary btn-block" disabled={!me.can_accept || !me.profile.contact_id}>
+            Accept at {dollars(offer.price_cents)}
+          </button>
+        </form>
+        <p className="tiny text-muted" style={{ margin: "-4px 0 0" }}>
+          First to accept gets it. That writes the contract and the payment stages, releases the address to you,
+          and tells the other {offer.trade?.toLowerCase() ?? "trades"} it is gone.
+        </p>
+
+        {/* ASK. Deliberately NOT next to Accept, and deliberately not called
+            "accept with conditions" - nothing is accepted here. */}
+        <details className="home-panel" style={{ marginTop: 4 }}>
+          <summary className="home-row">
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">Ask before you accept</span>
+              <span className="m" style={{ display: "block" }}>Something you need to know first — the price stays unagreed.</span>
+            </span>
+            <span className="chev">›</span>
+          </summary>
+          <div className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+            <form action={askAboutOffer.bind(null, id)} className="stack" style={{ gap: 8 }}>
+              <textarea className="input" name="note" rows={3} required
+                        placeholder="How far is the panel from the meter? Is there an existing gas line?" />
+              <button className="btn btn-secondary btn-block">Send the question</button>
+            </form>
+            <p className="tiny text-muted" style={{ margin: 0 }}>
+              This is a question, not a bid and not an acceptance. <strong>The community price is not agreed</strong>,
+              the offer stays open to everyone it went to, and <strong>the address stays withheld</strong> until
+              someone accepts. We answer it — you are not messaging the homeowner directly.
+            </p>
+          </div>
+        </details>
+
+        {/* PASS. Last, quiet, and honest about being one-way. */}
+        <form action={passOffer.bind(null, id)} style={{ marginTop: 4 }}>
+          <button className="btn btn-ghost btn-block">Not interested</button>
+        </form>
+        <p className="tiny text-muted" style={{ margin: "-4px 0 12px" }}>
+          It leaves your list and stays open for everyone else. Nothing is held against you.
+        </p>
+      </div>
+    </Screen>
+  );
+}

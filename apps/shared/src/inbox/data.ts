@@ -35,20 +35,30 @@ export type Target = {
   people: { contact_id: string; name: string; seat: string | null }[];
 };
 
-export type InboxData = { messages: Msg[]; invites: Invites; targets: Target[]; failed: boolean };
-
-export const EMPTY: InboxData = {
-  messages: [], invites: { incoming: [], outcomes: [] }, targets: [], failed: false,
+export type InboxData = {
+  messages: Msg[]; invites: Invites; targets: Target[]; failed: boolean;
+  // Jobs this person has a LIVE offer on. A bid invitation and a note from a
+  // neighbour are not the same message and must not carry the same verbs -
+  // and the honest way to tell them apart is to ask which offers are open,
+  // not to read the body text and hope.
+  offers: string[];
 };
 
-// Three reads, none depending on another, so they leave together - one
-// round trip's worth of wall clock instead of three.
+export const EMPTY: InboxData = {
+  messages: [], invites: { incoming: [], outcomes: [] }, targets: [], failed: false, offers: [],
+};
+
+// Four reads, none depending on another, so they leave together - one round
+// trip's worth of wall clock instead of four. homeowner_offers() is
+// bidder-scoped, so in the homeowner app it simply comes back empty and
+// costs nothing but the round trip it shares.
 export async function loadInbox(limit = 100): Promise<InboxData> {
   const supabase = await createClient();
-  const [msgs, invs, tgts] = await Promise.all([
+  const [msgs, invs, tgts, offs] = await Promise.all([
     timed("inbox.messages", () => rpc<Msg[]>(supabase, "portal_my_messages", { p_limit: limit })),
     timed("inbox.invites", () => rpc<Invites>(supabase, "portal_my_invites")),
     timed("inbox.targets", () => rpc<Target[]>(supabase, "portal_compose_targets")),
+    timed("inbox.offers", () => rpc<{ project_id: string }[]>(supabase, "homeowner_offers")),
   ]);
   return {
     messages: Array.isArray(msgs.data) ? msgs.data : [],
@@ -58,6 +68,7 @@ export async function loadInbox(limit = 100): Promise<InboxData> {
     },
     targets: Array.isArray(tgts.data) ? tgts.data : [],
     failed: !!msgs.error,
+    offers: Array.isArray(offs.data) ? offs.data.map((o) => o.project_id) : [],
   };
 }
 

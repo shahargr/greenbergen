@@ -19,12 +19,13 @@ const when = (t: string) =>
   new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 export function InboxScreen({
-  data, base, taskBase, projectHref,
+  data, base, taskBase, projectHref, offerHref,
 }: {
   data: InboxData;
   base: string;                              // this app's inbox path
   taskBase?: string;                         // where a task made here lives
   projectHref?: (id: string) => string;      // how this app links a project
+  offerHref?: (id: string) => string;        // how this app opens an offer
   show?: string;
 }) {
   const { messages, invites, failed } = data;
@@ -67,7 +68,7 @@ export function InboxScreen({
         </section>
       )}
 
-      <Messages data={data} base={base} taskBase={taskBase} projectHref={projectHref} />
+      <Messages data={data} base={base} taskBase={taskBase} projectHref={projectHref} offerHref={offerHref} />
     </>
   );
 }
@@ -78,19 +79,21 @@ export function InboxScreen({
 // portal_my_messages - so the portal's messages are ADDED there rather than
 // swapped in, and nothing that was working stops working.
 export function Messages({
-  data, base, taskBase, projectHref, heading = "Messages",
+  data, base, taskBase, projectHref, offerHref, heading = "Messages",
 }: {
   data: InboxData; base: string; taskBase?: string;
-  projectHref?: (id: string) => string; heading?: string;
+  projectHref?: (id: string) => string; offerHref?: (id: string) => string; heading?: string;
 }) {
   const { messages, targets } = data;
+  const offers = new Set(data.offers ?? []);
   const waiting = messages.filter((m) => m.pending);
   return (
     <>
       {waiting.length > 0 && (
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Waiting on you · {waiting.length}</div>
-          {waiting.map((m) => <Row key={m.id} m={m} base={base} taskBase={taskBase} projectHref={projectHref} />)}
+          {waiting.map((m) => <Row key={m.id} m={m} base={base} taskBase={taskBase} projectHref={projectHref}
+            offer={offerHref && m.project_id && offers.has(m.project_id) ? offerHref(m.project_id) : null} />)}
         </section>
       )}
 
@@ -100,7 +103,8 @@ export function Messages({
           <Card soft pad><div className="small">No messages yet.</div></Card>
         )}
         {messages.filter((m) => !m.pending).map((m) => (
-          <Row key={m.id} m={m} base={base} taskBase={taskBase} projectHref={projectHref} />
+          <Row key={m.id} m={m} base={base} taskBase={taskBase} projectHref={projectHref}
+            offer={offerHref && m.project_id && offers.has(m.project_id) ? offerHref(m.project_id) : null} />
         ))}
       </section>
 
@@ -113,9 +117,12 @@ export function Messages({
 }
 
 function Row({
-  m, base, taskBase, projectHref,
+  m, base, taskBase, projectHref, offer,
 }: {
   m: Msg; base: string; taskBase?: string; projectHref?: (id: string) => string;
+  // Set when this message is a live OFFER on a job. An offer is a decision,
+  // not correspondence: it gets Open and Ignore and nothing else.
+  offer?: string | null;
 }) {
   const meta = [
     m.mine ? `You → ${m.who}` : m.who,
@@ -141,8 +148,24 @@ function Row({
         {m.pending && <span className="tag tag-status" style={{ whiteSpace: "nowrap" }}>New</span>}
       </div>
 
-      {/* Three ways a message stops waiting on you: you have read it, you
-          have dealt with it, or it becomes a task that has not been. */}
+      {/* AN OFFER IS A DECISION, NOT CORRESPONDENCE. Done, Archive, Delete
+          and "turn this into a task" are the verbs of a message you have
+          read; an invitation to bid has exactly two here - open it, or let
+          it go - and the real choices (accept · ask first · not interested)
+          live on the offer screen where the job is in front of you.
+          Delete in particular is pointless: it removes our record of an
+          offer that is still open in the database, which helps nobody. */}
+      {offer ? (
+        <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+          <Link href={offer} className="btn btn-primary small">Open</Link>
+          <form action={messageSet}>
+            <input type="hidden" name="base" value={base} />
+            <input type="hidden" name="id" value={m.id} />
+            <input type="hidden" name="status" value="dismissed" />
+            <button className="btn btn-ghost small">Ignore</button>
+          </form>
+        </div>
+      ) : (
       <div className="row" style={{ gap: 6, marginTop: 10, flexWrap: "wrap" }}>
         {m.pending && (
           <form action={messageSeen}>
@@ -172,8 +195,9 @@ function Row({
           <button className="btn btn-ghost small">Delete</button>
         </form>
       </div>
+      )}
 
-      {!m.action_id && (
+      {!offer && !m.action_id && (
         <details style={{ marginTop: 8 }}>
           <summary className="tiny text-muted" style={{ cursor: "pointer" }}>Turn this into a task</summary>
           <form action={messageToTask} className="stack" style={{ gap: 8, marginTop: 8 }}>
