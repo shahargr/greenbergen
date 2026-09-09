@@ -291,6 +291,45 @@ a.panel-link:hover strong { color: var(--brand); }
   .panel { width: 100%; }
 }
 
+/* The tally: what Green Bergen has actually done, in numbers that grow.
+   Four figures on one line; the label under each is what it counts. */
+.tally {
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 auto 28px; max-width: 760px;
+}
+.tally-item {
+  flex: 1 1 150px; text-align: center; padding: 14px 10px;
+  background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(3px);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(27, 31, 28, 0.05);
+}
+.tally-item .n { display: block; font-size: 30px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; color: var(--ink); }
+.tally-item .n.zero { color: var(--muted); }
+.tally-item .l { display: block; margin-top: 6px; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+
+/* The book: every house, in flight first, then built - a photo, the
+   address, and one word about where it stands. Each opens its public page. */
+.book { padding-bottom: 64px; }
+.book h2 { margin: 0 0 14px; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); text-align: center; }
+.book-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px;
+}
+.book-card {
+  display: block; color: inherit; text-decoration: none;
+  background: rgba(255, 255, 255, 0.9); border: 1px solid var(--line); border-radius: 14px;
+  overflow: hidden; box-shadow: 0 2px 10px rgba(27, 31, 28, 0.05);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+a.book-card:hover { text-decoration: none; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(27, 31, 28, 0.1); }
+.book-card .photo { aspect-ratio: 4 / 3; background: #f2f7f3; color: var(--brand); display: grid; place-items: center; overflow: hidden; }
+.book-card .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.book-card .cap { padding: 12px 14px 14px; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.book-card .cap strong { font-size: 15px; line-height: 1.2; }
+.book-card .cap .muted { display: block; font-size: 12.5px; margin-top: 2px; }
+.book-card .state { flex: none; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; background: #eef4ef; color: var(--brand); }
+.book-card .state.live { background: #fff4e5; color: #9a5b00; }
+.book-empty { text-align: center; color: var(--muted); padding: 24px 0 8px; }
+
 /* Signed-in top menu */
 .topnav {
   border-bottom: 1px solid var(--line);
