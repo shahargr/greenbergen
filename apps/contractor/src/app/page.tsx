@@ -18,10 +18,13 @@ export default async function Landing() {
 
   return (
     <Screen>
-      <AppBar brand tagline={tagline} />
+      <AppBar brand />
       <div className="body">
         <div className="hero">
           <h1>Work from the people who live here.</h1>
+          {/* The community line, editable in Admin (config.public_tagline).
+              It used to sit under the logo; the logo now names the app. */}
+          {tagline && <p className="step-kicker" style={{ margin: "-4px 0 8px" }}>{tagline}</p>}
           <p className="lead">
             Green Bergen is a real community, not just a marketplace. Neighbours book pre-priced
             packages; you accept the ones you want at the community price.

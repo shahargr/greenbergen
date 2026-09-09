@@ -8,6 +8,7 @@ import { VIEW_HOME } from "@/components/viewmap";
 import { MaskMenu, type Person } from "@/components/MaskMenu";
 import { BackNav } from "@/components/BackNav";
 import { NavRole } from "@/components/NavRole";
+import { seatLabel } from "@/lib/seatLabel";
 import { endViewAs, beginViewAs } from "@/components/viewas";
 
 const InviteIcon = () => (
@@ -138,12 +139,16 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
     <header className="topnav">
       <nav className="wrap topnav-inner">
         <div className="topnav-left">
-          <span className="brandstack">
-            <Wordmark small href={ROLE_HOME[role]} />
-            {me?.email
-              ? <NavRole first={firstName} appUserId={me?.app_user_id ?? null} fallback={whoLabel} ranks={ranksObj}
-                  title={`${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}`} />
-              : <span className="brand-viewfor">{viewLabel}</span>}
+          {/* The seat you hold IS the line under the logo now - MY HOME,
+              PROJECT M., CONTRACTOR, VISITOR, ADMIN - one word, in the
+              lockup. Name, email and "(N roles)" moved to the tooltip. */}
+          <span className="brandstack" title={me?.email ? `${firstName} · ${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}` : undefined}>
+            <Wordmark small href={ROLE_HOME[role]}
+              door={me?.email
+                // A trade with no project seat yet is still a contractor, not a visitor.
+                ? <NavRole appUserId={me?.app_user_id ?? null} ranks={ranksObj} admin={isAdmin}
+                    fallback={seatNames.length === 0 && tradeNames.length > 0 && !isAdmin ? "Contractor" : seatLabel(seatNames, ranksObj, isAdmin)} />
+                : seatLabel([], {}, false)} />
           </span>
         </div>
         <div className="topnav-right">

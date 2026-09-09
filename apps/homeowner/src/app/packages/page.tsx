@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@shared/supabase/server";
-import { isBookable, loadTagline, loadTiles } from "@shared/catalogue";
+import { isBookable, loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Screen, ShellIcons, StepKicker } from "@shared/ui";
 import { PackageTile } from "@/components/PackageTile";
@@ -15,14 +15,14 @@ export const metadata = { title: "Packages" };
 // re-learn the shelf.
 export default async function PackagesPage() {
   const supabase = await createClient();
-  const [{ tiles }, signedIn, tagline] = await Promise.all([loadTiles(), isSignedIn(supabase), loadTagline()]);
+  const [{ tiles }, signedIn] = await Promise.all([loadTiles(), isSignedIn(supabase)]);
   const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
   const rest = tiles.filter((t) => t.tile_group !== "front");
   const live = rest.filter(isBookable);
   const dim = rest.filter((t) => !isBookable(t));
   return (
     <Screen>
-      <AppBar brand door={signedIn ? "homeowner" : undefined} tagline={tagline} right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
+      <AppBar brand right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">

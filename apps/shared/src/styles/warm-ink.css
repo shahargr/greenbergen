@@ -191,11 +191,15 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .wm-stack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
 .wm-door {
   font-family: var(--font-heading); font-weight: 700;
-  font-size: 9.5px; letter-spacing: 0.17em; text-transform: uppercase;
+  letter-spacing: 0.17em; text-transform: uppercase;
   color: var(--muted); line-height: 1;
   /* Optically flush with the "g" of green: uppercase sits inside its box. */
   margin-left: 1px;
 }
+/* The house spans both lines (its size is computed from them in Wordmark);
+   bottom-align the row so the roof and the door line share their baselines
+   with the text rather than floating on a centre the eye cannot find. */
+.brand .mark { align-items: stretch; }
 .brand .mark > svg { flex: none; color: var(--color-brand); }
 .wordmark { display: inline-block; font-family: var(--font-heading); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
 .wordmark .wm-green { color: var(--color-brand); }
