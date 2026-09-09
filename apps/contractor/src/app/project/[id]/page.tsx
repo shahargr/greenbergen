@@ -124,48 +124,55 @@ export default async function ProjectPage({
           {seat.stage ? ` · ${seat.stage}` : ""}
         </div>
 
-        {/* FIRST ACTION ON THE SITE, because it is the first thing that
-            happens on the site. portal_site_check has been in the database
-            since the check-in flow went in and nothing had ever called it -
-            arriving also puts you on the day's roster. Two buttons, because
-            this is tapped standing in a driveway. */}
-        <Card pad>
-          <div className="between" style={{ alignItems: "flex-start" }}>
-            <div className="grow" style={{ minWidth: 0 }}>
-              <div className="card-title" style={{ fontSize: 15 }}>
-                {day?.on_site ? "You're on site" : "Log a site visit"}
+        {/* FIRST ACTION ON THE SITE - but only where there IS a site. A site
+            is a place with an address: a property has one, a job carries the
+            property's, a development is a folder of properties and has none.
+            "I'm on site" at Green Bergen Development claims to stand in a
+            place that does not exist, so the card follows the address, and
+            portal_site_check (migration 039) refuses the same case. */}
+        {seat.address && (
+          <>
+          {/* Two buttons, because this is tapped standing in a driveway;
+              arriving also puts you on the day's roster. */}
+          <Card pad>
+            <div className="between" style={{ alignItems: "flex-start" }}>
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="card-title" style={{ fontSize: 15 }}>
+                  {day?.on_site ? "You're on site" : "Log a site visit"}
+                </div>
+                <div className="small text-muted">
+                  {day?.on_site
+                    ? `Since ${dayClock(day.arrived_at)}. Log your leave when you go.`
+                    : day?.left_at
+                      ? `You were here today — left ${dayClock(day.left_at)}.`
+                      : "Records your day here and puts you on the roster."}
+                </div>
               </div>
-              <div className="small text-muted">
-                {day?.on_site
-                  ? `Since ${dayClock(day.arrived_at)}. Log your leave when you go.`
-                  : day?.left_at
-                    ? `You were here today — left ${dayClock(day.left_at)}.`
-                    : "Records your day here and puts you on the roster."}
-              </div>
+              {day?.on_site && <span className="tag tag-ok">On site</span>}
             </div>
-            {day?.on_site && <span className="tag tag-ok">On site</span>}
-          </div>
-          <form action={(day?.on_site ? siteCheck.bind(null, id, "leave") : siteCheck.bind(null, id, "arrive"))}
-                className="stack" style={{ gap: 8, marginTop: 10 }}>
-            <input className="input" name="note" placeholder={day?.on_site ? "Anything worth recording? (optional)" : "What are you here for? (optional)"} />
-            <button className="btn btn-primary btn-block">
-              {day?.on_site ? "Log that I'm leaving" : "I'm on site"}
-            </button>
-          </form>
-        </Card>
+            <form action={(day?.on_site ? siteCheck.bind(null, id, "leave") : siteCheck.bind(null, id, "arrive"))}
+                  className="stack" style={{ gap: 8, marginTop: 10 }}>
+              <input className="input" name="note" placeholder={day?.on_site ? "Anything worth recording? (optional)" : "What are you here for? (optional)"} />
+              <button className="btn btn-primary btn-block">
+                {day?.on_site ? "Log that I'm leaving" : "I'm on site"}
+              </button>
+            </form>
+          </Card>
 
-        {/* The three numbers a GC checks first. */}
-        <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
-          <Stat n={String(openHere.length)}
-            label={kids.length ? "open on site" : openHere.length === 1 ? "open task" : "open tasks"}
-            tone={late.length ? "status" : undefined} />
-          <Stat n={String(packages.filter((p) => p.status === "open").length)} label="out to bid" />
-          <Stat n={money(roll?.owed ?? seat.owed) ?? "—"} label="owed" />
-        </div>
-        {late.length > 0 && (
-          <Notice kind="error" title={`${late.length} ${late.length === 1 ? "task is" : "tasks are"} late.`}>
-            The oldest was due {shortDate(late.sort((a, b) => (a.target_date ?? "").localeCompare(b.target_date ?? ""))[0]!.target_date)}.
-          </Notice>
+          {/* The three numbers a GC checks first. */}
+          <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+            <Stat n={String(openHere.length)}
+              label={kids.length ? "open on site" : openHere.length === 1 ? "open task" : "open tasks"}
+              tone={late.length ? "status" : undefined} />
+            <Stat n={String(packages.filter((p) => p.status === "open").length)} label="out to bid" />
+            <Stat n={money(roll?.owed ?? seat.owed) ?? "—"} label="owed" />
+          </div>
+          {late.length > 0 && (
+            <Notice kind="error" title={`${late.length} ${late.length === 1 ? "task is" : "tasks are"} late.`}>
+              The oldest was due {shortDate(late.sort((a, b) => (a.target_date ?? "").localeCompare(b.target_date ?? ""))[0]!.target_date)}.
+            </Notice>
+          )}
+          </>
         )}
 
         {/* What sits beneath this one. A development lists its homes, a home
