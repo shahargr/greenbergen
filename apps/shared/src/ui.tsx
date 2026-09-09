@@ -46,24 +46,35 @@ export const WarnIcon = () => (
 // the same green and "bergen" in ink, one lowercase word. Swap for the SVG
 // file when it lands; keep the same classes so nothing else moves.
 //
-// With a door, it becomes a LOCKUP: the app's name set under the wordmark,
-// aligned to it, in the way a product family names its members. That is more
-// truthful than a badge beside it - the word says what this PRODUCT is, not
-// what the person is, and the same person holds three of them. It also costs
-// no height, because it takes the line the tagline had.
+// It is always a LOCKUP: the app's name set under the wordmark, aligned to
+// it, the way a product family names its members. The word says what this
+// PRODUCT is, not what the person is - the same person holds three of them.
 //
-// No per-door glyph here on purpose: the house IS the Green Bergen mark, and
-// a second icon next to it competes with it. The glyphs earn their place in
-// DoorSwitch, where there is a list to scan.
-export function Wordmark({ size = 15, door }: { size?: number; door?: DoorKey }) {
+// The door comes from the build (NEXT_PUBLIC_APP_DOOR in each app's
+// next.config.ts), so every screen in the contractor app says CONTRACTOR
+// whether or not the call site thought to say so. It used to be optional and
+// signed-out screens showed the tagline there instead - which left the
+// contractor landing page saying nothing about being the contractor app.
+//
+// The house is as tall as BOTH lines (Shahar), which is what makes it read
+// as one mark rather than an icon beside a word. No per-door glyph: the house
+// IS the Green Bergen mark, and a second icon competes with it.
+const APP_DOOR = ((): DoorKey | undefined => {
+  const d = process.env.NEXT_PUBLIC_APP_DOOR;
+  return d && d in DOORS ? (d as DoorKey) : undefined;
+})();
+
+export function Wordmark({ size = 15, door = APP_DOOR }: { size?: number; door?: DoorKey }) {
+  // Wordmark line + gap + door line, so the house spans the stack exactly.
+  const house = door ? Math.round(size + 2 + size * 0.63) : size + 3;
   return (
     <span className="mark">
-      <svg width={size + 3} height={size + 3} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" /></svg>
+      <svg width={house} height={house} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" /></svg>
       <span className="wm-stack">
         <span className="wordmark" style={{ fontSize: size }} aria-label="Green Bergen">
           <span className="wm-green">green</span><span className="wm-ink">bergen</span>
         </span>
-        {door && <span className="wm-door">{DOORS[door].label}</span>}
+        {door && <span className="wm-door" style={{ fontSize: Math.round(size * 0.63) }}>{DOORS[door].short}</span>}
       </span>
     </span>
   );
@@ -71,12 +82,11 @@ export function Wordmark({ size = 15, door }: { size?: number; door?: DoorKey })
 
 // AppBar - brand / back + title / trailing action.
 export function AppBar({
-  back, title, sub, right, brand = false, door, tagline,
-}: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean; door?: DoorKey;
-     // Public pages only - signed in, the logo carries the app name instead.
-     // Editable in Admin (config.public_tagline); this is the fallback if the
-     // database has not answered.
-     tagline?: string | null }) {
+  back, title, sub, right, brand = false, door,
+}: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean;
+     // Overrides the build's door for the logo line. Rarely needed: the app
+     // already knows which door it is.
+     door?: DoorKey }) {
   return (
     <header className="appbar">
       {typeof back === "string" && (
@@ -87,11 +97,9 @@ export function AppBar({
       )}
       {brand && !title && (
         <Link href="/" className="brand grow">
-          {/* Signed in, the logo names the app you are in. Signed out it
-              sells - a stranger needs the pitch, and someone already inside
-              needs to know where they are. One line either way. */}
+          {/* The logo names the app you are in, signed in or not. The pitch
+              (config.public_tagline) lives in the landing hero, not here. */}
           <Wordmark door={door} />
-          {!door && <span className="sub">{tagline ?? DEFAULT_TAGLINE}</span>}
         </Link>
       )}
       {title && (

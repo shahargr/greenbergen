@@ -14,7 +14,8 @@ export type DoorKey = "homeowner" | "contractor" | "builder" | "portal";
 
 export type Door = {
   key: DoorKey;
-  label: string;   // what the pill says
+  label: string;   // what the switcher and the picker say
+  short: string;   // the line under the logo - has to fit beside a 15px wordmark
   full: string;    // what the switcher says
   blurb: string;   // why you would go there
   url: string;
@@ -28,6 +29,7 @@ export const DOORS: Record<DoorKey, Door> = {
   homeowner: {
     key: "homeowner",
     label: "Homeowner",
+    short: "Homeowner",
     full: "Your home",
     blurb: "Price a package, book it, follow the job.",
     url: url(process.env.NEXT_PUBLIC_DOOR_HOMEOWNER, "https://greenbergen-homeowner.vercel.app"),
@@ -35,13 +37,15 @@ export const DOORS: Record<DoorKey, Door> = {
   contractor: {
     key: "contractor",
     label: "Contractor",
+    short: "Contractor",
     full: "Your trade",
     blurb: "Offers at the community price, your jobs, your documents.",
     url: url(process.env.NEXT_PUBLIC_DOOR_CONTRACTOR, "https://greenbergen-contractor.vercel.app"),
   },
   builder: {
     key: "builder",
-    label: "Builder",
+    label: "Project manager",
+    short: "Project M.",
     full: "Your board",
     blurb: "Run the job: scope, bids, crew, money.",
     url: url(process.env.NEXT_PUBLIC_DOOR_BUILDER, "https://greenbergen-builder.vercel.app"),
@@ -49,6 +53,7 @@ export const DOORS: Record<DoorKey, Door> = {
   portal: {
     key: "portal",
     label: "Admin",
+    short: "Admin",
     full: "The portal",
     blurb: "Everything: admin, deals, the whole record.",
     url: url(process.env.NEXT_PUBLIC_DOOR_PORTAL, "https://greenbergen.vercel.app"),

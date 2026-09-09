@@ -3,30 +3,35 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { seatLabel } from "@/lib/seatLabel";
 
-// The line under the logo: first name · highest seat ON THE PROJECT BEING
-// VIEWED. The same person can be asset owner on one project and a
-// contractor on another, so the label follows the route. Off a project
-// page it falls back to the person's highest seat anywhere.
+// The line under the logo: your highest seat ON THE PROJECT BEING VIEWED,
+// said the short way - MY HOME, PROJECT M., CONTRACTOR, VISITOR, ADMIN. The
+// same person can be asset owner on one project and a contractor on another,
+// so the word follows the route. Off a project page it is the seat the
+// server already worked out from everywhere you hold one.
+//
+// The detail - name, email, "(4 roles)" - lives in the tooltip TopNav sets on
+// the whole lockup; the line itself is one word, as Shahar asked.
 export function NavRole({
-  first, appUserId, fallback, ranks, title,
+  appUserId, fallback, ranks, admin,
 }: {
-  first: string;
   appUserId: string | null;
   fallback: string;
   ranks: Record<string, number>;
-  title?: string;
+  admin: boolean;
 }) {
   const pathname = usePathname();
   const projectId = useMemo(() => {
     const m = pathname?.match(/^\/my\/(?:project|house)\/([0-9a-f-]{36})/i);
     return m ? m[1] : null;
   }, [pathname]);
-  const [label, setLabel] = useState<string | null>(null);
+  // Keyed by project so a route change never shows the previous project's
+  // seat while the new one loads - and so no setState is needed to reset it.
+  const [seat, setSeat] = useState<{ projectId: string; label: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setLabel(null);
     if (!projectId || !appUserId) return;
     (async () => {
       const supabase = createClient();
@@ -39,17 +44,10 @@ export function NavRole({
       if (cancelled) return;
       const seats = [...new Set(((data ?? []) as { role: string; project_role: string | null }[]).map((s) => s.project_role ?? s.role))];
       if (seats.length === 0) return; // no seat here (e.g. god mode): keep the fallback
-      const top = [...seats].sort((a, b) => (ranks[b] ?? 0) - (ranks[a] ?? 0))[0];
-      setLabel(`${top}${seats.length > 1 ? ` (${seats.length} roles)` : ""}`);
+      setSeat({ projectId, label: seatLabel(seats, ranks, admin) });
     })();
     return () => { cancelled = true; };
-  }, [projectId, appUserId, ranks]);
+  }, [projectId, appUserId, ranks, admin]);
 
-  const text = `${first} · ${label ?? fallback}`;
-  return (
-    <span className="brand-viewfor" title={title ?? text}
-      style={{ textTransform: "none", letterSpacing: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "min(60vw, 420px)" }}>
-      {text}
-    </span>
-  );
+  return <>{seat && seat.projectId === projectId ? seat.label : fallback}</>;
 }

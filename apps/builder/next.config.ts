@@ -8,6 +8,10 @@ import type { NextConfig } from "next";
 const repoRoot = path.join(__dirname, "..", "..");
 
 const nextConfig: NextConfig = {
+  // Which door this deployment IS. Baked in at build time so the shared
+  // Wordmark can name the app under the logo on every screen without each
+  // call site saying so - and without a Vercel setting anyone can forget.
+  env: { NEXT_PUBLIC_APP_DOOR: "builder" },
   turbopack: { root: repoRoot },
   outputFileTracingRoot: repoRoot,
   experimental: {

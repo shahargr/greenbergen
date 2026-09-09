@@ -42,7 +42,32 @@ export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_gr
   // which covers a cold database, predates them.
   category?: string | null;
   season_months?: number[] | null;
+  // Added by migration 023. trade is the package's trade; covered says whether
+  // ANY approved contractor carries it - computed with the same predicate the
+  // offer loop uses to pick who receives the job, so a live tile means the
+  // offer reaches someone. Optional for the same reason as above; undefined
+  // (the static fallback) is read as covered, because a cold database is not
+  // evidence that nobody can do the work.
+  trade?: string | null;
+  covered?: boolean;
 };
+
+// The two questions a tile answers, kept apart because they fail differently:
+// priced is "do we have a number", covered is "is there anyone to send it to".
+// Only a package that passes both can be booked turn-key today.
+export const isPriced = (t: Tile) => t.availability === "priced";
+export const isCovered = (t: Tile) => t.covered !== false;
+export const isBookable = (t: Tile) => isPriced(t) && isCovered(t);
+
+// Why a tile is dim, in the member's words. Order matters: no price is a
+// bigger gap than no contractor, and "coming soon" outranks both.
+export function dimReason(t: Tile): string {
+  if (t.availability === "coming_soon") return "Coming soon";
+  if (!isCovered(t)) return "No contractor yet";
+  if (t.availability === "quote") return "We look first";
+  if (t.availability === "custom") return "Tell us what you need";
+  return "Not yet";
+}
 
 // A section of the catalogue, grouped by what is going on in the owner's
 // life rather than by trade. Labels and order live in the database so they
@@ -129,6 +154,20 @@ export async function loadTiles(): Promise<{ tiles: Tile[]; source: "database" |
 export async function loadSections(): Promise<Section[]> {
   const rows = await catalogueRpc<Section[]>("homeowner_catalogue_sections");
   return Array.isArray(rows) && rows.length > 0 ? rows : STATIC_SECTIONS;
+}
+
+// Is anyone approved to do this trade? Cached exactly like the rest of the
+// catalogue: the answer is the same for every visitor and changes when someone
+// is approved, not per request. The package page asks it separately rather
+// than fattening homeowner_package, because it is one boolean and it changes
+// on a different clock from the package itself.
+//
+// A failed read returns true - unavailable coverage must never present a real
+// package as unavailable.
+export async function loadCovered(trade: string | null | undefined): Promise<boolean> {
+  if (!trade) return true;
+  const row = await catalogueRpc<boolean>("homeowner_trade_covered", { p_trade: trade });
+  return row === false ? false : true;
 }
 
 // One package, whole. ~4.5 kB - what the package page and the wizard need.

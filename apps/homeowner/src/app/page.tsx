@@ -32,7 +32,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
 
   return (
     <Screen>
-      <AppBar brand tagline={tagline} />
+      <AppBar brand />
       <div className="body">
         {inviter ? (
           <Card pad>
@@ -50,6 +50,9 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           <h1 style={{ fontSize: 26 }}>
             {inviter && name ? <>Welcome, {name}. The safe way to meet contractors in our community.</> : <>The safe way to meet contractors in our community.</>}
           </h1>
+          {/* The community line, editable in Admin (config.public_tagline).
+              It used to sit under the logo; the logo now names the app. */}
+          {tagline && <p className="step-kicker" style={{ margin: "6px 0 0" }}>{tagline}</p>}
         </div>
 
         <div className="illus short">

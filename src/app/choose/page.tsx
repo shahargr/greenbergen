@@ -5,9 +5,12 @@ import { Wordmark } from "@/components/SiteHeader";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Where to?" };
 
-// Shown only to someone who holds more than one door and is not an admin.
-// One door resolves straight through in /after-login and never gets here;
-// an admin lands in the portal, which is theirs.
+// Shown to anyone holding more than one door. One door resolves straight
+// through in /after-login and never gets here.
+//
+// Admin is in the list now rather than jumping the queue. Shahar holds all
+// four, and on most mornings he is not signing in to be an admin - being
+// asked once beats landing in the wrong app and hunting for the switcher.
 export default async function ChoosePage() {
   const doors = await loadDoors();
   if (doors.held.length < 2) redirect(landing(doors));
@@ -17,8 +20,8 @@ export default async function ChoosePage() {
       <Wordmark />
       <h1 style={{ fontSize: 26, margin: "16px 0 4px" }}>Where to?</h1>
       <p className="muted" style={{ marginTop: 0 }}>
-        You hold more than one of these. Same sign-in, same account — pick the one you want now,
-        and switch any time from the gear.
+        You hold {doors.held.length === 2 ? "both" : `all ${doors.held.length}`} of these. Same sign-in, same
+        account — pick the one you want now, and switch any time from the gear.
       </p>
       <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
         {doors.held.map((k) => (

@@ -1,28 +1,30 @@
 import Link from "next/link";
-import { COMMUNITY_SERVICES, loadTiles } from "@shared/catalogue";
+import { COMMUNITY_SERVICES } from "@shared/catalogue";
 import { AppBar, Screen } from "@shared/ui";
-import { PackageTile } from "@/components/PackageTile";
 import { Illustration } from "@shared/Illustrations";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "More packages" };
+export const metadata = { title: "Community services" };
 
-// Screen 4b - More: priced, coming soon (greyed, unclickable), the quote
-// track (kitchen, bath), the something-else escape hatch, and the
-// community-services slot.
-export default async function MorePage() {
-  const { tiles } = await loadTiles();
-  const more = tiles
-    .filter((p) => p.tile_group === "more" || p.availability === "coming_soon")
-    .sort((a, b) => rank(a.availability) - rank(b.availability) || a.sort_order - b.sort_order);
+// This used to be the overflow drawer: everything the front grid could not
+// fit, plus the coming-soon shelf, plus the community services underneath.
+// The catalogue is one list on one screen now, so the drawer has nothing left
+// to hold - what survives is the part that was never a package at all.
+//
+// Community services are a different animal: a cadence rather than a job, sold
+// to the street rather than to one house. They keep their own page.
+export default function CommunityServicesPage() {
   return (
     <Screen>
-      <AppBar back="/packages" title="More packages" />
+      <AppBar back="/packages" title="Community services" />
       <div className="body">
-        <div className="tiles">
-          {more.map((p) => <PackageTile key={p.code} pkg={p} />)}
+        <div className="hero">
+          <h1>Things a whole street buys together.</h1>
+          <p className="lead">
+            Not one job at one house — a cadence for the block, priced because enough neighbors
+            are in. Tap one to see how it works.
+          </p>
         </div>
-        <div className="divider-label">Community services</div>
         {COMMUNITY_SERVICES.map((s) => (
           <Link key={s.code} href={`/services/${s.code}`} className="tile wide">
             <div className="art"><Illustration name={s.illustration} /></div>
@@ -37,5 +39,3 @@ export default async function MorePage() {
     </Screen>
   );
 }
-
-const rank = (a: string) => (a === "priced" ? 0 : a === "coming_soon" ? 1 : a === "quote" ? 2 : 3);

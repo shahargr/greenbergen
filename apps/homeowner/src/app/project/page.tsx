@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary, type Home } from "@/lib/me";
-import { currentMonth, loadSections, loadTiles, seasonal, type Tile } from "@shared/catalogue";
+import { currentMonth, isBookable, loadTiles, seasonal, type Tile } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
-import { MoreTile, PackageTile } from "@/components/PackageTile";
+import { PackageTile } from "@/components/PackageTile";
 import { HomeTabs } from "@/components/HomeTabs";
 import { PhotoBanner } from "@/components/PhotoBanner";
 import { stopwatch } from "@shared/perf";
@@ -31,29 +31,45 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   const w = stopwatch("/project");
   // The catalogue is template data behind a shared cache; it does not wait
   // on the member's own read and the member's read does not wait on it.
-  const [me, { tiles }, sections] = await Promise.all([
+  // loadSections went with the category headings: no section renders here any
+  // more, so the round trip that fetched their labels was pure cost.
+  const [me, { tiles }] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("tiles", () => loadTiles()),
-    w.step("sections", () => loadSections()),
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/project");
   const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
   const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";
-  const front = tiles.filter((p) => p.tile_group === "front" && p.availability !== "coming_soon");
-  const more = tiles.filter((p) => p.tile_group === "more" || p.availability === "coming_soon");
 
-  // Sections group by what is going on in the house; the season is a rail
-  // ACROSS them, not one of them, so a job in its month is surfaced without
-  // being filed away from where people look the other eleven.
+  // ONE list, each package once.
+  //
+  // This screen used to show a package up to three times - in "Most booked",
+  // again on the seasonal rail, and again in its category section. Three
+  // sections, three names, one job: the grid looked full while saying the
+  // same thing over and over, and a member scrolling it could not tell what
+  // was new from what they had already passed.
+  //
+  // What replaced them is a headline row and the rest. The headline is
+  // tile_group = 'front' - six packages we choose to lead with, in the order
+  // we chose (migration 025). It is NOT a claim that they are bookable: every
+  // tile carries its own live-or-dim state either way, so the row we lead with
+  // and the truth about each tile stay two separate things.
+  //
+  // Below it, everything else, live before dim - the split being the only
+  // thing a member needs before tapping: can we do this now, or not yet.
+  // Category and season lost their headings; season kept its place in the
+  // ORDER, so the sprinkler blow-out surfaces in October without being filed
+  // away from where people look the other eleven months.
   const month = currentMonth();
-  const now = seasonal(tiles, month).filter((t) => t.availability !== "coming_soon");
-  const byCategory = new Map<string, Tile[]>();
-  for (const t of tiles) {
-    const k = t.category ?? "other";
-    byCategory.set(k, [...(byCategory.get(k) ?? []), t]);
-  }
-  const monthName = new Date(2000, month - 1, 1).toLocaleString("en-US", { month: "long" });
+  const inMonth = new Set(seasonal(tiles, month).map((t) => t.code));
+  const rank = (a: Tile, b: Tile) =>
+    Number(inMonth.has(b.code)) - Number(inMonth.has(a.code)) || a.sort_order - b.sort_order;
+  const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
+  const rest = tiles.filter((t) => t.tile_group !== "front");
+  const live = rest.filter(isBookable).sort(rank);
+  const dim = rest.filter((t) => !isBookable(t)).sort(rank);
+  const noneLive = !headline.some(isBookable) && live.length === 0;
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
   const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;
@@ -88,47 +104,47 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             what&apos;s included.
           </p>
         </div>
-        {/* The shortcut, kept: eight tiles, four to a row. They appear again
-            in their own sections below, which is the point - this row is a
-            fast path, not a different set. */}
-        <div className="divider-label">Most booked</div>
-        <div className="tiles quad">
-          {front.map((p) => <PackageTile key={p.code} pkg={p} />)}
-        </div>
+        {headline.length > 0 && (
+          <div className="tiles quad">
+            {headline.map((p) => <PackageTile key={p.code} pkg={p} />)}
+          </div>
+        )}
 
-        {/* In season now. A rail, never a section - the same package still
-            lives in its own group the rest of the year. */}
-        {now.length > 0 && (
+        {noneLive && (
+          // Not a bug, and it must not read like one. When nobody approved
+          // carries any of these trades, every tile on the screen is dim -
+          // saying so once, plainly, beats leaving a member to guess.
+          <Card soft pad>
+            <div className="card-title">Nothing we can book on the spot today</div>
+            <p className="small text-muted" style={{ margin: "4px 0 0" }}>
+              These prices are real, but no approved contractor covers their trades yet. Open any
+              of them: you can start it as a DIY project now, and ask us to tell you the day
+              someone can take it on.
+            </p>
+          </Card>
+        )}
+
+        {live.length > 0 && (
           <section className="stack" style={{ gap: 8, marginTop: 4 }}>
-            <div className="divider-label">Worth doing in {monthName}</div>
+            <div className="divider-label">Also ready now</div>
             <div className="tiles quad">
-              {now.slice(0, 4).map((p) => <PackageTile key={p.code} pkg={p} />)}
+              {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
             </div>
           </section>
         )}
 
-        {/* Everything, by what is going on in the house. Sections and their
-            order come from the database so they are tunable without a
-            deploy; an empty one never renders. */}
-        {sections.map((sec) => {
-          const rows = (byCategory.get(sec.key) ?? []).filter((t) => t.availability !== "coming_soon");
-          if (rows.length === 0) return null;
-          return (
-            <section className="stack" style={{ gap: 8 }} key={sec.key}>
-              <div className="divider-label">{sec.label}</div>
-              {sec.blurb && <p className="tiny text-muted" style={{ margin: "-4px 0 2px" }}>{sec.blurb}</p>}
-              <div className="tiles quad">
-                {rows.map((p) => <PackageTile key={p.code} pkg={p} />)}
-              </div>
-            </section>
-          );
-        })}
-
-        {/* Last: what has no price yet. More is now the coming-soon shelf
-            rather than the overflow drawer everything fell into. */}
-        <div className="tiles" style={{ marginTop: -2 }}>
-          <MoreTile count={more.length} />
-        </div>
+        {dim.length > 0 && (
+          <section className="stack" style={{ gap: 8, marginTop: 4 }}>
+            <div className="divider-label">Not yet</div>
+            <p className="tiny text-muted" style={{ margin: "-4px 0 2px" }}>
+              Priced, but nobody approved covers it yet — or it needs a look first. Open one to
+              read what it involves, keep it as a DIY project, or ask to be told when it opens up.
+            </p>
+            <div className="tiles quad">
+              {dim.map((p) => <PackageTile key={p.code} pkg={p} />)}
+            </div>
+          </section>
+        )}
 
         {(me.homes.length > 0 || me.bookings.length > 0) ? (
           <>

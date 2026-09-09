@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
 import { friendly } from "@shared/rpc";
 import { AppBar, Notice, Screen, StepKicker } from "@shared/ui";
-import { GoogleMark } from "@/app/login/page";
+import { GoogleMark } from "@shared/SignIn";
 
 // Three fields and a code. Everything else - trades, licence, insurance -
 // comes after they are in, because a person filling in a W-9 before they
@@ -114,16 +114,20 @@ export function JoinForm() {
         )}
 
         {err && <Notice kind="error">{err}</Notice>}
+        {/* Google leads here too, same as the sign-in screen. It cannot be
+            ABOVE the fields the way it is on sign-in - the name has to be
+            typed before we hand off, or /join/finish has nothing to register
+            with - but between the two ways in, it is the first offered. */}
         <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-          <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || (step === "code" && code.length < 6)}>
-            {busy ? <><span className="spin" /> One moment…</> : step === "you" ? "Send my code" : "Create my account"}
-          </button>
           {step === "you" && (
             <>
+              <button type="button" className="btn btn-primary btn-block" onClick={() => void google()} disabled={busy}><GoogleMark /> Continue with Google</button>
               <div className="divider-label" style={{ justifyContent: "center" }}><span>or</span></div>
-              <button type="button" className="btn btn-secondary btn-block" onClick={() => void google()} disabled={busy}><GoogleMark /> Continue with Google</button>
             </>
           )}
+          <button className={`btn ${step === "you" ? "btn-secondary" : "btn-primary"} btn-block ${busy ? "busy" : ""}`} disabled={busy || (step === "code" && code.length < 6)}>
+            {busy ? <><span className="spin" /> One moment…</> : step === "you" ? "Send my code" : "Create my account"}
+          </button>
           <p className="small text-muted center" style={{ margin: "4px 0 0" }}>Already here? <Link href="/login">Sign in</Link></p>
         </div>
       </form>
