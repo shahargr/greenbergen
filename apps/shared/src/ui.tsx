@@ -132,13 +132,11 @@ export function DoorIcon({ door, size = 13 }: { door: DoorKey; size?: number }) 
   if (door === "homeowner") {
     return <svg {...p}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" /></svg>;
   }
-  if (door === "contractor") {
-    // A wrench: the trade's own tool.
+  if (door === "expert") {
+    // A wrench: the trade's own tool. One glyph, because it is one door now -
+    // the person who runs the job and the person who does it are the same
+    // member with different trades.
     return <svg {...p}><path d="M15.5 3.5a5.5 5.5 0 0 0-6.9 6.9L3.4 15.6a2 2 0 0 0 0 2.8l2.2 2.2a2 2 0 0 0 2.8 0l5.2-5.2a5.5 5.5 0 0 0 6.9-6.9l-3 3-2.9-.7-.7-2.9z" /></svg>;
-  }
-  if (door === "builder") {
-    // A plumb line over a base: someone setting the work out, not doing it.
-    return <svg {...p}><path d="M12 3v9" /><path d="m8.5 12 3.5 6 3.5-6z" /><path d="M3 21h18" /></svg>;
   }
   // The portal: everything, in rows.
   return <svg {...p}><path d="M4 5h16M4 12h16M4 19h16" /></svg>;

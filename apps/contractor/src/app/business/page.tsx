@@ -127,7 +127,7 @@ export default async function BusinessPage({ searchParams }: { searchParams: Pro
           </Card>
         )}
 
-        <DoorSwitch held={doors.held} current="contractor" />
+        <DoorSwitch held={doors.held} current="expert" />
 
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Account</div>

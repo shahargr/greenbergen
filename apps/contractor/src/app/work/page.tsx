@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { stopwatch } from "@shared/perf";
-import { WorkTabs } from "@/components/WorkTabs";
+import { loadDoors } from "@shared/doors.server";
+import { ExpertTabs } from "@/components/ExpertTabs";
 import { ReadyCard } from "@/components/ReadyCard";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,13 @@ export const metadata = { title: "Work" };
 // to work: a contractor should never tap something that does nothing.
 export default async function WorkPage() {
   const w = stopwatch("/work");
-  const me = await w.step("me", () => getMe());
+  // The doors read says whether this member runs work - it decides whether
+  // the tab bar carries Projects and Tasks. Independent of the profile read,
+  // so they leave together.
+  const [me, doors] = await Promise.all([
+    w.step("me", () => getMe()),
+    w.step("doors", () => loadDoors()),
+  ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/work");
 
@@ -23,7 +30,7 @@ export default async function WorkPage() {
 
   return (
     <Screen>
-      <AppBar brand door="contractor" right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand  right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
       <div className="body">
         {me.missing && <Notice title="Preview mode">The contractor migration has not been applied to this database yet, so your profile cannot be read.</Notice>}
         {me.degraded && <Notice kind="error" title="We couldn&apos;t load your account just now.">Nothing is lost. <Link href="/work">Try again</Link>, and if it keeps happening tell us.</Notice>}
@@ -67,7 +74,7 @@ export default async function WorkPage() {
           </p>
         </Card>
       </div>
-      <WorkTabs current="work" offers={me.counts.open_offers} />
+      <ExpertTabs manages={doors.manages} current="work" offers={me.counts.open_offers} />
     </Screen>
   );
 }

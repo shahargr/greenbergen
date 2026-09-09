@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
-import { getBoard, priorityRank, topLevels, type Task } from "@/lib/me";
-import { BuildTabs } from "@/components/BuildTabs";
+import { getBoard, priorityRank, topLevels, type Task } from "@/lib/board";
+import { ExpertTabs } from "@/components/ExpertTabs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Tasks" };
@@ -119,7 +119,7 @@ export default async function TasksPage({
     <Screen>
       {focused
         ? <AppBar back={q({ project: undefined })} title={heading} sub={`${rows.length} open`} />
-        : <AppBar brand door="builder" right={<ShellIcons gearHref="/settings" inboxHref="/inbox" />} />}
+        : <AppBar brand  right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />}
       <div className="body">
         {board.degraded && <Notice kind="error" title="Some of this may be missing.">Try again in a moment.</Notice>}
 
@@ -191,7 +191,7 @@ export default async function TasksPage({
           </Card>
         )}
       </div>
-      <BuildTabs current="tasks" tasks={allOpen.length} />
+      <ExpertTabs manages current="tasks" tasks={allOpen.length} />
     </Screen>
   );
 }

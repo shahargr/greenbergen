@@ -52,24 +52,25 @@ No version comparison. Rebuild every time.
   functions, `blueprint_packages`, `project_bookings`). Read help topic
   `homeowner_app` once that migration is applied.
 - Consumer apps, each its own folder under `apps/` and its own Vercel
-  project, all on the same Supabase Auth login (email code or Google) and
-  the same `app_users` row: (a) `apps/homeowner/` - built;
-  (b) `apps/contractor/` - offers, accept at the community price, the job
-  from the pro's side. Sign-in, onboarding and the shell are built; the
-  offer feed, job admin, pooling and social proof are not. **Read
-  `apps/contractor/BUILD.md` before touching it** - it is the spec, and it
-  records four decisions that are settled (pooling is opt-in on the
-  HOMEOWNER's side and is never a contractor discount; browsing is free but
-  documents gate the first accept; "ask for details" never releases the
-  address). (c) `apps/builder/` - the GC / project manager view across jobs and
-  crews. The board, the task list and a project overview are built; scope,
-  bids, site visits and money are not. **Read `apps/builder/BUILD.md`** -
-  its headline is that the GC surface is ALREADY 74 `portal_*` database
-  functions, so this app is a view, not a re-platform, and needs almost no
-  migration. Each imports from `apps/shared/` and never from another app.
-  The root portal keeps its own URL and is not touched by any of them; when
-  the four apps have replaced its surface, BUILD.md §8 maps what may come
-  out and what must stay (all of `/admin`, `/deals`, `/vision`, `/help`).
+  project, all on the same Supabase Auth login (email code or Google), the
+  same `app_users` row, and ONE host - the portal proxies `/home` and `/pro`
+  to them (`next.config.ts`), because a session cookie cannot cross
+  `vercel.app` hosts. (a) `apps/homeowner/` - packages, booking, projects,
+  the contractor directory. (b) `apps/contractor/` - **Home experts**: the
+  offer feed and jobs for a trade, plus the board, tasks and money for
+  whoever runs the work. **Read `apps/contractor/BUILD.md`** - it records
+  four settled decisions (pooling is opt-in on the HOMEOWNER's side and is
+  never a contractor discount; browsing is free but documents gate the first
+  accept; "ask for details" never releases the address).
+  There is no builder app: it merged in on 2026-09-09 (migration 030).
+  Project management is a TRADE, not a door - a GC, a plumber and a project
+  manager are one kind of member with different trades, and the board only
+  appears when `my_doors().manages` says you run something. `/build/*`
+  redirects to `/pro/*`.
+  Each imports from `apps/shared/` and never from another app.
+  The root portal keeps its own URL and is not touched by them; when the
+  apps have replaced its surface, BUILD.md §8 maps what may come out and
+  what must stay (all of `/admin`, `/deals`, `/vision`, `/help`).
 - `npm install` runs at the repo root (`"workspaces": ["apps/*"]`); the root
   tsconfig and eslint exclude `apps/`, each app checks itself and the shared
   sources it imports.

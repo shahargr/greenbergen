@@ -12,7 +12,7 @@
 // switcher says where else you may go.
 import { SITE_ORIGIN } from "./site";
 
-export type DoorKey = "homeowner" | "contractor" | "builder" | "portal";
+export type DoorKey = "homeowner" | "expert" | "portal";
 
 export type Door = {
   key: DoorKey;
@@ -36,21 +36,16 @@ export const DOORS: Record<DoorKey, Door> = {
     blurb: "Price a package, book it, follow the job.",
     url: url(process.env.NEXT_PUBLIC_DOOR_HOMEOWNER, `${SITE_ORIGIN}/home`),
   },
-  contractor: {
-    key: "contractor",
-    label: "Contractor",
-    short: "Contractor",
-    full: "Your trade",
-    blurb: "Offers at the community price, your jobs, your documents.",
-    url: url(process.env.NEXT_PUBLIC_DOOR_CONTRACTOR, `${SITE_ORIGIN}/pro`),
-  },
-  builder: {
-    key: "builder",
-    label: "Project manager",
-    short: "Project M.",
-    full: "Your board",
-    blurb: "Run the job: scope, bids, crew, money.",
-    url: url(process.env.NEXT_PUBLIC_DOOR_BUILDER, `${SITE_ORIGIN}/build`),
+  // ONE door for everyone who works on homes. Project management is a trade
+  // (migration 030), so a GC, a plumber and a project manager are the same
+  // kind of member wearing different trades - not three kinds of person.
+  expert: {
+    key: "expert",
+    label: "Home experts",
+    short: "Home expert",
+    full: "Your work",
+    blurb: "Offers at the community price, your jobs, and the projects you run.",
+    url: url(process.env.NEXT_PUBLIC_DOOR_EXPERT, `${SITE_ORIGIN}/pro`),
   },
   portal: {
     key: "portal",
@@ -62,7 +57,7 @@ export const DOORS: Record<DoorKey, Door> = {
   },
 };
 
-export const DOOR_ORDER: DoorKey[] = ["homeowner", "contractor", "builder", "portal"];
+export const DOOR_ORDER: DoorKey[] = ["homeowner", "expert", "portal"];
 
 // How someone ADDS a door they do not hold yet. One login already covers all
 // four, so this is never a second sign-up - it is the one screen that starts
@@ -78,22 +73,22 @@ export const JOIN: Partial<Record<DoorKey, { path: string; cta: string; how: str
     cta: "Add your home",
     how: "Pick a package and your home is created with it. Nothing to fill in first.",
   },
-  contractor: {
+  expert: {
     path: "/join",
-    cta: "Register your trade",
+    cta: "Offer your trade",
     how: "Same account, same sign-in. Browsing is free; your documents gate the first job you accept.",
   },
 };
 
-export const NOT_SELF_SERVE: Partial<Record<DoorKey, string>> = {
-  builder: "A builder seat arrives when a project makes you its PM or GC, or when one of your own jobs grows into a build. There is nothing to sign up for.",
-};
+export const NOT_SELF_SERVE: Partial<Record<DoorKey, string>> = {};
 
 export type Doors = {
   signed_in: boolean;
   name: string | null;
   email: string | null;
   held: DoorKey[];
+  // Whether the expert door should show the board, the tasks and the money.
+  manages: boolean;
   contractor_status: string | null;
 };
 
@@ -102,14 +97,14 @@ export type DoorsRow = {
   name?: string | null;
   email?: string | null;
   homeowner?: boolean;
-  contractor?: boolean;
-  builder?: boolean;
+  expert?: boolean;
+  manages?: boolean;
   admin?: boolean;
   contractor_status?: string | null;
 };
 
 export const NO_DOORS: Doors = {
-  signed_in: false, name: null, email: null, held: [], contractor_status: null,
+  signed_in: false, name: null, email: null, held: [], manages: false, contractor_status: null,
 };
 
 // my_doors() returns one boolean per door; the app wants them in a fixed
@@ -117,14 +112,14 @@ export const NO_DOORS: Doors = {
 export function readDoors(data: DoorsRow | null): Doors {
   if (!data?.signed_in) return NO_DOORS;
   const has: Record<DoorKey, boolean | undefined> = {
-    homeowner: data.homeowner, contractor: data.contractor,
-    builder: data.builder, portal: data.admin,
+    homeowner: data.homeowner, expert: data.expert, portal: data.admin,
   };
   return {
     signed_in: true,
     name: data.name ?? null,
     email: data.email ?? null,
     held: DOOR_ORDER.filter((k) => has[k]),
+    manages: !!data.manages,
     contractor_status: data.contractor_status ?? null,
   };
 }

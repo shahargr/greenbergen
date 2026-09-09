@@ -4,8 +4,8 @@ import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { getBoard } from "@/lib/me";
-import { BuildTabs } from "@/components/BuildTabs";
+import { getBoard } from "@/lib/board";
+import { ExpertTabs } from "@/components/ExpertTabs";
 import { setTrades, copyLines, makePackages, addOwnerLine } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -322,7 +322,7 @@ export default async function ScopePage({
           <ChevronIcon />
         </Link>
       </div>
-      <BuildTabs current="board" tasks={board.tasks.filter((t) => t.state === "open").length} />
+      <ExpertTabs manages current="projects" tasks={board.tasks.filter((t) => t.state === "open").length} />
     </Screen>
   );
 }

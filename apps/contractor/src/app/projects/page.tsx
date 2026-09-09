@@ -5,8 +5,8 @@ import { stopwatch } from "@shared/perf";
 import {
   BUCKETS, anyRuns, buildTree, getBoard, money, prune, runs,
   type BucketKey, type Node,
-} from "@/lib/me";
-import { BuildTabs } from "@/components/BuildTabs";
+} from "@/lib/board";
+import { ExpertTabs } from "@/components/ExpertTabs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your board" };
@@ -26,7 +26,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   const w = stopwatch("/");
   const board = await w.step("board", () => getBoard());
   w.done();
-  if (!board.signed_in) redirect("/login?next=/");
+  if (!board.signed_in) redirect("/login?next=/projects");
 
   const filter: BucketKey = BUCKETS.some((b) => b.key === show) ? (show as BucketKey) : "all";
   const counts: Record<string, number> = { all: board.seats.length };
@@ -52,11 +52,11 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand door="builder" right={<ShellIcons gearHref="/settings" inboxHref="/inbox" />} />
+      <AppBar brand  right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
       <div className="body">
         {board.degraded && (
           <Notice kind="error" title="We couldn&apos;t load the whole board.">
-            Some of it may be missing. <Link href="/">Try again</Link>.
+            Some of it may be missing. <Link href="/projects">Try again</Link>.
           </Notice>
         )}
 
@@ -100,7 +100,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
         )}
 
         {tree.length === 0 && board.seats.length > 0 && (
-          <Card soft pad><div className="small">Nothing in that filter. <Link href="/">Show everything</Link>.</div></Card>
+          <Card soft pad><div className="small">Nothing in that filter. <Link href="/projects">Show everything</Link>.</div></Card>
         )}
 
         {board.seats.length === 0 && (
@@ -113,7 +113,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
           </Card>
         )}
       </div>
-      <BuildTabs current="board" tasks={openTasks} />
+      <ExpertTabs manages current="projects" tasks={openTasks} />
     </Screen>
   );
 }

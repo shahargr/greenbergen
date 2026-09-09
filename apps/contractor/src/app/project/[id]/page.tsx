@@ -5,8 +5,8 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { getBoard, money, runs, type Task } from "@/lib/me";
-import { BuildTabs } from "@/components/BuildTabs";
+import { getBoard, money, runs, type Task } from "@/lib/board";
+import { ExpertTabs } from "@/components/ExpertTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -206,11 +206,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           <div className="kicker">Next</div>
           <p className="small" style={{ margin: "6px 0 0" }}>
             Site visits, crew days and the money screens are steps 5 and 6.
-            Every one of them already has its database function — see <code>apps/builder/BUILD.md</code>.
+            Every one of them already has its database function — see <code>apps/contractor/BUILD.md</code>.
           </p>
         </Card>
       </div>
-      <BuildTabs current="board" tasks={board.tasks.filter((t) => t.state === "open").length} />
+      <ExpertTabs manages current="projects" tasks={board.tasks.filter((t) => t.state === "open").length} />
     </Screen>
   );
 }

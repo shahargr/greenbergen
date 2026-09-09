@@ -3,7 +3,8 @@ import { AppBar, Notice, Screen, ShellIcons } from "@shared/ui";
 import { InboxScreen } from "@shared/inbox/Inbox";
 import { loadInbox } from "@shared/inbox/data";
 import { getMe } from "@/lib/me";
-import { WorkTabs } from "@/components/WorkTabs";
+import { ExpertTabs } from "@/components/ExpertTabs";
+import { loadDoors } from "@shared/doors.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Inbox" };
@@ -16,18 +17,18 @@ export default async function InboxPage({
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const { ok, error } = await searchParams;
-  const [me, data] = await Promise.all([getMe(), loadInbox()]);
+  const [me, data, doors] = await Promise.all([getMe(), loadInbox(), loadDoors()]);
   if (!me.signed_in) redirect("/login?next=/inbox");
 
   return (
     <Screen>
-      <AppBar brand door="contractor" right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand  right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
       <div className="body">
         {ok && <div className="banner-ok">{ok}</div>}
         {error && <Notice kind="error">{error}</Notice>}
         <InboxScreen data={data} base="/inbox" />
       </div>
-      <WorkTabs current="inbox" />
+      <ExpertTabs manages={doors.manages} current="inbox" />
     </Screen>
   );
 }

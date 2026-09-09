@@ -1,29 +1,30 @@
 import Link from "next/link";
 import { AppBar, Card, Screen } from "@shared/ui";
-import { WorkTabs } from "@/components/WorkTabs";
+import { ExpertTabs } from "@/components/ExpertTabs";
 
-// Step 1 of the build order ships sign-in and the shell. These screens are
-// steps 3 to 5. They say what is coming and when, because a contractor who
-// taps a tab and gets nothing assumes the app is broken - and the empty
-// state of a feed that does not exist yet is indistinguishable from having
-// no work, which is the worst possible first impression.
-export function NextUp({ title, lead, tab }: { title: string; lead: string; tab: "work" | "jobs" | "inbox" }) {
+// A screen that is named but not built. Shipped deliberately rather than
+// left empty: someone who taps a tab and gets a blank page concludes the
+// numbers are zero or the app is broken - and "no work for you" is the worst
+// possible first impression when the truth is "this is next".
+export function NextUp({ title, lead, tab, step, manages = false }: {
+  title: string; lead: string;
+  tab: "work" | "jobs" | "projects" | "tasks" | "money" | "inbox";
+  step?: string; manages?: boolean;
+}) {
   return (
     <Screen>
-      <AppBar brand />
+      <AppBar brand right={null} />
       <div className="body">
-        <div className="hero">
-          <h1>{title}</h1>
-          <p className="lead">{lead}</p>
-        </div>
+        <div className="hero"><h1>{title}</h1><p className="lead">{lead}</p></div>
         <Card soft pad>
-          <div className="small">
-            Not built yet — this is the next thing we&apos;re making.{" "}
-            <Link href="/work">Back to work</Link>
-          </div>
+          <div className="kicker">Not built yet</div>
+          <p className="small" style={{ margin: "6px 0 0" }}>
+            {step ? <>{step}. The database side already exists, so this is a screen away, not a project away. </> : <>This is the next thing we&apos;re making. </>}
+            <Link href={manages ? "/projects" : "/work"}>Back to {manages ? "the board" : "work"}</Link>
+          </p>
         </Card>
       </div>
-      <WorkTabs current={tab} />
+      <ExpertTabs current={tab} manages={manages} />
     </Screen>
   );
 }

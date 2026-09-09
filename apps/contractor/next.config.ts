@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
   // Which door this deployment IS, baked in at build time so the shared
   // Wordmark can name the app under the logo on every screen without each
   // call site saying so - and without a Vercel setting anyone can forget.
-  env: { NEXT_PUBLIC_APP_DOOR: "contractor", NEXT_PUBLIC_BASE_PATH: "/pro" },
+  env: { NEXT_PUBLIC_APP_DOOR: "expert", NEXT_PUBLIC_BASE_PATH: "/pro" },
   // An old bookmark to this project's own host lands on its root, which the
   // basePath no longer serves. Send it under the path rather than 404.
   async redirects() {

@@ -17,7 +17,7 @@ import { rpcRetry } from "@/lib/rpc";
 // it most affects - Shahar holds all four, and being an admin is the LEAST
 // likely reason he is signing in on a given morning. So admin now takes its
 // place in the list and gets chosen like the others.
-export type DoorKey = "homeowner" | "contractor" | "builder" | "admin";
+export type DoorKey = "homeowner" | "expert" | "admin";
 
 // One host, four paths: the three apps are proxied under this portal's own
 // origin (rewrites in next.config.ts), because a session cookie cannot cross
@@ -25,8 +25,7 @@ export type DoorKey = "homeowner" | "contractor" | "builder" | "admin";
 // too. Paths, not URLs, so a hop stays on this origin and keeps its cookie.
 export const DOOR_URL: Record<DoorKey, string> = {
   homeowner: process.env.NEXT_PUBLIC_DOOR_HOMEOWNER?.trim() || "/home",
-  contractor: process.env.NEXT_PUBLIC_DOOR_CONTRACTOR?.trim() || "/pro",
-  builder: process.env.NEXT_PUBLIC_DOOR_BUILDER?.trim() || "/build",
+  expert: process.env.NEXT_PUBLIC_DOOR_EXPERT?.trim() || "/pro",
   admin: "/my",
 };
 
@@ -38,31 +37,29 @@ export const DOOR_URL: Record<DoorKey, string> = {
 // is one Google tap rather than a landing page asking them to join.
 export const DOOR_ENTRY: Record<DoorKey, string> = {
   homeowner: `${DOOR_URL.homeowner}/login?next=${encodeURIComponent("/project")}`,
-  contractor: `${DOOR_URL.contractor}/login?next=${encodeURIComponent("/work")}`,
-  builder: `${DOOR_URL.builder}/login?next=${encodeURIComponent("/")}`,
+  expert: `${DOOR_URL.expert}/login?next=${encodeURIComponent("/work")}`,
   admin: "/my",
 };
 
 // Named the way Shahar names them out loud - homeowner, contractor, project
-// manager, admin - rather than the app's internal key. "builder" is the
-// deployment; "project manager" is the person.
+// experts, admin - one door for everyone who works on homes.
 export const DOOR_LABEL: Record<DoorKey, { title: string; blurb: string }> = {
   homeowner: { title: "Homeowner", blurb: "Price a package, book it, follow the job." },
-  contractor: { title: "Contractor", blurb: "Offers at the community price, your jobs, your documents." },
-  builder: { title: "Project manager", blurb: "Run the job: scope, bids, crew, money." },
+  // One door. Project management is a trade you offer, not a different you.
+  expert: { title: "Home experts", blurb: "Offers at the community price, your jobs, and the projects you run." },
   admin: { title: "Admin", blurb: "The whole record: everyone's projects, deals, the portal." },
 };
 
 // The order a person is offered their doors in, and the order the single-door
 // shortcut resolves. Homeowner first because it is the widest audience; admin
 // last because it is the rarest reason to be here.
-export const DOOR_ORDER: DoorKey[] = ["homeowner", "contractor", "builder", "admin"];
+export const DOOR_ORDER: DoorKey[] = ["homeowner", "expert", "admin"];
 
 export type Doors = { signed_in: boolean; admin: boolean; held: DoorKey[] };
 
 type Row = {
   signed_in?: boolean; admin?: boolean;
-  homeowner?: boolean; contractor?: boolean; builder?: boolean;
+  homeowner?: boolean; expert?: boolean;
 };
 
 export async function loadDoors(): Promise<Doors> {
@@ -70,7 +67,7 @@ export async function loadDoors(): Promise<Doors> {
   const { data, error } = await rpcRetry<Row>(supabase, "my_doors");
   if (error || !data?.signed_in) return { signed_in: false, admin: false, held: [] };
   const has: Record<DoorKey, boolean | undefined> = {
-    homeowner: data.homeowner, contractor: data.contractor, builder: data.builder, admin: data.admin,
+    homeowner: data.homeowner, expert: data.expert, admin: data.admin,
   };
   return { signed_in: true, admin: !!data.admin, held: DOOR_ORDER.filter((k) => has[k]) };
 }

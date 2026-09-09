@@ -5,8 +5,11 @@ import type { NextConfig } from "next";
 // path to each of them:
 //
 //   /home  -> greenbergen-homeowner   (built with basePath /home)
-//   /pro   -> greenbergen-contractor  (basePath /pro)
-//   /build -> greenbergen-builder     (basePath /build)
+//   /pro   -> greenbergen-contractor  (basePath /pro) - the Home experts app
+//
+// /build was a third zone until the builder app merged into /pro (migration
+// 030: project management is a trade, not a door). It redirects now rather
+// than 404ing, because we printed those links.
 //
 // WHY. They used to be reached on their own hosts, and vercel.app is on the
 // public-suffix list, so a session cookie set on one host could never be read
@@ -19,8 +22,7 @@ import type { NextConfig } from "next";
 const zone = (env: string | undefined, fallback: string) => (env?.trim() || fallback).replace(/\/$/, "");
 const ZONES: Record<string, string> = {
   home: zone(process.env.ZONE_HOMEOWNER, "https://greenbergen-homeowner.vercel.app"),
-  pro: zone(process.env.ZONE_CONTRACTOR, "https://greenbergen-contractor.vercel.app"),
-  build: zone(process.env.ZONE_BUILDER, "https://greenbergen-builder.vercel.app"),
+  pro: zone(process.env.ZONE_EXPERT, "https://greenbergen-contractor.vercel.app"),
 };
 
 const nextConfig: NextConfig = {
@@ -31,6 +33,12 @@ const nextConfig: NextConfig = {
       // "Saving...".
       bodySizeLimit: "50mb",
     },
+  },
+  async redirects() {
+    // The builder app is gone; its screens live under /pro. 307 rather than
+    // 308 so a permanent redirect is never cached into someone's browser for
+    // a path we may reshape again.
+    return [{ source: "/build/:path*", destination: "/pro/:path*", permanent: false }];
   },
   async rewrites() {
     // beforeFiles: these paths win over anything this app might grow later,
