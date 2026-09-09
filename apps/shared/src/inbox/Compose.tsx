@@ -25,7 +25,7 @@ import type { Target } from "./data";
 // right: a message is about a job. Offering the whole contractor roster here
 // would build a picker that mostly fails - and a back channel around the
 // community price, which is the one thing the model does not want.
-type Entry = { key: string; contact_id: string; project_id: string; name: string; seat: string | null; project_name: string };
+type Entry = { key: string; contact_id: string; project_id: string; name: string; seat: string | null; project_name: string; me: boolean };
 type Task = { id: string; action: string; status: string };
 
 export function Compose({ targets, base }: { targets: Target[]; base: string }) {
@@ -33,14 +33,18 @@ export function Compose({ targets, base }: { targets: Target[]; base: string }) 
     () => targets.flatMap((t) => (t.people ?? []).map((p) => ({
       key: `${p.contact_id}|${t.project_id}`,
       contact_id: p.contact_id, project_id: t.project_id,
-      name: p.name, seat: p.seat, project_name: t.project_name,
+      name: p.name, seat: p.seat, project_name: t.project_name, me: !!p.me,
     }))),
     [targets],
   );
   // One person on two of your projects is two entries, so the label carries
   // the project - it is what makes them distinguishable, and it is what the
   // message will be filed against.
-  const label = (e: Entry) => `${e.name}${e.seat ? ` · ${e.seat}` : ""} — ${e.project_name}`;
+  // Yourself reads as what it is - a note to self on that project - not as
+  // your own name listed beside the others as though you were someone else.
+  const label = (e: Entry) => e.me
+    ? `Me — a note to myself — ${e.project_name}`
+    : `${e.name}${e.seat ? ` · ${e.seat}` : ""} — ${e.project_name}`;
   const byLabel = useMemo(() => new Map(entries.map((e) => [label(e), e])), [entries]);
 
   const [open, setOpen] = useState(false);
@@ -134,7 +138,7 @@ export function Compose({ targets, base }: { targets: Target[]; base: string }) 
         </datalist>
         <p className="hint">
           {picked
-            ? `Filed against ${picked.project_name}.`
+            ? picked.me ? `A note to yourself, filed against ${picked.project_name}.` : `Filed against ${picked.project_name}.`
             : typed.trim()
               ? "Pick one from the list — that is how we know which job it is about."
               : `${entries.length} ${entries.length === 1 ? "person" : "people"} across your projects.`}

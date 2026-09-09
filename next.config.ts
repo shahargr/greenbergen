@@ -52,7 +52,15 @@ const nextConfig: NextConfig = {
     // The builder app is gone; its screens live under /pro. 307 rather than
     // 308 so a permanent redirect is never cached into someone's browser for
     // a path we may reshape again.
-    return [{ source: "/build/:path*", destination: "/pro/:path*", permanent: false }];
+    return [
+      { source: "/build/:path*", destination: "/pro/:path*", permanent: false },
+      // The portal's own inbox is gone (docs/PORTAL-DEPRECATION.md: "/my/inbox
+      // -> /inbox in all four - one shared model"). It had drifted: Delete on
+      // every row, a compose that asked for the project first and then
+      // offered nobody, no attachments. One inbox, seen through every door.
+      { source: "/my/inbox", destination: "/pro/inbox", permanent: false },
+      { source: "/my/inbox/:path*", destination: "/pro/inbox", permanent: false },
+    ];
   },
   async rewrites() {
     // beforeFiles: these paths win over anything this app might grow later,

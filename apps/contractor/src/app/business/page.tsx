@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getMe, outstanding } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, DoorSwitch, Notice, Screen } from "@shared/ui";
 import { loadDoors } from "@shared/doors.server";
+import { InviteForm } from "@shared/invite/InviteForm";
 import { saveBusiness, signOut } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +13,8 @@ export const metadata = { title: "Your business" };
 // documents, then the way out. Everything here is the contractor's own
 // record - contractor_business_save finds the company through their
 // contact, so there is no company id to tamper with.
-export default async function BusinessPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
-  const { ok, error } = await searchParams;
+export default async function BusinessPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; token?: string; who?: string; kind?: string }> }) {
+  const { ok, error, token, who, kind } = await searchParams;
   // Neither depends on the other, so they leave together.
   const [me, doors] = await Promise.all([getMe(), loadDoors()]);
   if (!me.signed_in) redirect("/login?next=/business");
@@ -126,6 +127,10 @@ export default async function BusinessPage({ searchParams }: { searchParams: Pro
             </div>
           </Card>
         )}
+
+        {/* A contractor brings in the next contractor, or a homeowner they
+            already work for. Same form, same function, as the homeowner app. */}
+        <InviteForm base="/business" token={token} who={who} kind={kind} />
 
         <DoorSwitch held={doors.held} current="expert" />
 

@@ -9,7 +9,6 @@ import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/u
 import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { PhotoBanner } from "@/components/PhotoBanner";
-import { TaskDone } from "@/components/TaskDone";
 import { Messages } from "@shared/inbox/Inbox";
 import { loadInbox } from "@shared/inbox/data";
 import { OfferQuestions } from "@shared/offer/Questions";
@@ -123,28 +122,15 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           </section>
         )}
 
-        {open.length > 0 && (
-          <section className="stack" style={{ gap: 10 }}>
-            <div className="divider-label">Open tasks · {open.length}</div>
-            {open.map((t) => (
-              <Card pad key={t.id} className="tight">
-                <div className="between">
-                  <div className="grow">
-                    <div className="card-title" style={{ fontSize: 15 }}>{t.action}</div>
-                    <div className="small text-muted"><Link href={`/project/${t.project_id}`}>{t.project}</Link>{t.assignee ? ` · ${t.assignee}` : ""}{t.target_date ? ` · due ${shortDate(t.target_date)}` : ""}{t.status !== "Not Started" ? ` · ${t.status}` : ""}</div>
-                  </div>
-                  <TaskDone projectId={t.project_id} actionId={t.id} title={t.action} />
-                </div>
-              </Card>
-            ))}
-          </section>
-        )}
-
         {empty && portal.messages.length === 0 && (
           <Card soft pad><div className="small">All clear. When a contractor writes, a neighbor invites you, or a job needs a hand from you, it lands here.</div></Card>
         )}
 
-        <Messages data={portal} base="/inbox" projectHref={(id) => `/project/${id}`} heading="From your projects" />
+        {/* Tasks and messages in ONE list, in the same clothes - a closed
+            line each, Outlook-style, expanding to the body and the verbs.
+            The Update sheet is the shared one, so it is the same sheet a
+            Home expert opens on the same task. */}
+        <Messages data={portal} tasks={open} base="/inbox" projectHref={(id) => `/project/${id}`} heading="From your projects" />
       </div>
     </Screen>
   );

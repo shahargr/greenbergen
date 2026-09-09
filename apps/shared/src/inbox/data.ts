@@ -41,7 +41,16 @@ export type Invites = {
 export type Target = {
   project_id: string;
   project_name: string;
-  people: { contact_id: string; name: string; seat: string | null }[];
+  // `me` marks your own seat on the project, so a note to yourself is a
+  // choice rather than your name listed beside strangers (migration 038).
+  people: { contact_id: string; name: string; seat: string | null; me?: boolean }[];
+};
+
+// An open task, as the inbox shows it - the five fields homeowner_tasks
+// returns, and what the expert app's board reduces to for the same row.
+export type InboxTask = {
+  id: string; action: string; status: string; target_date: string | null;
+  project: string | null; project_id: string | null; assignee: string | null;
 };
 
 export type InboxData = {

@@ -4,9 +4,9 @@ import { signedUrls } from "@/lib/booking";
 import { createClient } from "@shared/supabase/server";
 import { AppBar, Card, ChevronIcon, DoorSwitch, Notice, Screen } from "@shared/ui";
 import { loadDoors } from "@shared/doors.server";
-import { CopyLink } from "../project/[id]/people/CopyLink";
 import { HomePhoto } from "./HomePhoto";
-import { inviteToHome, invitePerson, removeHome, saveHome, signOut } from "./actions";
+import { InviteForm } from "@shared/invite/InviteForm";
+import { inviteToHome, removeHome, saveHome, signOut } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your account" };
@@ -14,13 +14,11 @@ export const metadata = { title: "Your account" };
 // Behind the gear: who you are, your homes (editable - this is the one place
 // they are managed), the way out, and the way to bring someone else in. Signed out it is the way IN - the same screen,
 // so the icon in the header always leads somewhere useful.
-const PORTAL = process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://greenbergen.vercel.app";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; token?: string; who?: string; kind?: string; invited?: string }> }) {
   const { error, token, who, kind, invited } = await searchParams;
   // Neither depends on the other, so they leave together.
   const [me, doors] = await Promise.all([getMe(), loadDoors()]);
-  const link = token ? `${PORTAL}/join?invite=${encodeURIComponent(token)}` : null;
 
   if (!me.signed_in) {
     return (
@@ -175,57 +173,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </Link>
         </section>
 
-        {/* Bringing someone in. Same machinery the portal uses for its own
-            invitations - a link they redeem on the join page. */}
-        <section className="stack" style={{ gap: 10 }}>
-          <div className="divider-label">Invite someone to Green Bergen</div>
-          {link ? (
-            <Card pad>
-              <div className="card-title" style={{ fontSize: 15 }}>A link for {who ?? "them"}</div>
-              <p className="small text-muted" style={{ margin: "2px 0 10px" }}>
-                Send it however you like — text, email, in person. It brings them in as {kind === "contractor" ? "a contractor" : "a neighbor with their own home"}. Nobody joins until they open it.
-              </p>
-              <CopyLink link={link} />
-              <p className="tiny text-muted" style={{ marginTop: 10 }}><Link href="/settings">Make another</Link></p>
-            </Card>
-          ) : (
-            <Card pad>
-              <form action={invitePerson} className="stack" style={{ gap: 10 }}>
-                {/* Two choices is a toggle, not a dropdown: both are visible,
-                    it is one tap instead of two, and on a phone it does not
-                    open a picker sheet over the form. */}
-                <div className="field">
-                  <span className="field-label">Who is it?</span>
-                  <div className="seg" role="radiogroup" aria-label="Who is it?">
-                    <label className="seg-opt">
-                      <input type="radio" name="kind" value="homeowner" defaultChecked />
-                      <span>A neighbor</span>
-                    </label>
-                    <label className="seg-opt">
-                      <input type="radio" name="kind" value="contractor" />
-                      <span>A contractor</span>
-                    </label>
-                  </div>
-                  <p className="hint">A neighbor gets their own home and jobs; a contractor takes work at the community price.</p>
-                </div>
-                <label className="field">
-                  <span className="field-label">Their name <span className="text-muted">(optional)</span></span>
-                  <input className="input" name="name" placeholder="Dana from two doors down" />
-                </label>
-                <label className="field">
-                  <span className="field-label">Their email <span className="text-muted">(optional)</span></span>
-                  <input className="input" name="email" type="email" inputMode="email" placeholder="dana@example.com" />
-                  <p className="hint">Leave it blank and you just get a link to pass on yourself.</p>
-                </label>
-                <label className="field">
-                  <span className="field-label">A line from you <span className="text-muted">(optional)</span></span>
-                  <textarea className="input" name="note" rows={2} placeholder="This is the group we used for the water heater." />
-                </label>
-                <button className="btn btn-primary btn-block">Make the invitation</button>
-              </form>
-            </Card>
-          )}
-        </section>
+        {/* Bringing someone in: the one invitation form every door shows.
+            invite_peer decides the kind and the quota; every field is
+            optional; the link comes back here to copy or share. */}
+        <InviteForm base="/settings" token={token} who={who} kind={kind} />
 
         <DoorSwitch held={doors.held} current="homeowner" />
 
