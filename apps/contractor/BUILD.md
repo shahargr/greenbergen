@@ -461,6 +461,34 @@ price.
 
 ---
 
+## 11b. The package offer — SETTLED 2026-09-09
+
+How a booked package reaches a contractor. All of this is LIVE, in
+`homeowner_post_internal` and `homeowner_offer_accept`, since migration 016.
+
+1. **Booking creates the offer.** One `bid_packages` row (category `Package`)
+   and one `bids` row per eligible contractor, status `invited`, amount = the
+   community price, basis `"community price - accept or pass"`.
+2. **Who is eligible: holds the trade, AND `contractor_approvals` = approved.**
+   Documents gate the ACCEPT, never the invite — an approved pro with a lapsed
+   certificate still sees the work and is told what is missing.
+   **Distance is intended but not yet enforced**: nothing can be ranged until
+   the address coordinates are stored. Tracked as its own action; the Census
+   geocoder the wizard already calls returns lat/lng/zip and discards them.
+3. **No deadline.** There is no 24-hour window and no expiry. An offer stays
+   open until someone takes it or the homeowner pulls it. Instant pricing and
+   book-now is the promise; a countdown is not part of it. *This is why
+   notifications no longer block the offer feed.*
+4. **First to accept owns it.** `homeowner_offer_accept` takes a row lock and
+   refuses anyone after the first with code `TAKEN`. The winner gets the
+   contract and a seat; every other bid becomes `not awarded`.
+5. **Everyone else is told**, by a message of their own — the package and the
+   **town**, never the address, and **never who took it**. Naming the winner
+   turns neighbours into a leaderboard, which is the dynamic the no-bidding
+   promise exists to avoid.
+6. **Nobody eligible** is said out loud rather than hidden behind "finding your
+   contractor". `offered_count = 0` gets its own screen.
+
 ## 12. Open decisions
 
 > **Tracked in the database, not here.** Each of the decisions below is a row in
