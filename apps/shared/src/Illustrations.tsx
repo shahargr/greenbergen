@@ -268,12 +268,26 @@ export const Sprinklers = ({ className }: P) => (
   </Frame>
 );
 
+// A hard hat over a clipboard: the person who holds the whole job rather than
+// one trade of it. Deliberately not a tool - a GC's work is the plan.
+export const GeneralContractor = ({ className }: P) => (
+  <Frame className={className}>
+    <path d="M34 40a26 26 0 0 1 52 0" />
+    <path d="M28 40h64" />
+    <path d="M54 18a24 24 0 0 1 12 0" opacity=".55" />
+    <path d="M60 16v-4" opacity=".55" />
+    <rect x="42" y="48" width="36" height="24" rx="3" />
+    <path d="M52 48v-4h16v4" />
+    <path d="M48 56h24M48 63h16" opacity=".6" />
+  </Frame>
+);
+
 const MAP: Record<string, (p: P) => React.JSX.Element> = {
   water_heater: WaterHeater, toilet: Toilet, faucet: Faucet, driveway: Driveway, painting: Painting,
   ev_charger: EvCharger, generator: Generator, gutters: Gutters, blinds: Blinds, window: Window, fence: Fence, siding: Siding,
   solar: Solar, basement: Basement, kitchen: Kitchen, bathroom: Bathroom, something_else: SomethingElse,
   salt: Salt, house: House, steps: Steps, check: Checkmark, internet_tv: InternetTv,
-  garage_heater: GarageHeater, sprinklers: Sprinklers,
+  garage_heater: GarageHeater, sprinklers: Sprinklers, general_contractor: GeneralContractor,
 };
 
 export function Illustration({ name, className }: { name: string | null | undefined; className?: string }) {

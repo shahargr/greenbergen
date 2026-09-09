@@ -41,7 +41,7 @@ export const DOORS: Record<DoorKey, Door> = {
   },
   builder: {
     key: "builder",
-    label: "Builder",
+    label: "Project manager",
     full: "Your board",
     blurb: "Run the job: scope, bids, crew, money.",
     url: url(process.env.NEXT_PUBLIC_DOOR_BUILDER, "https://greenbergen-builder.vercel.app"),

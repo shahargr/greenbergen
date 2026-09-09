@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
-import { GoogleMark } from "@/app/login/page";
+import { GoogleMark } from "@shared/SignIn";
 import { isBergenZip, townForZip } from "@shared/bergen";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Notice, Screen } from "@shared/ui";
@@ -172,11 +172,15 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
 
         {errors.submit && <Notice kind="error" title="We couldn't save that.">{errors.submit}</Notice>}
 
+        {/* Google leads, same as the sign-in screen. It sits below the fields
+            rather than above them because the name and ZIP have to be captured
+            before we hand off to Google, but of the two ways in it is first. */}
         <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-          <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || outside}>
-            {busy ? <><span className="spin" /> One moment…</> : errors.submit ? "Try again" : "Continue"}
+          <button type="button" className="btn btn-primary btn-block" onClick={() => void google()} disabled={busy || outside}><GoogleMark /> Continue with Google</button>
+          <div className="divider-label" style={{ justifyContent: "center" }}><span>or</span></div>
+          <button className={`btn btn-secondary btn-block ${busy ? "busy" : ""}`} disabled={busy || outside}>
+            {busy ? <><span className="spin" /> One moment…</> : errors.submit ? "Try again" : "Email me a code"}
           </button>
-          <button type="button" className="btn btn-secondary btn-block" onClick={() => void google()} disabled={busy || outside}><GoogleMark /> Continue with Google</button>
           <p className="small text-muted center" style={{ margin: "4px 0 0" }}>Already in? <Link href="/login">Sign in</Link></p>
         </div>
       </form>

@@ -16,8 +16,10 @@ export const metadata = { title: "Packages" };
 export default async function PackagesPage() {
   const supabase = await createClient();
   const [{ tiles }, signedIn, tagline] = await Promise.all([loadTiles(), isSignedIn(supabase), loadTagline()]);
-  const live = tiles.filter(isBookable);
-  const dim = tiles.filter((t) => !isBookable(t));
+  const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
+  const rest = tiles.filter((t) => t.tile_group !== "front");
+  const live = rest.filter(isBookable);
+  const dim = rest.filter((t) => !isBookable(t));
   return (
     <Screen>
       <AppBar brand door={signedIn ? "homeowner" : undefined} tagline={tagline} right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
@@ -27,10 +29,18 @@ export default async function PackagesPage() {
           <h1>What would you like to get done?</h1>
           <p className="lead">Every package is pre-priced. Tap one to see what&apos;s included.</p>
         </div>
-        {live.length > 0 && (
+        {headline.length > 0 && (
           <div className="tiles quad">
-            {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
+            {headline.map((p) => <PackageTile key={p.code} pkg={p} />)}
           </div>
+        )}
+        {live.length > 0 && (
+          <section className="stack" style={{ gap: 8, marginTop: 4 }}>
+            <div className="divider-label">Also ready now</div>
+            <div className="tiles quad">
+              {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
+            </div>
+          </section>
         )}
         {dim.length > 0 && (
           <section className="stack" style={{ gap: 8, marginTop: 4 }}>

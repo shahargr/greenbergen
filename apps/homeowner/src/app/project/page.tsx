@@ -50,19 +50,26 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // same thing over and over, and a member scrolling it could not tell what
   // was new from what they had already passed.
   //
-  // So: two groups, and the split is the only thing a member actually needs
-  // to know before tapping - can we do this now, or not yet. Live means we
-  // have a price AND someone approved to do it; anything else is dim with
-  // its reason on the tile. Category and season did not earn a heading, but
-  // season still earns its place in the ORDER: a job in its month goes first
-  // among equals, so the sprinkler blow-out surfaces in October without being
-  // filed away from where people look the other eleven months.
+  // What replaced them is a headline row and the rest. The headline is
+  // tile_group = 'front' - six packages we choose to lead with, in the order
+  // we chose (migration 025). It is NOT a claim that they are bookable: every
+  // tile carries its own live-or-dim state either way, so the row we lead with
+  // and the truth about each tile stay two separate things.
+  //
+  // Below it, everything else, live before dim - the split being the only
+  // thing a member needs before tapping: can we do this now, or not yet.
+  // Category and season lost their headings; season kept its place in the
+  // ORDER, so the sprinkler blow-out surfaces in October without being filed
+  // away from where people look the other eleven months.
   const month = currentMonth();
   const inMonth = new Set(seasonal(tiles, month).map((t) => t.code));
   const rank = (a: Tile, b: Tile) =>
     Number(inMonth.has(b.code)) - Number(inMonth.has(a.code)) || a.sort_order - b.sort_order;
-  const live = tiles.filter(isBookable).sort(rank);
-  const dim = tiles.filter((t) => !isBookable(t)).sort(rank);
+  const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
+  const rest = tiles.filter((t) => t.tile_group !== "front");
+  const live = rest.filter(isBookable).sort(rank);
+  const dim = rest.filter((t) => !isBookable(t)).sort(rank);
+  const noneLive = !headline.some(isBookable) && live.length === 0;
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
   const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;
@@ -97,22 +104,33 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             what&apos;s included.
           </p>
         </div>
-        {live.length > 0 ? (
+        {headline.length > 0 && (
           <div className="tiles quad">
-            {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
+            {headline.map((p) => <PackageTile key={p.code} pkg={p} />)}
           </div>
-        ) : (
-          // Not a bug, and it must not read like one. Nobody approved carries
-          // any of these trades yet, so every tile below is dim - saying so
-          // once, plainly, is better than leaving a member to guess.
+        )}
+
+        {noneLive && (
+          // Not a bug, and it must not read like one. When nobody approved
+          // carries any of these trades, every tile on the screen is dim -
+          // saying so once, plainly, beats leaving a member to guess.
           <Card soft pad>
             <div className="card-title">Nothing we can book on the spot today</div>
             <p className="small text-muted" style={{ margin: "4px 0 0" }}>
-              Every package below has a price, but no approved contractor covers its trade yet.
-              Open any of them: you can start it as a DIY project now, and ask us to tell you
-              the day someone can take it on.
+              These prices are real, but no approved contractor covers their trades yet. Open any
+              of them: you can start it as a DIY project now, and ask us to tell you the day
+              someone can take it on.
             </p>
           </Card>
+        )}
+
+        {live.length > 0 && (
+          <section className="stack" style={{ gap: 8, marginTop: 4 }}>
+            <div className="divider-label">Also ready now</div>
+            <div className="tiles quad">
+              {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
+            </div>
+          </section>
         )}
 
         {dim.length > 0 && (
