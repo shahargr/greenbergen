@@ -126,8 +126,10 @@ export function Messages({
   // and on a quiet account that was the ONLY thing in it. They keep their
   // record, behind a folder, the way every mail client has done it for
   // thirty years.
+  // A note to yourself is BOTH (Shahar): received, so it is in the inbox
+  // until you read it, and sent, so the folder has it too.
   const received = messages.filter((m) => !m.mine);
-  const sent = messages.filter((m) => m.mine);
+  const sent = messages.filter((m) => m.mine || m.self);
   const waitingR = received.filter((m) => m.pending);
   const restR = received.filter((m) => !m.pending);
 

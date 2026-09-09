@@ -29,7 +29,10 @@ export type Msg = {
   action_id: string | null;
   action: string | null;
   who: string;
+  // Sent to someone else.
   mine: boolean;
+  // Written by you, to you: it is in the inbox AND in Sent (migration 043).
+  self?: boolean;
   pending: boolean;
 };
 
