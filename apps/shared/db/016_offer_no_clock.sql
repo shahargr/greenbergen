@@ -1,0 +1,21 @@
+-- 016 - the package offer, as Shahar settled it 2026-09-09.
+-- Applied via mcp `offer_no_clock_approved_only_and_tell_the_losers`.
+--
+-- 1. NO 24-HOUR WINDOW. "Remove the window and enforcement. Keep it simple and
+--    do our best to deliver instant pricing and book now." reply_by is no
+--    longer set: an offer stays open until someone takes it or the homeowner
+--    pulls it. This also unblocks the offer feed - without a clock, nobody has
+--    to be reached inside 24 hours, so notifications stop being a gate.
+--
+-- 2. APPROVED TRADES ONLY. It went to anyone holding the trade with a login,
+--    ignoring contractor_approvals entirely. MEASURED: today's invite list
+--    goes from 3 contacts to 1. Documents still gate the ACCEPT, never the
+--    invite. DISTANCE IS NOT HERE and is not faked: there are no coordinates
+--    to range against - the Census geocoder the wizard already calls returns
+--    lat/lng/zip and the app discards them. Storing them is its own task.
+--
+-- 3. THE PASSED-OVER CONTRACTORS ARE TOLD. Their bid flipped to 'not awarded'
+--    silently while the homeowner got a message. Each now gets their own, and
+--    it never names the winner - naming them turns neighbours into a
+--    leaderboard, the dynamic the no-bidding promise exists to avoid. Town,
+--    never address.

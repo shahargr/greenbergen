@@ -239,7 +239,7 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
           <Card pad>
             {result.instant_book ? (
               <ul className="scope">
-                <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Matching takes at least 24 hours.</strong><br /><span className="text-muted">We&apos;ll email you the moment someone accepts.</span></span></li>
+                <li><span className="ic"><CheckIcon size={18} /></span><span><strong>First to take it gets it, at this price.</strong><br /><span className="text-muted">No deadline and no auction. We&apos;ll tell you the moment someone accepts.</span></span></li>
                 <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Nothing charged today.</strong><br /><span className="text-muted">{pkg.requires_permit ? `${pkg.permit_deposit_pct}% is due at the permit meeting, paid to your contractor.` : "You pay your contractor when the work is done."}</span></span></li>
               </ul>
             ) : (

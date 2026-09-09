@@ -27,10 +27,10 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pk
   if (pkg.requires_permit) {
     notes.push(<>A town permit is required. Your contractor meets you to sign the papers.</>);
     notes.push(<>{pkg.permit_deposit_pct}% ({dollars(deposit)}) is due when the permit process begins — paid to the contractor, not to us.</>);
-    notes.push(<>Permits take a few weeks. Matching a contractor takes at least 24 hours.</>);
+    notes.push(<>Permits take a few weeks. Matching a contractor usually takes a day or two.</>);
   } else {
     notes.push(<>Nothing is charged today. You pay the contractor when the work is done — card, check or cash.</>);
-    notes.push(<>Matching a contractor takes at least 24 hours. First to accept at this price gets it; nobody can counter-offer.</>);
+    notes.push(<>First to accept at this price gets it; nobody can counter-offer, and there is no deadline on your side.</>);
   }
   if (!pkg.instant_book && pkg.approval_note) notes.push(<>{pkg.approval_note}</>);
 

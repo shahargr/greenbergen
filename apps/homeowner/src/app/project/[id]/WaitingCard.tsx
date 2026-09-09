@@ -1,17 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ago, dayClock } from "@shared/format";
+import { ago } from "@shared/format";
 import { Card } from "@shared/ui";
 
-// WaitingCard - pulsing icon, copy, the 24 h progress bar. Client-side so
-// the bar keeps moving without a reload.
-export function WaitingCard({ postedAt, replyBy, instant }: { postedAt: string; replyBy: string | null; instant: boolean }) {
-  const [now, setNow] = useState(() => Date.now());
+// WaitingCard - what a homeowner sees between posting and a contractor
+// taking it.
+//
+// It used to be a 24-hour countdown bar. There is no window any more
+// (migration 016): an offer stays open until someone takes it or the
+// homeowner pulls it, so a bar filling toward a deadline that no longer
+// exists would be a lie. What is honest is how long it has been out, and
+// how many trades are looking at it.
+//
+// offered === 0 is the case worth being straight about: the job posted but
+// nobody eligible exists yet. Saying "finding your contractor" then would be
+// the worst kind of quiet failure.
+export function WaitingCard({
+  postedAt, offered, instant,
+}: {
+  postedAt: string;
+  offered: number;
+  instant: boolean;
+}) {
+  const [, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(t); }, []);
-  const start = new Date(postedAt).getTime();
-  const end = replyBy ? new Date(replyBy).getTime() : start + 86400000;
-  const pct = Math.max(2, Math.min(100, ((now - start) / (end - start)) * 100));
+
+  if (offered === 0) {
+    return (
+      <Card pad>
+        <div className="card-title">Nobody to send this to yet</div>
+        <p className="small text-muted" style={{ margin: "4px 0 0" }}>
+          Your price is held and your job is saved — but there is no approved contractor in this
+          trade on Green Bergen yet, so it has not reached anyone. We&apos;re working on it, and
+          you&apos;ll hear the moment that changes. Nothing is charged meanwhile.
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <Card pad>
       <div className="row" style={{ alignItems: "flex-start" }}>
@@ -20,13 +47,12 @@ export function WaitingCard({ postedAt, replyBy, instant }: { postedAt: string; 
         </span>
         <div className="grow">
           <div className="card-title">{instant ? "Finding your contractor" : "A contractor is checking the details"}</div>
-          <p className="small text-muted" style={{ margin: "2px 0 0" }}>Posted {ago(postedAt)}. Matching takes at least 24 hours — usually less than 48.</p>
+          <p className="small text-muted" style={{ margin: "2px 0 0" }}>
+            Posted {ago(postedAt)} to {offered} {offered === 1 ? "contractor" : "contractors"} in this trade.
+            The first to take it gets the job, at the price you were quoted — there&apos;s no deadline
+            and no auction.
+          </p>
         </div>
-      </div>
-      <div className="wait-bar" style={{ marginTop: 12 }}><span style={{ width: `${pct}%` }} /></div>
-      <div className="marks" style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted)" }}>
-        <span>Posted {dayClock(postedAt)}</span>
-        <span>24 h mark · {dayClock(replyBy ?? new Date(end).toISOString())}</span>
       </div>
     </Card>
   );

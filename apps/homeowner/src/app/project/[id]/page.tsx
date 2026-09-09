@@ -14,7 +14,7 @@ import { bookingAction, updatePlan } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-// Screens 11 and 12: waiting (matching), no taker at 24 h, closed, and the
+// Screens 11 and 12: waiting (matching), no taker, closed, and the
 // project view itself - one horizontal line, the contractor, what's next.
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; ok?: string }> }) {
   const { id } = await params;
@@ -163,7 +163,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                 <div className="big mono">{dollars(next)}<span className="was">{dollars(b.price_cents)}</span></div>
                 <div className="delta">+{dollars(next - b.price_cents)} ({Math.round(((next - b.price_cents) / b.price_cents) * 100)}%)</div>
               </div>
-              <p className="small" style={{ margin: "8px 0 0" }}>Same scope, same warranty, same 24-hour window. Still an estimate pending contractor confirmation — and still paid directly to them.</p>
+              <p className="small" style={{ margin: "8px 0 0" }}>Same scope, same warranty. Still an estimate pending contractor confirmation — and still paid directly to them.</p>
             </Card>
             <p className="small text-muted" style={{ margin: 0 }}>Or wait — your job stays posted at {dollars(b.price_cents)} for another 48 hours, no action needed.</p>
           </div>
@@ -190,11 +190,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {ok === "wait" && <div className="banner-ok">Still posted at {dollars(b.price_cents)} for another 48 hours.</div>}
           {error && <Notice kind="error">{error}</Notice>}
           {photosCard}
-          <WaitingCard postedAt={b.posted_at ?? b.created_at} replyBy={b.reply_by} instant={pkg?.instant_book ?? true} />
+          <WaitingCard postedAt={b.posted_at ?? b.created_at} offered={b.offered_count ?? 0} instant={pkg?.instant_book ?? true} />
           <NumberedNotes items={[
             <>{b.offered_count > 0 ? `${numberWord(b.offered_count)} licensed ${pluralTrade(pkg?.trade, b.offered_count)} in the community serve ${town}. Each sees your scope and photos, not your name.` : `Your scope and photos are ready for the community's ${pluralTrade(pkg?.trade, 2)} — none are signed in yet, so a person at Green Bergen is bringing one in.`}</>,
             <>They accept at {dollars(b.price_cents)} or pass. Nobody can counter-offer.</>,
-            <>If nobody takes it in 24 hours, we&apos;ll come back to you with an honest option.</>,
+            <>Nothing expires. If it stays quiet, you can repost it or change the package whenever you like.</>,
           ]} />
         </div>
         <div className="actions">
