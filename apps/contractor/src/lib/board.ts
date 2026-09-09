@@ -182,13 +182,15 @@ export const priorityRank = (p: string | null) =>
   p === "High" ? 0 : p === "Medium" ? 1 : p === "Low" ? 3 : 2;
 
 // The buckets are computed in the database (active, lead, decision, payment,
-// done); the app only names them.
+// done); the app only names them. "done" reads as Completed on screen - it
+// is the status word the projects table uses ("Closed - Completed") and the
+// word Shahar uses - and it is the one bucket the board hides by default.
 export const BUCKETS = [
   { key: "active", label: "Active" },
   { key: "decision", label: "Needs a decision" },
   { key: "payment", label: "Money" },
   { key: "lead", label: "Leads" },
-  { key: "done", label: "Done" },
+  { key: "done", label: "Completed" },
 ] as const;
 export type BucketKey = (typeof BUCKETS)[number]["key"] | "all";
 

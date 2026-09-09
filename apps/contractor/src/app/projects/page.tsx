@@ -34,7 +34,11 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   if (!board.signed_in) redirect("/login?next=/projects");
 
   const filter: BucketKey = BUCKETS.some((b) => b.key === show) ? (show as BucketKey) : "all";
-  const counts: Record<string, number> = { all: board.seats.length };
+  // COMPLETED IS HIDDEN BY DEFAULT. A board is what you are running; a
+  // finished house is a record, and it has its own chip. So "All" counts and
+  // shows everything that is not done, and Completed is the only way in.
+  const isDone = (s: { buckets?: string[] | null }) => (s.buckets ?? []).includes("done");
+  const counts: Record<string, number> = { all: board.seats.filter((s) => !isDone(s)).length };
   for (const s of board.seats) for (const b of s.buckets ?? []) counts[b] = (counts[b] ?? 0) + 1;
 
   const built = buildTree(board.seats, board.tasks, board.me?.contact_id ?? null);
@@ -46,14 +50,16 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   // A filter hides rows, never the row that leads to them - so a development
   // survives on the strength of a job three levels down, and opens itself.
-  const tree = filter === "all" ? full : prune(full, (s) => (s.buckets ?? []).includes(filter));
+  const tree = filter === "all"
+    ? prune(full, (s) => !isDone(s))
+    : prune(full, (s) => (s.buckets ?? []).includes(filter));
   const mine = tree.filter(anyRuns);
   const theirs = tree.filter((n) => !anyRuns(n));
 
   const openTasks = board.tasks.filter((t) => t.state === "open").length;
   const owed = board.seats.reduce((a, s) => a + (s.owed ?? 0), 0);
   const first = board.me?.full_name?.trim().split(" ")[0] ?? null;
-  const beneath = full.reduce((a, n) => a + n.count, 0);
+  const beneath = tree.reduce((a, n) => a + n.count, 0);
 
   return (
     <Screen>
@@ -70,7 +76,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
           <p className="lead">
             {board.seats.length === 0
               ? "No project seats yet. When a project hands you the PM or GC seat, it lands here."
-              : `${full.length} ${full.length === 1 ? "property" : "properties"}${beneath ? `, ${beneath} ${beneath === 1 ? "job" : "jobs"} beneath` : ""}${openTasks ? ` · ${openTasks} open ${openTasks === 1 ? "task" : "tasks"}` : ""}${money(owed) ? ` · ${money(owed)} owed` : ""}.`}
+              : `${tree.length} ${tree.length === 1 ? "property" : "properties"}${beneath ? `, ${beneath} ${beneath === 1 ? "job" : "jobs"} beneath` : ""}${openTasks ? ` · ${openTasks} open ${openTasks === 1 ? "task" : "tasks"}` : ""}${money(owed) ? ` · ${money(owed)} owed` : ""}.`}
           </p>
         </div>
 
