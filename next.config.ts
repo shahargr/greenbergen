@@ -5,7 +5,8 @@ import type { NextConfig } from "next";
 // path to each of them:
 //
 //   /home  -> greenbergen-homeowner   (built with basePath /home)
-//   /pro   -> greenbergen-pro         (basePath /pro) - the Home experts app
+//   /pro   -> greenbergen-pro         (basePath /pro) - the Home experts app,
+//                                     still ANSWERING on its old hostname
 //
 // /build was a third zone until the builder app merged into /pro (migration
 // 030: project management is a trade, not a door). It redirects now rather
@@ -20,14 +21,22 @@ import type { NextConfig } from "next";
 // ZONE_* lets a destination move (a preview, a new project) without a code
 // change; the production URLs are the fallback so nothing breaks if unset.
 //
-// A FALLBACK IS A HOSTNAME, AND A HOSTNAME FOLLOWS THE VERCEL PROJECT NAME.
-// Renaming the project renames its .vercel.app host, and a .vercel.app domain
-// cannot be re-added by hand, so the old one is simply gone. The rename and
-// this line have to land together or /pro rewrites to nothing.
+// A HOSTNAME DOES NOT FOLLOW THE VERCEL PROJECT NAME. Learned the hard way
+// on 2026-09-09: the project was renamed greenbergen-contractor ->
+// greenbergen-pro, this line was changed to match, and /pro went dark.
+// Vercel's short <name>.vercel.app is a DOMAIN RECORD attached to the
+// project, not a name derived from it. A rename updates the long
+// <name>-<team>.vercel.app aliases and leaves the short one exactly where it
+// was, so greenbergen-pro.vercel.app was never created and the old host kept
+// serving. Hence: the project is greenbergen-pro, the host is still
+// greenbergen-contractor.vercel.app, and that is not drift - it is what the
+// platform does. Check the deployment's own alias list before touching this,
+// and prefer setting ZONE_EXPERT to editing the fallback, because an env var
+// can be corrected without a deploy and this line cannot.
 const zone = (env: string | undefined, fallback: string) => (env?.trim() || fallback).replace(/\/$/, "");
 const ZONES: Record<string, string> = {
   home: zone(process.env.ZONE_HOMEOWNER, "https://greenbergen-homeowner.vercel.app"),
-  pro: zone(process.env.ZONE_EXPERT, "https://greenbergen-pro.vercel.app"),
+  pro: zone(process.env.ZONE_EXPERT, "https://greenbergen-contractor.vercel.app"),
 };
 
 const nextConfig: NextConfig = {

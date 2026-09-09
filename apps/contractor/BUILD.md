@@ -93,9 +93,13 @@ apps/shared/                     # imported as @shared/*
   production branch `main`. Renamed from `greenbergen-contractor` on
   2026-09-09 to match the door: this is the Home experts app, and project
   management is a trade inside it, not a separate project. The folder keeps
-  its name so the Root Directory setting stays valid. The portal reaches it
-  by hostname (`next.config.ts` ZONES) - see the note there before renaming
-  again.
+  its name so the Root Directory setting stays valid. The HOSTNAME did NOT
+  follow the rename: Vercel's short `<name>.vercel.app` is a domain record on
+  the project, not a name derived from it, so the app still answers on
+  `greenbergen-contractor.vercel.app` and that is what the portal rewrites to
+  (`next.config.ts` ZONES). Read the note there before touching it - pointing
+  it at `greenbergen-pro.vercel.app`, which does not exist, took `/pro` down
+  once already.
 - **npm workspace**: the repo root already declares `"workspaces": ["apps/*"]`.
   `npm install` runs at the root; one `node_modules`.
 - **Auth**: the same Supabase Auth, the same `app_users` row, the same
