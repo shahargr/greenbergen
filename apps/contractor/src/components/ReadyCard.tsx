@@ -44,23 +44,42 @@ export function ReadyCard({ me }: { me: Extract<Me, { signed_in: true }> }) {
     );
   }
 
+  // SHUT BY DEFAULT. This is a to-do list about paperwork, and paperwork is
+  // never why someone opened the app - the work is. Four rows of it at the
+  // top of the landing pushed the actual properties below the fold. It says
+  // how many are left in one line and opens on a tap.
   return (
-    <Card pad>
-      <div className="card-title" style={{ fontSize: 16 }}>
-        {left.length === 0 ? "Ready to send" : left.length === 1 ? "One thing left" : `${left.length} things left`}
-      </div>
-      <p className="small text-muted" style={{ margin: "2px 0 10px" }}>
-        Look at the work all you like. These are what we need before you can accept a job — the community is built on them.
-      </p>
-      <div className="stack" style={{ gap: 6 }}>
+    <details className="home-panel">
+      <summary className="home-row">
+        <span className="ic" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 3h7l4 4v14H7zM14 3v4h4M9 13h6M9 17h4" />
+          </svg>
+        </span>
+        <span className="grow" style={{ minWidth: 0 }}>
+          <span className="t">
+            {left.length === 0 ? "Ready to send" : left.length === 1 ? "One thing left" : `${left.length} things left`}
+          </span>
+          <span className="m" style={{ display: "block" }}>
+            {left.length === 0
+              ? "Everything is on file."
+              : "What we need before you can accept a job."}
+          </span>
+        </span>
+        <span className="chev"><ChevronIcon /></span>
+      </summary>
+      <div className="drawer stack" style={{ gap: 6, paddingTop: 12 }}>
+        <p className="tiny text-muted" style={{ margin: "0 0 2px" }}>
+          Look at the work all you like — the community is built on these.
+        </p>
         {left.map((o) => (
-          <Link key={o.key} href={o.href} className="home-row">
+          <Link key={o.key} href={o.href} className="home-row" style={{ boxShadow: "var(--shadow-card)", background: "var(--color-surface)", borderRadius: "var(--radius-tile)" }}>
             <span className="grow"><span className="t">{o.label}</span></span>
             <ChevronIcon />
           </Link>
         ))}
+        {left.length === 0 && <Link href="/business/submit" className="btn btn-primary btn-block">Send for approval</Link>}
       </div>
-      {left.length === 0 && <Link href="/business/submit" className="btn btn-primary btn-block" style={{ marginTop: 10 }}>Send for approval</Link>}
-    </Card>
+    </details>
   );
 }

@@ -16,6 +16,10 @@ export type Seat = {
   seat: string | null; rank: number; my_open_tasks: number;
   bid_amount: number | null; latest_bid_id: string | null;
   owed: number; owed_count: number; buckets: string[];
+  // The storage path of the property's picture (migration 032) - its chosen
+  // cover, else its newest photo. A path, not a URL: sign it with
+  // coverUrls() so the whole page costs one round trip.
+  cover: string | null;
 };
 
 export type Task = {
@@ -190,3 +194,78 @@ export type BucketKey = (typeof BUCKETS)[number]["key"] | "all";
 
 export const money = (n: number | null | undefined) =>
   n == null || n === 0 ? null : `$${Math.round(n).toLocaleString()}`;
+
+// ---------------------------------------------------------------------------
+// TASK BUCKETS.
+//
+// A project's open work is never a rolling list. 122 of the open tasks in
+// this database sit on one job, and a list that long answers no question at
+// all - you scroll it looking for the one thing that is late.
+//
+// The seat BUCKETS above sort PROPERTIES by what is happening to them
+// commercially. These sort TASKS by what they need from you, which is a
+// different question with a different answer:
+//
+//   late     - past its date. Nothing else matters until this is empty.
+//   week     - due in the next seven days. What today is actually about.
+//   waiting  - parked, or pending someone else. Yours to chase, not to do.
+//   later    - dated, further out. Visible, closed by default.
+//   undated  - no date at all. Real work nobody has committed to.
+//
+// The order IS the design: a bucket only appears when it has rows, and the
+// first two carry the day. Same idea the /tasks screen already runs on
+// (late first, then dated, then undated) - named here so the project screen
+// and the task list can never drift apart.
+export const TASK_BUCKETS = [
+  { key: "late", label: "Late", tone: "status" },
+  { key: "week", label: "This week", tone: null },
+  { key: "waiting", label: "Waiting on someone", tone: null },
+  { key: "later", label: "Later", tone: null },
+  { key: "undated", label: "No date yet", tone: null },
+] as const;
+export type TaskBucket = (typeof TASK_BUCKETS)[number]["key"];
+
+const WAITING = ["Parked", "Pending on Others", "Completed Pending Approval", "Completed Pending"];
+
+export function taskBucket(t: Task, today: string, weekEnd: string): TaskBucket {
+  if (t.target_date && t.target_date < today) return "late";
+  if (WAITING.includes(t.status)) return "waiting";
+  if (!t.target_date) return "undated";
+  return t.target_date <= weekEnd ? "week" : "later";
+}
+
+// Group a project's open work into the buckets above, dropping the empty
+// ones. Inside a bucket: soonest first, then by priority - an undated task
+// has nothing else to order it by.
+export function bucketTasks(tasks: Task[], now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const weekEnd = new Date(now.getTime() + 7 * 86400_000).toISOString().slice(0, 10);
+  const out = new Map<TaskBucket, Task[]>();
+  for (const t of tasks) {
+    const k = taskBucket(t, today, weekEnd);
+    out.set(k, [...(out.get(k) ?? []), t]);
+  }
+  for (const rows of out.values()) {
+    rows.sort((a, b) =>
+      (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999") ||
+      priorityRank(a.priority) - priorityRank(b.priority) ||
+      a.action.localeCompare(b.action));
+  }
+  return TASK_BUCKETS
+    .map((b) => ({ ...b, rows: out.get(b.key) ?? [] }))
+    .filter((b) => b.rows.length > 0);
+}
+
+// One signed-URL round trip for every cover on a page. Storage paths are
+// private; a signed URL lasts an hour, which outlives any page view.
+export async function coverUrls(
+  supabase: Awaited<ReturnType<typeof createClient>>, paths: (string | null)[],
+): Promise<Record<string, string>> {
+  const unique = [...new Set(paths.filter((p): p is string => !!p))];
+  if (unique.length === 0) return {};
+  const { data } = await timed("coverUrls", () =>
+    supabase.storage.from("project-media").createSignedUrls(unique, 3600));
+  const out: Record<string, string> = {};
+  for (const row of data ?? []) if (row.path && row.signedUrl) out[row.path] = row.signedUrl;
+  return out;
+}
