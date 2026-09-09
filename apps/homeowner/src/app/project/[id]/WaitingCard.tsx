@@ -31,9 +31,9 @@ export function WaitingCard({
       <Card pad>
         <div className="card-title">Nobody to send this to yet</div>
         <p className="small text-muted" style={{ margin: "4px 0 0" }}>
-          Your price is held and your job is saved — but there is no approved contractor in this
-          trade on Green Bergen yet, so it has not reached anyone. We&apos;re working on it, and
-          you&apos;ll hear the moment that changes. Nothing is charged meanwhile.
+          Your job is saved and your price is held for a week — but there is no approved contractor
+          in this trade on Green Bergen yet, so it has not reached anyone. We&apos;re working on it,
+          and you&apos;ll hear the moment that changes. Nothing is charged meanwhile.
         </p>
       </Card>
     );
@@ -49,8 +49,9 @@ export function WaitingCard({
           <div className="card-title">{instant ? "Finding your contractor" : "A contractor is checking the details"}</div>
           <p className="small text-muted" style={{ margin: "2px 0 0" }}>
             Posted {ago(postedAt)} to {offered} {offered === 1 ? "contractor" : "contractors"} in this trade.
-            The first to take it gets the job, at the price you were quoted — there&apos;s no deadline
-            and no auction.
+            The first to take it gets the job, at the price you were quoted — no deadline, no auction.
+            Your price is held for a week; if it&apos;s still waiting after that we re-check the
+            community price and tell you if it moved.
           </p>
         </div>
       </div>

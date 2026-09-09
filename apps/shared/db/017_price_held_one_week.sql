@@ -1,0 +1,21 @@
+-- 017 - the quoted price stands for one week. Shahar, 2026-09-09.
+-- Applied via mcp `offer_price_held_for_one_week`.
+--
+-- Migration 016 removed the deadline, which left a question the old 24-hour
+-- window used to answer by accident: if a job sits unaccepted for a month and
+-- the community price has moved, which number is honoured? A week.
+--
+--   * Seven days: the quoted number is the number a contractor accepts at,
+--     guaranteed, whatever the catalogue does.
+--   * After that it is re-checked nightly (pg_cron, 03:50, beside the existing
+--     purge job at 03:30). Unmoved - the usual case - rolls the guarantee
+--     forward silently, because there is nothing to say.
+--   * Moved: the number changes AND THE HOMEOWNER IS TOLD. Never silently. A
+--     price nobody was told about is not a price they agreed to, and the whole
+--     product rests on the number being honest. The guarantee then rolls
+--     forward a week from the NEW number, so the promise is always "held for a
+--     week from now" rather than a countdown to a cliff.
+--   * The bids and the bid package move with it, so the contractor feed never
+--     shows a stale number. One price, everyone sees the same one.
+--   * A package that can no longer be priced at all is left untouched rather
+--     than guessed at.
