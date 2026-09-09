@@ -49,7 +49,7 @@ export default async function WorkPage() {
         {/* The trades decide which work reaches you, so the chips ARE the way
             to change them - they were a dead label, and the only path to the
             picker was gear -> Your business -> The trades you work. */}
-        <Link href="/business/trades" className="home-row" style={{ alignItems: "flex-start" }}>
+        <Link href="/business/trades?from=work" className="home-row" style={{ alignItems: "flex-start" }}>
           <span className="grow" style={{ minWidth: 0 }}>
             <span className="t">Your trades</span>
             {me.trades.length > 0 ? (

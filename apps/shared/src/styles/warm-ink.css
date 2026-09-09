@@ -240,6 +240,29 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .scope li:last-child { border-bottom: 0; }
 .scope .ic { width: 20px; height: 20px; flex: none; color: var(--color-ok); margin-top: 1px; }
 .scope .detail { color: var(--muted); }
+
+/* The same rows read as an ORDER on a DIY project: a number, not a tick.
+   Nothing is done yet, and a tick beside undone work is a small lie. */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.steps li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--color-divider); font-size: 14px; }
+.steps li:last-child { border-bottom: 0; }
+.steps .n { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--color-soft-2); color: var(--muted); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 1px; }
+.steps .detail { color: var(--muted); }
+
+/* A home reads as a ROW, not a form. The panels were full-height cards with
+   two open text fields each; three homes filled a phone screen and none of
+   it was information. The photo carries the recognition, the fields move
+   behind an Edit disclosure, and the row is 64px. */
+.home-row .pic { width: 52px; height: 52px; flex: none; border-radius: 12px; object-fit: cover; background: var(--color-soft-2); display: block; }
+.home-row .pic.empty { display: grid; place-items: center; color: var(--muted); border: 1.5px dashed var(--color-divider-strong); background: transparent; }
+.home-row .pic.empty svg { width: 20px; height: 20px; }
+.home-panel { background: var(--color-surface); border-radius: var(--radius-tile); box-shadow: var(--shadow-card); overflow: hidden; }
+.home-panel .home-row { box-shadow: none; border-radius: 0; background: transparent; width: 100%; }
+.home-panel .drawer { padding: 0 var(--space-4) var(--space-4); border-top: 1px solid var(--color-divider); }
+.home-panel summary { list-style: none; cursor: pointer; }
+.home-panel summary::-webkit-details-marker { display: none; }
+.home-panel summary .chev { transition: transform .15s ease; color: var(--muted); }
+.home-panel details[open] summary .chev { transform: rotate(90deg); }
 .notes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .notes li { display: grid; grid-template-columns: 28px 1fr; gap: var(--space-2); font-size: 14px; }
 .notes li .n { font-family: var(--font-heading); font-weight: 800; color: var(--muted); font-size: 12px; padding-top: 3px; }

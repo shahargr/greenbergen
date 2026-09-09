@@ -14,10 +14,17 @@ export const metadata = { title: "Your trades" };
 // so a plumber is not reading through cabinetry.
 type Trade = { trade: string; stage: string | null; licence: string | null; needs_docs: boolean };
 
-export default async function TradesPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
-  const { ok, error } = await searchParams;
+// Back goes where you CAME from. The picker is reached from two places -
+// the "Your trades" chips on /work and the row on /business - and a fixed
+// back sent everyone to the company form, which is not the page they left.
+// A named origin rather than history.back(): it survives the redirect after
+// saving, which a browser back does not.
+const BACK: Record<string, string> = { work: "/work", business: "/business" };
+
+export default async function TradesPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string; from?: string }> }) {
+  const { ok, error, from } = await searchParams;
   const me = await getMe();
-  if (!me.signed_in) redirect("/login?next=/business/trades");
+  if (!me.signed_in) redirect(`/login?next=${encodeURIComponent(`/business/trades${from ? `?from=${from}` : ""}`)}`);
   const supabase = await createClient();
   const { data } = await rpc<Trade[]>(supabase, "contractor_trade_catalogue");
   const all = data ?? [];
@@ -31,8 +38,9 @@ export default async function TradesPage({ searchParams }: { searchParams: Promi
 
   return (
     <Screen>
-      <AppBar back="/business" title="Your trades" />
+      <AppBar back={BACK[from ?? ""] ?? "/business"} title="Your trades" />
       <form action={saveTrades} className="body">
+        <input type="hidden" name="from" value={from ?? ""} />
         {ok && <div className="banner-ok">Saved. Work in these trades will reach you.</div>}
         {error && <Notice kind="error">{error}</Notice>}
         <div className="hero">

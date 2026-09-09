@@ -30,12 +30,16 @@ export async function saveBusiness(formData: FormData) {
 
 export async function saveTrades(formData: FormData) {
   const trades = formData.getAll("trade").map(String).filter(Boolean);
+  // Where the picker was opened from, carried through the save so Back still
+  // returns to the page they left rather than the company form.
+  const from = String(formData.get("from") ?? "").trim();
+  const back = from ? `&from=${encodeURIComponent(from)}` : "";
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("contractor_trades_set", { p_trades: trades });
   revalidatePath("/business/trades");
   revalidatePath("/work");
-  if (error || !data?.ok) redirect(`/business/trades?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
-  redirect("/business/trades?ok=1");
+  if (error || !data?.ok) redirect(`/business/trades?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}${back}`);
+  redirect(`/business/trades?ok=1${back}`);
 }
 
 export async function signOut() {

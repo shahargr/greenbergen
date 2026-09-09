@@ -10,6 +10,13 @@ import type { BookingState, TargetWindow } from "@/lib/plan";
 export type Home = {
   project_id: string; address: string | null; name: string | null; town: string | null; created_at: string;
   facts: Record<string, unknown> | null; live: number; planned: number; done: number;
+  // The face of the house: the newest photo filed against the home itself,
+  // not against a job under it. Null until someone adds one.
+  photo: { file_id: string; path: string } | null;
+  // Who else is on the property, and how many invitations are still open.
+  // The owner is not in the list - the owner is the one reading it.
+  people: { name: string; role: string; status: string }[];
+  invited: number;
 };
 export type HomeQuota = { allowed: number | null; have: number; can_add: boolean } | null;
 

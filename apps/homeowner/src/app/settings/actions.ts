@@ -33,6 +33,33 @@ export async function invitePerson(formData: FormData) {
   redirect(`/settings?token=${encodeURIComponent(data.token)}&who=${encodeURIComponent(name ?? email ?? "your neighbor")}&kind=${kind}`);
 }
 
+// Bring someone onto a PROPERTY - not one job, the house and everything
+// under it. portal_invite_to_project already did this for any project and a
+// home is a project; what it lacked until migration 031 was a seat for the
+// person who runs the place, so a property manager arrived as a viewer.
+//
+// The four seats, in the words a homeowner uses:
+//   member   - a spouse or co-owner: everything you can do, money included
+//   manager  - a property manager: runs the work, gets the board
+//   contractor - the seat a pro works from
+//   viewer   - a tenant, a designer: sees it, never the money
+//
+// Nobody is added silently: this writes a pending invitation they accept
+// from their own inbox.
+export async function inviteToHome(projectId: string, formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim() || null;
+  const phone = String(formData.get("phone") ?? "").trim() || null;
+  const seat = String(formData.get("seat") ?? "viewer");
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_invite_to_project", {
+    p_project: projectId, p_email: email, p_phone: phone, p_seat: seat, p_note: note,
+  });
+  revalidatePath("/settings");
+  if (error || !data?.ok) redirect(`/settings?error=${encodeURIComponent(friendly(data?.reason ?? error?.message ?? "Could not send that invitation."))}`);
+  redirect(`/settings?invited=${encodeURIComponent(data.name ?? "them")}`);
+}
+
 // The homes list is managed HERE, not on the project page. Rename or fix the
 // address; homeowner_home_update checks ownership through the same
 // homeowner_home_ids() the rest of the app uses.

@@ -63,6 +63,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // ---- planned: on the list, nothing sent ------------------------------
   if (b.state === "planned") {
     const moved = b.live_price_cents != null && b.live_price_cents !== b.price_cents;
+    // kind comes from the catalogue (blueprint_package_items.kind), so the
+    // split is data, not a list of labels kept in step with the seed here.
+    const steps = b.scope.filter((s) => s.kind !== "assurance");
+    const covered = b.scope.filter((s) => s.kind === "assurance");
     return (
       <Screen>
         <AppBar back="/project" title={pkg?.name} sub={b.address?.split(",")[0] ?? undefined} />
@@ -80,12 +84,32 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             </div>
           </Card>
           {b.note && <blockquote>{b.note}</blockquote>}
+          {/* DIY is not a purchase, so this is not a receipt. The same scope
+              lines read as the ORDER OF THE WORK - numbered, not ticked,
+              because nothing is done yet. The two assurance lines (insurance,
+              the warranty) are dropped: they are what a contractor carries,
+              and on a job you do yourself nobody carries them. Saying so
+              plainly below is the honest version of the turn-key pitch. */}
           <Card pad>
-            <div className="kicker">What&apos;s included</div>
-            <ul className="scope" style={{ marginTop: 4 }}>
-              {b.scope.map((si, i) => <li key={i}><span className="ic">✓</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>)}
-            </ul>
+            <div className="kicker">Suggested steps for the job</div>
+            <ol className="steps" style={{ marginTop: 6 }}>
+              {steps.map((si, i) => (
+                <li key={i}><span className="n">{i + 1}</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>
+              ))}
+            </ol>
+            <p className="tiny text-muted" style={{ margin: "10px 0 0" }}>
+              The order most {pluralTrade(pkg?.trade, 2)} work in. Yours to change — nothing here is a commitment.
+            </p>
           </Card>
+          {covered.length > 0 && (
+            <Card pad soft>
+              <div className="kicker">What turn-key adds</div>
+              <ul className="scope" style={{ marginTop: 4 }}>
+                {covered.map((si, i) => <li key={i}><span className="ic">✓</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>)}
+              </ul>
+              <p className="tiny text-muted" style={{ margin: "8px 0 0" }}>Doing it yourself, these are on you.</p>
+            </Card>
+          )}
           <details className="card pad">
             <summary className="card-title" style={{ cursor: "pointer" }}>Change when</summary>
             <form action={updatePlan} className="stack" style={{ marginTop: 10 }}>

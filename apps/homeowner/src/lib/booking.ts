@@ -37,7 +37,7 @@ export type Booking = {
   is_owner: boolean; my_contact_id: string | null;
   share: { slug: string | null; shared_at: string | null; quote: string | null; hide_address: boolean; after_file_id: string | null };
   owner: { contact_id: string | null; name: string | null } | null;
-  contractor: Contractor | null; progress: Progress; stages: Stage[]; scope: { item: string; detail: string | null }[];
+  contractor: Contractor | null; progress: Progress; stages: Stage[]; scope: { item: string; detail: string | null; kind: "work" | "assurance" }[];
   files: JobFile[]; messages: Message[]; unread: number;
   open_tasks: { id: string; action: string; status: string; kind: "payment_confirmation" | "milestone" | "photos" | "other"; pending_reason: string | null; created_at: string }[];
 };
