@@ -12,6 +12,7 @@ const SECTIONS = [
   { href: "/admin/users", title: "User management", note: "Active accounts by type, invitations, seats.", live: true, countKey: "users" },
   { href: "/admin/finance", title: "Finance", note: "Agreements, billing, receivables.", live: false, countKey: null },
   { href: "/admin/projects", title: "Project management", note: "Every project on the platform, by kind.", live: true, countKey: "projects" },
+  { href: "/admin/packages", title: "Packages", note: "The catalogue: basic setup, upgrades at cost, scope, photos, progress line.", live: true, countKey: null },
 ] as const;
 
 export default async function AdminHome() {

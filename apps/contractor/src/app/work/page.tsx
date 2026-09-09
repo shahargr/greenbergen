@@ -101,6 +101,11 @@ export default async function WorkPage() {
           <Link href="/jobs" className="home-row nav-row">
             <span className="grow"><span className="t">My jobs</span></span><ChevronIcon />
           </Link>
+          <Link href="/packages" className="home-row nav-row">
+            <span className="grow"><span className="t">Packages in your trades</span>
+              <span className="m" style={{ display: "block" }}>What they include, the community price, and sign up to serve them</span></span>
+            <ChevronIcon />
+          </Link>
           {manages && (
             <>
               <Link href="/projects" className="home-row nav-row">
