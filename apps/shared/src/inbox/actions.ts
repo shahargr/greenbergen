@@ -66,7 +66,7 @@ export async function messageSet(formData: FormData) {
   });
   revalidatePath(b);
   redirect(error ? back(b, error.message, true)
-    : back(b, status === "dismissed" ? "Archived." : status === "done" ? "Marked complete." : "Marked read."));
+    : back(b, status === "dismissed" ? "Archived. It is in the Archived folder below." : status === "done" ? "Marked complete." : "Restored."));
 }
 
 export async function messageDelete(formData: FormData) {

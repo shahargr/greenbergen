@@ -128,8 +128,14 @@ export function Messages({
   // thirty years.
   // A note to yourself is BOTH (Shahar): received, so it is in the inbox
   // until you read it, and sent, so the folder has it too.
-  const received = messages.filter((m) => !m.mine);
-  const sent = messages.filter((m) => m.mine || m.self);
+  // ARCHIVED IS A FOLDER. Shahar: "clicking archive does nothing" - it did
+  // (status = dismissed), but the row stayed where it was, because nothing
+  // here read the status. Archived rows leave the inbox and the Sent folder
+  // and wait in Archived, each with Restore; done rows go with them.
+  const archived = messages.filter((m) => m.status === "dismissed" || m.status === "done");
+  const live = messages.filter((m) => !(m.status === "dismissed" || m.status === "done"));
+  const received = live.filter((m) => !m.mine);
+  const sent = live.filter((m) => m.mine || m.self);
   const waitingR = received.filter((m) => m.pending);
   const restR = received.filter((m) => !m.pending);
 
@@ -186,6 +192,28 @@ export function Messages({
           </summary>
           <div className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
             {sent.map(row)}
+          </div>
+        </details>
+      )}
+
+      {/* Archived: filed, not deleted. Open it to find a message again and
+          put it back. */}
+      {archived.length > 0 && (
+        <details className="home-panel">
+          <summary className="home-row">
+            <span className="ic" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" />
+              </svg>
+            </span>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">Archived</span>
+              <span className="m" style={{ display: "block" }}>{archived.length} {archived.length === 1 ? "message" : "messages"} filed away</span>
+            </span>
+            <span className="chev"><ChevronIcon /></span>
+          </summary>
+          <div className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+            {archived.map(row)}
           </div>
         </details>
       )}
@@ -258,6 +286,16 @@ function Row({
   // A message ABOUT a task gets the task's verbs too: Update and Complete
   // open the same sheet a task row does, on the task it names.
   const aboutTask = !!m.action_id && !!m.project_id;
+  // Filed away: the one verb is putting it back.
+  const archivedRow = m.status === "dismissed" || m.status === "done";
+  const restore = (
+    <form action={messageSet}>
+      <input type="hidden" name="base" value={base} />
+      <input type="hidden" name="id" value={m.id} />
+      <input type="hidden" name="status" value="read" />
+      <button className="btn btn-secondary small">Restore</button>
+    </form>
+  );
 
   // The left slot: a person when there is one, otherwise what the thing is.
   // A note from someone is theirs; an offer, a question or a system message
@@ -294,7 +332,7 @@ function Row({
           )}
 
           <div className="row" style={{ gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-            {m.mine ? (
+            {archivedRow ? restore : m.mine ? (
               // Yours: you sent it. Filing it is the only thing left.
               <form action={messageSet}>
                 <input type="hidden" name="base" value={base} />
