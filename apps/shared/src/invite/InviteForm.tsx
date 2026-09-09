@@ -1,33 +1,47 @@
 import Link from "next/link";
-import { Card } from "../ui";
+import { ChevronIcon } from "../ui";
 import { CopyLink } from "./CopyLink";
 import { invitePerson } from "./actions";
 import { SITE_ORIGIN } from "../site";
 
 // ONE INVITATION FORM, EVERY DOOR.
 //
+// BEHIND A ROW. Shahar: "click on a button to invite someone else, what will
+// open this screen. it eats too much space on the settings tab." So the
+// settings screen shows one row - Invite someone - and the form is in the
+// drawer under it, shut until tapped. When a link has just been made
+// (`token` on the URL) the drawer opens on its own with the link in it,
+// because the next thing the person does is copy it.
+//
 // Two choices is a toggle, not a dropdown: both are visible, it is one tap
 // instead of two, and on a phone it does not open a picker sheet over the
 // form. Every field under it is optional, as Shahar specified - leave them
 // all blank and you simply get a link to pass on yourself.
-//
-// When a link has just been made (`token` on the URL), the form is replaced
-// by the link and a way back to making another, because the next thing the
-// person does is copy it, not fill the form in again.
 export function InviteForm({
-  base, token, who, kind, heading = "Invite someone to Green Bergen",
+  base, token, who, kind, heading = "Invite someone",
 }: {
   base: string;                       // this door's page, for the redirect
   token?: string; who?: string; kind?: string;
-  heading?: string | null;            // null hides the divider label
+  heading?: string | null;            // the row's title
 }) {
   const link = token ? `${SITE_ORIGIN}/join?invite=${encodeURIComponent(token)}` : null;
 
   return (
-    <section className="stack" style={{ gap: 10 }}>
-      {heading && <div className="divider-label">{heading}</div>}
+    <details className="home-panel" open={!!link}>
+      <summary className="home-row">
+        <span className="ic" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="8" r="4" /><path d="M2 21c0-3.6 3.1-6 7-6 1.2 0 2.3.2 3.3.6M19 8v8M15 12h8" />
+          </svg>
+        </span>
+        <span className="grow" style={{ minWidth: 0 }}>
+          <span className="t">{heading ?? "Invite someone"}</span>
+          <span className="m" style={{ display: "block" }}>A homeowner or a contractor. Every field is optional.</span>
+        </span>
+        <span className="chev"><ChevronIcon /></span>
+      </summary>
       {link ? (
-        <Card pad>
+        <div className="drawer" style={{ paddingTop: 12 }}>
           <div className="card-title" style={{ fontSize: 15 }}>A link for {who ?? "them"}</div>
           <p className="small text-muted" style={{ margin: "2px 0 10px" }}>
             Send it however you like — text, email, in person. It brings them in as{" "}
@@ -35,9 +49,9 @@ export function InviteForm({
           </p>
           <CopyLink link={link} />
           <p className="tiny text-muted" style={{ marginTop: 10 }}><Link href={base}>Make another</Link></p>
-        </Card>
+        </div>
       ) : (
-        <Card pad>
+        <div className="drawer" style={{ paddingTop: 12 }}>
           <form action={invitePerson} className="stack" style={{ gap: 10 }}>
             <input type="hidden" name="base" value={base} />
             <div className="field">
@@ -75,8 +89,8 @@ export function InviteForm({
             </label>
             <button className="btn btn-primary btn-block">Make the invitation</button>
           </form>
-        </Card>
+        </div>
       )}
-    </section>
+    </details>
   );
 }
