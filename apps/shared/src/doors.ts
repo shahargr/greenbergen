@@ -10,6 +10,8 @@
 // in the homeowner door, and the contractor door may also be open to them.
 // Shahar holds three at once. So the pill says WHERE YOU ARE, and the
 // switcher says where else you may go.
+import { SITE_ORIGIN } from "./site";
+
 export type DoorKey = "homeowner" | "contractor" | "builder" | "portal";
 
 export type Door = {
@@ -21,8 +23,8 @@ export type Door = {
   url: string;
 };
 
-// Set NEXT_PUBLIC_DOOR_* in Vercel to move an app without a code change; the
-// production URLs are the fallback so nothing breaks if one is unset.
+// One host, four paths (see site.ts for why). NEXT_PUBLIC_DOOR_* still
+// overrides any one of them if an app ever has to move.
 const url = (env: string | undefined, fallback: string) => (env?.trim() ? env.trim() : fallback);
 
 export const DOORS: Record<DoorKey, Door> = {
@@ -32,7 +34,7 @@ export const DOORS: Record<DoorKey, Door> = {
     short: "Homeowner",
     full: "Your home",
     blurb: "Price a package, book it, follow the job.",
-    url: url(process.env.NEXT_PUBLIC_DOOR_HOMEOWNER, "https://greenbergen-homeowner.vercel.app"),
+    url: url(process.env.NEXT_PUBLIC_DOOR_HOMEOWNER, `${SITE_ORIGIN}/home`),
   },
   contractor: {
     key: "contractor",
@@ -40,7 +42,7 @@ export const DOORS: Record<DoorKey, Door> = {
     short: "Contractor",
     full: "Your trade",
     blurb: "Offers at the community price, your jobs, your documents.",
-    url: url(process.env.NEXT_PUBLIC_DOOR_CONTRACTOR, "https://greenbergen-contractor.vercel.app"),
+    url: url(process.env.NEXT_PUBLIC_DOOR_CONTRACTOR, `${SITE_ORIGIN}/pro`),
   },
   builder: {
     key: "builder",
@@ -48,7 +50,7 @@ export const DOORS: Record<DoorKey, Door> = {
     short: "Project M.",
     full: "Your board",
     blurb: "Run the job: scope, bids, crew, money.",
-    url: url(process.env.NEXT_PUBLIC_DOOR_BUILDER, "https://greenbergen-builder.vercel.app"),
+    url: url(process.env.NEXT_PUBLIC_DOOR_BUILDER, `${SITE_ORIGIN}/build`),
   },
   portal: {
     key: "portal",
@@ -56,7 +58,7 @@ export const DOORS: Record<DoorKey, Door> = {
     short: "Admin",
     full: "The portal",
     blurb: "Everything: admin, deals, the whole record.",
-    url: url(process.env.NEXT_PUBLIC_DOOR_PORTAL, "https://greenbergen.vercel.app"),
+    url: url(process.env.NEXT_PUBLIC_DOOR_PORTAL, SITE_ORIGIN),
   },
 };
 

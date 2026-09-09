@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@shared/supabase/server";
+// Route handlers get no basePath for free: new URL("/x", request.url) drops
+// it and the redirect would leave the app. withBase puts it back.
+import { withBase } from "@shared/site";
 
 // Where a Google sign-up lands. The email-code path registers from the
 // form; Google skips it, so the name, company and phone ride in the query
@@ -10,7 +13,7 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims as { sub?: string; user_metadata?: { full_name?: string; name?: string } } | undefined;
-  if (!claims?.sub) return NextResponse.redirect(new URL("/login", request.url));
+  if (!claims?.sub) return NextResponse.redirect(new URL(withBase("/login"), request.url));
 
   const name = searchParams.get("name")?.trim() || claims.user_metadata?.full_name || claims.user_metadata?.name || null;
   await supabase.rpc("contractor_register", {
@@ -18,5 +21,5 @@ export async function GET(request: NextRequest) {
     p_company_name: searchParams.get("company")?.trim() || null,
     p_phone: searchParams.get("phone")?.trim() || null,
   });
-  return NextResponse.redirect(new URL("/work", request.url));
+  return NextResponse.redirect(new URL(withBase("/work"), request.url));
 }

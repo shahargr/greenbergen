@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "./supabase/client";
 import { AppBar, Notice, Screen } from "./ui";
+import { withBase } from "./site";
 
 // ONE sign-in screen for all four doors.
 //
@@ -41,7 +42,9 @@ function SignInInner({ home, footer, title }: { home: string; footer?: React.Rea
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(linkError ? "That sign-in link has expired or was already used. Enter your email and we'll send a fresh code." : "");
 
-  const redirectTo = () => `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`;
+  // window.location.origin has no basePath; the OAuth round trip must come
+  // back INTO this app, so it is added by hand.
+  const redirectTo = () => `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(next)}`;
 
   async function google() {
     setBusy(true); setErr("");

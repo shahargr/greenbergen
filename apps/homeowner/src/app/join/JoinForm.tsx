@@ -8,6 +8,7 @@ import { GoogleMark } from "@shared/SignIn";
 import { isBergenZip, townForZip } from "@shared/bergen";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Notice, Screen } from "@shared/ui";
+import { withBase } from "@shared/site";
 
 // Three fields, then the code from the email (Supabase issues 8 digits;
 // the field takes 6 to 10 so a project setting can't strand anyone). Signing up and
@@ -58,7 +59,7 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { data: { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}` },
+      options: { data: { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(next)}` },
     });
     setBusy(false);
     if (error) {
@@ -82,7 +83,7 @@ export function JoinForm({ refId, prefillName, next }: { refId: string | null; p
     const finish = `/join/finish?${new URLSearchParams({ name: name.trim(), zip: zip.trim(), ...(refId ? { ref: refId } : {}), next }).toString()}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(finish)}` },
+      options: { redirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(finish)}` },
     });
     if (error) { setBusy(false); setErrors({ submit: /not enabled|unsupported provider/i.test(error.message) ? "Google sign-in isn't switched on for this project yet. Use the email code." : error.message }); }
   }

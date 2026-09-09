@@ -5,6 +5,7 @@ import { shortDate } from "@shared/format";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { ShareForm } from "./ShareForm";
 import { ShareLink } from "./ShareLink";
+import { appUrl } from "@shared/site";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Share your project" };
@@ -20,10 +21,10 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   const photos = b.files.filter((f) => f.kind === "photo");
   const urls = await signedUrls(supabase, photos.map((p) => p.path));
   const first = b.contractor?.person?.split(" ")[0] ?? "the contractor";
-  // Where this app is served: the explicit env, else the Vercel domain.
-  const base = process.env.NEXT_PUBLIC_APP_URL
-    ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  // Where this app is served - the one public host plus this app's path
+  // (site.ts). Not the project's own vercel.app URL: a share link must open
+  // on the host people actually use, or it opens without their session.
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? appUrl();
   const shareSlug = slug ?? b.share.slug;
   const done = b.state === "done";
 

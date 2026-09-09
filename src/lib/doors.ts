@@ -19,11 +19,14 @@ import { rpcRetry } from "@/lib/rpc";
 // place in the list and gets chosen like the others.
 export type DoorKey = "homeowner" | "contractor" | "builder" | "admin";
 
+// One host, four paths: the three apps are proxied under this portal's own
+// origin (rewrites in next.config.ts), because a session cookie cannot cross
+// vercel.app hosts and "one login, four doors" has to be true in the browser
+// too. Paths, not URLs, so a hop stays on this origin and keeps its cookie.
 export const DOOR_URL: Record<DoorKey, string> = {
-  homeowner: process.env.NEXT_PUBLIC_DOOR_HOMEOWNER?.trim() || "https://greenbergen-homeowner.vercel.app",
-  contractor: process.env.NEXT_PUBLIC_DOOR_CONTRACTOR?.trim() || "https://greenbergen-contractor.vercel.app",
-  builder: process.env.NEXT_PUBLIC_DOOR_BUILDER?.trim() || "https://greenbergen-builder.vercel.app",
-  // The portal is this app, so its door is a path rather than a URL.
+  homeowner: process.env.NEXT_PUBLIC_DOOR_HOMEOWNER?.trim() || "/home",
+  contractor: process.env.NEXT_PUBLIC_DOOR_CONTRACTOR?.trim() || "/pro",
+  builder: process.env.NEXT_PUBLIC_DOOR_BUILDER?.trim() || "/build",
   admin: "/my",
 };
 

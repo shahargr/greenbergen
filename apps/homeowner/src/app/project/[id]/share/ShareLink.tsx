@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { withBase } from "@shared/site";
 
 // The share sheet where the phone has one; copy where it doesn't.
 export function ShareLink({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
-  const full = url.startsWith("http") ? url : (typeof window !== "undefined" ? window.location.origin : "") + url;
+  const full = url.startsWith("http") ? url : (typeof window !== "undefined" ? window.location.origin : "") + withBase(url);
   async function share() {
     try {
       if (navigator.share) { await navigator.share({ title: "My Green Bergen project", url: full }); return; }

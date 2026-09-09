@@ -12,6 +12,7 @@ import { HouseIcon } from "@shared/ui";
 import { PhotoRequest } from "@/components/PhotoRequest";
 import { TARGET_WINDOWS, targetWindowLabel, type TargetWindow } from "@/lib/plan";
 import type { Home, HomeQuota } from "@/lib/me";
+import { withBase } from "@shared/site";
 
 // One client-side wizard, so the photos a homeowner takes stay in memory
 // across steps and upload only after the booking row exists (the storage
@@ -95,7 +96,7 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
     if (address.trim().length < 6) { setErr("The street address, town and ZIP."); return; }
     setErr(""); setChecking(true);
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(address.trim())}`);
+      const res = await fetch(`${withBase("/api/geocode")}?q=${encodeURIComponent(address.trim())}`);
       const g = (await res.json()) as Geo;
       setGeo(g);
       if (g.ok && g.found && g.bergen === false) {

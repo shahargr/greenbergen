@@ -7,6 +7,7 @@ import { createClient } from "@shared/supabase/client";
 import { friendly } from "@shared/rpc";
 import { AppBar, Notice, Screen, StepKicker } from "@shared/ui";
 import { GoogleMark } from "@shared/SignIn";
+import { withBase } from "@shared/site";
 
 // Three fields and a code. Everything else - trades, licence, insurance -
 // comes after they are in, because a person filling in a W-9 before they
@@ -32,7 +33,7 @@ export function JoinForm() {
       email: email.trim(),
       options: {
         data: { full_name: name.trim() },
-        emailRedirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent("/join/finish")}`,
+        emailRedirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent("/join/finish")}`,
       },
     });
     setBusy(false);
@@ -49,7 +50,7 @@ export function JoinForm() {
     const q = new URLSearchParams({ name: name.trim(), company: company.trim(), phone: phone.trim() });
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(`/join/finish?${q}`)}` },
+      options: { redirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(`/join/finish?${q}`)}` },
     });
     if (error) { setBusy(false); setErr(/not enabled|unsupported provider/i.test(error.message) ? "Google sign-in isn't switched on for this project yet. Use the email code." : error.message); }
   }
