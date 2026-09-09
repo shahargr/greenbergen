@@ -63,7 +63,10 @@ export const isBookable = (t: Tile) => isPriced(t) && isCovered(t);
 // bigger gap than no contractor, and "coming soon" outranks both.
 export function dimReason(t: Tile): string {
   if (t.availability === "coming_soon") return "Coming soon";
-  if (!isCovered(t)) return "No contractor yet";
+  // "Coming soon", not "No contractor yet": the second is our problem
+  // described to a customer, and it reads as a shrug. It is the same
+  // state either way - priced, nobody approved carries the trade.
+  if (!isCovered(t)) return "Coming soon";
   if (t.availability === "quote") return "We look first";
   if (t.availability === "custom") return "Tell us what you need";
   return "Not yet";

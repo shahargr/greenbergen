@@ -7,26 +7,63 @@ import type { BookingSummary } from "@/lib/me";
 // inbox). It never blocks anything - the job is already out to contractors
 // and the price is already locked; this is what lets one of them confirm it
 // without driving over.
+//
+// ONE JOB: the banner IS the link, straight to that job's photo slots.
+// SEVERAL: it used to link to /inbox - which is where it was being read, so
+// the arrow reloaded the page and went nowhere. Now it opens in place to one
+// row per job, each going to its own slots. The thing you tap is the thing
+// you wanted.
+const Cam = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+);
+
 export function PhotoBanner({ bookings }: { bookings: BookingSummary[] }) {
   const waiting = bookings.filter((b) => b.photos_action_id && b.photos_needed > 0);
   if (waiting.length === 0) return null;
-  const one = waiting.length === 1 ? waiting[0]! : null;
   const total = waiting.reduce((n, b) => n + b.photos_needed, 0);
 
-  return (
-    <Link href={one ? `/project/${one.project_id}#photos` : "/inbox"} className="banner-ask">
-      <span className="ic" aria-hidden>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
-      </span>
-      <span className="grow">
-        <strong>{total === 1 ? "One photo still to add" : `${total} photos still to add`}</strong>
-        <span style={{ display: "block" }}>
-          {one
-            ? `Your ${one.tile_title.toLowerCase()} is booked at the price you saw. Add ${one.photos_needed === 1 ? "it" : "them"} and the contractor can confirm without a visit.`
-            : `Across ${waiting.length} jobs. Each one is booked; the photos are what let a contractor confirm the price without a visit.`}
+  if (waiting.length === 1) {
+    const one = waiting[0]!;
+    return (
+      <Link href={`/project/${one.project_id}#photos`} className="banner-ask">
+        <span className="ic" aria-hidden><Cam /></span>
+        <span className="grow">
+          <strong>{total === 1 ? "One photo still to add" : `${total} photos still to add`}</strong>
+          <span style={{ display: "block" }}>
+            Your {one.tile_title.toLowerCase()} is booked at the price you saw. Add {one.photos_needed === 1 ? "it" : "them"} and the contractor can confirm without a visit.
+          </span>
         </span>
-      </span>
-      <span className="go" aria-hidden>→</span>
-    </Link>
+        <span className="go" aria-hidden>→</span>
+      </Link>
+    );
+  }
+
+  return (
+    <details className="banner-ask banner-open">
+      <summary style={{ listStyle: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+        <span className="ic" aria-hidden><Cam /></span>
+        <span className="grow">
+          <strong>{total} photos still to add</strong>
+          <span style={{ display: "block" }}>
+            Across {waiting.length} jobs. Each one is booked; the photos are what let a contractor confirm the price without a visit.
+          </span>
+        </span>
+        <span className="go" aria-hidden>▾</span>
+      </summary>
+      <div className="stack" style={{ gap: 6, marginTop: 10 }}>
+        {waiting.map((b) => (
+          <Link key={b.project_id} href={`/project/${b.project_id}#photos`} className="home-row"
+                style={{ background: "rgba(255,255,255,0.7)", boxShadow: "none" }}>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">{b.tile_title}</span>
+              <span className="m" style={{ display: "block" }}>
+                {b.address?.split(",")[0] ?? "Your home"} · {b.photos_needed} {b.photos_needed === 1 ? "photo" : "photos"} to add
+              </span>
+            </span>
+            <span className="go" aria-hidden>→</span>
+          </Link>
+        ))}
+      </div>
+    </details>
   );
 }

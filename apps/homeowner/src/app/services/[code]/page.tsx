@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@shared/supabase/server";
-import { isSignedIn } from "@shared/supabase/session";
+import { getMe } from "@/lib/me";
 import { COMMUNITY_SERVICES } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
@@ -16,8 +15,11 @@ export default async function ServicePage({ params }: { params: Promise<{ code: 
   const { code } = await params;
   const s = COMMUNITY_SERVICES.find((x) => x.code === code);
   if (!s) notFound();
-  const supabase = await createClient();
-  const signedIn = await isSignedIn(supabase);
+  // One read: whether they are signed in, and the homes the address list
+  // is drawn from. isSignedIn on its own would have cost a second call for
+  // the homes anyway.
+  const me = await getMe();
+  const homes = me.signed_in ? me.homes.map((h) => ({ project_id: h.project_id, address: h.address, name: h.name })) : [];
   return (
     <Screen>
       <AppBar back="/packages/more" />
@@ -36,7 +38,7 @@ export default async function ServicePage({ params }: { params: Promise<{ code: 
             <div><span className="k">Neighbors signed up on your street</span><span className="text-muted">Not yet counted</span></div>
           </div>
         </Card>
-        <QuoteForm code={s.code} signedIn={signedIn} prompt="Anything we should know? (gate code, where to leave the bags)" cta="Sign up for the season" />
+        <QuoteForm code={s.code} signedIn={me.signed_in} homes={homes} prompt="Anything we should know? (gate code, where to leave the bags)" cta="Sign up for the season" />
         <p className="small text-muted" style={{ margin: 0 }}>We&apos;ll ask for your address and a card when the season opens. Nothing is charged until a delivery lands.</p>
       </div>
     </Screen>

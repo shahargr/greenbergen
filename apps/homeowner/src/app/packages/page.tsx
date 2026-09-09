@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@shared/supabase/server";
-import { isBookable, loadTiles } from "@shared/catalogue";
+import { COMMUNITY_SERVICES, isBookable, loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
-import { AppBar, Screen, ShellIcons, StepKicker } from "@shared/ui";
+import { AppBar, ChevronIcon, Screen, ShellIcons, StepKicker } from "@shared/ui";
+import { dollars } from "@shared/format";
 import { PackageTile } from "@/components/PackageTile";
 
 export const dynamic = "force-dynamic";
@@ -41,25 +42,52 @@ export default async function PackagesPage() {
             </div>
           </section>
         )}
+        {/* COMING SOON, folded. Shahar: hide it under a dropdown. The grid of
+            things you cannot book yet was taking more of the screen than the
+            things you can; it opens on a tap, counted, and the tiles inside
+            say "Coming soon" rather than describing our staffing to a
+            customer. isBookable is unchanged - what is dim is still decided
+            by coverage in the database, not here. */}
         {dim.length > 0 && (
-          <section className="stack" style={{ gap: 8, marginTop: 4 }}>
-            <div className="divider-label">Not yet</div>
-            <p className="tiny text-muted" style={{ margin: "-4px 0 2px" }}>
-              Priced, but nobody approved covers it yet — or it needs a look first. Open one to read
-              what it involves.
-            </p>
-            <div className="tiles quad">
-              {dim.map((p) => <PackageTile key={p.code} pkg={p} />)}
+          <details className="home-panel" style={{ marginTop: 4 }}>
+            <summary className="home-row">
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">Coming soon · {dim.length}</span>
+                <span className="m" style={{ display: "block" }}>Priced, not bookable yet. Open one to read what it involves.</span>
+              </span>
+              <span className="chev"><ChevronIcon /></span>
+            </summary>
+            <div className="drawer" style={{ paddingTop: 12 }}>
+              <div className="tiles quad">
+                {dim.map((p) => <PackageTile key={p.code} pkg={p} />)}
+              </div>
             </div>
-          </section>
+          </details>
         )}
-        <Link href="/packages/more" className="home-row">
-          <span className="grow">
-            <span className="t">Community services</span>
-            <span className="m" style={{ display: "block" }}>Things a whole street buys together — priced when enough neighbors are in.</span>
-          </span>
-          <span aria-hidden>›</span>
-        </Link>
+
+        {/* COMMUNITY SERVICES, folded the same way: a list in place rather
+            than a hop to another screen. Each row opens the service. */}
+        <details className="home-panel">
+          <summary className="home-row">
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">Community services · {COMMUNITY_SERVICES.length}</span>
+              <span className="m" style={{ display: "block" }}>Things we can purchase together to save time and money.</span>
+            </span>
+            <span className="chev"><ChevronIcon /></span>
+          </summary>
+          <div className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+            {COMMUNITY_SERVICES.map((s) => (
+              <Link key={s.code} href={`/services/${s.code}`} className="home-row"
+                    style={{ background: "var(--color-soft-2)", boxShadow: "none" }}>
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="t">{s.name}</span>
+                  <span className="m" style={{ display: "block" }}>{dollars(s.price_cents)} · {s.price_label}</span>
+                </span>
+                <ChevronIcon />
+              </Link>
+            ))}
+          </div>
+        </details>
         <p className="small text-muted" style={{ margin: 0 }}>Every price carries the same label: <em>estimate pending contractor confirmation</em>. One number, same for every neighbor.</p>
       </div>
     </Screen>

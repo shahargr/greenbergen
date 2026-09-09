@@ -579,3 +579,9 @@ blockquote { margin: 0; padding: 0 0 0 var(--space-3); border-left: 2px solid va
   margin-right: 6px; animation: rec-pulse 1s ease-in-out infinite; }
 @keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
+
+/* The photo banner with several jobs behind it opens in place. As a
+   <details> it must stack, not flex its summary beside its rows. */
+.banner-ask.banner-open { display: block; }
+.banner-ask.banner-open > summary::-webkit-details-marker { display: none; }
+.banner-ask.banner-open[open] > summary .go { transform: rotate(180deg); }

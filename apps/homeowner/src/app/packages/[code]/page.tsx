@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@shared/supabase/server";
 import { decodeSelections, loadCovered, loadPackage } from "@shared/catalogue";
-import { isSignedIn } from "@shared/supabase/session";
+import { getMe } from "@/lib/me";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { NotifyMe } from "./NotifyMe";
@@ -15,8 +14,11 @@ export const dynamic = "force-dynamic";
 export default async function PackagePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string; adjust?: string }> }) {
   const { code } = await params;
   const { sel, adjust } = await searchParams;
-  const supabase = await createClient();
-  const [{ pkg }, signedIn] = await Promise.all([loadPackage(code), isSignedIn(supabase)]);
+  // getMe carries signed_in and the homes the quote form's address list is
+  // drawn from, so the separate signed-in read is gone.
+  const [{ pkg }, me] = await Promise.all([loadPackage(code), getMe()]);
+  const signedIn = me.signed_in;
+  const homes = me.signed_in ? me.homes.map((h) => ({ project_id: h.project_id, address: h.address, name: h.name })) : [];
   if (!pkg) notFound();
   // One catalogue screen now, so one place to go back to. tile_group no longer
   // decides which drawer a package came out of, because there is no drawer.
@@ -65,7 +67,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
             <h1>{pkg.availability === "quote" ? "This one gets a person, not a price." : "Tell us in a sentence."}</h1>
             <p className="lead">{pkg.description}</p>
           </div>
-          <QuoteForm code={pkg.code} signedIn={signedIn} />
+          <QuoteForm code={pkg.code} signedIn={signedIn} homes={homes} />
         </div>
       </Screen>
     );
