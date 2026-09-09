@@ -27,6 +27,19 @@ export const DOOR_URL: Record<DoorKey, string> = {
   admin: "/my",
 };
 
+// WHERE A HOP LANDS. Not the app's front page: that is a sales pitch, and a
+// person who just picked a door has already been sold. It lands on the app's
+// sign-in with the dashboard as ?next=, which does the right thing in both
+// worlds - already signed in there, it redirects straight through; not yet
+// (the apps live on separate vercel.app hosts and cannot share a cookie), it
+// is one Google tap rather than a landing page asking them to join.
+export const DOOR_ENTRY: Record<DoorKey, string> = {
+  homeowner: `${DOOR_URL.homeowner}/login?next=${encodeURIComponent("/project")}`,
+  contractor: `${DOOR_URL.contractor}/login?next=${encodeURIComponent("/work")}`,
+  builder: `${DOOR_URL.builder}/login?next=${encodeURIComponent("/")}`,
+  admin: "/my",
+};
+
 // Named the way Shahar names them out loud - homeowner, contractor, project
 // manager, admin - rather than the app's internal key. "builder" is the
 // deployment; "project manager" is the person.
@@ -64,7 +77,7 @@ export async function loadDoors(): Promise<Doors> {
 // them one tap.
 export function landing(doors: Doors): string {
   if (!doors.signed_in) return "/login";
-  if (doors.held.length === 1) return DOOR_URL[doors.held[0]!];
+  if (doors.held.length === 1) return DOOR_ENTRY[doors.held[0]!];
   if (doors.held.length > 1) return "/choose";
   return "/my"; // no door yet - a new account still has the portal to land in
 }

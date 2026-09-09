@@ -9,20 +9,26 @@ import Link from "next/link";
 // my way") - and TopNav overrides it with the seat you actually hold on the
 // project you are looking at (VISITOR, PROJECT M., CONTRACTOR, ADMIN).
 //
-// The house is as tall as both lines, so it reads as one mark and not as an
-// icon next to a word.
+// THE HOUSE IS THE HEIGHT OF THE "g": roof at the top of the letter, floor at
+// the bottom of its descender. Sized in em and dropped below the baseline by
+// the descender, so it moves with the font and never with the door line.
+const HOUSE_EM = 0.78;
+const DESCENT_EM = 0.22;
+const GAP_PX = 5;
+
 export function Wordmark({ small = false, href = "/", door = "My home" }: { small?: boolean; href?: string; door?: React.ReactNode }) {
   const size = small ? 17 : 21;
-  const house = Math.round(size + 2 + size * 0.6);
+  const house = Math.round(size * HOUSE_EM);
   return (
     <Link href={href} className={small ? "wordmark wordmark-sm" : "wordmark"} aria-label="Green Bergen">
-      <svg width={house} height={house} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="wm-house">
-        <path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" />
-      </svg>
-      <span className="wm-stack">
+      <span className="wm-row">
+        <svg className="wm-house" width={house} height={house} style={{ top: size * DESCENT_EM, marginRight: GAP_PX }}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" />
+        </svg>
         <span className="wm-word"><span className="wm-green">green</span>bergen</span>
-        {door && <span className="wm-door">{door}</span>}
       </span>
+      {door && <span className="wm-door" style={{ marginLeft: house + GAP_PX + 1 }}>{door}</span>}
     </Link>
   );
 }

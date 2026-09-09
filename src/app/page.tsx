@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SiteHeader } from "@/components/SiteHeader";
+import { DOOR_URL } from "@/lib/doors";
 
 type PublicProject = {
   project_name: string;
@@ -60,8 +61,10 @@ export default async function Home() {
     supabase.rpc("public_company"),
   ]);
 
-  // A signed-in user's home is their dashboard, not the marketing page.
-  if (user) redirect("/my");
+  // Signed in, you do not see the marketing page - and you do not go straight
+  // to the portal either. /after-login reads your seats: one seat lands you in
+  // its app, more than one asks which. Same rule as the login form.
+  if (user) redirect("/after-login");
 
   const open: PublicProject[] = company?.projects ?? [];
   const closed: PublicProject[] = company?.completed ?? [];
@@ -140,6 +143,14 @@ export default async function Home() {
             Helping residents and property owners to maximize the value and
             comfort of their homes.
           </p>
+          {/* The two acts a visitor came for, in the hero, not behind an icon.
+              Register starts in the homeowner app because that is the door
+              most people are here for; the other doors are one tap from its
+              settings once you are in. */}
+          <div className="btn-row" style={{ justifyContent: "center", marginTop: 22 }}>
+            <Link href="/login" className="btn">Log in</Link>
+            <a href={`${DOOR_URL.homeowner}/join`} className="btn ghost">Register</a>
+          </div>
         </section>
 
         <section className="panels">

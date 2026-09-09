@@ -184,22 +184,24 @@ a:hover { text-decoration: underline; }
   align-items: center;
   gap: 6px;
 }
-/* The lockup: house, then "greenbergen" with the door line under it. The
-   house is sized in the component to span both lines. */
+/* The lockup: house + word on one line, the door's name under the word. The
+   house sits on the word's baseline (align-items: baseline puts the svg's
+   bottom edge there) and is dropped by the descender in the component, so its
+   roof meets the top of the "g" and its floor the bottom of it. */
 .wordmark {
-  display: inline-flex; align-items: stretch; gap: 6px;
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 3px;
   font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.4px;
   color: var(--ink);
   line-height: 1;
 }
-.wordmark .wm-house { flex: none; color: var(--brand); }
-.wordmark .wm-stack { display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 2px; min-width: 0; }
+.wordmark .wm-row { display: inline-flex; align-items: baseline; }
+.wordmark .wm-house { flex: none; position: relative; color: var(--brand); }
 .wordmark .wm-word { line-height: 1; }
 .wordmark .wm-door {
   font-size: 0.6em; font-weight: 700; letter-spacing: 0.17em; text-transform: uppercase;
-  color: var(--muted); line-height: 1; margin-left: 1px; white-space: nowrap;
+  color: var(--muted); line-height: 1; white-space: nowrap;
 }
 .wordmark .wm-green { color: var(--brand); }
 .wordmark:hover { text-decoration: none; opacity: 0.8; }

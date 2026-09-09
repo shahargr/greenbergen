@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { DOOR_LABEL, DOOR_URL, landing, loadDoors } from "@/lib/doors";
+import { DOOR_ENTRY, DOOR_LABEL, landing, loadDoors } from "@/lib/doors";
 import { Wordmark } from "@/components/SiteHeader";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function ChoosePage() {
       </p>
       <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
         {doors.held.map((k) => (
-          <a key={k} href={DOOR_URL[k]} className="card" style={{ display: "grid", gap: 2, textDecoration: "none" }}>
+          <a key={k} href={DOOR_ENTRY[k]} className="card" style={{ display: "grid", gap: 2, textDecoration: "none" }}>
             <strong>{DOOR_LABEL[k].title}</strong>
             <span className="muted small">{DOOR_LABEL[k].blurb}</span>
           </a>

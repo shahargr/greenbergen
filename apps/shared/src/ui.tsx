@@ -56,26 +56,40 @@ export const WarnIcon = () => (
 // signed-out screens showed the tagline there instead - which left the
 // contractor landing page saying nothing about being the contractor app.
 //
-// The house is as tall as BOTH lines (Shahar), which is what makes it read
-// as one mark rather than an icon beside a word. No per-door glyph: the house
-// IS the Green Bergen mark, and a second icon competes with it.
+// THE HOUSE IS THE HEIGHT OF THE "g" (Shahar): its roof at the top of the
+// letter, its floor at the bottom of the descender. So it is sized and
+// placed in em relative to the word - 0.78em tall, its base 0.22em below the
+// baseline - and moves with the font, never with the door line, which is set
+// under the word and indented past the house. No per-door glyph: the house IS
+// the Green Bergen mark, and a second icon competes with it.
 const APP_DOOR = ((): DoorKey | undefined => {
   const d = process.env.NEXT_PUBLIC_APP_DOOR;
   return d && d in DOORS ? (d as DoorKey) : undefined;
 })();
 
+// Manrope: x-height ~0.54em, descender ~0.22em. The house spans that.
+const HOUSE_EM = 0.78;
+const DESCENT_EM = 0.22;
+const GAP_PX = 5;
+
 export function Wordmark({ size = 15, door = APP_DOOR }: { size?: number; door?: DoorKey }) {
-  // Wordmark line + gap + door line, so the house spans the stack exactly.
-  const house = door ? Math.round(size + 2 + size * 0.63) : size + 3;
+  const house = Math.round(size * HOUSE_EM);
   return (
     <span className="mark">
-      <svg width={house} height={house} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" /></svg>
-      <span className="wm-stack">
+      <span className="wm-row">
+        <svg className="wm-house" width={house} height={house} style={{ top: size * DESCENT_EM, marginRight: GAP_PX }}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-5h4v5" />
+        </svg>
         <span className="wordmark" style={{ fontSize: size }} aria-label="Green Bergen">
           <span className="wm-green">green</span><span className="wm-ink">bergen</span>
         </span>
-        {door && <span className="wm-door" style={{ fontSize: Math.round(size * 0.63) }}>{DOORS[door].short}</span>}
       </span>
+      {door && (
+        <span className="wm-door" style={{ fontSize: Math.round(size * 0.63), marginLeft: house + GAP_PX + 1 }}>
+          {DOORS[door].short}
+        </span>
+      )}
     </span>
   );
 }
