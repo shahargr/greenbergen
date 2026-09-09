@@ -226,11 +226,26 @@ export const Checkmark = ({ className }: P) => (
   </Frame>
 );
 
+// The last mile: a router on a shelf, throwing signal. Bills & services is
+// the one section that is not construction at all.
+export const InternetTv = ({ className }: P) => (
+  <Frame className={className}>
+    <rect x="34" y="46" width="52" height="14" rx="3" />
+    <circle cx="44" cy="53" r="2" />
+    <path d="M54 53h24" opacity=".4" />
+    <path d="M70 46V34" />
+    <path d="M78 46V38" />
+    <path d="M50 34a18 18 0 0 1 26 0" opacity=".55" />
+    <path d="M44 26a30 30 0 0 1 38 0" opacity=".35" />
+    <path d="M14 74h92" opacity=".5" />
+  </Frame>
+);
+
 const MAP: Record<string, (p: P) => React.JSX.Element> = {
   water_heater: WaterHeater, toilet: Toilet, faucet: Faucet, driveway: Driveway, painting: Painting,
   ev_charger: EvCharger, generator: Generator, gutters: Gutters, blinds: Blinds, window: Window, fence: Fence, siding: Siding,
   solar: Solar, basement: Basement, kitchen: Kitchen, bathroom: Bathroom, something_else: SomethingElse,
-  salt: Salt, house: House, steps: Steps, check: Checkmark,
+  salt: Salt, house: House, steps: Steps, check: Checkmark, internet_tv: InternetTv,
 };
 
 export function Illustration({ name, className }: { name: string | null | undefined; className?: string }) {

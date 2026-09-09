@@ -24,7 +24,9 @@ export default async function BusinessPage({ searchParams }: { searchParams: Pro
     <Screen>
       <AppBar back="/work" title="Your business" />
       <div className="body">
-        {ok && <div className="banner-ok">Saved.</div>}
+        {ok === "registered"
+          ? <div className="banner-ok">You&apos;re registered as a contractor on the same account. Fill this in and add your documents, and work in your trades starts showing up.</div>
+          : ok && <div className="banner-ok">Saved.</div>}
         {error && <Notice kind="error">{error}</Notice>}
 
         <form action={saveBusiness} className="stack" style={{ gap: 12 }}>

@@ -1,0 +1,13 @@
+-- 015 - Bills & services gets its first and only member: internet and TV
+-- optimization. Applied via mcp `internet_tv_optimization_package`.
+--
+-- The "last mile" idea, and the one catalogue entry that is not construction.
+-- The data already knew about it: Internet & TV exists as a child project
+-- under 55 Walnut, Castle and Ifat's list.
+--
+-- WHY 'quote' AND NOT A FIXED PRICE. Every other package has a community price
+-- because the work is the same in every house. This one is not: the saving
+-- depends on the bill you are on, what the house needs, and what the carriers
+-- will do this month. A made-up number here would be the first dishonest price
+-- in the catalogue. 'quote' is the existing vocabulary for that - kitchen and
+-- bathroom already use it.

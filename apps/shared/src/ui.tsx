@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { DOORS, DOOR_ORDER, type DoorKey } from "./doors";
+import { DOORS, DOOR_ORDER, JOIN, NOT_SELF_SERVE, type DoorKey } from "./doors";
 
 // The wording of last resort, if config.public_tagline is unset and the
 // database is unreachable. Editable in Admin; see migration 013.
@@ -121,30 +121,67 @@ export function DoorIcon({ door, size = 13 }: { door: DoorKey; size?: number }) 
   return <svg {...p}><path d="M4 5h16M4 12h16M4 19h16" /></svg>;
 }
 
-// The switcher. Only the doors this person actually holds, and never the one
-// they are standing in - a list that offers you the room you are in reads as
-// broken. These are separate deployments on separate origins, so each is a
-// plain link out, not a tab.
+// The switcher, in two halves: the doors you hold, and the doors you could.
+//
+// It used to show only what you held, which left a homeowner who wanted to
+// register a trade with nowhere to go - the contractor door was hidden
+// precisely because they did not have it yet. A switcher that only lists
+// rooms you are already in cannot be the way you enter a new one.
+//
+// Never the door you are standing in: a list that offers you this room reads
+// as broken. Separate deployments on separate origins, so every one is a
+// plain link out rather than a tab.
 export function DoorSwitch({ held, current }: { held: DoorKey[]; current: DoorKey }) {
-  const others = DOOR_ORDER.filter((k) => k !== current && held.includes(k));
-  if (others.length === 0) return null;
+  const yours = DOOR_ORDER.filter((k) => k !== current && held.includes(k));
+  // Only what someone can actually start. The builder seat arrives; admin is
+  // not self-serve. Offering either would be a dead end.
+  const add = DOOR_ORDER.filter((k) => k !== current && !held.includes(k) && JOIN[k]);
+  const waiting = DOOR_ORDER.filter((k) => k !== current && !held.includes(k) && NOT_SELF_SERVE[k]);
+  if (yours.length === 0 && add.length === 0 && waiting.length === 0) return null;
+
   return (
-    <section className="stack" style={{ gap: 8 }}>
-      <div className="divider-label">Also yours</div>
-      {others.map((k) => (
-        <a key={k} href={DOORS[k].url} className="home-row">
-          <span className="ic"><DoorIcon door={k} size={20} /></span>
-          <span className="grow" style={{ minWidth: 0 }}>
-            <span className="t">{DOORS[k].full}</span>
-            <span className="m" style={{ display: "block" }}>{DOORS[k].blurb}</span>
-          </span>
-          <ChevronIcon />
-        </a>
+    <>
+      {yours.length > 0 && (
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="divider-label">Also yours</div>
+          {yours.map((k) => (
+            <a key={k} href={DOORS[k].url} className="home-row">
+              <span className="ic"><DoorIcon door={k} size={20} /></span>
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">{DOORS[k].full}</span>
+                <span className="m" style={{ display: "block" }}>{DOORS[k].blurb}</span>
+              </span>
+              <ChevronIcon />
+            </a>
+          ))}
+        </section>
+      )}
+
+      {add.length > 0 && (
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="divider-label">Add to your account</div>
+          {add.map((k) => (
+            <a key={k} href={`${DOORS[k].url}${JOIN[k]!.path}`} className="home-row">
+              <span className="ic"><DoorIcon door={k} size={20} /></span>
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">{JOIN[k]!.cta}</span>
+                <span className="m" style={{ display: "block" }}>{JOIN[k]!.how}</span>
+              </span>
+              <ChevronIcon />
+            </a>
+          ))}
+        </section>
+      )}
+
+      {waiting.map((k) => (
+        <p className="tiny text-muted" style={{ margin: 0 }} key={k}>{NOT_SELF_SERVE[k]}</p>
       ))}
+
       <p className="tiny text-muted" style={{ margin: 0 }}>
         Same sign-in, same account — these are different views of it, not different logins.
+        Adding one never asks you to sign up again.
       </p>
-    </section>
+    </>
   );
 }
 

@@ -57,6 +57,31 @@ export const DOORS: Record<DoorKey, Door> = {
 
 export const DOOR_ORDER: DoorKey[] = ["homeowner", "contractor", "builder", "portal"];
 
+// How someone ADDS a door they do not hold yet. One login already covers all
+// four, so this is never a second sign-up - it is the one screen that starts
+// the record the door needs.
+//
+// builder and portal are absent on purpose. A builder seat ARRIVES: a project
+// invites you as PM or GC, or a job of yours grows into one. There is no
+// self-serve path and pretending otherwise would be a dead end. Admin is not
+// something anyone adds to themselves.
+export const JOIN: Partial<Record<DoorKey, { path: string; cta: string; how: string }>> = {
+  homeowner: {
+    path: "/packages",
+    cta: "Add your home",
+    how: "Pick a package and your home is created with it. Nothing to fill in first.",
+  },
+  contractor: {
+    path: "/join",
+    cta: "Register your trade",
+    how: "Same account, same sign-in. Browsing is free; your documents gate the first job you accept.",
+  },
+};
+
+export const NOT_SELF_SERVE: Partial<Record<DoorKey, string>> = {
+  builder: "A builder seat arrives when a project makes you its PM or GC, or when one of your own jobs grows into a build. There is nothing to sign up for.",
+};
+
 export type Doors = {
   signed_in: boolean;
   name: string | null;
