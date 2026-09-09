@@ -31,13 +31,24 @@ export async function saveTask(formData: FormData) {
   const complete = String(formData.get("complete") ?? "") === "1";
   const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
 
+  // Evidence uploaded while the note was being written (migration 037). The
+  // ids are already real files - the picker uploaded and recorded each one
+  // as it was chosen - and the database drops any that do not belong to this
+  // task's project rather than linking them.
+  const fileIds = String(formData.get("file_ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
   if (!id) redirect(back);
-  if (!note && !complete) redirect(here({ error: "Write an update, or mark the task complete." }));
+  // A recording with no text IS a note, so evidence counts as something to post.
+  if (!note && fileIds.length === 0 && !complete) {
+    redirect(here({ error: "Write an update, attach something, or mark the task complete." }));
+  }
 
   const supabase = await createClient();
 
-  if (note) {
-    const { data, error } = await supabase.rpc("add_task_comment", { p_action_id: id, p_body: note });
+  if (note || fileIds.length > 0) {
+    const { data, error } = await supabase.rpc("add_task_comment", {
+      p_action_id: id, p_body: note || null, p_file_ids: fileIds.length > 0 ? fileIds : null,
+    });
     if (error || data?.ok === false) {
       redirect(here({ error: data?.reason ?? error?.message ?? "That update did not save." }));
     }

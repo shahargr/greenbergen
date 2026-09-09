@@ -6,6 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { saveTask } from "./actions";
+import { NoteBox } from "./NoteBox";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,13 @@ type Detail = {
   open_children: number;
 };
 
+// A note and what it carries (migration 037). Evidence hangs off the NOTE,
+// not just the task, so the history reads as what someone said and showed.
+type Note = {
+  id: string; body: string | null; author: string | null; created_at: string | null;
+  files: { file_id: string; path: string; kind: string | null; mime: string | null; name: string | null }[];
+};
+
 const CLOSED = ["Completed", "Cancelled", "Force Cancelled", "Superseded"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -43,11 +51,26 @@ export default async function TaskPage({
   const supabase = await createClient();
   const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/task/${id}`)}`);
-  const { data } = await w.step("task", () => rpc<Detail>(supabase, "portal_task_detail", { p_task: id }));
-  w.done();
+  // The detail and the notes leave together: portal_task_detail carries the
+  // comments but not their ids, so there is nothing to hang evidence off -
+  // portal_task_notes returns each note WITH what was attached to it.
+  const [{ data }, { data: noteData }] = await Promise.all([
+    w.step("task", () => rpc<Detail>(supabase, "portal_task_detail", { p_task: id })),
+    w.step("notes", () => rpc<Note[]>(supabase, "portal_task_notes", { p_action_id: id })),
+  ]);
   if (!data) notFound();
 
   const t = data;
+  const notes = Array.isArray(noteData) ? noteData : [];
+  // One signed-URL round trip for every attachment on the page.
+  const notePaths = notes.flatMap((n) => n.files.map((f) => f.path));
+  const noteUrls: Record<string, string> = {};
+  if (notePaths.length > 0) {
+    const { data: signed } = await w.step("noteFiles", () =>
+      supabase.storage.from("project-media").createSignedUrls([...new Set(notePaths)], 3600));
+    for (const row of signed ?? []) if (row.path && row.signedUrl) noteUrls[row.path] = row.signedUrl;
+  }
+  w.done();
   const closed = CLOSED.includes(t.status);
   const late = !!t.target_date && t.target_date < todayISO() && !closed;
   const photos = (t.evidence ?? []).filter((e) => e.kind === "photo");
@@ -104,7 +127,6 @@ export default async function TaskPage({
             <input type="hidden" name="id" value={t.id} />
             <input type="hidden" name="back" value={to} />
             <div className="divider-label">Update, or mark complete</div>
-            <textarea name="note" rows={4} className="input" placeholder="What happened, what is next, what is blocked…" />
 
             {needsWhy && (
               <label className="stack" style={{ gap: 4 }}>
@@ -115,8 +137,7 @@ export default async function TaskPage({
               </label>
             )}
 
-            <button type="submit" name="complete" value="0" className="btn btn-primary btn-block">Post update</button>
-            <button type="submit" name="complete" value="1" className="btn btn-secondary btn-block">Mark complete</button>
+            <NoteBox projectId={t.project_id} />
           </form>
         )}
 
@@ -131,16 +152,41 @@ export default async function TaskPage({
         )}
 
         <section className="stack" style={{ gap: 8 }}>
-          <div className="divider-label">History · {t.comments?.length ?? 0}</div>
-          {(t.comments ?? []).length === 0 && (
+          <div className="divider-label">History · {notes.length}</div>
+          {notes.length === 0 && (
             <Card soft pad><div className="small">Nothing posted on this task yet.</div></Card>
           )}
-          {(t.comments ?? []).map((c, i) => (
-            <Card pad key={i} className="tight">
+          {notes.map((c) => (
+            <Card pad key={c.id} className="tight">
               <div className="tiny text-muted">
                 {[c.author, c.created_at ? shortDate(c.created_at.slice(0, 10)) : null].filter(Boolean).join(" · ")}
               </div>
-              <p className="small" style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{c.body}</p>
+              {c.body && <p className="small" style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{c.body}</p>}
+              {/* What was attached WITH this note. A recording plays here;
+                  a photo shows; anything else is a named file. */}
+              {c.files.length > 0 && (
+                <div className="stack" style={{ gap: 8, marginTop: c.body ? 10 : 4 }}>
+                  {c.files.map((f) => {
+                    const url = noteUrls[f.path];
+                    if (f.kind === "audio") {
+                      return url
+                        ? <audio key={f.file_id} src={url} controls preload="none" style={{ width: "100%" }} />
+                        : <p key={f.file_id} className="tiny text-muted" style={{ margin: 0 }}>Voice note</p>;
+                    }
+                    if (f.kind === "photo") {
+                      return url
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img key={f.file_id} src={url} alt={f.name ?? "Photo"} style={{ width: "100%", borderRadius: 10, display: "block" }} />
+                        : <div key={f.file_id} className="skel" style={{ aspectRatio: "4/3" }} />;
+                    }
+                    return (
+                      <p key={f.file_id} className="tiny text-muted" style={{ margin: 0 }}>
+                        {url ? <a href={url} target="_blank" rel="noreferrer">{f.name ?? f.kind}</a> : (f.name ?? f.kind)}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
             </Card>
           ))}
         </section>
