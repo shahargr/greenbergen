@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
 import { currentMonth, isBookable, loadTiles, seasonal, type Tile } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
-import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { PackageTile } from "@/components/PackageTile";
 import { PhotoBanner } from "@/components/PhotoBanner";
@@ -22,6 +22,12 @@ const BUCKETS: { key: Bucket; label: string }[] = [
 ];
 const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> =>
   b.state === "planned" ? "planned" : b.state === "closed" ? "cancelled" : b.state === "done" ? "done" : "live";
+
+const ContractorsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17" cy="9" r="2.6" /><path d="M17.5 14.6c2.2.5 3.5 2.2 3.5 4.4" />
+  </svg>
+);
 
 export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string; home?: string }> }) {
   const { ok, show, home } = await searchParams;
@@ -141,6 +147,17 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             </div>
           </section>
         )}
+
+        {/* Who does the work. The directory is the answer to "who are these
+            people" - trades, area, record - without turning into a lead list. */}
+        <Link href="/contractors" className="home-row">
+          <span className="ic"><ContractorsIcon /></span>
+          <span className="grow">
+            <span className="t">The contractors</span>
+            <span className="m" style={{ display: "block" }}>Who is approved, what they do, where they work, how they have done.</span>
+          </span>
+          <ChevronIcon />
+        </Link>
 
         {/* The jobs - planned, live, done, cancelled. The list of HOMES is not
             here any more: it lives in the profile (gear), where it can be
