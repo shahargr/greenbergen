@@ -527,6 +527,8 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
    nobody approved - so it keeps the pointer and loses the lift. Unlike
    .disabled it never hides its reason, including in the quad grid where the
    kicker is normally suppressed: on a dim tile that line IS the information. */
+/* ASK: live (white), with the one line that says a person answers. */
+.tiles.quad .tile.ask .card-kicker { display: block; font-size: 8.5px; letter-spacing: 0.06em; line-height: 1.25; color: var(--color-accent); }
 .tile.dim { background: var(--color-soft-2); box-shadow: none; }
 .tile.dim .art { color: var(--muted); opacity: 0.7; }
 .tile.dim .card-title { color: var(--muted); }

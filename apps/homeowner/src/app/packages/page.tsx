@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@shared/supabase/server";
-import { COMMUNITY_SERVICES, isBookable, loadTiles } from "@shared/catalogue";
+import { COMMUNITY_SERVICES, isOpen, loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, ChevronIcon, Screen, ShellIcons, StepKicker } from "@shared/ui";
 import { dollars } from "@shared/format";
@@ -18,8 +18,10 @@ export default async function PackagesPage() {
   const [{ tiles }, signedIn] = await Promise.all([loadTiles(), isSignedIn(supabase)]);
   const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
   const rest = tiles.filter((t) => t.tile_group !== "front");
-  const live = rest.filter(isBookable);
-  const dim = rest.filter((t) => !isBookable(t));
+  // Open, not merely bookable: a covered quote package (the general
+  // contractor) is a live door with a person behind it.
+  const live = rest.filter(isOpen);
+  const dim = rest.filter((t) => !isOpen(t));
   return (
     <Screen>
       <AppBar brand right={signedIn ? <ShellIcons  homeHref="/project" /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
@@ -46,14 +48,14 @@ export default async function PackagesPage() {
             things you cannot book yet was taking more of the screen than the
             things you can; it opens on a tap, counted, and the tiles inside
             say "Coming soon" rather than describing our staffing to a
-            customer. isBookable is unchanged - what is dim is still decided
+            customer. What is dim is still decided
             by coverage in the database, not here. */}
         {dim.length > 0 && (
           <details className="home-panel" style={{ marginTop: 4 }}>
             <summary className="home-row">
               <span className="grow" style={{ minWidth: 0 }}>
                 <span className="t">Coming soon · {dim.length}</span>
-                <span className="m" style={{ display: "block" }}>Priced, not bookable yet. Open one to read what it involves.</span>
+                <span className="m" style={{ display: "block" }}>Not bookable yet. Open one to read what it involves.</span>
               </span>
               <span className="chev"><ChevronIcon /></span>
             </summary>

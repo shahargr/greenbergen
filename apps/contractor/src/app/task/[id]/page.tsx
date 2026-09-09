@@ -5,8 +5,10 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
-import { saveTask } from "./actions";
+import { editTask, saveTask } from "./actions";
 import { NoteBox } from "./NoteBox";
+import { ChevronIcon } from "@shared/ui";
+import type { Target } from "@shared/inbox/data";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +19,9 @@ export const dynamic = "force-dynamic";
 type Detail = {
   id: string; action: string; status: string; priority: string | null;
   target_date: string | null; desired_outcome: string | null; notes: string | null;
-  pending_on: string | null; pending_reason: string | null;
+  pending_on: string | null; pending_reason: string | null; pending_category: string | null;
   requires_photo_evidence: boolean | null;
+  can_edit: boolean;
   created_at: string | null; created_by: string | null; last_updated: string | null;
   project_id: string | null; project: string | null;
   assignee: { id: string; name: string | null } | null;
@@ -37,14 +40,23 @@ type Note = {
 const CLOSED = ["Completed", "Cancelled", "Force Cancelled", "Superseded"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// THE VOCABULARY IS THE DATABASE'S (rulebook 15). These are the open stages
+// of actions_status_check - Completed and Cancelled are not here because
+// closing goes through Mark complete, which records the why and the photo.
+// Parked = you set it down; Pending on Others = you are blocked and the
+// unblock comes from outside, so it needs a reason (help: actions).
+const STAGES = ["Not Started", "In Progress", "Pending on Others", "Parked"] as const;
+const PRIORITIES = ["Missing", "No Priority", "Low", "Medium", "High"] as const;
+const PENDING_KINDS = [["", "—"], ["decision", "A decision"], ["delivery", "A delivery"], ["inspection", "An inspection"], ["legal", "Legal / permit"], ["financial", "Money"]] as const;
+
 export default async function TaskPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; error?: string; why?: string }>;
+  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; edit?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, why } = await searchParams;
+  const { back, error, ok, why, edit } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : "/tasks";
 
   const w = stopwatch("/task/[id]");
@@ -54,14 +66,23 @@ export default async function TaskPage({
   // The detail and the notes leave together: portal_task_detail carries the
   // comments but not their ids, so there is nothing to hang evidence off -
   // portal_task_notes returns each note WITH what was attached to it.
-  const [{ data }, { data: noteData }] = await Promise.all([
+  // The people on the project come from the same read the compose box
+  // uses, so "assign to" offers exactly who a message could reach.
+  const [{ data }, { data: noteData }, { data: targetData }] = await Promise.all([
     w.step("task", () => rpc<Detail>(supabase, "portal_task_detail", { p_task: id })),
     w.step("notes", () => rpc<Note[]>(supabase, "portal_task_notes", { p_action_id: id })),
+    w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
   ]);
   if (!data) notFound();
 
   const t = data;
   const notes = Array.isArray(noteData) ? noteData : [];
+  const people = (Array.isArray(targetData) ? targetData : []).find((x) => x.project_id === t.project_id)?.people ?? [];
+  // The current assignee may sit on a parent project rather than this one;
+  // keep them in the list so the select does not silently drop them.
+  if (t.assignee && !people.some((p) => p.contact_id === t.assignee!.id)) {
+    people.unshift({ contact_id: t.assignee.id, name: t.assignee.name ?? "Assigned", seat: null });
+  }
   // One signed-URL round trip for every attachment on the page.
   const notePaths = notes.flatMap((n) => n.files.map((f) => f.path));
   const noteUrls: Record<string, string> = {};
@@ -83,6 +104,7 @@ export default async function TaskPage({
       <AppBar back={to} title="Task" sub={t.project ?? undefined} />
       <div className="body">
         {error && <Notice kind="error" title="Not saved.">{error}</Notice>}
+        {ok && <div className="banner-ok">{ok}</div>}
 
         <div className="hero">
           <h1 style={{ fontSize: 24 }}>{t.action}</h1>
@@ -118,6 +140,81 @@ export default async function TaskPage({
 
         {t.pending_on && (
           <Notice kind="info" title={`Waiting on ${t.pending_on}.`}>{t.pending_reason ?? "No reason recorded."}</Notice>
+        )}
+
+        {/* EDIT THE TASK. Shahar: "i need a way to update the task ... who is
+            it pending on, and stage. subject, comment." Everything the task
+            IS, in one drawer: shut by default because most visits are to
+            post an update, open when a save just failed so nothing typed is
+            lost to a reload. Closing is not here - Mark complete is below. */}
+        {!closed && t.can_edit && (
+          <details className="home-panel" open={edit === "1"}>
+            <summary className="home-row">
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">Edit the task</span>
+                <span className="m" style={{ display: "block" }}>Subject, outcome, stage, who holds the ball, priority, date, assignee</span>
+              </span>
+              <span className="chev"><ChevronIcon /></span>
+            </summary>
+            <form action={editTask} className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+              <input type="hidden" name="id" value={t.id} />
+              <input type="hidden" name="back" value={to} />
+              <label className="field">
+                <span className="field-label">Subject</span>
+                <input className="input" name="action" defaultValue={t.action} required maxLength={300} />
+              </label>
+              <label className="field">
+                <span className="field-label">Done looks like <span className="text-muted">(the end state, not the work)</span></span>
+                <textarea className="input" name="desired_outcome" rows={2} defaultValue={t.desired_outcome ?? ""} />
+              </label>
+              <div className="row" style={{ gap: 8 }}>
+                <label className="field grow">
+                  <span className="field-label">Stage</span>
+                  <select className="input" name="status" defaultValue={STAGES.includes(t.status as typeof STAGES[number]) ? t.status : "Not Started"}>
+                    {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
+                <label className="field grow">
+                  <span className="field-label">Priority</span>
+                  <select className="input" name="priority" defaultValue={t.priority ?? "Missing"}>
+                    {PRIORITIES.map((p) => <option key={p} value={p}>{p === "Missing" ? "Not set" : p}</option>)}
+                  </select>
+                </label>
+              </div>
+              <label className="field">
+                <span className="field-label">Pending on <span className="text-muted">(who or what holds the ball)</span></span>
+                <input className="input" name="pending_on" defaultValue={t.pending_on ?? ""} placeholder="Steve at Andersen · the town inspector · a decision from Ifat" />
+              </label>
+              <div className="row" style={{ gap: 8 }}>
+                <label className="field grow">
+                  <span className="field-label">Why <span className="text-muted">(required when Pending on Others)</span></span>
+                  <input className="input" name="pending_reason" defaultValue={t.pending_reason ?? ""} placeholder="Waiting for the revised quote" />
+                </label>
+                <label className="field" style={{ flex: "0 0 40%" }}>
+                  <span className="field-label">Kind</span>
+                  <select className="input" name="pending_category" defaultValue={t.pending_category ?? ""}>
+                    {PENDING_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="row" style={{ gap: 8 }}>
+                <label className="field grow">
+                  <span className="field-label">Due</span>
+                  <input className="input" name="target_date" type="date" defaultValue={t.target_date ?? ""} />
+                </label>
+                <label className="field grow">
+                  <span className="field-label">Assigned to</span>
+                  <select className="input" name="assignee" defaultValue={t.assignee?.id ?? ""}>
+                    <option value="">Nobody yet</option>
+                    {people.map((p) => (
+                      <option key={p.contact_id} value={p.contact_id}>{p.me ? `${p.name} (me)` : p.name}{p.seat ? ` · ${p.seat}` : ""}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <button className="btn btn-primary btn-block">Save the task</button>
+            </form>
+          </details>
         )}
 
         {/* The update. One box, two outcomes - post it and keep the task

@@ -37,6 +37,10 @@ export function Evidence({
   accept?: string;
 }) {
   const pick = useRef<HTMLInputElement>(null);
+  // The camera, as its own button (Shahar: "same comment, photo, upload,
+  // voice memo" everywhere). On a phone it opens the camera; on a desktop
+  // it is a second file picker limited to images.
+  const cam = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Attached[]>([]);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
@@ -167,6 +171,10 @@ export function Evidence({
 
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
         <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
+                onClick={() => cam.current?.click()}>
+          Photo
+        </button>
+        <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
                 onClick={() => pick.current?.click()}>
           Attach a file
         </button>
@@ -183,6 +191,8 @@ export function Evidence({
 
       <input ref={pick} type="file" multiple accept={accept} hidden
              onChange={(e) => void attach(e.target.files)} />
+      <input ref={cam} type="file" multiple accept="image/*" capture="environment" hidden
+             onChange={(e) => { void attach(e.target.files); e.target.value = ""; }} />
 
       {busy && <p className="tiny text-muted" style={{ margin: 0 }}>{busy}</p>}
       {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}

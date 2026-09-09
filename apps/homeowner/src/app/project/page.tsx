@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
-import { currentMonth, isBookable, loadTiles, seasonal, type Tile } from "@shared/catalogue";
+import { currentMonth, isOpen, loadTiles, seasonal, type Tile } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { unreadForShell } from "@shared/unread";
@@ -74,9 +74,9 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
     Number(inMonth.has(b.code)) - Number(inMonth.has(a.code)) || a.sort_order - b.sort_order;
   const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
   const rest = tiles.filter((t) => t.tile_group !== "front");
-  const live = rest.filter(isBookable).sort(rank);
-  const dim = rest.filter((t) => !isBookable(t)).sort(rank);
-  const noneLive = !headline.some(isBookable) && live.length === 0;
+  const live = rest.filter(isOpen).sort(rank);
+  const dim = rest.filter((t) => !isOpen(t)).sort(rank);
+  const noneLive = !headline.some(isOpen) && live.length === 0;
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
   const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;

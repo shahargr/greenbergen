@@ -74,3 +74,36 @@ export async function saveTask(formData: FormData) {
   revalidatePath(`/task/${id}`);
   redirect(back);
 }
+
+// Change the task itself - subject, outcome, stage, who holds the ball,
+// priority, date, assignee (migration 044). The form sends every field it
+// shows; portal_task_edit changes only what differs and enforces the
+// vocabulary, the pending-needs-a-reason rule and who may edit. Stays on
+// the task afterwards, because you are usually not done with it.
+export async function editTask(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const back = safeBack(formData.get("back"));
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
+  if (!id) redirect(back);
+  const s = (k: string) => String(formData.get(k) ?? "").trim();
+  const patch = {
+    action: s("action"),
+    desired_outcome: s("desired_outcome"),
+    status: s("status"),
+    pending_on: s("pending_on"),
+    pending_reason: s("pending_reason"),
+    pending_category: s("pending_category"),
+    priority: s("priority"),
+    target_date: s("target_date"),
+    assignee: s("assignee"),
+  };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_task_edit", { p_action_id: id, p_patch: patch });
+  if (error) redirect(here({ error: error.message }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save.", edit: "1" }));
+  revalidatePath("/tasks");
+  revalidatePath("/inbox");
+  revalidatePath(`/task/${id}`);
+  const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
+  redirect(here({ ok: changed.length ? `Saved: ${changed.join(", ")}.` : "Nothing changed." }));
+}

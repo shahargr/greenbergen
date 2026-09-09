@@ -1,21 +1,19 @@
 import Link from "next/link";
-import { dimReason, isBookable, type Tile } from "@shared/catalogue";
+import { dimReason, isBookable, isOpen, type Tile } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 
 // PackageTile - icon, title, and one line saying where this package stands.
 //
-// There are exactly two states, and they come from two different questions:
-// do we have a price (availability) and is anyone approved to do it (covered).
-// A tile is LIVE only when both are yes. Everything else is DIM - still
-// tappable, because the page behind it is worth reading and the DIY route
-// needs no contractor at all, but honest on the tile about why it is not a
-// "book now".
-//
-// The dim state is deliberately not a dead end. The old coming-soon tile was
-// a <div> nobody could open, which meant a member could not even find out what
-// the job involves. Only a package with no page at all should be inert.
+// Three states, from two questions - do we have a price (availability) and
+// is anyone approved to do it (covered):
+//   LIVE   priced and covered: tap to book at the community price.
+//   ASK    covered, no fixed price (quote / custom): tap to tell a person
+//          what you need - the general contractor, a kitchen, a bath. White
+//          like a live tile, because it IS live (Shahar); the kicker says a
+//          person answers, not a price.
+//   DIM    coming soon, or nobody approved carries the trade yet. Still
+//          tappable, because the page behind it is worth reading.
 export function PackageTile({ pkg }: { pkg: Tile }) {
-  const live = isBookable(pkg);
   const title = (
     <div className="card-title">
       {pkg.tile_title}
@@ -23,12 +21,22 @@ export function PackageTile({ pkg }: { pkg: Tile }) {
     </div>
   );
 
-  if (live) {
+  if (isBookable(pkg)) {
     return (
       <Link href={`/packages/${pkg.code}`} className="tile">
         <div className="art"><Illustration name={pkg.illustration} /></div>
         {title}
         <div className="card-kicker">Priced instantly</div>
+      </Link>
+    );
+  }
+
+  if (isOpen(pkg)) {
+    return (
+      <Link href={`/packages/${pkg.code}`} className="tile ask">
+        <div className="art"><Illustration name={pkg.illustration} /></div>
+        {title}
+        <div className="card-kicker">Ask a person</div>
       </Link>
     );
   }

@@ -58,6 +58,14 @@ export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_gr
 export const isPriced = (t: Tile) => t.availability === "priced";
 export const isCovered = (t: Tile) => t.covered !== false;
 export const isBookable = (t: Tile) => isPriced(t) && isCovered(t);
+// OPEN is wider than bookable. Shahar: "general contractor is already live"
+// - it was drawn dim because it has no fixed price, but a covered quote
+// package is a live door: a person on the other side answers. So a tile is
+// open when someone approved carries the trade and the page behind it does
+// something today - books it, or takes your sentence to that person. Only
+// "coming soon" and "nobody carries it yet" are dim.
+export const isQuote = (t: Tile) => t.availability === "quote" || t.availability === "custom";
+export const isOpen = (t: Tile) => isCovered(t) && (isPriced(t) || isQuote(t));
 
 // Why a tile is dim, in the member's words. Order matters: no price is a
 // bigger gap than no contractor, and "coming soon" outranks both.
