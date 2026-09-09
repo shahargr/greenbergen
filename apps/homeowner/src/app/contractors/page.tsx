@@ -4,6 +4,7 @@ import { getMe } from "@/lib/me";
 import { areaLine, loadContractors } from "@/lib/contractors";
 import { townForZip } from "@shared/bergen";
 import { AppBar, Avatar, Card, ChevronIcon, Screen, ShellIcons } from "@shared/ui";
+import { unreadForShell } from "@shared/unread";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "The contractors" };
@@ -21,7 +22,10 @@ export default async function ContractorsPage({ searchParams }: { searchParams: 
   const { trade } = await searchParams;
   const [me, pros] = await Promise.all([getMe(), loadContractors()]);
   if (!me.signed_in) redirect("/login?next=/contractors");
-  const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
+  // Everything waiting on you, not just the booking conversations: the old
+  // count missed offers, questions and anything else addressed to you.
+  // my_unread_count() is the same predicate the inbox list calls `pending`.
+  const unread = await unreadForShell();
 
   const trades = [...new Set(pros.flatMap((p) => p.trades.map((t) => t.trade)))].sort();
   const pick = trade && trades.includes(trade) ? trade : null;

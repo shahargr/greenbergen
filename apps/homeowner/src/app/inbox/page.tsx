@@ -6,6 +6,7 @@ import { stopwatch } from "@shared/perf";
 import { getMe } from "@/lib/me";
 import { ago, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
+import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { PhotoBanner } from "@/components/PhotoBanner";
 import { TaskDone } from "@/components/TaskDone";
@@ -54,7 +55,10 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const outcomes = inv?.outcomes ?? [];
   const open = tasks ?? []; // homeowner_tasks returns the open ones only
   const threads = me.bookings.filter((b) => b.last_message || b.unread > 0).sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || (b.last_message?.sent_at ?? "").localeCompare(a.last_message?.sent_at ?? ""));
-  const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
+  // Everything waiting on you, not just the booking conversations: the old
+  // count missed offers, questions and anything else addressed to you.
+  // my_unread_count() is the same predicate the inbox list calls `pending`.
+  const unread = await unreadForShell();
   const empty = incoming.length === 0 && outcomes.length === 0 && threads.length === 0 && open.length === 0;
 
   return (

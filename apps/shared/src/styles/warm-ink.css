@@ -287,6 +287,32 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .bucket-rows > a:first-child { border-top: 0; }
 .bucket-rows .t { font-size: 14px; line-height: 1.25; display: block; }
 .bucket-rows .m { font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px; }
+
+/* A MESSAGE, AS AN EMAIL. Closed: who, subject, when. The body, the picture
+   and the verbs wait behind the disclosure - an inbox is a list you scan and
+   only sometimes a thing you read. */
+.msg summary { list-style: none; cursor: pointer; }
+.msg summary::-webkit-details-marker { display: none; }
+.msg-head { display: flex; align-items: flex-start; gap: 10px; padding: 12px var(--space-4); }
+.msg-from { font-family: var(--font-heading); font-weight: 800; font-size: 13.5px; display: block; }
+.msg-subject { font-size: 14px; display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-meta { font-size: 11.5px; color: var(--muted); display: block; margin-top: 3px; }
+.msg-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--color-status); margin-top: 6px; }
+.msg.unread .msg-subject { font-weight: 700; }
+.msg-body { padding: 0 var(--space-4) var(--space-4); border-top: 1px solid var(--color-divider); padding-top: 12px; }
+
+/* The milestone line, small enough to sit inside a folder row: where this
+   job is, not just how many are done. */
+.pline.inline { display: flex; align-items: center; gap: 0; margin-top: 8px; }
+.pline.inline .node { flex: 1; display: flex; align-items: center; }
+.pline.inline .node:last-child { flex: none; }
+.pline.inline .node .dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--color-soft-2);
+  box-shadow: inset 0 0 0 1.5px var(--color-divider-strong); display: grid; place-items: center; color: transparent; }
+.pline.inline .node.done .dot { background: var(--color-ok); box-shadow: none; }
+.pline.inline .node.current .dot { background: var(--color-surface); box-shadow: inset 0 0 0 3px var(--color-accent); }
+.pline.inline .node::after { content: ""; flex: 1; height: 2px; background: var(--color-divider); margin: 0 3px; }
+.pline.inline .node:last-child::after { display: none; }
+.pline.inline .node.done::after { background: var(--color-ok); }
 .notes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .notes li { display: grid; grid-template-columns: 28px 1fr; gap: var(--space-2); font-size: 14px; }
 .notes li .n { font-family: var(--font-heading); font-weight: 800; color: var(--muted); font-size: 12px; padding-top: 3px; }

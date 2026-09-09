@@ -4,6 +4,7 @@ import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
 import { currentMonth, isBookable, loadTiles, seasonal, type Tile } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
+import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { PackageTile } from "@/components/PackageTile";
 import { PhotoBanner } from "@/components/PhotoBanner";
@@ -42,7 +43,10 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/project");
-  const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
+  // Everything waiting on you, not just the booking conversations: the old
+  // count missed offers, questions and anything else addressed to you.
+  // my_unread_count() is the same predicate the inbox list calls `pending`.
+  const unread = await unreadForShell();
   const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";
 
   // ONE list, each package once.

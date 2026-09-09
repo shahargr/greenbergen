@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppBar, Notice, Screen, ShellIcons } from "@shared/ui";
 import { InboxScreen } from "@shared/inbox/Inbox";
-import { loadInbox } from "@shared/inbox/data";
+import { loadInbox, unreadCount } from "@shared/inbox/data";
 import { getMe } from "@/lib/me";
 import { ExpertTabs } from "@/components/ExpertTabs";
 import { loadDoors } from "@shared/doors.server";
@@ -18,11 +18,13 @@ export default async function InboxPage({
 }) {
   const { ok, error } = await searchParams;
   const [me, data, doors] = await Promise.all([getMe(), loadInbox(), loadDoors()]);
+  // Already loaded: no reason to ask the database for a number we have.
+  const unread = unreadCount(data.messages);
   if (!me.signed_in) redirect("/login?next=/inbox");
 
   return (
     <Screen>
-      <AppBar brand  right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand  right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />
       <div className="body">
         {ok && <div className="banner-ok">{ok}</div>}
         {error && <Notice kind="error">{error}</Notice>}

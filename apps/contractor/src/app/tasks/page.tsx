@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
+import { unreadForShell } from "@shared/unread";
 import { getBoard, priorityRank, topLevels, type Task } from "@/lib/board";
 import { ExpertTabs } from "@/components/ExpertTabs";
 
@@ -31,7 +32,11 @@ export default async function TasksPage({
 }) {
   const { who, show, project } = await searchParams;
   const w = stopwatch("/tasks");
-  const board = await w.step("board", () => getBoard());
+  // The board and the badge do not depend on each other, so they leave together.
+  const [board, unread] = await Promise.all([
+    w.step("board", () => getBoard()),
+    w.step("unread", () => unreadForShell()),
+  ]);
   w.done();
   if (!board.signed_in) redirect("/login?next=/tasks");
 
@@ -119,7 +124,7 @@ export default async function TasksPage({
     <Screen>
       {focused
         ? <AppBar back={q({ project: undefined })} title={heading} sub={`${rows.length} open`} />
-        : <AppBar brand  right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />}
+        : <AppBar brand  right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />}
       <div className="body">
         {board.degraded && <Notice kind="error" title="Some of this may be missing.">Try again in a moment.</Notice>}
 

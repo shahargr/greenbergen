@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { stopwatch } from "@shared/perf";
+import { unreadForShell } from "@shared/unread";
 import {
   BUCKETS, anyRuns, buildTree, getBoard, money, prune, runs,
   type BucketKey, type Node,
@@ -24,7 +25,11 @@ export const metadata = { title: "Your board" };
 export default async function BoardPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const { show } = await searchParams;
   const w = stopwatch("/");
-  const board = await w.step("board", () => getBoard());
+  // The board and the badge do not depend on each other, so they leave together.
+  const [board, unread] = await Promise.all([
+    w.step("board", () => getBoard()),
+    w.step("unread", () => unreadForShell()),
+  ]);
   w.done();
   if (!board.signed_in) redirect("/login?next=/projects");
 
@@ -52,7 +57,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand  right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand  right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />
       <div className="body">
         {board.degraded && (
           <Notice kind="error" title="We couldn&apos;t load the whole board.">

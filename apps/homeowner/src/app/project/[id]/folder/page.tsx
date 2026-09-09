@@ -4,6 +4,8 @@ import { getBooking, signedUrls } from "@/lib/booking";
 import { formsFor } from "@/lib/forms";
 import { dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Screen } from "@shared/ui";
+import { ProgressBead } from "@shared/ProgressLine";
+import type { Progress } from "@shared/progress";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Job folder" };
@@ -36,7 +38,10 @@ export default async function FolderPage({ params }: { params: Promise<{ id: str
           <Row href="#photos" icon={<I d="M4 8h3l2-3h6l2 3h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />} title="Photos" meta={photos.length ? `${photos.length} · ${photos.filter((p) => p.by_me).length} from you, ${photos.filter((p) => !p.by_me).length} from ${first}` : "None yet — add them from the timeline"} empty={!photos.length} />
           <Row href="#insurance" icon={<I d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />} title="Insurance certificate" meta={c ? (c.insurance ? `${c.name} · ${c.insurance.coverage ?? "GL"}${c.insurance.limit ? ` $${Math.round(c.insurance.limit / 1e6)}M` : ""}${c.insurance.expires ? ` · valid through ${shortDate(c.insurance.expires)}` : ""}` : `${c.name} · certificate on file with Green Bergen`) : "Appears when a contractor accepts"} empty={!c} />
           {b.package?.requires_permit && <Row href={`/project/${id}/forms`} icon={<I d="M7 3h7l4 4v14H7zM14 3v4h4M9 12h6M9 16h6" />} title="Permit forms" meta={`${forms.length} form${forms.length === 1 ? "" : "s"} to sign at the meeting · NJ UCC`} tag="New" />}
-          <Row href="#log" icon={<I d="M4 6h16M4 12h16M4 18h10" />} title="Milestone log" meta={`${doneNodes.length} of ${b.progress.total}${doneNodes.length ? ` · last: ${doneNodes[doneNodes.length - 1]!.name}, ${dayClock(doneNodes[doneNodes.length - 1]!.at)}` : ""}`} />
+          <Row href="#log" icon={<I d="M4 6h16M4 12h16M4 18h10" />} title="Milestone log" line={b.progress}
+            meta={b.progress.current
+              ? `Now: ${b.progress.current.name} · ${doneNodes.length} of ${b.progress.total} done`
+              : `${doneNodes.length} of ${b.progress.total}${doneNodes.length ? ` · last: ${doneNodes[doneNodes.length - 1]!.name}, ${dayClock(doneNodes[doneNodes.length - 1]!.at)}` : ""}`} />
           <Row href="#evidence" icon={<I d="M3 7h18v10H3zM7 12h.01M17 12h.01M12 12a2 2 0 1 0 0-.01" />} title="Payment evidence" meta={evidence.length || paidStages.length ? `${paidStages.length} payment${paidStages.length === 1 ? "" : "s"} recorded · ${evidence.length} photo${evidence.length === 1 ? "" : "s"}` : `Nothing yet — the first payment is ${b.package?.requires_permit ? `${b.package.permit_deposit_pct}% at the permit meeting` : "on completion"}.`} empty={!evidence.length && !paidStages.length} />
         </Card>
 
@@ -107,11 +112,16 @@ export default async function FolderPage({ params }: { params: Promise<{ id: str
   );
 }
 
-function Row({ href, icon, title, meta, tag, empty = false }: { href: string; icon: React.ReactNode; title: string; meta: string; tag?: string; empty?: boolean }) {
+function Row({ href, icon, title, meta, tag, empty = false, line }: { href: string; icon: React.ReactNode; title: string; meta: string; tag?: string; empty?: boolean; line?: Progress | null }) {
   return (
     <Link href={href} className={`frow ${empty ? "empty" : ""}`}>
       <span className="ic">{icon}</span>
-      <span className="grow"><div className="t">{title}</div><div className="m">{meta}</div></span>
+      <span className="grow">
+        <div className="t">{title}</div>
+        <div className="m">{meta}</div>
+        {/* Where the job IS. "1 of 7" is a score; a person wants a position. */}
+        {line && <ProgressBead progress={line} />}
+      </span>
       {tag && <span className="tag tag-accent">{tag}</span>}
       <ChevronIcon />
     </Link>

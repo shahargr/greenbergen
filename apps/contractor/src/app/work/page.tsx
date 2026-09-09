@@ -4,6 +4,7 @@ import { createClient } from "@shared/supabase/server";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { stopwatch } from "@shared/perf";
+import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
 import { anyRuns, buildTree, coverUrls, getBoard } from "@/lib/board";
 import { ExpertTabs } from "@/components/ExpertTabs";
@@ -23,13 +24,15 @@ export const metadata = { title: "Work" };
 // that gets room.
 export default async function WorkPage() {
   const w = stopwatch("/work");
-  // Three independent reads, sent together. The board is the same
+  // Four independent reads, sent together. The board is the same
   // portal_my_work every board screen runs on, so this costs no new query
   // shape - it is the read /projects already makes.
-  const [me, doors, board] = await Promise.all([
+  const [me, doors, board, unread] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("doors", () => loadDoors()),
     w.step("board", () => getBoard()),
+    // One integer for the badge on the shell - never the whole inbox.
+    w.step("unread", () => unreadForShell()),
   ]);
   if (!me.signed_in) redirect("/login?next=/work");
 
@@ -55,7 +58,7 @@ export default async function WorkPage() {
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />
       <div className="body">
         {me.missing && <Notice title="Preview mode">The contractor migration has not been applied to this database yet, so your profile cannot be read.</Notice>}
         {me.degraded && <Notice kind="error" title="We couldn&apos;t load your account just now.">Nothing is lost. <Link href="/work">Try again</Link>, and if it keeps happening tell us.</Notice>}

@@ -6,11 +6,20 @@ import { timed } from "../perf";
 // carrying what came to you and what you sent, plus the invitations waiting
 // on an answer. Four apps, one model - the functions below are the same ones
 // the portal calls, so a message read in the builder app is read everywhere.
+export type MsgKind = "bid" | "question" | "task" | "system" | "note";
+
 export type Msg = {
   id: string;
   direction: "inbound" | "outbound" | "internal";
   channel: string | null;
   body: string;
+  // The body's first line, which is what these bodies are written to be.
+  subject: string;
+  // What it IS, so the row can offer the right verbs (migration 035).
+  kind: MsgKind;
+  // Who it is with, for a reply. Null on a system message.
+  with_contact_id: string | null;
+  file: { id: string; path: string; kind: string | null; mime: string | null; name: string | null } | null;
   sent_at: string;
   status: string;
   read_at: string | null;
@@ -42,10 +51,14 @@ export type InboxData = {
   // and the honest way to tell them apart is to ask which offers are open,
   // not to read the body text and hope.
   offers: string[];
+  // Signed URLs for any image attached to a message, keyed by storage path.
+  // One round trip for the page, taken after the messages land because it
+  // needs their paths - the only read here that depends on another.
+  fileUrls: Record<string, string>;
 };
 
 export const EMPTY: InboxData = {
-  messages: [], invites: { incoming: [], outcomes: [] }, targets: [], failed: false, offers: [],
+  messages: [], invites: { incoming: [], outcomes: [] }, targets: [], failed: false, offers: [], fileUrls: {},
 };
 
 // Four reads, none depending on another, so they leave together - one round
@@ -60,6 +73,18 @@ export async function loadInbox(limit = 100): Promise<InboxData> {
     timed("inbox.targets", () => rpc<Target[]>(supabase, "portal_compose_targets")),
     timed("inbox.offers", () => rpc<{ project_id: string }[]>(supabase, "homeowner_offers")),
   ]);
+  // Attachments, signed in one call. Only images are worth a URL here: a
+  // document in an inbox row is a filename, not a preview.
+  const shots = (Array.isArray(msgs.data) ? msgs.data : [])
+    .map((m) => (m.file?.kind === "photo" ? m.file.path : null))
+    .filter((p): p is string => !!p);
+  const urls: Record<string, string> = {};
+  if (shots.length > 0) {
+    const { data: signed } = await timed("inbox.files", () =>
+      supabase.storage.from("project-media").createSignedUrls([...new Set(shots)], 3600));
+    for (const row of signed ?? []) if (row.path && row.signedUrl) urls[row.path] = row.signedUrl;
+  }
+
   return {
     messages: Array.isArray(msgs.data) ? msgs.data : [],
     invites: {
@@ -69,6 +94,7 @@ export async function loadInbox(limit = 100): Promise<InboxData> {
     targets: Array.isArray(tgts.data) ? tgts.data : [],
     failed: !!msgs.error,
     offers: Array.isArray(offs.data) ? offs.data.map((o) => o.project_id) : [],
+    fileUrls: urls,
   };
 }
 
