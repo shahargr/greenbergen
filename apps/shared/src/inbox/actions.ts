@@ -84,9 +84,16 @@ export async function messageSend(formData: FormData) {
   const to = String(formData.get("to") ?? "").trim();
   if (!project || !to) redirect(back(b, "Pick a project and someone to send it to.", true));
   if (!body) redirect(back(b, "Write something first.", true));
+  // A photo or a task can ride along (migration 036). Both are checked
+  // against the project in the database, which drops a reference that does
+  // not belong there rather than sending it on - so passing them through is
+  // safe even though this form built them.
+  const fileId = String(formData.get("file_id") ?? "").trim() || null;
+  const actionId = String(formData.get("action_id") ?? "").trim() || null;
   const supabase = await createClient();
   const { error } = await supabase.rpc("send_portal_message", {
     p_project: project, p_to_contact: to, p_body: body,
+    p_file_id: fileId, p_action_id: actionId,
   });
   revalidatePath(b);
   redirect(error ? back(b, error.message, true) : back(b, "Sent. It is in their inbox now."));

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card, Notice } from "../ui";
+import { Card, ChevronIcon, Notice } from "../ui";
 import { Compose } from "./Compose";
 import { messageSeen, messageSend, messageSet, messageToTask } from "./actions";
 import type { InboxData, Msg, MsgKind } from "./data";
@@ -24,7 +24,9 @@ export function InboxScreen({
   show?: string;
 }) {
   const { messages, invites, failed } = data;
-  const waiting = messages.filter((m) => m.pending);
+  // The headline counts what CAME to you. What you sent is a folder below.
+  const received = messages.filter((m) => !m.mine);
+  const waiting = received.filter((m) => m.pending);
   const invitations = invites.incoming.length + invites.outcomes.length;
 
   return (
@@ -34,9 +36,9 @@ export function InboxScreen({
       <div className="hero">
         <h1>Inbox</h1>
         <p className="lead">
-          {messages.length === 0
-            ? "Nothing yet. Messages about your projects land here."
-            : `${messages.length} ${messages.length === 1 ? "message" : "messages"}${waiting.length ? ` · ${waiting.length} waiting on you` : ""}.`}
+          {received.length === 0
+            ? "Nothing waiting. Messages about your projects land here."
+            : `${received.length} ${received.length === 1 ? "message" : "messages"}${waiting.length ? ` · ${waiting.length} waiting on you` : ""}.`}
         </p>
       </div>
 
@@ -82,34 +84,62 @@ export function Messages({
   const { messages, targets } = data;
   const offers = new Set(data.offers ?? []);
   const urls = data.fileUrls ?? {};
-  const waiting = messages.filter((m) => m.pending);
+  // AN INBOX IS FOR WHAT CAME TO YOU. Sent messages were mixed into the same
+  // list, so a person opening the inbox read their own words back first -
+  // and on a quiet account that was the ONLY thing in it. They keep their
+  // record, behind a folder, the way every mail client has done it for
+  // thirty years.
+  const received = messages.filter((m) => !m.mine);
+  const sent = messages.filter((m) => m.mine);
+  const waitingR = received.filter((m) => m.pending);
+  const restR = received.filter((m) => !m.pending);
+
+  const row = (m: Msg) => (
+    <Row key={m.id} m={m} base={base} taskBase={taskBase} projectHref={projectHref}
+      offer={offerHref && m.project_id && offers.has(m.project_id) ? offerHref(m.project_id) : null}
+      url={m.file ? urls[m.file.path] ?? null : null} />
+  );
+
   return (
     <>
-      {waiting.length > 0 && (
+      {waitingR.length > 0 && (
         <section className="stack" style={{ gap: 8 }}>
-          <div className="divider-label">Waiting on you · {waiting.length}</div>
-          {waiting.map((m) => <Row key={m.id} m={m} base={base} taskBase={taskBase} projectHref={projectHref}
-            offer={offerHref && m.project_id && offers.has(m.project_id) ? offerHref(m.project_id) : null}
-            url={m.file ? urls[m.file.path] ?? null : null} />)}
+          <div className="divider-label">Waiting on you · {waitingR.length}</div>
+          {waitingR.map(row)}
         </section>
       )}
 
       <section className="stack" style={{ gap: 8 }}>
-        <div className="divider-label">{heading} · {messages.length}</div>
-        {messages.length === 0 && (
-          <Card soft pad><div className="small">No messages yet.</div></Card>
+        <div className="divider-label">{heading}{received.length ? ` · ${received.length}` : ""}</div>
+        {received.length === 0 && (
+          <Card soft pad><div className="small">Nothing in your inbox. Messages about your projects land here.</div></Card>
         )}
-        {messages.filter((m) => !m.pending).map((m) => (
-          <Row key={m.id} m={m} base={base} taskBase={taskBase} projectHref={projectHref}
-            offer={offerHref && m.project_id && offers.has(m.project_id) ? offerHref(m.project_id) : null}
-            url={m.file ? urls[m.file.path] ?? null : null} />
-        ))}
+        {restR.map(row)}
       </section>
 
-      <section className="stack" style={{ gap: 8 }}>
-        <div className="divider-label">Write to someone</div>
-        <Card pad><Compose targets={targets} base={base} /></Card>
-      </section>
+      {/* Sent: a folder, not a section of the inbox. Shut, counted, and one
+          tap away when you want to check what you actually said. */}
+      {sent.length > 0 && (
+        <details className="home-panel">
+          <summary className="home-row">
+            <span className="ic" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 12l16-8-6 16-2.5-6z" />
+              </svg>
+            </span>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">Sent</span>
+              <span className="m" style={{ display: "block" }}>{sent.length} {sent.length === 1 ? "message" : "messages"} you wrote</span>
+            </span>
+            <span className="chev"><ChevronIcon /></span>
+          </summary>
+          <div className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+            {sent.map(row)}
+          </div>
+        </details>
+      )}
+
+      <Card pad><Compose targets={targets} base={base} /></Card>
     </>
   );
 }
