@@ -7,7 +7,6 @@ import { ago, dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Avatar, Card, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
 import { ProgressLine } from "@shared/ProgressLine";
 import { stopwatch } from "@shared/perf";
-import { HomeTabs } from "@/components/HomeTabs";
 import { PhotoRequest } from "@/components/PhotoRequest";
 import { WaitingCard } from "./WaitingCard";
 import { bookingAction, updatePlan } from "./actions";
@@ -104,7 +103,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <Link href={`/packages/${b.package_code}?sel=${encodeURIComponent(encodeSelections(b.selections))}`} className="btn btn-secondary btn-block">Adjust the package</Link>
           <form action={bookingAction.bind(null, b.project_id, "remove")}><button className="btn btn-ghost btn-block">Remove from my DIY projects</button></form>
         </div>
-        <HomeTabs current="project" />
       </Screen>
     );
   }
@@ -133,7 +131,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <button className="btn btn-ghost btn-block">Reopen at {dollars(bump(b.price_cents))}</button>
           </form>
         </div>
-        <HomeTabs current="project" />
       </Screen>
     );
   }
@@ -172,7 +169,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <form action={bookingAction.bind(null, b.project_id, "wait")}><button className="btn btn-secondary btn-block">Keep waiting at {dollars(b.price_cents)}</button></form>
             <form action={bookingAction.bind(null, b.project_id, "close")}><button className="btn btn-ghost btn-block">No thanks — close the request</button></form>
           </div>
-          <HomeTabs current="project" />
         </Screen>
       );
     }
@@ -202,7 +198,6 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <Link href={`/project/${b.project_id}/people`} className="btn btn-ghost btn-block">Who can see this job</Link>
           <form action={bookingAction.bind(null, b.project_id, "close")}><button className="btn btn-ghost btn-block">Cancel this request</button></form>
         </div>
-        <HomeTabs current="project" />
       </Screen>
     );
   }

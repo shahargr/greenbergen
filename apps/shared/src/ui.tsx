@@ -56,8 +56,8 @@ export const WarnIcon = () => (
 // signed-out screens showed the tagline there instead - which left the
 // contractor landing page saying nothing about being the contractor app.
 //
-// THE HOUSE IS THE HEIGHT OF THE "g" (Shahar): its roof at the top of the
-// letter, its floor at the bottom of the descender. So it is sized and
+// THE HOUSE SPANS THE WORD (Shahar): roof at the top of the "b", floor at
+// the bottom of the "g" - ascender to descender. So it is sized and
 // placed in em relative to the word - 0.78em tall, its base 0.22em below the
 // baseline - and moves with the font, never with the door line, which is set
 // under the word and indented past the house. No per-door glyph: the house IS
@@ -67,8 +67,9 @@ const APP_DOOR = ((): DoorKey | undefined => {
   return d && d in DOORS ? (d as DoorKey) : undefined;
 })();
 
-// Manrope: x-height ~0.54em, descender ~0.22em. The house spans that.
-const HOUSE_EM = 0.78;
+// Manrope: ascender ~0.76em above the baseline, descender ~0.22em below.
+// Roof at the top of the "b", floor at the bottom of the "g" (Shahar).
+const HOUSE_EM = 0.98;
 const DESCENT_EM = 0.22;
 const GAP_PX = 5;
 
@@ -210,13 +211,21 @@ export function DoorSwitch({ held, current }: { held: DoorKey[]; current: DoorKe
 // The two icons that sit at the top right of every signed-in screen: the
 // inbox (with its count) and the gear. Small, quiet, and always in the same
 // place, so the shell never has to explain where the settings went.
-export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/inbox" }: { unread?: number; gearHref?: string; inboxHref?: string }) {
+// The shell's destinations, top right: inbox, home, setup. This replaced the
+// bottom tab bar in the homeowner app (Shahar) - three icons in the header
+// cost no height and are where the thumb already goes for the gear.
+export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/inbox", homeHref }: { unread?: number; gearHref?: string; inboxHref?: string; homeHref?: string }) {
   return (
     <span className="shell-icons">
       <Link href={inboxHref} className="btn btn-ghost btn-icon" aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}>
         <InboxIcon />
         {unread > 0 && <span className="dot-n">{unread > 9 ? "9+" : unread}</span>}
       </Link>
+      {homeHref && (
+        <Link href={homeHref} className="btn btn-ghost btn-icon" aria-label="Home">
+          <HouseIcon />
+        </Link>
+      )}
       <Link href={gearHref} className="btn btn-ghost btn-icon" aria-label="Your account">
         <GearIcon />
       </Link>

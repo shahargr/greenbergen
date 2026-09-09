@@ -341,10 +341,6 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .frow.empty .ic { color: var(--muted); }
 
 /* tabs bar */
-.tabs { display: flex; border-top: 1px solid var(--color-divider); background: var(--color-surface); }
-.tabs a { flex: 1; padding: 14px 4px calc(14px + env(safe-area-inset-bottom)); text-align: center; text-decoration: none; color: var(--muted); font-family: var(--font-heading); font-weight: 700; font-size: 13px; position: relative; border-top: 2px solid transparent; margin-top: -1px; }
-.tabs a[aria-current="page"] { color: var(--color-text); border-top-color: var(--color-text); }
-.tabs a .n { position: absolute; top: 8px; right: calc(50% - 34px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--color-status); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; }
 
 /* chat / timeline */
 .thread { display: flex; flex-direction: column; gap: var(--space-3); }

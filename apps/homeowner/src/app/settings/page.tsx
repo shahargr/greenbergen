@@ -3,14 +3,13 @@ import { getMe } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, DoorSwitch, Notice, Screen } from "@shared/ui";
 import { loadDoors } from "@shared/doors.server";
 import { CopyLink } from "../project/[id]/people/CopyLink";
-import { HomeTabs } from "@/components/HomeTabs";
-import { invitePerson, signOut } from "./actions";
+import { invitePerson, removeHome, saveHome, signOut } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Your account" };
 
-// Behind the gear: who you are, your homes, the way out, and the way to
-// bring someone else in. Signed out it is the way IN - the same screen,
+// Behind the gear: who you are, your homes (editable - this is the one place
+// they are managed), the way out, and the way to bring someone else in. Signed out it is the way IN - the same screen,
 // so the icon in the header always leads somewhere useful.
 const PORTAL = process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://greenbergen.vercel.app";
 
@@ -40,7 +39,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   }
 
   const name = me.profile.full_name?.trim() || me.profile.email || "Your account";
-  const unread = me.bookings.reduce((a, b) => a + (b.unread ?? 0), 0);
 
   return (
     <Screen>
@@ -59,14 +57,38 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Your homes</div>
+          <p className="tiny text-muted" style={{ margin: "-4px 0 2px" }}>
+            Where your projects live. Rename one, fix an address, or take one off. Another home is
+            offered when you book a package and pick where it goes.
+          </p>
+          {me.homes.length === 0 && <p className="small text-muted" style={{ margin: 0 }}>No home on file yet — the first project you start adds one.</p>}
           {me.homes.map((h) => (
-            <Link key={h.project_id} href={`/project?home=${h.project_id}`} className="home-row">
-              <span className="grow">
-                <span className="t">{h.address?.split(",")[0] ?? h.name ?? "Home"}</span>
-                <span className="m" style={{ display: "block" }}>{h.address?.split(",").slice(1).join(",").trim() || h.town || ""}</span>
-              </span>
-              <ChevronIcon />
-            </Link>
+            <Card key={h.project_id} pad>
+              <form action={saveHome.bind(null, h.project_id)} className="stack" style={{ gap: 8 }}>
+                <label className="field">
+                  <span className="field-label">Name</span>
+                  <input className="input" name="name" defaultValue={h.name ?? ""} placeholder="Home, the rental, Mom's place" />
+                </label>
+                <label className="field">
+                  <span className="field-label">Address</span>
+                  <input className="input" name="address" defaultValue={h.address ?? ""} autoComplete="street-address" />
+                </label>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <span className="tiny text-muted">{[h.live ? `${h.live} in progress` : null, h.planned ? `${h.planned} DIY` : null, h.done ? `${h.done} done` : null].filter(Boolean).join(" · ") || "nothing on it yet"}</span>
+                  <span className="row" style={{ gap: 6 }}>
+                    <button className="btn btn-secondary" style={{ minHeight: 40 }}>Save</button>
+                    <Link href={`/project?home=${h.project_id}`} className="btn btn-ghost" style={{ minHeight: 40 }}>Projects</Link>
+                  </span>
+                </div>
+              </form>
+              {/* Removal is its own form so a stray Enter in the name field
+                  can never trash a home. It refuses while jobs are live. */}
+              {h.live === 0 && (
+                <form action={removeHome.bind(null, h.project_id)} style={{ marginTop: 4 }}>
+                  <button className="btn btn-ghost btn-danger" style={{ minHeight: 36, padding: 0 }}>Take this home off my account</button>
+                </form>
+              )}
+            </Card>
           ))}
           <Link href="/homes/new" className="home-row add">
             <span className="ic">+</span>
@@ -127,7 +149,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </Card>
         </section>
       </div>
-      <HomeTabs current="project" unread={unread} />
     </Screen>
   );
 }

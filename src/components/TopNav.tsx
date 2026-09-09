@@ -34,6 +34,13 @@ const SettingsIcon = () => (
   </svg>
 );
 
+const DoorsIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" />
+    <rect x="3" y="13" width="8" height="8" rx="1.5" /><rect x="13" y="13" width="8" height="8" rx="1.5" />
+  </svg>
+);
+
 const SignOutIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -170,6 +177,9 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
+          {/* Switch door: the same picker /after-login uses. Next to Sign out
+              because they are the two ways to stop being here as this hat. */}
+          <Link href="/choose" className="iconlink" title="Switch door" aria-label="Switch door"><DoorsIcon /></Link>
           <form action={signOut} style={{ display: "inline-flex" }}>
             <button className="iconlink" title="Sign out" aria-label="Sign out"><SignOutIcon /></button>
           </form>

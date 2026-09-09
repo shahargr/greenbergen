@@ -4,7 +4,6 @@ import { isBookable, loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Screen, ShellIcons, StepKicker } from "@shared/ui";
 import { PackageTile } from "@/components/PackageTile";
-import { HomeTabs } from "@/components/HomeTabs";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Packages" };
@@ -22,7 +21,7 @@ export default async function PackagesPage() {
   const dim = rest.filter((t) => !isBookable(t));
   return (
     <Screen>
-      <AppBar brand right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
+      <AppBar brand right={signedIn ? <ShellIcons  homeHref="/project" /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">
@@ -63,7 +62,6 @@ export default async function PackagesPage() {
         </Link>
         <p className="small text-muted" style={{ margin: 0 }}>Every price carries the same label: <em>estimate pending contractor confirmation</em>. One number, same for every neighbor.</p>
       </div>
-      {signedIn && <HomeTabs current="packages" />}
     </Screen>
   );
 }

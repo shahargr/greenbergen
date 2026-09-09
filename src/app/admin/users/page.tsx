@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { beginViewAs } from "@/components/viewas";
 import {
   vendorDecision,
-  toggleAccount,
+  setActive,
+  setTrades,
   cancelInvitation,
   assignUser,
   createProjectAdmin,
@@ -51,7 +52,7 @@ export default async function AdminUsersPage({
 
   const [
     users, contacts, companies, projects, pendingInvites, vendorRequests, inquiries7d, openTasks,
-    vendorRows, accountRows, inviteRows, projectRows, roleRows, userRows,
+    vendorRows, accountRows, inviteRows, projectRows, roleRows, userRows, tradeList,
   ] = await Promise.all([
     count("app_users"),
     count("contacts"),
@@ -68,7 +69,7 @@ export default async function AdminUsersPage({
       .order("created_at", { ascending: true }),
     supabase
       .from("app_users")
-      .select("id, email, full_name, is_active, is_superadmin, created_at, contact_id, login_count, last_login_at")
+      .select("id, email, full_name, is_active, is_superadmin, created_at, contact_id, login_count, last_login_at, disabled_reason")
       .order("created_at", { ascending: false })
       .limit(500),
     supabase
@@ -84,7 +85,9 @@ export default async function AdminUsersPage({
       .order("project_name"),
     supabase.from("project_roles").select("role, authority_rank").order("authority_rank", { ascending: false }),
     supabase.from("app_users").select("id, email, full_name").eq("is_active", true).order("email"),
+    supabase.from("trades").select("trade").eq("is_worker_trade", true).order("sort_order"),
   ]);
+  const TRADES = ((tradeList.data ?? []) as { trade: string }[]).map((t) => t.trade);
 
   // Owner email per project, for the assign picker ("owner email - project").
   type ProjRow = { id: string; project_name: string; address: string | null; status: string; owner_user_id: string | null; is_template: boolean | null };
@@ -100,13 +103,16 @@ export default async function AdminUsersPage({
   //   homeowner  - owns a home, or sits as asset owner anywhere
   //   contractor - holds a trade, or a site seat below project management
   //   other      - signed up, nothing yet (an invitee, a viewer)
-  type Account = { id: string; email: string | null; full_name: string | null; is_active: boolean; is_superadmin: boolean; created_at: string; contact_id: string | null; login_count: number | null; last_login_at: string | null };
+  type Account = { id: string; email: string | null; full_name: string | null; is_active: boolean; is_superadmin: boolean; created_at: string; contact_id: string | null; login_count: number | null; last_login_at: string | null; disabled_reason: string | null };
   const accounts = ((accountRows.data ?? []) as Account[]);
   const contactIds = accounts.map((a) => a.contact_id).filter((x): x is string => !!x);
-  const [{ data: seatRowsAll }, { data: tradeRowsAll }] = await Promise.all([
+  type ContactRow = { id: string; name: string | null; phone: string | null; email_a: string | null };
+  const [{ data: seatRowsAll }, { data: tradeRowsAll }, { data: contactRowsAll }] = await Promise.all([
     supabase.from("project_members").select("app_user_id, role, project_role").eq("status", "active").not("app_user_id", "is", null).limit(5000),
     contactIds.length ? supabase.from("contact_trade_roles").select("contact_id, trade").in("contact_id", contactIds) : Promise.resolve({ data: [] as { contact_id: string; trade: string }[] }),
+    contactIds.length ? supabase.from("contacts").select("id, name, phone, email_a").in("id", contactIds) : Promise.resolve({ data: [] as ContactRow[] }),
   ]);
+  const contactOf = new Map(((contactRowsAll ?? []) as ContactRow[]).map((c) => [c.id, c]));
   const rankOf = new Map(((roleRows.data ?? []) as { role: string; authority_rank: number | null }[]).map((r) => [r.role, r.authority_rank ?? 0]));
   const seatsOf = new Map<string, string[]>();
   for (const r of ((seatRowsAll ?? []) as { app_user_id: string; role: string; project_role: string | null }[])) {
@@ -138,51 +144,112 @@ export default async function AdminUsersPage({
     { key: "admin", label: "Administrators", note: "Full platform rights" },
     { key: "other", label: "Signed up, nothing yet", note: "No home, no trade, no seat" },
   ];
-  const activeAccounts = accounts.filter((a) => a.is_active);
-  const suspended = accounts.filter((a) => !a.is_active);
+  // One search box for people: it narrows the accounts below AND the contact
+  // book at the bottom. Name, email, phone, or a trade they hold.
+  const query = (q ?? "").trim();
+  const needle = query.toLowerCase();
+  const matches = (a: Account) => {
+    if (!needle) return true;
+    const c = a.contact_id ? contactOf.get(a.contact_id) : null;
+    const hay = [a.full_name, a.email, c?.name, c?.phone, c?.email_a, ...(a.contact_id ? tradesOf.get(a.contact_id) ?? [] : [])]
+      .filter(Boolean).join(" ").toLowerCase();
+    return hay.includes(needle);
+  };
+  const activeAccounts = accounts.filter((a) => a.is_active && matches(a));
+  const suspended = accounts.filter((a) => !a.is_active && matches(a));
   const byType = new Map<AccountType, Account[]>();
   for (const a of activeAccounts) { const t = typeOf(a); byType.set(t, [...(byType.get(t) ?? []), a]); }
   const fmtWhen = (d: string | null) => d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "never";
+  // One account, and behind "Edit" everything an administrator does to a
+  // person: contact details, the trades they hold, and the switch - off with a
+  // reason, on again. View-as and act-as stay where they were.
   const accountRow = (u: Account) => {
     const seats = seatsOf.get(u.id) ?? [];
     const trades = u.contact_id ? tradesOf.get(u.contact_id) ?? [] : [];
     const homes = homesOf.get(u.id) ?? 0;
+    const contact = u.contact_id ? contactOf.get(u.contact_id) ?? null : null;
     const facts = [
       homes > 0 ? `${homes} home${homes === 1 ? "" : "s"}` : null,
       trades.length > 0 ? trades.join(", ") : null,
       seats.length > 0 ? seats.join(", ") : null,
     ].filter(Boolean).join(" · ");
     return (
-      <div key={u.id} className="card" style={{ padding: "10px 14px", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <span className="small" style={{ minWidth: 0 }}>
-          <strong>{u.full_name ?? u.email}</strong>
-          <span className="muted"> · {u.email}{u.is_active ? "" : " · SUSPENDED"}</span>
-          <br />
-          <span className="muted">
-            {u.login_count ?? 0} login{(u.login_count ?? 0) === 1 ? "" : "s"} · last {fmtWhen(u.last_login_at)} · joined {fmtWhen(u.created_at)}
-            {facts ? ` · ${facts}` : ""}
+      <details key={u.id} className="card" style={{ padding: "10px 14px" }}>
+        <summary style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", cursor: "pointer", listStyle: "none" }}>
+          <span className="small" style={{ minWidth: 0 }}>
+            <strong>{u.full_name ?? u.email}</strong>
+            <span className="muted"> · {u.email}{u.is_active ? "" : " · OFF"}</span>
+            <br />
+            <span className="muted">
+              {u.login_count ?? 0} login{(u.login_count ?? 0) === 1 ? "" : "s"} · last {fmtWhen(u.last_login_at)} · joined {fmtWhen(u.created_at)}
+              {facts ? ` · ${facts}` : ""}
+              {!u.is_active && u.disabled_reason ? ` · off because: ${u.disabled_reason}` : ""}
+            </span>
           </span>
-        </span>
-        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
-          {u.is_active && !u.is_superadmin && (
-            <>
-              <form action={beginViewAs.bind(null, u.id, false, "/my")}>
-                <button className="btn ghost" style={{ padding: "6px 12px" }} title="Their eyes only; changes refused">👁 View as</button>
+          <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+            {u.is_active && !u.is_superadmin && (
+              <>
+                <form action={beginViewAs.bind(null, u.id, false, "/my")}>
+                  <button className="btn ghost" style={{ padding: "6px 12px" }} title="Their eyes only; changes refused">👁 View as</button>
+                </form>
+                <form action={beginViewAs.bind(null, u.id, true, "/my")}>
+                  <button className="btn" style={{ padding: "6px 12px" }} title="Their hands too; every change is logged with your name behind it">⚡ Act as</button>
+                </form>
+              </>
+            )}
+            <span className="btn ghost" style={{ padding: "6px 12px" }}>Edit ▾</span>
+          </span>
+        </summary>
+
+        <div style={{ display: "grid", gap: 12, paddingTop: 12, borderTop: "1px solid var(--line)", marginTop: 10 }}>
+          {contact ? (
+            <div>
+              <span className="stat-kicker">Contact</span>
+              <form action={saveParty.bind(null, "contact", contact.id)} className="btn-row" style={{ marginTop: 6 }}>
+                <input name="name" className="input" defaultValue={contact.name ?? ""} placeholder="Name" style={{ maxWidth: 200 }} />
+                <input name="phone" className="input" defaultValue={contact.phone ?? ""} placeholder="Phone" style={{ maxWidth: 160 }} />
+                <input name="email" className="input" defaultValue={contact.email_a ?? ""} placeholder="Email" style={{ maxWidth: 220 }} />
+                <button className="btn ghost" style={{ padding: "6px 12px" }}>Save contact</button>
               </form>
-              <form action={beginViewAs.bind(null, u.id, true, "/my")}>
-                <button className="btn" style={{ padding: "6px 12px" }} title="Their hands too; every change is logged with your name behind it">⚡ Act as</button>
-              </form>
-            </>
+            </div>
+          ) : (
+            <p className="muted small" style={{ margin: 0 }}>No contact card behind this account yet - it is created the first time they add a home or register a trade.</p>
           )}
+
+          {contact && (
+            <div>
+              <span className="stat-kicker">Trades</span>
+              <form action={setTrades.bind(null, contact.id)} style={{ marginTop: 6 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", maxHeight: 180, overflowY: "auto", padding: "4px 0" }}>
+                  {TRADES.map((t) => (
+                    <label key={t} className="small" style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                      <input type="checkbox" name="trade" value={t} defaultChecked={trades.includes(t)} /> {t}
+                    </label>
+                  ))}
+                </div>
+                <button className="btn ghost" style={{ padding: "6px 12px", marginTop: 6 }}>Save trades</button>
+              </form>
+            </div>
+          )}
+
           {!u.is_superadmin && (
-            <form action={toggleAccount.bind(null, u.id, !u.is_active)}>
-              <button className={u.is_active ? "btn ghost" : "btn"} style={{ padding: "6px 12px" }}>
-                {u.is_active ? "Suspend" : "Resume"}
-              </button>
-            </form>
+            <div>
+              <span className="stat-kicker">{u.is_active ? "Switch off" : "Switch on"}</span>
+              {u.is_active ? (
+                <form action={setActive.bind(null, u.id, false)} className="btn-row" style={{ marginTop: 6 }}>
+                  <input name="note" className="input" placeholder="Why - one line, kept on the record" required style={{ maxWidth: 360 }} />
+                  <button className="btn ghost" style={{ padding: "6px 12px", color: "#a03a2b", borderColor: "#a03a2b" }}>Switch off</button>
+                </form>
+              ) : (
+                <form action={setActive.bind(null, u.id, true)} className="btn-row" style={{ marginTop: 6 }}>
+                  <span className="muted small">Off{u.disabled_reason ? ` - ${u.disabled_reason}` : ""}.</span>
+                  <button className="btn" style={{ padding: "6px 12px" }}>Switch on</button>
+                </form>
+              )}
+            </div>
           )}
-        </span>
-      </div>
+        </div>
+      </details>
     );
   };
   // The eight seats the picker offers, in Shahar's order.
@@ -199,8 +266,7 @@ export default async function AdminUsersPage({
     { label: "Open tasks", value: openTasks },
   ];
 
-  // Contact-book search.
-  const query = (q ?? "").trim();
+  // Contact-book search, same query.
   const [foundContacts, foundCompanies] = query
     ? await Promise.all([
         supabase
@@ -232,9 +298,16 @@ export default async function AdminUsersPage({
         ))}
       </div>
 
+      <form className="btn-row" style={{ marginBottom: 14 }}>
+        <input name="q" className="input" placeholder="Find a person: name, email, phone or trade…" defaultValue={query} style={{ maxWidth: 420 }} autoFocus />
+        <button className="btn">Search</button>
+        {query && <Link href="/admin/users" className="btn ghost">Clear</Link>}
+      </form>
+
       <div style={{ display: "grid", gap: 14 }}>
         <div className="card" style={{ display: "grid", gap: 12 }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Users · {activeAccounts.length} active</h2>
+          <h2 className="section-title" style={{ margin: 0 }}>{query ? `People matching "${query}" · ${activeAccounts.length}` : `Users · ${activeAccounts.length} active`}</h2>
+          {query && activeAccounts.length === 0 && suspended.length === 0 && <p className="muted small" style={{ margin: 0 }}>No account matches. The contact book below may still have them.</p>}
           {TYPES.map((t) => {
             const list = byType.get(t.key) ?? [];
             if (list.length === 0) return null;
@@ -250,7 +323,7 @@ export default async function AdminUsersPage({
           })}
           {suspended.length > 0 && (
             <details className="tradefold">
-              <summary>Suspended · {suspended.length}</summary>
+              <summary>Switched off · {suspended.length}</summary>
               <div style={{ display: "grid", gap: 6, paddingTop: 8 }}>{suspended.map(accountRow)}</div>
             </details>
           )}
@@ -350,10 +423,7 @@ export default async function AdminUsersPage({
 
         <div className="card">
           <h2 className="section-title">Contacts &amp; companies</h2>
-          <form className="btn-row" style={{ marginBottom: 10 }}>
-            <input name="q" className="input" placeholder="Search name, email or phone…" defaultValue={query} style={{ maxWidth: 300 }} />
-            <button className="btn ghost">Search</button>
-          </form>
+          {!query && <p className="muted small" style={{ margin: 0 }}>Contacts and companies without an account show up here when you search above.</p>}
           {query && (
             <div style={{ display: "grid", gap: 8 }}>
               {(foundContacts.data ?? []).map((c) => (

@@ -1,24 +1,21 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getMe, targetWindowLabel, type BookingSummary, type Home } from "@/lib/me";
+import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
 import { currentMonth, isBookable, loadTiles, seasonal, type Tile } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
-import { AppBar, Card, ChevronIcon, HouseIcon, Notice, Screen, ShellIcons } from "@shared/ui";
+import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
 import { PackageTile } from "@/components/PackageTile";
-import { HomeTabs } from "@/components/HomeTabs";
 import { PhotoBanner } from "@/components/PhotoBanner";
 import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Green Bergen" };
 
-// The home screen leads with the QUESTION, not the filing cabinet: eight
-// packages we can price on the spot, four to a row, then More. Everything
-// the member already has - homes, jobs planned, live, done and cancelled -
-// sits underneath, because a returning member scrolls to it while a new one
-// never has to. Tapping a home narrows the jobs to that home (?home=); the
-// state chips narrow them further.
+// The home screen leads with the QUESTION, not the filing cabinet: the
+// catalogue first, then the member's own projects - planned, live, done,
+// cancelled - underneath, because a returning member scrolls to them while a
+// new one never has to. Homes themselves live in the profile.
 type Bucket = "all" | "planned" | "live" | "done" | "cancelled";
 const BUCKETS: { key: Bucket; label: string }[] = [
   { key: "all", label: "All" }, { key: "planned", label: "DIY" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" }, { key: "cancelled", label: "Cancelled" },
@@ -77,7 +74,6 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   for (const b of mine) counts[bucketOf(b)]++;
   const shown = filter === "all" ? mine : mine.filter((b) => bucketOf(b) === filter);
   const manyHomes = me.homes.length > 1;
-  const canAdd = me.home_quota?.can_add ?? true;
   const order: Exclude<Bucket, "all">[] = ["live", "planned", "done", "cancelled"];
   const href = (b: Bucket) => {
     const q = new URLSearchParams();
@@ -88,7 +84,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
   return (
     <Screen>
-      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} />} />
+      <AppBar brand door="homeowner" right={<ShellIcons unread={unread}  homeHref="/project" />} />
       <div className="body">
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
         {ok === "removed" && <div className="banner-ok">Removed from your DIY projects. Nothing was ever sent.</div>}
@@ -146,18 +142,18 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </section>
         )}
 
-        {(me.homes.length > 0 || me.bookings.length > 0) ? (
+        {/* The jobs - planned, live, done, cancelled. The list of HOMES is not
+            here any more: it lives in the profile (gear), where it can be
+            edited, and "add another home" is offered where it is actually
+            needed - when a package is booked and the wizard asks which home.
+            The ?home= filter still works for links that carry it. */}
+        {me.bookings.length > 0 ? (
           <>
             <div className="divider-label" style={{ marginTop: 6 }}>
-              {onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : manyHomes ? `Your homes · ${me.homes.length}` : "Your home"}
+              {onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : "Your projects"}
             </div>
-
-            {onlyHome ? (
+            {onlyHome && (
               <Link href="/project" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }}>← All homes</Link>
-            ) : (
-              <section className="homes">
-                {me.homes.map((h) => <HomeLine key={h.project_id} home={h} />)}
-              </section>
             )}
 
             {mine.length > 0 && (
@@ -180,43 +176,17 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
                 </section>
               );
             })}
-
-            <Link href="/homes/new" className={`home-row add ${canAdd ? "" : "disabled"}`} style={canAdd ? undefined : { opacity: 0.6 }}>
-              <span className="ic">+</span>
-              <span className="grow">
-                <span className="t">Add another home</span>
-                <span className="m" style={{ display: "block" }}>{canAdd ? "A rental, a second home, a parent's place." : `Your agreement covers ${me.home_quota?.allowed ?? 1} home${(me.home_quota?.allowed ?? 1) === 1 ? "" : "s"}.`}</span>
-              </span>
-              <ChevronIcon />
-            </Link>
           </>
         ) : (
           <Card soft pad>
-            <div className="small">No home on file yet — picking a package adds one. Or <Link href="/homes/new">just add your home</Link> and start a DIY project for it.</div>
+            <div className="small">Nothing on your list yet — tap a package above to start one. Your home is added the first time a project needs it.</div>
           </Card>
         )}
       </div>
-      <HomeTabs current="project" unread={unread} />
     </Screen>
   );
 }
 
-function HomeLine({ home: h }: { home: Home }) {
-  const bits: string[] = [];
-  if (h.live) bits.push(`${h.live} in progress`);
-  if (h.planned) bits.push(`${h.planned} DIY`);
-  if (h.done) bits.push(`${h.done} done`);
-  return (
-    <Link href={`/project?home=${h.project_id}`} className="home-row">
-      <span className="ic"><HouseIcon /></span>
-      <span className="grow">
-        <span className="t">{h.address?.split(",")[0] ?? h.name ?? "Home"}</span>
-        <span className="m" style={{ display: "block" }}>{h.address?.split(",").slice(1).join(",").trim() || h.town || ""}{bits.length ? ` · ${bits.join(", ")}` : " · nothing yet"}</span>
-      </span>
-      <ChevronIcon />
-    </Link>
-  );
-}
 
 function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boolean }) {
   const pill =

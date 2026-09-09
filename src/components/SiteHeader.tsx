@@ -5,18 +5,17 @@ import Link from "next/link";
 // apps/shared/ui.tsx; this is the portal's copy because the root tsconfig
 // does not reach into apps/.
 //
-// The line defaults to MY HOME - the portal is the owner's home ("My home ...
-// my way") - and TopNav overrides it with the seat you actually hold on the
+// The line defaults to HOMES - the portal is where the houses live - and TopNav overrides it with the seat you actually hold on the
 // project you are looking at (VISITOR, PROJECT M., CONTRACTOR, ADMIN).
 //
-// THE HOUSE IS THE HEIGHT OF THE "g": roof at the top of the letter, floor at
-// the bottom of its descender. Sized in em and dropped below the baseline by
+// THE HOUSE SPANS THE WORD: roof at the top of the "b", floor at the bottom
+// of the "g" - ascender to descender. Sized in em and dropped below the baseline by
 // the descender, so it moves with the font and never with the door line.
-const HOUSE_EM = 0.78;
+const HOUSE_EM = 0.98;
 const DESCENT_EM = 0.22;
 const GAP_PX = 5;
 
-export function Wordmark({ small = false, href = "/", door = "My home" }: { small?: boolean; href?: string; door?: React.ReactNode }) {
+export function Wordmark({ small = false, href = "/", door = "Homes" }: { small?: boolean; href?: string; door?: React.ReactNode }) {
   const size = small ? 17 : 21;
   const house = Math.round(size * HOUSE_EM);
   return (

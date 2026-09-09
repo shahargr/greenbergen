@@ -40,15 +40,24 @@ export async function vendorDecision(contactId: string, approve: boolean) {
   done(error?.message);
 }
 
-// Suspend / resume an account.
-export async function toggleAccount(userId: string, active: boolean) {
-  const { supabase, me } = await admin();
-  if (userId === me.app_user_id && !active) done("You cannot suspend your own account.");
-  const { error } = await supabase
-    .from("app_users")
-    .update({ is_active: active })
-    .eq("id", userId);
-  done(error?.message);
+// Switch an account off or on. Off requires a reason, and the reason is
+// kept on the account and its contact (admin_user_set_active, migration 027)
+// - a person who is turned away should be able to be told why, and the
+// admin who did it six months ago should not have to remember.
+export async function setActive(userId: string, active: boolean, formData: FormData) {
+  const { supabase } = await admin();
+  const note = String(formData.get("note") ?? "").trim() || null;
+  const { data, error } = await supabase.rpc("admin_user_set_active", { p_user: userId, p_active: active, p_note: note });
+  done(error?.message ?? (data?.ok === false ? data.reason : null));
+}
+
+// The whole trade set for a contact, in one call: what is ticked is what they
+// hold. The vocabulary is the trades table; an unknown value is refused.
+export async function setTrades(contactId: string, formData: FormData) {
+  const { supabase } = await admin();
+  const trades = formData.getAll("trade").map(String).filter(Boolean);
+  const { data, error } = await supabase.rpc("admin_user_trades_set", { p_contact: contactId, p_trades: trades });
+  done(error?.message ?? (data?.ok === false ? data.reason : null));
 }
 
 // Cancel a pending invitation.

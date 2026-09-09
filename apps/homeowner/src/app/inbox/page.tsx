@@ -7,7 +7,6 @@ import { getMe } from "@/lib/me";
 import { ago, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
-import { HomeTabs } from "@/components/HomeTabs";
 import { PhotoBanner } from "@/components/PhotoBanner";
 import { TaskDone } from "@/components/TaskDone";
 import { Messages } from "@shared/inbox/Inbox";
@@ -55,7 +54,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} />} />
+      <AppBar brand door="homeowner" right={<ShellIcons unread={unread}  homeHref="/project" />} />
       <div className="body">
         <div className="hero">
           <h1>Inbox</h1>
@@ -135,7 +134,6 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
         <Messages data={portal} base="/inbox" projectHref={(id) => `/project/${id}`} heading="From your projects" />
       </div>
-      <HomeTabs current="inbox" unread={unread + incoming.length} />
     </Screen>
   );
 }
