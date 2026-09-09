@@ -234,10 +234,30 @@ visible line: *"The address is shared the moment you accept."*
 
 Three actions: **Accept** · **Ask to connect** (C9) · **Pass**.
 
-### C9 · Ask to connect
+### C9 · Ask to connect — **BUILT** (migrations 033-034, 2026-09-09)
 The contractor writes what they need to know. The request lands in the
 homeowner's inbox as an `actions` row; the homeowner approves or declines.
 On approval a private thread opens between the two contacts in `messages`.
+
+Shipped as: `homeowner_offer_ask` (contractor asks; one open question per
+contractor per job, a second appends), `homeowner_offer_questions` (both
+sides, `mine` says which), `homeowner_offer_question_respond` (approve with
+an answer, or decline with a final message), `homeowner_offer_thread` /
+`homeowner_offer_thread_send` (open threads only). Screens: the homeowner
+answers from `/inbox`; the contractor asks and replies from `/offer/[id]`.
+Once open, the back-and-forth is ordinary directed messages carrying the
+question's `action_id`, so it lands in both inboxes with no second read —
+`portal_my_messages` returns a directed message without asking about project
+membership, which is what lets an unseated contractor see the answer.
+`can_see_message` gained the matching branch so a direct table read and the
+inbox function cannot disagree about one row.
+
+Verified end to end against the live generator offer: after asking, being
+answered and replying, `bid_may_see_address` is still false, the contractor
+is unseated, the booking is `posted`, the bid is `invited` and the price is
+unmoved. A third contractor invited to the same offer sees no thread, cannot
+write to it, cannot approve it, and reads none of its messages. Closing the
+question closes the channel.
 
 **The address stays withheld.** Approving a thread does not seat the
 contractor and does not satisfy `bid_may_see_address`. Say so on both

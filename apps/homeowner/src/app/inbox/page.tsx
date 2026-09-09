@@ -11,6 +11,8 @@ import { PhotoBanner } from "@/components/PhotoBanner";
 import { TaskDone } from "@/components/TaskDone";
 import { Messages } from "@shared/inbox/Inbox";
 import { loadInbox } from "@shared/inbox/data";
+import { OfferQuestions } from "@shared/offer/Questions";
+import { loadQuestions } from "@shared/offer/questions";
 import { respondInvite } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +36,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient();
   // All three reads leave together - the invitations and tasks do not depend
   // on the profile, so waiting for it first only added its latency to theirs.
-  const [me, { data: inv }, { data: tasks }, portal] = await Promise.all([
+  const [me, { data: inv }, { data: tasks }, portal, questions] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("invites", () => rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites")),
     w.step("tasks", () => rpc<Task[]>(supabase, "homeowner_tasks", { p_limit: 25 })),
@@ -42,6 +44,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     // booking conversations and open tasks above are not in portal_my_messages
     // and would be lost by a swap.
     w.step("messages", () => loadInbox()),
+    // A contractor asking before they accept is a job standing still, so it
+    // travels with the rest rather than waiting on any of them.
+    w.step("questions", () => loadQuestions()),
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/inbox");
@@ -65,6 +70,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         {ok === "accepted" && <div className="banner-ok">You&apos;re on the project. It&apos;s under My home.</div>}
         {ok === "declined" && <div className="banner-ok">Declined. They&apos;ll see that.</div>}
         <PhotoBanner bookings={me.bookings} />
+
+        {/* Above everything: someone wants your job and needs one answer. */}
+        <OfferQuestions questions={questions} base="/inbox" />
 
         {incoming.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>
