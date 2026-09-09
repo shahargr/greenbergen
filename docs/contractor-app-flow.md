@@ -21,7 +21,8 @@ Its sibling for the homeowner side is `apps/homeowner/docs/retiring-the-old-port
 has replaced.
 
 **Status, 2026-09-08:** §3 (getting in) and §4.1 (business, trades, documents)
-ARE BUILT and live at `greenbergen-contractor.vercel.app`. Everything from §5
+ARE BUILT and live at `greenbergen.vercel.app/pro` (the Vercel project is
+`greenbergen-pro`; the portal proxies the path). Everything from §5
 onward - the offer feed, both bid doors, the job, money, finishing - is not.
 Read the [live]/[wired]/[new] tags below as describing the DATABASE, not the
 contractor app: "[live]" means the root portal renders it today, not that this

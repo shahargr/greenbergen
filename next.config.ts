@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
 // path to each of them:
 //
 //   /home  -> greenbergen-homeowner   (built with basePath /home)
-//   /pro   -> greenbergen-contractor  (basePath /pro) - the Home experts app
+//   /pro   -> greenbergen-pro         (basePath /pro) - the Home experts app
 //
 // /build was a third zone until the builder app merged into /pro (migration
 // 030: project management is a trade, not a door). It redirects now rather
@@ -19,10 +19,15 @@ import type { NextConfig } from "next";
 //
 // ZONE_* lets a destination move (a preview, a new project) without a code
 // change; the production URLs are the fallback so nothing breaks if unset.
+//
+// A FALLBACK IS A HOSTNAME, AND A HOSTNAME FOLLOWS THE VERCEL PROJECT NAME.
+// Renaming the project renames its .vercel.app host, and a .vercel.app domain
+// cannot be re-added by hand, so the old one is simply gone. The rename and
+// this line have to land together or /pro rewrites to nothing.
 const zone = (env: string | undefined, fallback: string) => (env?.trim() || fallback).replace(/\/$/, "");
 const ZONES: Record<string, string> = {
   home: zone(process.env.ZONE_HOMEOWNER, "https://greenbergen-homeowner.vercel.app"),
-  pro: zone(process.env.ZONE_EXPERT, "https://greenbergen-contractor.vercel.app"),
+  pro: zone(process.env.ZONE_EXPERT, "https://greenbergen-pro.vercel.app"),
 };
 
 const nextConfig: NextConfig = {

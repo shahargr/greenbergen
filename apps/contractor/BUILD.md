@@ -89,9 +89,13 @@ apps/shared/                     # imported as @shared/*
   src/db/                        # SQL migrations (001–008 today)
 ```
 
-- **Vercel**: new project `greenbergen-contractor`, Root Directory
-  `apps/contractor`, production branch `main`. Parallel URL; the homeowner
-  app and the portal are untouched.
+- **Vercel**: project `greenbergen-pro`, Root Directory `apps/contractor`,
+  production branch `main`. Renamed from `greenbergen-contractor` on
+  2026-09-09 to match the door: this is the Home experts app, and project
+  management is a trade inside it, not a separate project. The folder keeps
+  its name so the Root Directory setting stays valid. The portal reaches it
+  by hostname (`next.config.ts` ZONES) - see the note there before renaming
+  again.
 - **npm workspace**: the repo root already declares `"workspaces": ["apps/*"]`.
   `npm install` runs at the root; one `node_modules`.
 - **Auth**: the same Supabase Auth, the same `app_users` row, the same
