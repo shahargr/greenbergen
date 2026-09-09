@@ -516,6 +516,19 @@ How a booked package reaches a contractor. All of this is LIVE, in
    promise exists to avoid.
 6. **Nobody eligible** is said out loud rather than hidden behind "finding your
    contractor". `offered_count = 0` gets its own screen.
+7. **A lower called price earns first refusal** (Shahar, 2026-09-09, option 2
+   of three; migration 046). A contractor signs up to serve a package from
+   `/packages` and may call their own price for its basic setup
+   (`package_contractors`). The community price does not move and the
+   contract is still written at it. But when a job is posted, the eligible
+   contractor with the LOWEST called price below the community price is
+   invited alone for `config.first_refusal_hours` (12); the rest of the trade
+   is invited when the window passes (`open-first-refusals`, every five
+   minutes) or the moment the holder passes. The holder's invitation says
+   so, and the offer page shows the deadline. Inviting is one idempotent
+   function (`homeowner_invite_eligible`): a `bids` row means you were
+   asked, and nobody is asked twice. Not taken: a floating community price
+   set by the lowest call, or called prices as Admin's input only.
 
 ## 12. Open decisions
 

@@ -13,6 +13,9 @@ export type Offer = {
   price_cents: number; config_label: string | null; town: string | null;
   posted_at: string | null; reply_by: string | null;
   scope: string[] | null; photos: number; status: string;
+  // Set while this contractor holds the job alone - they called the lowest
+  // price for the package's basic setup (migration 046). Null otherwise.
+  first_refusal_until?: string | null;
 };
 
 export async function loadOffers(): Promise<Offer[]> {

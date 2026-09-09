@@ -18,9 +18,10 @@ export const metadata = { title: "Packages" };
 // One row per package whose trade you hold. Open it to read what the
 // basic setup includes, what the levers add, what the community price is
 // and what accepted jobs have gone for - then sign up, and name your own
-// price for the basic setup if it differs. What is recorded here is shown
-// to Admin; how a called price reaches a homeowner is not wired yet, and
-// the row says so rather than implying it is.
+// price for the basic setup if it differs. A called price below the
+// community price earns FIRST REFUSAL on new jobs (migration 046, Shahar's
+// option 2): the lowest call is invited alone for a window, then the job
+// opens to the trade. The homeowner always pays the community price.
 type Pkg = {
   code: string; name: string; tile_title: string; trade: string; availability: string;
   base_price_cents: number | null; config_label: string | null; illustration: string | null; requires_permit: boolean;
@@ -124,7 +125,7 @@ export default async function PackagesPage({ searchParams }: { searchParams: Pro
                       <span className="field-label">Your price for the basic setup <span className="text-muted">(optional)</span></span>
                       <input className="input" name="price" inputMode="decimal" placeholder={`${(p.base_price_cents / 100).toFixed(0)} is the community price`}
                         defaultValue={p.mine?.price_cents != null ? (p.mine.price_cents / 100).toFixed(0) : ""} />
-                      <p className="hint">Leave it blank to work at the community price. A price you call is recorded and shown to Green Bergen; it does not change what homeowners see yet.</p>
+                      <p className="hint">Leave it blank to work at the community price. Call a lower one and new jobs on this package come to you first: the lowest call gets first refusal for a window before the job opens to the trade. The homeowner still pays the community price.</p>
                     </label>
                   )}
                   <label className="field">

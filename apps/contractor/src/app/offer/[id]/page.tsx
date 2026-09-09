@@ -78,6 +78,14 @@ export default async function OfferPage({
           </p>
         </div>
 
+        {offer.first_refusal_until && (
+          <Notice title="You have first refusal on this one.">
+            You called the lowest price for this package&apos;s basic setup, so it is yours alone until{" "}
+            {new Date(offer.first_refusal_until).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" })}.
+            After that it opens to every {offer.trade ?? ""} contractor in the community. The job is still at the community price.
+          </Notice>
+        )}
+
         <Card pad={false}>
           <div className="price">
             <div className="kicker">The community price</div>

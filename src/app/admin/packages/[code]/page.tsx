@@ -250,7 +250,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       {/* 6. WHO SERVES IT */}
       <div className="card" id="servers" style={{ marginTop: 14 }}>
         <h2 className="section-title">Contractors serving this package · {p.contractors.filter((c) => c.status === "active").length}</h2>
-        <p className="muted small" style={{ marginTop: 0 }}>Who has signed up from the Home experts app, and the price they call for the basic setup when it differs from the community price. Recorded and shown; not yet applied to offers.</p>
+        <p className="muted small" style={{ marginTop: 0 }}>Who has signed up from the Home experts app, and the price they call for the basic setup when it differs from the community price. The lowest call below the community price gets first refusal on new jobs for the window set in config (first_refusal_hours); the homeowner always pays the community price.</p>
         {p.contractors.length === 0 && <p className="muted small">Nobody yet.</p>}
         {p.contractors.length > 0 && (
           <table className="tasktable"><thead><tr><th>Contractor</th><th>Status</th><th style={{ textAlign: "right" }}>Their price</th><th>Note</th></tr></thead>
