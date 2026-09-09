@@ -1,0 +1,24 @@
+-- 014 - one comment table. Applied via mcp `merge_task_comments_into_action_comments`.
+-- See the applied migration for the full body; the reasoning in short:
+--
+-- There is no `tasks` table and never was: one entity (actions) with two note
+-- tables. action_comments is the one the function surface writes and reads (13
+-- rows). task_comments (2 rows) was written by NOTHING in the database - only
+-- the portal's three direct inserts, which bypassed the function surface.
+--
+-- CARRIED OVER: task_comments.author_contact_id, a real FK to contacts, better
+-- than action_comments.author (free text). Both rows moved with their contact.
+--
+-- THE PERMISSION TRAP: the portal's comment box is open to anyone who can SEE
+-- the task, and the live RLS agreed - action_comments had SIX policies, OR'd,
+-- so the permissive comment_write (can_see_action alone) already decided
+-- inserts and the stricter action_comments_write was dead weight. But
+-- add_task_comment() checked can_edit_project - owner/manager/collaborator AND
+-- current billing. Repointing the portal at it unchanged would have silently
+-- stopped viewers and contract-bounded members commenting, and started failing
+-- when billing lapsed. So add_task_comment was relaxed to can_see_action, to
+-- match the table and the behaviour that was already live. Preserving
+-- behaviour, not widening it.
+--
+-- Policies consolidated from six to four, with the same effective permission.
+-- task_comments dropped. actions -> action_comments still cascades on delete.

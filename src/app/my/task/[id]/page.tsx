@@ -62,8 +62,10 @@ export default async function TaskPage({
     await Promise.all([
       taskPerms(t.project_id, t.assigned_to_contact_id),
       supabase
-        .from("task_comments")
-        .select("id, author_name, body, created_at")
+        // One comment table since migration 014. The column is `author`
+        // here; aliased so CommentView and the editor stay as they were.
+        .from("action_comments")
+        .select("id, author_name:author, body, created_at")
         .eq("action_id", t.id)
         .order("created_at", { ascending: false })
         .limit(50),

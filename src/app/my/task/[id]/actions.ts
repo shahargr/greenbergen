@@ -257,12 +257,10 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
   }
   const { error } = await supabase.from("actions").update(updates).eq("id", taskId);
   if (!error && comment) {
-    const { data: me } = await supabase.rpc("me");
-    await supabase.from("task_comments").insert({
-      action_id: taskId, author_contact_id: me?.contact_id ?? null,
-      author_name: me?.full_name ?? me?.email ?? "Someone",
-      body: `Moved to ${st}: ${comment}`,
-    });
+    // Through the function surface, not a direct insert: add_task_comment
+    // stamps the author and the contact from the session and checks the task
+    // is yours to see. (Migration 014 merged task_comments away.)
+    await supabase.rpc("add_task_comment", { p_action_id: taskId, p_body: `Moved to ${st}: ${comment}` });
   }
   revalidatePath(`/my/task/${taskId}`);
   revalidatePath("/my");
@@ -344,11 +342,8 @@ export async function uploadEvidence(taskId: string, formData: FormData) {
         const t = await transcribeAudio(f.bytes, f.name, f.mime);
         if (!t.ok) continue;
         await supabase.from("files").update({ ai_metadata: { transcript: t.text, transcribed_by: t.provider } }).eq("id", f.fileId);
-        const { data: me } = await supabase.rpc("me");
-        await supabase.from("task_comments").insert({
-          action_id: taskId, author_contact_id: me?.contact_id ?? null,
-          author_name: me?.full_name ?? me?.email ?? "Someone",
-          body: `🎙 Voice note transcription:\n${t.text}`,
+        await supabase.rpc("add_task_comment", {
+          p_action_id: taskId, p_body: `🎙 Voice note transcription:\n${t.text}`,
         });
       }
     }
@@ -433,24 +428,22 @@ export async function completeTask(taskId: string, formData: FormData) {
   redirect(nextId ? `/my/task/${nextId}?saved=1` : "/my?panel=tasks");
 }
 // Comments never require unlocking: anyone who can SEE the task (project
-// member) can leave one. RLS on task_comments is the enforcement; the
-// author stamp comes from the session, not the form.
+// member) can leave one. add_task_comment enforces exactly that - migration
+// 014 relaxed it from can_edit_project to can_see_action for this reason,
+// because moving this insert onto the function would otherwise have silently
+// stopped viewers and contract-bounded members commenting. The author stamp
+// comes from the session, not the form.
 export async function addComment(taskId: string, formData: FormData) {
   const supabase = await createClient();
   const body = String(formData.get("body") ?? "").trim();
   if (!body) {
     redirect(`/my/task/${taskId}?error=${encodeURIComponent("Write the comment first.")}`);
   }
-  const { data: me } = await supabase.rpc("me");
-  const { error } = await supabase.from("task_comments").insert({
-    action_id: taskId,
-    author_contact_id: me?.contact_id ?? null,
-    author_name: me?.full_name ?? me?.email ?? "Someone",
-    body,
-  });
+  const { data, error } = await supabase.rpc("add_task_comment", { p_action_id: taskId, p_body: body });
   revalidatePath(`/my/task/${taskId}`);
-  redirect(error
-    ? `/my/task/${taskId}?error=${encodeURIComponent(error.message)}`
+  const reason = error?.message ?? (data && data.ok === false ? data.reason : null);
+  redirect(reason
+    ? `/my/task/${taskId}?error=${encodeURIComponent(reason)}`
     : `/my/task/${taskId}?saved=1`);
 }
 
