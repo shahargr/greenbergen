@@ -7,10 +7,18 @@ import { dollars } from "@shared/format";
 import { Card, NumberedNotes } from "@shared/ui";
 import { PriceBlock } from "@shared/PriceBlock";
 import { AdjustPanel } from "./AdjustPanel";
+import { NotifyMe } from "./NotifyMe";
 
 // Screen 5b + 6: price, "adjust it", good-to-know, book. The price moves
 // live as levers change; the formula stays hidden.
-export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pkg: Package; initial: Selections; signedIn: boolean; openAdjust: boolean }) {
+//
+// covered = is anyone approved to do this trade. When nobody is, the price is
+// still real and DIY still works - what cannot happen is turn-key, because the
+// offer would go out and reach nobody. So the turn-key button becomes "tell me
+// when someone covers this" and DIY becomes the primary act. The price stays
+// on screen either way: a member deciding whether to do it themselves needs
+// the number more, not less.
+export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covered = true }: { pkg: Package; initial: Selections; signedIn: boolean; openAdjust: boolean; covered?: boolean }) {
   const [sel, setSel] = useState<Selections>(initial);
   const [open, setOpen] = useState(openAdjust);
   const price = priceFor(pkg, sel);
@@ -24,6 +32,10 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pk
   const planHref = signedIn ? planPath : `/join?next=${encodeURIComponent(planPath)}`;
 
   const notes: React.ReactNode[] = [];
+  if (!covered) {
+    notes.push(<>This price is real and it is the community price — but no approved contractor covers {pkg.trade ? pkg.trade.toLowerCase() : "this trade"} on Green Bergen yet, so we cannot hand it to anyone today.</>);
+    notes.push(<>You can still start it as a DIY project. It keeps the scope and today&apos;s price as your reference, and switches to turn-key the moment someone covers it.</>);
+  }
   if (pkg.requires_permit) {
     notes.push(<>A town permit is required. Your contractor meets you to sign the papers.</>);
     notes.push(<>{pkg.permit_deposit_pct}% ({dollars(deposit)}) is due when the permit process begins — paid to the contractor, not to us.</>);
@@ -57,19 +69,39 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust }: { pk
       <div className="actions" style={{ padding: 0, marginTop: 8 }}>
         <div className="divider-label">How do you want to take it on?</div>
 
-        <Link href={bookHref} className="btn btn-primary btn-block">
-          {pkg.instant_book ? `Turn-key · ${dollars(price)}` : `Turn-key · request at ${dollars(price)}`}
-        </Link>
-        <p className="small text-muted center" style={{ margin: "0 0 6px" }}>
-          We match the contractor and hold this price. Next: your address, then{" "}
-          {pkg.photos.length === 1 ? "one photo" : `${["", "one", "two", "three", "four"][pkg.photos.length] ?? pkg.photos.length} photos`}. No payment today.
-        </p>
+        {covered ? (
+          <>
+            <Link href={bookHref} className="btn btn-primary btn-block">
+              {pkg.instant_book ? `Turn-key · ${dollars(price)}` : `Turn-key · request at ${dollars(price)}`}
+            </Link>
+            <p className="small text-muted center" style={{ margin: "0 0 6px" }}>
+              We match the contractor and hold this price. Next: your address, then{" "}
+              {pkg.photos.length === 1 ? "one photo" : `${["", "one", "two", "three", "four"][pkg.photos.length] ?? pkg.photos.length} photos`}. No payment today.
+            </p>
 
-        <Link href={planHref} className="btn btn-secondary btn-block">Add to my DIY projects</Link>
-        <p className="tiny text-muted center" style={{ margin: 0 }}>
-          Yours to do, at your pace. Keeps the scope and today&apos;s price as your reference, and
-          nothing goes to contractors. Switch it to turn-key whenever you want.
-        </p>
+            <Link href={planHref} className="btn btn-secondary btn-block">Add to my DIY projects</Link>
+            <p className="tiny text-muted center" style={{ margin: 0 }}>
+              Yours to do, at your pace. Keeps the scope and today&apos;s price as your reference, and
+              nothing goes to contractors. Switch it to turn-key whenever you want.
+            </p>
+          </>
+        ) : (
+          // The two swap places. DIY is the thing that actually works today,
+          // so it leads; turn-key is not offered as a button that would post a
+          // job to an empty room.
+          <>
+            <Link href={planHref} className="btn btn-primary btn-block">Add to my DIY projects</Link>
+            <p className="small text-muted center" style={{ margin: "0 0 6px" }}>
+              Yours to do, at your pace, with the scope and today&apos;s price kept as your
+              reference. It becomes turn-key the day we can hand it over.
+            </p>
+
+            <NotifyMe code={pkg.code} trade={pkg.trade} signedIn={signedIn} />
+            <p className="tiny text-muted center" style={{ margin: 0 }}>
+              No cost and no commitment — it tells us which trade to go find next.
+            </p>
+          </>
+        )}
       </div>
 
       {open && <AdjustPanel pkg={pkg} value={sel} onChange={setSel} onClose={() => setOpen(false)} />}

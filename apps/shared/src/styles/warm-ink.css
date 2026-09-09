@@ -428,6 +428,17 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .tiles.quad .tile.wide { text-align: left; align-items: center; }
 @media (max-width: 340px) { .tiles.quad { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
+/* Dim: we have the package, but not the price or not the contractor. It is
+   still a link - the page behind it explains the job and the DIY route needs
+   nobody approved - so it keeps the pointer and loses the lift. Unlike
+   .disabled it never hides its reason, including in the quad grid where the
+   kicker is normally suppressed: on a dim tile that line IS the information. */
+.tile.dim { background: var(--color-soft-2); box-shadow: none; }
+.tile.dim .art { color: var(--muted); opacity: 0.7; }
+.tile.dim .card-title { color: var(--muted); }
+.tile.dim:hover { transform: none; }
+.tiles.quad .tile.dim .card-kicker { display: block; font-size: 8.5px; letter-spacing: 0.06em; line-height: 1.25; }
+
 .pill-time { font-size: 11px; color: var(--muted); }
 .divider-label { display: flex; align-items: center; gap: var(--space-2); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .divider-label::after { content: ""; flex: 1; height: 1px; background: var(--color-divider); }

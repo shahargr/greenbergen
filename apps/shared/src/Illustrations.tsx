@@ -241,11 +241,39 @@ export const InternetTv = ({ className }: P) => (
   </Frame>
 );
 
+// A unit heater hung from the garage ceiling, blowing down. The louvres are
+// the tell - it is the shape people recognise from a workshop, not a furnace.
+export const GarageHeater = ({ className }: P) => (
+  <Frame className={className}>
+    <path d="M40 14v6M60 14v6M80 14v6" opacity=".5" />
+    <rect x="36" y="20" width="48" height="26" rx="4" />
+    <path d="M42 28h36M42 34h36" opacity=".55" />
+    <path d="M84 30h12" />
+    <path d="M48 46l-4 12M60 46v14M72 46l4 12" opacity=".7" />
+    <path d="M22 68h76" opacity=".5" />
+    <path d="M22 68V40M98 68V40" opacity=".35" />
+  </Frame>
+);
+
+// A pop-up head throwing an arc. Ground line low, so it reads as lawn.
+export const Sprinklers = ({ className }: P) => (
+  <Frame className={className}>
+    <path d="M34 66V50" />
+    <rect x="30" y="66" width="8" height="6" rx="2" />
+    <path d="M38 48a34 34 0 0 1 44 20" />
+    <path d="M40 40a30 30 0 0 1 32 8" opacity=".5" />
+    <path d="M44 32a24 24 0 0 1 20 4" opacity=".3" />
+    <path d="M86 66h6M92 62v8" opacity=".45" />
+    <path d="M14 72h92" opacity=".5" />
+  </Frame>
+);
+
 const MAP: Record<string, (p: P) => React.JSX.Element> = {
   water_heater: WaterHeater, toilet: Toilet, faucet: Faucet, driveway: Driveway, painting: Painting,
   ev_charger: EvCharger, generator: Generator, gutters: Gutters, blinds: Blinds, window: Window, fence: Fence, siding: Siding,
   solar: Solar, basement: Basement, kitchen: Kitchen, bathroom: Bathroom, something_else: SomethingElse,
   salt: Salt, house: House, steps: Steps, check: Checkmark, internet_tv: InternetTv,
+  garage_heater: GarageHeater, sprinklers: Sprinklers,
 };
 
 export function Illustration({ name, className }: { name: string | null | undefined; className?: string }) {
