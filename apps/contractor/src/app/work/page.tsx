@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/me";
-import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { stopwatch } from "@shared/perf";
 import { WorkTabs } from "@/components/WorkTabs";
 import { ReadyCard } from "@/components/ReadyCard";
@@ -39,14 +39,22 @@ export default async function WorkPage() {
 
         <ReadyCard me={me} />
 
-        {me.trades.length > 0 && (
-          <section className="stack" style={{ gap: 6 }}>
-            <div className="divider-label">Your trades</div>
-            <div className="chips">
-              {me.trades.map((t) => <span key={t.trade} className="tag tag-neutral" style={{ padding: "7px 12px", fontSize: 12 }}>{t.trade}</span>)}
-            </div>
-          </section>
-        )}
+        {/* The trades decide which work reaches you, so the chips ARE the way
+            to change them - they were a dead label, and the only path to the
+            picker was gear -> Your business -> The trades you work. */}
+        <Link href="/business/trades" className="home-row" style={{ alignItems: "flex-start" }}>
+          <span className="grow" style={{ minWidth: 0 }}>
+            <span className="t">Your trades</span>
+            {me.trades.length > 0 ? (
+              <span className="chips" style={{ marginTop: 6 }}>
+                {me.trades.map((t) => <span key={t.trade} className="tag tag-neutral" style={{ padding: "5px 10px", fontSize: 11 }}>{t.trade}</span>)}
+              </span>
+            ) : (
+              <span className="m" style={{ display: "block" }}>None picked yet — no work can reach you until you pick at least one.</span>
+            )}
+          </span>
+          <ChevronIcon />
+        </Link>
 
         {/* The feed is step 3. Say so rather than showing an empty list that
             looks like "no work for you". */}

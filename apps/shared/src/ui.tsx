@@ -226,12 +226,27 @@ export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/i
           <HouseIcon />
         </Link>
       )}
+      {/* Switch seat. One login opens every door you hold, so there is nothing
+          to sign out of - this goes to the picker on the portal, which sends
+          a one-door person straight back where they were. Signing out is an
+          account act and stays behind the gear. */}
+      <a href={`${DOORS.portal.url}/choose`} className="btn btn-ghost btn-icon" aria-label="Switch seat" title="Switch seat">
+        <DoorsIcon />
+      </a>
       <Link href={gearHref} className="btn btn-ghost btn-icon" aria-label="Your account">
         <GearIcon />
       </Link>
     </span>
   );
 }
+
+// Four panes: the same mark the portal's top bar uses for the door picker.
+export const DoorsIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" />
+    <rect x="3" y="13" width="8" height="8" rx="1.5" /><rect x="13" y="13" width="8" height="8" rx="1.5" />
+  </svg>
+);
 
 export const InboxIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

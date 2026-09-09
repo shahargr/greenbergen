@@ -128,7 +128,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* — forms — */
 .field { display: block; }
-.field > label, .field-label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--muted); }
+/* The label is the QUESTION being asked - it reads first, so it is ink,
+   not grey. Grey is for the answer's hint underneath (.hint). */
+.field > label, .field-label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--color-text); }
 .input {
   width: 100%; min-height: 50px; padding: 10px 16px; font-size: 16px; font-weight: 500; color: var(--color-text);
   caret-color: var(--color-accent); background: var(--color-surface);

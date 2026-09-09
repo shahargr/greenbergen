@@ -113,13 +113,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           ) : (
             <Card pad>
               <form action={invitePerson} className="stack" style={{ gap: 10 }}>
-                <label className="field">
+                {/* Two choices is a toggle, not a dropdown: both are visible,
+                    it is one tap instead of two, and on a phone it does not
+                    open a picker sheet over the form. */}
+                <div className="field">
                   <span className="field-label">Who is it?</span>
-                  <select className="input" name="kind" defaultValue="homeowner">
-                    <option value="homeowner">A neighbor — their own home, their own jobs</option>
-                    <option value="contractor">A contractor — they take jobs at the community price</option>
-                  </select>
-                </label>
+                  <div className="seg" role="radiogroup" aria-label="Who is it?">
+                    <label className="seg-opt">
+                      <input type="radio" name="kind" value="homeowner" defaultChecked />
+                      <span>A neighbor</span>
+                    </label>
+                    <label className="seg-opt">
+                      <input type="radio" name="kind" value="contractor" />
+                      <span>A contractor</span>
+                    </label>
+                  </div>
+                  <p className="hint">A neighbor gets their own home and jobs; a contractor takes work at the community price.</p>
+                </div>
                 <label className="field">
                   <span className="field-label">Their name <span className="text-muted">(optional)</span></span>
                   <input className="input" name="name" placeholder="Dana from two doors down" />
