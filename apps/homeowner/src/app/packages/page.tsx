@@ -32,7 +32,7 @@ export default async function PackagesPage() {
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">
           <h1>What would you like to get done?</h1>
-          <p className="lead">Every package is pre-priced. Tap one to see what&apos;s included.</p>
+          <p className="lead">We negotiate and price these services on behalf of our community.</p>
         </div>
         {headline.length > 0 && (
           <div className="tiles quad">
