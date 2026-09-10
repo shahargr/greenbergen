@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
@@ -13,6 +13,7 @@ import { PhotoRequest } from "@/components/PhotoRequest";
 import { TARGET_WINDOWS, targetWindowLabel, type TargetWindow } from "@/lib/plan";
 import type { Home, HomeQuota } from "@/lib/me";
 import { withBase } from "@shared/site";
+import { JoinForm } from "@/app/join/JoinForm";
 
 // One client-side wizard, so the photos a homeowner takes stay in memory
 // across steps and upload only after the booking row exists (the storage
@@ -24,12 +25,63 @@ import { withBase } from "@shared/site";
 //   plan:  home -> (address) -> when -> planned          (nothing sent)
 //   post:  facts -> photos -> budget -> booked            (a plan, ordered)
 // "home" appears only when the member already has one or more homes.
+//
+// THE ACCOUNT IS THE LAST STEP (Shahar, 2026-09-10). A visitor walks every
+// step above without one. The moment they tap Book (or Add to my DIY
+// projects) without a session, a "join" step opens in place - the same
+// three fields as /join - and the booking is written the instant the code
+// is verified. Google has to leave the page, so before that hand-off the
+// wizard puts what was typed in sessionStorage and comes back to
+// ?resume=1, where the gate below picks it up and remounts the wizard on
+// the last step. Photos are files in memory and cannot make that trip;
+// they become the standing request in the inbox, exactly as when a member
+// books from the sofa.
 
 type Geo = { ok: boolean; found?: boolean; matched?: string; county?: string | null; bergen?: boolean | null; city?: string | null };
 type Facts = { sqft: string; year_built: string; beds: string; baths: string };
 type Shot = { file: File; preview: string; state: "ready" | "uploading" | "done" | "failed"; progress: number; error?: string };
-type Step = "home" | "address" | "facts" | "photos" | "budget" | "when" | "booked";
+type Step = "home" | "address" | "facts" | "photos" | "budget" | "when" | "join" | "booked";
 export type WizardMode = "book" | "plan" | "post";
+type Pending = "book" | "plan";
+// What survives the Google round trip: everything typed, nothing captured.
+type Stash = { address: string; unit: string; facts: Facts; budget: string; note: string; when: TargetWindow; geo: Geo | null; pending: Pending };
+
+const stashKey = (code: string) => `gb_wizard:${code}`;
+// Read once per distinct value, so useSyncExternalStore sees a stable
+// snapshot; null on the server and until the browser has answered.
+let stashMemo: { raw: string | null; val: Stash | null } = { raw: null, val: null };
+function readStash(key: string): Stash | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw === stashMemo.raw) return stashMemo.val;
+    const val = raw ? (JSON.parse(raw) as Stash) : null;
+    stashMemo = { raw, val };
+    return val;
+  } catch { return null; }
+}
+const noSubscribe = () => () => {};
+
+type WizardProps = {
+  pkg: Package; selections: Selections; mode: WizardMode;
+  planned: { project_id: string; address: string | null; target_window: TargetWindow | null } | null;
+  homes: Home[]; quota: HomeQuota; knownAddress: string | null; knownFacts: Record<string, string | number> | null; dbReady: boolean;
+  // Whether a session exists when the page renders; the wizard itself
+  // learns about a session it created (the join step) as it goes.
+  signedIn: boolean;
+  // This page's own URL - where Google brings the browser back to.
+  here: string;
+  // The return leg: read the stash and start on the last step.
+  resume?: boolean;
+};
+
+// The gate. On the return leg it reads the stash (client only) and remounts
+// the wizard with it as the starting state - a remount, not a setState in
+// an effect, so the first client render still matches the server's.
+export function BookingWizard(props: WizardProps) {
+  const key = stashKey(props.pkg.code);
+  const restored = useSyncExternalStore(noSubscribe, () => (props.resume ? readStash(key) : null), () => null);
+  return <Wizard key={restored ? "resumed" : "fresh"} {...props} restored={restored} />;
+}
 
 const BUDGET_BANDS = (price: number | null) => {
   const p = price ?? 0;
@@ -43,32 +95,37 @@ const BUDGET_BANDS = (price: number | null) => {
   ];
 };
 
-export function BookingWizard({ pkg, selections, mode, planned, homes, quota, knownAddress, knownFacts, dbReady }: {
-  pkg: Package; selections: Selections; mode: WizardMode;
-  planned: { project_id: string; address: string | null; target_window: TargetWindow | null } | null;
-  homes: Home[]; quota: HomeQuota; knownAddress: string | null; knownFacts: Record<string, string | number> | null; dbReady: boolean;
-}) {
+function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, knownFacts, dbReady, signedIn, here, restored }: WizardProps & { restored: Stash | null }) {
   const router = useRouter();
   const price = priceFor(pkg, selections);
   const deposit = depositCents(pkg, price);
   const hasHomes = homes.length > 0;
   const knownHouse = told(knownFacts);
-  const [step, setStep] = useState<Step>(mode === "post" ? (knownHouse ? "photos" : "facts") : hasHomes ? "home" : "address");
+  const [step, setStep] = useState<Step>(
+    restored ? (restored.pending === "plan" ? "when" : "budget")
+      : mode === "post" ? (knownHouse ? "photos" : "facts") : hasHomes ? "home" : "address");
   const [reusedFacts, setReusedFacts] = useState(mode === "post" && knownHouse);
-  const [homeId, setHomeId] = useState<string | null>(hasHomes ? homes[0]!.project_id : null);
-  const [address, setAddress] = useState(planned?.address ?? knownAddress ?? "");
-  const [unit, setUnit] = useState("");
-  const [geo, setGeo] = useState<Geo | null>(null);
+  // Resumed: the typed address stands, not one of the member's homes.
+  const [homeId, setHomeId] = useState<string | null>(hasHomes && !restored ? homes[0]!.project_id : null);
+  const [address, setAddress] = useState(restored?.address ?? planned?.address ?? knownAddress ?? "");
+  const [unit, setUnit] = useState(restored?.unit ?? "");
+  const [geo, setGeo] = useState<Geo | null>(restored?.geo ?? null);
   const [checking, setChecking] = useState(false);
-  const [facts, setFacts] = useState<Facts>({
+  const [facts, setFacts] = useState<Facts>(restored?.facts ?? {
     sqft: String(knownFacts?.sqft ?? ""), year_built: String(knownFacts?.year_built ?? ""), beds: String(knownFacts?.beds ?? ""), baths: String(knownFacts?.baths ?? ""),
   });
   const [shots, setShots] = useState<Record<string, Shot | undefined>>({});
-  const [budget, setBudget] = useState<string>("");
-  const [note, setNote] = useState("");
-  const [when, setWhen] = useState<TargetWindow>(planned?.target_window ?? "1_3_months");
+  const [budget, setBudget] = useState<string>(restored?.budget ?? "");
+  const [note, setNote] = useState(restored?.note ?? "");
+  const [when, setWhen] = useState<TargetWindow>(restored?.when ?? planned?.target_window ?? "1_3_months");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  // Signed in, as far as this wizard knows: the session it started with, or
+  // the one the join step made.
+  const [authed, setAuthed] = useState(signedIn || !!restored);
+  const [pending, setPending] = useState<Pending>(restored?.pending ?? "book");
+  // The stash is spent once it has been read back.
+  useEffect(() => { if (restored) { try { sessionStorage.removeItem(stashKey(pkg.code)); } catch {} } }, [restored, pkg.code]);
   const [result, setResult] = useState<{ project_id: string; reply_by: string; offered_count: number; instant_book: boolean; price_cents: number; planned?: boolean } | null>(null);
   const [uploadIssues, setUploadIssues] = useState<string[]>([]);
   const afterHome: Step = mode === "plan" ? "when" : "facts";
@@ -128,6 +185,23 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
   // missing become a request in the inbox (homeowner_post_internal).
   // Still wanted: never taken, or taken and the upload did not land.
   const missingSlots = pkg.photos.filter((p) => !shots[p.key] || shots[p.key]!.state === "failed");
+
+  // ---- the account, if there is none yet --------------------------------
+  // Book and plan both pass through here: with a session they run; without
+  // one the join step opens, and runs them the moment it is done.
+  function proceed(action: Pending) {
+    if (authed) { if (action === "plan") void plan(); else void book(); return; }
+    setPending(action);
+    setErr("");
+    setStep("join");
+  }
+  function stash(action: Pending) {
+    try {
+      const s: Stash = { address, unit, facts, budget, note, when, geo, pending: action };
+      sessionStorage.setItem(stashKey(pkg.code), JSON.stringify(s));
+    } catch { /* private mode: Google still works, the typed details do not survive */ }
+  }
+  const resumeHref = `${here}${here.includes("?") ? "&" : "?"}resume=1`;
 
   // ---- plan (nothing sent) ----------------------------------------------
   async function plan() {
@@ -198,6 +272,40 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
   }
 
   // ---- screens ----------------------------------------------------------
+  if (step === "join") {
+    const back: Step = pending === "plan" ? "when" : "budget";
+    return (
+      <Screen>
+        <AppBar back={() => setStep(back)} />
+        <div className="body">
+          <StepKicker>Last step · Your account</StepKicker>
+          <JoinForm
+            refId={null}
+            prefillName=""
+            next={resumeHref}
+            embed={{
+              title: pending === "plan" ? "Where should we keep the plan?" : `Who should the contractor ask for?`,
+              lead: pending === "plan"
+                ? "Three fields make your account; the plan goes on it. Nothing is sent to anyone."
+                : `Three fields make your account, and your ${pkg.tile_title.toLowerCase()} goes out at ${dollars(price)} the moment the code is in. Nothing is charged today.`,
+              onBeforeGoogle: () => stash(pending),
+              onDone: () => {
+                setAuthed(true);
+                setStep(back);
+                if (pending === "plan") void plan(); else void book();
+              },
+            }}
+          />
+          {shotCount > 0 && (
+            <p className="tiny text-muted" style={{ margin: 0 }}>
+              Choosing Google takes you away for a moment. The photos you added stay on your phone; we ask for them again right after the booking, and the price does not move.
+            </p>
+          )}
+        </div>
+      </Screen>
+    );
+  }
+
   if (step === "booked" && result?.planned) {
     return (
       <Screen>
@@ -366,12 +474,13 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
             <span className="field-label">A note to yourself <span className="text-muted">(optional)</span></span>
             <textarea className="input" rows={2} placeholder="Guest bath first. Ask about the 40-gallon option." value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
+          {restored && !busy && <Notice title="You're signed in.">Everything you typed is still here. One tap and it is on your list.</Notice>}
           {err && <Notice kind="error" title="That didn't save.">{err}</Notice>}
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
             {/* The price is a REFERENCE, never a charge - and a button reading
                 "Save the plan · $2,180 today" says the opposite of that. It
                 names the action; the number stays a note beneath it. */}
-            <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => void plan()}>
+            <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => proceed("plan")}>
               {busy ? <><span className="spin" /> {busy}</> : "Add to my DIY projects"}
             </button>
             {!busy && (
@@ -464,7 +573,7 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
   const bands = BUDGET_BANDS(price);
   return (
     <Screen>
-      <AppBar back={() => setStep("photos")} right={<button type="button" className="btn btn-ghost" onClick={() => { setBudget("skip"); void book(); }} disabled={!!busy}>Skip</button>} />
+      <AppBar back={() => setStep("photos")} right={<button type="button" className="btn btn-ghost" onClick={() => { setBudget("skip"); proceed("book"); }} disabled={!!busy}>Skip</button>} />
       <div className="body">
         <StepKicker>Step 3 of 3 · Optional</StepKicker>
         <div className="hero">
@@ -485,9 +594,10 @@ export function BookingWizard({ pkg, selections, mode, planned, homes, quota, kn
           <textarea className="input" rows={2} placeholder={pkg.code === "driveway" ? "Measurements if you have them, gate codes, a dog…" : "Gate code, a dog, best time to come…"} value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
         <p className="small text-muted" style={{ margin: 0 }}>Never shown to contractors. It doesn&apos;t change the price — the community already set that.</p>
+        {restored && !busy && <Notice title="You're signed in.">Everything you typed is still here. Photos are asked for again after you book; the price is the same.</Notice>}
         {err && <Notice kind="error" title="That didn't go through.">{err}</Notice>}
         <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-          <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => void book()}>
+          <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => proceed("book")}>
             {busy ? <><span className="spin" /> {busy}</> : mode === "post" ? `Post it at ${dollars(price)}` : pkg.instant_book ? `Book at ${dollars(price)}` : `Request at ${dollars(price)}`}
           </button>
           {!busy && <p className="tiny text-muted center" style={{ margin: 0 }}>{pkg.requires_permit ? `Nothing today. ${dollars(deposit)} at the permit meeting, to the contractor.` : "Nothing today. You pay the contractor when it's done."}</p>}

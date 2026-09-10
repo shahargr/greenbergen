@@ -12,6 +12,7 @@ type Row = {
   code: string; name: string; tile_title: string; trade: string; availability: string;
   base_price_cents: number | null; is_active: boolean; sort_order: number; tile_group: string;
   category: string | null; covered: boolean; items: number; levers: number; servers: number;
+  promote: boolean; has_photo: boolean;
   last_modified_at: string | null; last_modified_by: string | null;
 };
 
@@ -57,7 +58,7 @@ export default async function AdminPackagesPage({ searchParams }: { searchParams
           <tbody>
             {live.map((r) => (
               <tr key={r.code}>
-                <td><Link href={`/admin/packages/${r.code}`}><strong>{r.name}</strong></Link><br /><span className="muted small">{r.tile_title} · {r.tile_group === "front" ? "front page" : "more"} · order {r.sort_order}</span></td>
+                <td><Link href={`/admin/packages/${r.code}`}><strong>{r.name}</strong></Link><br /><span className="muted small">{r.tile_title} · {r.tile_group === "front" ? "front page" : "more"} · order {r.sort_order}{r.promote && <> · <strong>on the landing page</strong>{!r.has_photo && " (no photo yet)"}</>}</span></td>
                 <td>{r.trade}{!r.covered && <><br /><span className="small" style={{ color: "#c0262d" }}>nobody approved carries it</span></>}</td>
                 <td>{AVAIL[r.availability] ?? r.availability}</td>
                 <td style={{ textAlign: "right" }}>{money(r.base_price_cents)}</td>

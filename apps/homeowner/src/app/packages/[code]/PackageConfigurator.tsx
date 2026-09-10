@@ -26,10 +26,10 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
   const deltas = useMemo(() => deltaNotes(pkg, sel), [pkg, sel]);
   const isDefault = deltas.length === 0 && configLabel(pkg, sel) === (pkg.config_label ?? "most common setup");
 
-  const bookPath = `/packages/${pkg.code}/book?sel=${encodeURIComponent(encodeSelections(sel))}`;
-  const bookHref = signedIn ? bookPath : `/join?next=${encodeURIComponent(bookPath)}`;
-  const planPath = `${bookPath}&mode=plan`;
-  const planHref = signedIn ? planPath : `/join?next=${encodeURIComponent(planPath)}`;
+  // A visitor goes straight into the wizard too: the account is created at
+  // its last step, not before the first (Shahar, 2026-09-10).
+  const bookHref = `/packages/${pkg.code}/book?sel=${encodeURIComponent(encodeSelections(sel))}`;
+  const planHref = `${bookHref}&mode=plan`;
 
   const notes: React.ReactNode[] = [];
   if (!covered) {

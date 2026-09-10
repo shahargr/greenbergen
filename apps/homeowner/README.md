@@ -126,9 +126,13 @@ cannot do.
 
 ## Where things live
 
-- `src/app/page.tsx` landing (direct and invited, `?ref=`), `join/`
-  three-field registration + email code, `welcome/` the three steps,
-  `login/`, `auth/confirm/`.
+- `src/app/page.tsx` the front door: the promoted packages as photographs
+  of the work (`blueprint_packages.photo_url` + `promote`, Admin > Packages),
+  the houses live and built (`public_company().showcase`, linking to the
+  portal's `/p/<slug>`), one way in. Invited (`?ref=`) still leads to `join/`
+  - three fields + email code - which is otherwise EMBEDDED at checkout
+  (`JoinForm` `embed` prop): a visitor books first and registers last.
+  `welcome/` the three steps, `login/`, `auth/confirm/`.
 - `src/app/packages/` the grid, `more/`, `[code]/` the package page with the
   Adjust panel (levers + chat), `[code]/book/` the wizard: **which home** (when
   the member has one or more) → address → home facts → photos → budget →

@@ -28,6 +28,9 @@ export type Package = {
   // The explainer versions (migration 049). Optional: the static fallback
   // predates them, and a package may simply have none.
   videos?: { id: string; label: string; url: string }[];
+  // A photograph of the work and the landing-page flag (migration 052).
+  photo_url?: string | null;
+  promote?: boolean;
 };
 export type CommunityService = {
   code: string; name: string; cadence: string; summary: string; description: string; price_cents: number;
@@ -53,7 +56,23 @@ export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_gr
   // evidence that nobody can do the work.
   trade?: string | null;
   covered?: boolean;
+  // Added by migration 052 for the landing page: the photograph of the work,
+  // whether Admin chose to feature it, and the basic-setup price so the
+  // landing can say "from $1,180" without loading every package.
+  photo_url?: string | null;
+  promote?: boolean;
+  base_price_cents?: number | null;
 };
+
+// WHAT THE LANDING PAGE FEATURES. Admin's choice first (promote, in shelf
+// order); when nothing is flagged, the first open front-page tiles, so the
+// page is never empty. Never more than four: it is a shop window, not the
+// catalogue.
+export function featured(tiles: Tile[], max = 4): Tile[] {
+  const chosen = tiles.filter((t) => t.promote).sort((a, b) => a.sort_order - b.sort_order);
+  if (chosen.length > 0) return chosen.slice(0, max);
+  return tiles.filter((t) => t.tile_group === "front" && isOpen(t)).sort((a, b) => a.sort_order - b.sort_order).slice(0, max);
+}
 
 // The two questions a tile answers, kept apart because they fail differently:
 // priced is "do we have a number", covered is "is there anyone to send it to".

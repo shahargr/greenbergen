@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
+import { JoinForm } from "@/app/join/JoinForm";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { Card, Notice, StatusHero } from "@shared/ui";
 import { Evidence, type Attached } from "@shared/Evidence";
@@ -32,6 +33,7 @@ const REACH: { key: Reach; label: string; back: string }[] = [
 export function QuoteForm({
   code, signedIn, homes = [], prompt = "What do you have in mind?", cta = "Send it to a person",
 }: { code: string; signedIn: boolean; homes?: QuoteHome[]; prompt?: string; cta?: string }) {
+  const router = useRouter();
   const withAddress = homes.filter((h) => !!h.address?.trim());
   const [note, setNote] = useState("");
   // The first home is the one homeowner_me puts first - the one with live
@@ -82,11 +84,22 @@ export function QuoteForm({
     );
   }
 
+  // A visitor registers here, in place, and the form appears once the
+  // session exists (the page re-renders with their homes). Same three
+  // fields as the booking's last step.
   if (!signedIn) {
     return (
       <Card pad>
-        <p style={{ margin: 0 }}>Join first (three fields), and a person comes back to you by email.</p>
-        <Link href={`/join?next=${encodeURIComponent(`/packages/${code}`)}`} className="btn btn-primary btn-block" style={{ marginTop: 10 }}>Join the community</Link>
+        <JoinForm
+          refId={null}
+          prefillName=""
+          next={`/packages/${code}`}
+          embed={{
+            title: "Tell us who you are, then tell us what you need.",
+            lead: "Three fields make your account; a person comes back to you the way you choose.",
+            onDone: () => router.refresh(),
+          }}
+        />
       </Card>
     );
   }

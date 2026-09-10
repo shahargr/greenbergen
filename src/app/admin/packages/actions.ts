@@ -51,6 +51,8 @@ export async function savePackage(formData: FormData) {
     illustration: s(formData, "illustration"), sort_order: s(formData, "sort_order"),
     permit_deposit_pct: s(formData, "permit_deposit_pct"), season_months: s(formData, "season_months"),
     requires_permit: b(formData, "requires_permit"), instant_book: b(formData, "instant_book"), is_active: b(formData, "is_active"),
+    // The landing page (052): the photograph and whether to feature it.
+    photo_url: s(formData, "photo_url"), promote: b(formData, "promote"),
   };
   const { data, error } = await supabase.rpc("admin_package_save", { p_code: code, p_patch: patch });
   if (error || data?.ok === false) {

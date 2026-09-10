@@ -23,6 +23,7 @@ type Pkg = {
   availability: string; base_price_cents: number | null; config_label: string | null; requires_permit: boolean;
   permit_deposit_pct: number | null; instant_book: boolean; approval_note: string | null; illustration: string | null;
   description: string | null; sort_order: number; is_active: boolean; category: string | null; season_months: number[] | null;
+  photo_url: string | null; promote: boolean;
   covered: boolean; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[]; videos: Video[];
 };
 
@@ -105,7 +106,21 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <F label="Season months (e.g. 10,11; blank = all year)" span={2}><input className="input" name="season_months" defaultValue={(p.season_months ?? []).join(",")} /></F>
           <F label="Permit deposit %" span={1}><input className="input" name="permit_deposit_pct" inputMode="decimal" defaultValue={p.permit_deposit_pct ?? ""} /></F>
           <F label="Approval note" span={3}><input className="input" name="approval_note" defaultValue={p.approval_note ?? ""} /></F>
+          {/* THE FRONT DOOR (052). A photograph of the work - a professional
+              at it, in a house - shown large on the homeowner landing page
+              when this package is promoted. Upload it under Admin > Photos
+              (the public-media bucket) or paste any https address. */}
+          <F label="Photo of the work (https URL; shown on the landing page)" span={5}>
+            <input className="input" name="photo_url" type="url" defaultValue={p.photo_url ?? ""} placeholder="https://…/public-media/packages/water-heater.jpg" />
+          </F>
+          <div style={{ gridColumn: "span 1", display: "flex", alignItems: "center" }}>
+            {p.photo_url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={p.photo_url} alt="" style={{ width: 56, height: 42, objectFit: "cover", borderRadius: 8 }} />
+              : <span className="muted small">no photo</span>}
+          </div>
           <div style={{ gridColumn: "span 6", display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
+            <label className="small"><input type="checkbox" name="promote" defaultChecked={p.promote} /> Feature on the landing page</label>
             <label className="small"><input type="checkbox" name="requires_permit" defaultChecked={p.requires_permit} /> Needs a permit</label>
             <label className="small"><input type="checkbox" name="instant_book" defaultChecked={p.instant_book} /> Instant book</label>
             <label className="small"><input type="checkbox" name="is_active" defaultChecked={p.is_active} /> Active (off retires it everywhere)</label>
