@@ -16,7 +16,10 @@ export const metadata = { title: "Packages" };
 export default async function PackagesPage() {
   const supabase = await createClient();
   const [{ tiles }, signedIn] = await Promise.all([loadTiles(), isSignedIn(supabase)]);
-  const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
+  // THE ENABLED ONES FIRST (Shahar): within the headline row, what you can
+  // act on today before what is coming soon, each group in its own order.
+  const headline = tiles.filter((t) => t.tile_group === "front")
+    .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || a.sort_order - b.sort_order);
   const rest = tiles.filter((t) => t.tile_group !== "front");
   // Open, not merely bookable: a covered quote package (the general
   // contractor) is a live door with a person behind it.
@@ -38,7 +41,7 @@ export default async function PackagesPage() {
         )}
         {live.length > 0 && (
           <section className="stack" style={{ gap: 8, marginTop: 4 }}>
-            <div className="divider-label">Also ready now</div>
+            <div className="divider-label">Renovation</div>
             <div className="tiles quad">
               {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
             </div>
@@ -67,12 +70,12 @@ export default async function PackagesPage() {
           </details>
         )}
 
-        {/* COMMUNITY SERVICES, folded the same way: a list in place rather
+        {/* GROUP PURCHASES (community services in the data), folded the same way: a list in place rather
             than a hop to another screen. Each row opens the service. */}
         <details className="home-panel">
           <summary className="home-row">
             <span className="grow" style={{ minWidth: 0 }}>
-              <span className="t">Community services · {COMMUNITY_SERVICES.length}</span>
+              <span className="t">Group purchases · {COMMUNITY_SERVICES.length}</span>
               <span className="m" style={{ display: "block" }}>Things we can purchase together to save time and money.</span>
             </span>
             <span className="chev"><ChevronIcon /></span>

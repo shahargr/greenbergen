@@ -72,7 +72,9 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   const inMonth = new Set(seasonal(tiles, month).map((t) => t.code));
   const rank = (a: Tile, b: Tile) =>
     Number(inMonth.has(b.code)) - Number(inMonth.has(a.code)) || a.sort_order - b.sort_order;
-  const headline = tiles.filter((t) => t.tile_group === "front").sort((a, b) => a.sort_order - b.sort_order);
+  // The enabled ones first (Shahar), then what is coming soon.
+  const headline = tiles.filter((t) => t.tile_group === "front")
+    .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || a.sort_order - b.sort_order);
   const rest = tiles.filter((t) => t.tile_group !== "front");
   const live = rest.filter(isOpen).sort(rank);
   const dim = rest.filter((t) => !isOpen(t)).sort(rank);
@@ -132,7 +134,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
         {live.length > 0 && (
           <section className="stack" style={{ gap: 8, marginTop: 4 }}>
-            <div className="divider-label">Also ready now</div>
+            <div className="divider-label">Renovation</div>
             <div className="tiles quad">
               {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
             </div>

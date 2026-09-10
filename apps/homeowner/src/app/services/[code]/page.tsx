@@ -24,7 +24,7 @@ export default async function ServicePage({ params }: { params: Promise<{ code: 
     <Screen>
       <AppBar back="/packages/more" />
       <div className="body">
-        <span className="tag tag-accent" style={{ alignSelf: "flex-start" }}>Community service</span>
+        <span className="tag tag-accent" style={{ alignSelf: "flex-start" }}>Group purchase</span>
         <div className="illus"><Illustration name={s.illustration} /></div>
         <div className="hero">
           <h1>{s.name}</h1>
