@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { deleteRow, savePackage, saveRow } from "../actions";
+import { deleteRow, savePackage, saveRows } from "../actions";
 import { PackagePhoto } from "./PackagePhoto";
 
 export const dynamic = "force-dynamic";
@@ -49,24 +49,25 @@ const widthOf = (span: number): W => (span >= 12 ? "full" : span >= 5 ? "wide" :
 function F({ label, children, span = 2, w }: { label: string; children: React.ReactNode; span?: number; w?: W }) {
   return <label className={`pk-f ${w ?? widthOf(span)}`}><span>{label}</span>{children}</label>;
 }
-function Hidden({ code, kind, id, parent }: { code: string; kind: string; id?: string; parent?: string }) {
-  return (
-    <>
-      <input type="hidden" name="code" value={code} />
-      <input type="hidden" name="kind" value={kind} />
-      {id && <input type="hidden" name="id" value={id} />}
-      {parent && <input type="hidden" name="parent" value={parent} />}
-    </>
-  );
+// ONE FORM PER SECTION. Every field is named field__rowkey - the row's id,
+// or "new" for the blank last row (new_<leverId> for a lever's blank
+// answer). saveRows reads them all back, writes every row, and skips a
+// blank new row. The section's code and default row kind ride as hidden
+// fields; a lever section also marks each row lever or option.
+const n = (field: string, key: string) => `${field}__${key}`;
+function Section({ code, kind }: { code: string; kind: string }) {
+  return <><input type="hidden" name="code" value={code} /><input type="hidden" name="kind" value={kind} /></>;
 }
-// The remove button lives INSIDE the row's own form and points it at
-// deleteRow through formAction. It used to be a form of its own nested in
-// the row's form, which HTML does not allow: the browser dropped the inner
-// form and the X quietly submitted the outer one - Save (Shahar: "the X
-// does not remove the line"). The row's hidden code, kind and id are what
-// deleteRow reads, so nothing else is needed.
-function Del({ title = "Remove" }: { title?: string }) {
-  return <button formAction={deleteRow} className="btn ghost" title={title} aria-label={title}>✕</button>;
+function SaveBar({ children }: { children: React.ReactNode }) {
+  return <div className="pk-acts" style={{ justifyContent: "flex-end", paddingTop: 12 }}><button className="btn">{children}</button></div>;
+}
+// The remove button lives INSIDE the section's form and points it at
+// deleteRow through formAction, carrying the row's id as its value. It
+// used to be a form of its own nested in the row's form, which HTML does
+// not allow: the browser dropped the inner form and the X quietly
+// submitted the outer one (Shahar: "the X does not remove the line").
+function Del({ id, title = "Remove" }: { id: string; title?: string }) {
+  return <button formAction={deleteRow} name="delete" value={id} className="btn ghost" title={title} aria-label={title}>✕</button>;
 }
 
 export default async function AdminPackagePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ error?: string; saved?: string }> }) {
@@ -138,89 +139,78 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         </form>
       </div>
 
-      {/* 2. SCOPE LINES */}
+      {/* 2. SCOPE LINES - one form, one Save for every line (Shahar: "save
+          works on one line at a time and I lose changes made to all other
+          cells"). Every field is named field__rowid; saveRows writes every
+          row, and the last row is the new one, written only if filled. */}
       <div className="card" id="item" style={{ marginTop: 14 }}>
         <h2 className="section-title">What the basic setup includes</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
           Work lines are what gets done; assurance lines are what comes with it (insurance, warranty). A DIY project shows the work lines as its steps.
           <strong> Hardware</strong> lines are what the homeowner buys and the price does not include - the generator, the switch, the pad - each with the suggested product page at Home Depot and Lowe&apos;s; the package page lists them under &ldquo;What you buy&rdquo;.
         </p>
-        {p.items.map((it) => (
-          <form key={it.id} action={saveRow} className="pk-row">
-            <Hidden code={p.code} kind="item" id={it.id} />
-            <F label="Line" span={5}><input className="input" name="label" defaultValue={it.label} required /></F>
-            <F label="Detail" span={3}><input className="input" name="detail" defaultValue={it.detail ?? ""} /></F>
-            <F label="Kind" span={2}><select className="input" name="row_kind" defaultValue={it.kind}>{ITEM_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
-            <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={it.sort_order} /></F>
-            <div className="pk-acts"><button className="btn">Save</button><Del /></div>
-            <F label="Home Depot page (hardware only)" span={6}><input className="input" name="link_home_depot" type="url" defaultValue={storeUrl(it.links, "Home Depot")} placeholder="https://www.homedepot.com/p/…" /></F>
-            <F label="Lowe's page (hardware only)" span={6}><input className="input" name="link_lowes" type="url" defaultValue={storeUrl(it.links, "Lowe's")} placeholder="https://www.lowes.com/pd/…" /></F>
-          </form>
-        ))}
-        <form action={saveRow} className="pk-row">
-          <Hidden code={p.code} kind="item" />
-          <F label="New line" span={5}><input className="input" name="label" placeholder="Underground gas line from the meter" required /></F>
-          <F label="Detail" span={3}><input className="input" name="detail" /></F>
-          <F label="Kind" span={2}><select className="input" name="row_kind" defaultValue="work">{ITEM_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
-          <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(p.items.at(-1)?.sort_order ?? 0) + 10} /></F>
-          <div><button className="btn">Add</button></div>
-          <F label="Home Depot page (hardware only)" span={6}><input className="input" name="link_home_depot" type="url" placeholder="https://www.homedepot.com/p/…" /></F>
-          <F label="Lowe's page (hardware only)" span={6}><input className="input" name="link_lowes" type="url" placeholder="https://www.lowes.com/pd/…" /></F>
+        <form action={saveRows}>
+          <Section code={p.code} kind="item" />
+          {[...p.items.map((it) => ({ k: it.id, it })), { k: "new", it: null }].map(({ k, it }) => (
+            <div key={k} className="pk-row">
+              <F label={it ? "Line" : "New line"} span={5}><input className="input" name={n("label", k)} defaultValue={it?.label ?? ""} placeholder={it ? undefined : "Underground gas line from the meter"} required={!!it} /></F>
+              <F label="Detail" span={3}><input className="input" name={n("detail", k)} defaultValue={it?.detail ?? ""} /></F>
+              <F label="Kind" span={2}><select className="input" name={n("row_kind", k)} defaultValue={it?.kind ?? "work"}>{ITEM_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
+              <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={it?.sort_order ?? (p.items.at(-1)?.sort_order ?? 0) + 10} /></F>
+              {it && <div className="pk-acts"><Del id={it.id} /></div>}
+              <F label="Home Depot page (hardware only)" span={6}><input className="input" name={n("link_home_depot", k)} type="url" defaultValue={storeUrl(it?.links, "Home Depot")} placeholder="https://www.homedepot.com/p/…" /></F>
+              <F label="Lowe's page (hardware only)" span={6}><input className="input" name={n("link_lowes", k)} type="url" defaultValue={storeUrl(it?.links, "Lowe's")} placeholder="https://www.lowes.com/pd/…" /></F>
+            </div>
+          ))}
+          <SaveBar>Save all lines</SaveBar>
         </form>
       </div>
 
-      {/* 3. LEVERS AND OPTIONS */}
+      {/* 3. LEVERS AND OPTIONS - one form for every lever and every answer. */}
       <div className="card" id="lever" style={{ marginTop: 14 }}>
         <h2 className="section-title">Levers - the upgrades, at cost</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
           Each lever is one question. Its default answer is the basic setup at +$0; every other answer changes the price by its delta - a longer run, a bigger unit, propane, the contractor supplying the hardware. An add-on that is simply on or off is a two-answer lever (No / Yes). Segment shows the answers side by side; Radio lists them.
         </p>
-        {p.levers.map((lv) => (
-          <div key={lv.id} style={{ border: "1px solid #e6e6e2", borderRadius: 10, padding: "8px 12px", marginTop: 10 }}>
-            <form action={saveRow} className="pk-row first">
-              <Hidden code={p.code} kind="lever" id={lv.id} />
-              <F label="Key" span={2}><input className="input" name="key" defaultValue={lv.key} pattern="[a-z0-9_]{1,30}" required /></F>
-              <F label="Label" span={2}><input className="input" name="label" defaultValue={lv.label} required /></F>
-              <F label="The question the homeowner is asked" span={5}><input className="input" name="question" defaultValue={lv.question ?? ""} /></F>
-              <F label="Control"><select className="input" name="control" defaultValue={lv.control}><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
-              <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={lv.sort_order} /></F>
-              <div className="pk-acts"><button className="btn">Save</button>
-                <Del title="Remove the lever and its options" /></div>
-            </form>
-            <div style={{ paddingLeft: 18 }}>
-              {lv.options.map((o) => (
-                <form key={o.id} action={saveRow} className="pk-row">
-                  <Hidden code={p.code} kind="option" id={o.id} parent={lv.id} />
-                  <F label="Key" span={2}><input className="input" name="key" defaultValue={o.key} pattern="[a-z0-9_]{1,30}" required /></F>
-                  <F label="Answer" span={3}><input className="input" name="label" defaultValue={o.label} required /></F>
-                  <F label="Chip (short)" span={2}><input className="input" name="chip" defaultValue={o.chip ?? ""} /></F>
-                  <F label={`Price change ($) · ${signed(o.price_delta_cents)}`} span={2}><input className="input" name="price_delta" inputMode="decimal" defaultValue={dollars(o.price_delta_cents)} /></F>
-                  <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={o.sort_order} /></F>
-                  <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_default" defaultChecked={o.is_default} /> default</label>
-                  <div className="pk-acts"><button className="btn">Save</button><Del /></div>
-                </form>
-              ))}
-              <form action={saveRow} className="pk-row">
-                <Hidden code={p.code} kind="option" parent={lv.id} />
-                <F label="New answer key" span={2}><input className="input" name="key" pattern="[a-z0-9_]{1,30}" placeholder="underground" required /></F>
-                <F label="Answer" span={3}><input className="input" name="label" placeholder="Underground piping" required /></F>
-                <F label="Chip" span={2}><input className="input" name="chip" /></F>
-                <F label="Price change ($, negative for a saving)" span={2}><input className="input" name="price_delta" inputMode="decimal" placeholder="850" /></F>
-                <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(lv.options.at(-1)?.sort_order ?? 0) + 10} /></F>
-                <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_default" /> default</label>
-                <div><button className="btn">Add</button></div>
-              </form>
+        <form action={saveRows}>
+          <Section code={p.code} kind="lever" />
+          {p.levers.map((lv) => (
+            <div key={lv.id} style={{ border: "1px solid #e6e6e2", borderRadius: 10, padding: "8px 12px", marginTop: 10 }}>
+              <div className="pk-row first">
+                <input type="hidden" name={n("rowkind", lv.id)} value="lever" />
+                <F label="Key" span={2}><input className="input" name={n("key", lv.id)} defaultValue={lv.key} pattern="[a-z0-9_]{1,30}" required /></F>
+                <F label="Label" span={2}><input className="input" name={n("label", lv.id)} defaultValue={lv.label} required /></F>
+                <F label="The question the homeowner is asked" span={5}><input className="input" name={n("question", lv.id)} defaultValue={lv.question ?? ""} /></F>
+                <F label="Control"><select className="input" name={n("control", lv.id)} defaultValue={lv.control}><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
+                <F label="Order"><input className="input" name={n("sort_order", lv.id)} inputMode="numeric" defaultValue={lv.sort_order} /></F>
+                <div className="pk-acts"><Del id={lv.id} title="Remove the lever and its options" /></div>
+              </div>
+              <div style={{ paddingLeft: 18 }}>
+                {[...lv.options.map((o) => ({ k: o.id, o })), { k: `new_${lv.id}`, o: null }].map(({ k, o }) => (
+                  <div key={k} className="pk-row">
+                    <input type="hidden" name={n("rowkind", k)} value="option" />
+                    <input type="hidden" name={n("parent", k)} value={lv.id} />
+                    <F label={o ? "Key" : "New answer key"} span={2}><input className="input" name={n("key", k)} defaultValue={o?.key ?? ""} pattern="[a-z0-9_]{1,30}" placeholder={o ? undefined : "underground"} required={!!o} /></F>
+                    <F label="Answer" span={3}><input className="input" name={n("label", k)} defaultValue={o?.label ?? ""} placeholder={o ? undefined : "Underground piping"} required={!!o} /></F>
+                    <F label="Chip (short)" span={2}><input className="input" name={n("chip", k)} defaultValue={o?.chip ?? ""} /></F>
+                    <F label={o ? `Price change ($) · ${signed(o.price_delta_cents)}` : "Price change ($, negative for a saving)"} span={2}><input className="input" name={n("price_delta", k)} inputMode="decimal" defaultValue={o ? dollars(o.price_delta_cents) : ""} placeholder={o ? undefined : "850"} /></F>
+                    <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={o?.sort_order ?? (lv.options.at(-1)?.sort_order ?? 0) + 10} /></F>
+                    <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_default", k)} defaultChecked={o?.is_default ?? false} /> default</label>
+                    {o && <div className="pk-acts"><Del id={o.id} /></div>}
+                  </div>
+                ))}
+              </div>
             </div>
+          ))}
+          <div className="pk-row" style={{ marginTop: 10 }}>
+            <input type="hidden" name={n("rowkind", "new")} value="lever" />
+            <F label="New lever key" span={2}><input className="input" name={n("key", "new")} pattern="[a-z0-9_]{1,30}" placeholder="piping" /></F>
+            <F label="Label" span={2}><input className="input" name={n("label", "new")} placeholder="Gas piping" /></F>
+            <F label="Question" span={5}><input className="input" name={n("question", "new")} placeholder="Above ground along the wall, or buried?" /></F>
+            <F label="Control"><select className="input" name={n("control", "new")} defaultValue="seg"><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
+            <F label="Order"><input className="input" name={n("sort_order", "new")} inputMode="numeric" defaultValue={(p.levers.at(-1)?.sort_order ?? 0) + 10} /></F>
           </div>
-        ))}
-        <form action={saveRow} className="pk-row" style={{ marginTop: 10 }}>
-          <Hidden code={p.code} kind="lever" />
-          <F label="New lever key" span={2}><input className="input" name="key" pattern="[a-z0-9_]{1,30}" placeholder="piping" required /></F>
-          <F label="Label" span={2}><input className="input" name="label" placeholder="Gas piping" required /></F>
-          <F label="Question" span={5}><input className="input" name="question" placeholder="Above ground along the wall, or buried?" /></F>
-          <F label="Control"><select className="input" name="control" defaultValue="seg"><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
-          <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(p.levers.at(-1)?.sort_order ?? 0) + 10} /></F>
-          <div><button className="btn">Add lever</button></div>
+          <SaveBar>Save all levers and answers</SaveBar>
         </form>
       </div>
 
@@ -228,23 +218,18 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       <div className="card" id="photo" style={{ marginTop: 14 }}>
         <h2 className="section-title">Photos we ask for</h2>
         <p className="muted small" style={{ marginTop: 0 }}>What the homeowner photographs so a contractor can confirm the price without a visit.</p>
-        {p.photos.map((ph) => (
-          <form key={ph.id} action={saveRow} className="pk-row">
-            <Hidden code={p.code} kind="photo" id={ph.id} />
-            <F label="Key" span={2}><input className="input" name="key" defaultValue={ph.key} required /></F>
-            <F label="Label" span={3}><input className="input" name="label" defaultValue={ph.label} required /></F>
-            <F label="Hint" span={5}><input className="input" name="hint" defaultValue={ph.hint ?? ""} /></F>
-            <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={ph.sort_order} /></F>
-            <div className="pk-acts"><button className="btn">Save</button><Del /></div>
-          </form>
-        ))}
-        <form action={saveRow} className="pk-row">
-          <Hidden code={p.code} kind="photo" />
-          <F label="New key" span={2}><input className="input" name="key" placeholder="meter" required /></F>
-          <F label="Label" span={3}><input className="input" name="label" placeholder="Gas meter" required /></F>
-          <F label="Hint" span={5}><input className="input" name="hint" /></F>
-          <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(p.photos.at(-1)?.sort_order ?? 0) + 10} /></F>
-          <div><button className="btn">Add</button></div>
+        <form action={saveRows}>
+          <Section code={p.code} kind="photo" />
+          {[...p.photos.map((ph) => ({ k: ph.id, ph })), { k: "new", ph: null }].map(({ k, ph }) => (
+            <div key={k} className="pk-row">
+              <F label={ph ? "Key" : "New key"} span={2}><input className="input" name={n("key", k)} defaultValue={ph?.key ?? ""} placeholder={ph ? undefined : "meter"} required={!!ph} /></F>
+              <F label="Label" span={3}><input className="input" name={n("label", k)} defaultValue={ph?.label ?? ""} placeholder={ph ? undefined : "Gas meter"} required={!!ph} /></F>
+              <F label="Hint" span={5}><input className="input" name={n("hint", k)} defaultValue={ph?.hint ?? ""} /></F>
+              <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={ph?.sort_order ?? (p.photos.at(-1)?.sort_order ?? 0) + 10} /></F>
+              {ph && <div className="pk-acts"><Del id={ph.id} /></div>}
+            </div>
+          ))}
+          <SaveBar>Save all photo slots</SaveBar>
         </form>
       </div>
 
@@ -252,28 +237,21 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       <div className="card" id="milestone" style={{ marginTop: 14 }}>
         <h2 className="section-title">The progress line</h2>
         <p className="muted small" style={{ marginTop: 0 }}>Booked and accepted are derived; payment nodes carry a percent of the contract; task nodes are hand-marked (permit issued, inspection passed). Changes apply to new bookings only.</p>
-        {p.milestones.map((m) => (
-          <form key={m.id} action={saveRow} className="pk-row">
-            <Hidden code={p.code} kind="milestone" id={m.id} />
-            <F label="#"><input className="input" name="sequence_no" inputMode="numeric" defaultValue={m.sequence_no} /></F>
-            <F label="Key" span={2}><input className="input" name="key" defaultValue={m.key} required /></F>
-            <F label="Kind"><select className="input" name="row_kind" defaultValue={m.kind}>{M_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></F>
-            <F label="Name" span={3}><input className="input" name="name" defaultValue={m.name} required /></F>
-            <F label="% of contract"><input className="input" name="percent_of_contract" inputMode="decimal" defaultValue={m.percent_of_contract ?? ""} /></F>
-            <F label="Typical range" span={2}><input className="input" name="typical_range" defaultValue={m.typical_range ?? ""} /></F>
-            <div className="pk-acts"><button className="btn">Save</button><Del /></div>
-            <F label="What triggers it" span={12}><input className="input" name="trigger_description" defaultValue={m.trigger_description ?? ""} /></F>
-          </form>
-        ))}
-        <form action={saveRow} className="pk-row">
-          <Hidden code={p.code} kind="milestone" />
-          <F label="#"><input className="input" name="sequence_no" inputMode="numeric" defaultValue={(p.milestones.at(-1)?.sequence_no ?? 0) + 1} /></F>
-          <F label="Key" span={2}><input className="input" name="key" placeholder="rough_in" required /></F>
-          <F label="Kind"><select className="input" name="row_kind" defaultValue="task">{M_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></F>
-          <F label="Name" span={3}><input className="input" name="name" placeholder="Rough-in inspected" required /></F>
-          <F label="% of contract"><input className="input" name="percent_of_contract" inputMode="decimal" /></F>
-          <F label="Typical range" span={2}><input className="input" name="typical_range" /></F>
-          <div className="pk-acts"><button className="btn">Add</button></div>
+        <form action={saveRows}>
+          <Section code={p.code} kind="milestone" />
+          {[...p.milestones.map((m) => ({ k: m.id, m })), { k: "new", m: null }].map(({ k, m }) => (
+            <div key={k} className="pk-row">
+              <F label="#"><input className="input" name={n("sequence_no", k)} inputMode="numeric" defaultValue={m?.sequence_no ?? (p.milestones.at(-1)?.sequence_no ?? 0) + 1} /></F>
+              <F label={m ? "Key" : "New key"} span={2}><input className="input" name={n("key", k)} defaultValue={m?.key ?? ""} placeholder={m ? undefined : "rough_in"} required={!!m} /></F>
+              <F label="Kind"><select className="input" name={n("row_kind", k)} defaultValue={m?.kind ?? "task"}>{M_KINDS.map((x) => <option key={x} value={x}>{x}</option>)}</select></F>
+              <F label="Name" span={3}><input className="input" name={n("name", k)} defaultValue={m?.name ?? ""} placeholder={m ? undefined : "Rough-in inspected"} required={!!m} /></F>
+              <F label="% of contract"><input className="input" name={n("percent_of_contract", k)} inputMode="decimal" defaultValue={m?.percent_of_contract ?? ""} /></F>
+              <F label="Typical range" span={2}><input className="input" name={n("typical_range", k)} defaultValue={m?.typical_range ?? ""} /></F>
+              {m && <div className="pk-acts"><Del id={m.id} /></div>}
+              <F label="What triggers it" span={12}><input className="input" name={n("trigger_description", k)} defaultValue={m?.trigger_description ?? ""} /></F>
+            </div>
+          ))}
+          <SaveBar>Save the progress line</SaveBar>
         </form>
       </div>
 
@@ -284,29 +262,26 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           Shown in the second half of the package screen. Add more than one active version and each viewer is assigned one, the same one every visit;
           the numbers say which version earns the play, the finish and the booking within fourteen days. A YouTube link embeds; any other https link plays as a file.
         </p>
-        {p.videos.map((v) => {
-          const pct = (n: number) => (v.shown ? `${Math.round((n / v.shown) * 100)}%` : "—");
-          return (
-            <form key={v.id} action={saveRow} className="pk-row">
-              <Hidden code={p.code} kind="video" id={v.id} />
-              <F label="Version" span={2}><input className="input" name="label" defaultValue={v.label} required /></F>
-              <F label="Link (YouTube or a video file)" span={5}><input className="input" name="url" type="url" defaultValue={v.url} required /></F>
-              <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={v.sort_order} /></F>
-              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked={v.is_active} /> on</label>
-              <div className="pk-acts"><button className="btn">Save</button><Del /></div>
-              <p className="muted small pk-f full" style={{ margin: 0 }}>
-                Shown to {v.shown} · played {v.plays} ({pct(v.plays)}) · watched to the end {v.completes} ({pct(v.completes)}) · booked within 14 days {v.booked} ({pct(v.booked)})
-              </p>
-            </form>
-          );
-        })}
-        <form action={saveRow} className="pk-row">
-          <Hidden code={p.code} kind="video" />
-          <F label="New version" span={2}><input className="input" name="label" placeholder="A - Shahar explains" required /></F>
-          <F label="Link" span={5}><input className="input" name="url" type="url" placeholder="https://youtu.be/…" required /></F>
-          <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(p.videos.at(-1)?.sort_order ?? 0) + 10} /></F>
-          <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked /> on</label>
-          <div className="pk-acts"><button className="btn">Add</button></div>
+        <form action={saveRows}>
+          <Section code={p.code} kind="video" />
+          {[...p.videos.map((v) => ({ k: v.id, v })), { k: "new", v: null }].map(({ k, v }) => {
+            const pct = (x: number) => (v?.shown ? `${Math.round((x / v.shown) * 100)}%` : "—");
+            return (
+              <div key={k} className="pk-row">
+                <F label={v ? "Version" : "New version"} span={2}><input className="input" name={n("label", k)} defaultValue={v?.label ?? ""} placeholder={v ? undefined : "A - Shahar explains"} required={!!v} /></F>
+                <F label="Link (YouTube or a video file)" span={5}><input className="input" name={n("url", k)} type="url" defaultValue={v?.url ?? ""} placeholder={v ? undefined : "https://youtu.be/…"} required={!!v} /></F>
+                <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={v?.sort_order ?? (p.videos.at(-1)?.sort_order ?? 0) + 10} /></F>
+                <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_active", k)} defaultChecked={v?.is_active ?? true} /> on</label>
+                {v && <div className="pk-acts"><Del id={v.id} /></div>}
+                {v && (
+                  <p className="muted small pk-f full" style={{ margin: 0 }}>
+                    Shown to {v.shown} · played {v.plays} ({pct(v.plays)}) · watched to the end {v.completes} ({pct(v.completes)}) · booked within 14 days {v.booked} ({pct(v.booked)})
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          <SaveBar>Save all versions</SaveBar>
         </form>
       </div>
 

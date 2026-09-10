@@ -63,41 +63,80 @@ export async function savePackage(formData: FormData) {
   finish(data.code ?? code, true, isNew ? "Package created. Now give it scope lines and levers." : "Package saved.");
 }
 
-// One child row: item, lever, option, photo, milestone. Blank id inserts.
-export async function saveRow(formData: FormData) {
+// EVERY ROW OF A SECTION AT ONCE (Shahar: "save works on one line at a
+// time and I lose changes made to all other cells"). The form names every
+// field field__rowkey; this reads them back into rows and writes each one
+// through admin_package_row_save - the same rules, one row at a time, in
+// one round. A blank new row is skipped. The row kind is the section's
+// unless the row says otherwise (a lever section holds levers and their
+// answers); an answer carries its lever as parent.
+type Row = Record<string, string>;
+const isNew = (key: string) => key === "new" || key.startsWith("new_");
+const blank = (kind: string, r: Row) => {
+  switch (kind) {
+    case "item": return !r.label;
+    case "milestone": return !r.key && !r.name;
+    case "video": return !r.url && !r.label;
+    default: return !r.key && !r.label; // lever, option, photo
+  }
+};
+const title = (r: Row, key: string) => r.label || r.name || r.key || (isNew(key) ? "the new row" : key.slice(0, 8));
+
+export async function saveRows(formData: FormData) {
   const supabase = await admin();
   const code = s(formData, "code");
   const kind = s(formData, "kind");
-  const id = s(formData, "id") || null;
-  const parent = s(formData, "parent") || code;
-  const delta = cents(formData.get("price_delta"));
-  if (delta === "x") finish(code, false, "That price change is not a number.", kind);
-  const patch: Record<string, string> = {
-    label: s(formData, "label"), detail: s(formData, "detail"), kind: s(formData, "row_kind"),
-    key: s(formData, "key"), question: s(formData, "question"), control: s(formData, "control"),
-    chip: s(formData, "chip"), price_delta_cents: delta, is_default: b(formData, "is_default"),
-    hint: s(formData, "hint"), sort_order: s(formData, "sort_order"),
-    name: s(formData, "name"), sequence_no: s(formData, "sequence_no"),
-    percent_of_contract: s(formData, "percent_of_contract"), typical_range: s(formData, "typical_range"),
-    trigger_description: s(formData, "trigger_description"),
-    url: s(formData, "url"), is_active: b(formData, "is_active"),
-    // Store links on a hardware line (054): one field per store, sent as
-    // the JSON list the database keeps. Blank fields drop out.
-    links: JSON.stringify(
-      ([["Home Depot", s(formData, "link_home_depot")], ["Lowe's", s(formData, "link_lowes")]] as [string, string][])
-        .filter(([, url]) => url).map(([label, url]) => ({ label, url }))),
-  };
-  // Milestone kind rides in row_kind too; the function reads 'kind'.
-  const { data, error } = await supabase.rpc("admin_package_row_save", { p_kind: kind, p_id: id, p_parent: parent, p_patch: patch });
-  if (error || data?.ok === false) finish(code, false, data?.reason ?? error?.message ?? "Not saved.", kind);
-  finish(code, true, id ? "Saved." : "Added.", kind);
+  const rows = new Map<string, Row>();
+  for (const [k, v] of formData.entries()) {
+    const m = k.match(/^([a-z_]+)__(.+)$/);
+    if (!m || typeof v !== "string") continue;
+    const row = rows.get(m[2]!) ?? {};
+    row[m[1]!] = v.trim();
+    rows.set(m[2]!, row);
+  }
+  // Existing rows first, new ones last, so a new answer lands under a
+  // lever that has just been renamed rather than the other way round.
+  const keys = [...rows.keys()].sort((a, b) => Number(isNew(a)) - Number(isNew(b)));
+  const problems: string[] = [];
+  let saved = 0;
+  for (const key of keys) {
+    const r = rows.get(key)!;
+    const rowKind = r.rowkind || kind;
+    if (isNew(key) && blank(rowKind, r)) continue;
+    const delta = cents(r.price_delta ?? null);
+    if (delta === "x") { problems.push(`${title(r, key)}: the price change is not a number.`); continue; }
+    const patch: Record<string, string> = {
+      label: r.label ?? "", detail: r.detail ?? "", kind: r.row_kind ?? "",
+      key: r.key ?? "", question: r.question ?? "", control: r.control ?? "",
+      chip: r.chip ?? "", price_delta_cents: delta, is_default: r.is_default ? "true" : "false",
+      hint: r.hint ?? "", sort_order: r.sort_order ?? "",
+      name: r.name ?? "", sequence_no: r.sequence_no ?? "",
+      percent_of_contract: r.percent_of_contract ?? "", typical_range: r.typical_range ?? "",
+      trigger_description: r.trigger_description ?? "",
+      url: r.url ?? "", is_active: r.is_active ? "true" : "false",
+      links: JSON.stringify(
+        ([["Home Depot", r.link_home_depot ?? ""], ["Lowe's", r.link_lowes ?? ""]] as [string, string][])
+          .filter(([, url]) => url).map(([label, url]) => ({ label, url }))),
+    };
+    const { data, error } = await supabase.rpc("admin_package_row_save", {
+      p_kind: rowKind, p_id: isNew(key) ? null : key, p_parent: r.parent || code, p_patch: patch,
+    });
+    if (error || data?.ok === false) problems.push(`${title(r, key)}: ${data?.reason ?? error?.message ?? "not saved"}`);
+    else saved++;
+  }
+  const noun = saved === 1 ? "row" : "rows";
+  if (problems.length) finish(code, false, `${saved} ${noun} saved. Not saved - ${problems.join(" · ")}`, kind);
+  finish(code, true, `${saved} ${noun} saved.`, kind);
 }
 
+// One row out. The X is a button inside the section's form carrying the
+// row id as its value; the row kind is the row's own when the section
+// mixes kinds (levers and answers), else the section's.
 export async function deleteRow(formData: FormData) {
   const supabase = await admin();
   const code = s(formData, "code");
-  const kind = s(formData, "kind");
-  const id = s(formData, "id");
+  const id = s(formData, "delete") || s(formData, "id");
+  const kind = s(formData, `rowkind__${id}`) || s(formData, "kind");
   const { data, error } = await supabase.rpc("admin_package_row_delete", { p_kind: kind, p_id: id });
   if (error || data?.ok === false) finish(code, false, data?.reason ?? error?.message ?? "Not removed.", kind);
   finish(code, true, "Removed.", kind);
