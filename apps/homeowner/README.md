@@ -41,6 +41,16 @@ it keeps Root Directory `/` and ignores `apps/`. No service-role key anywhere
 in this app. Supabase Auth needs the new domain in its redirect allow-list
 (`/auth/confirm`).
 
+**When a push does not deploy** (it happened 2026-09-10: a push landed on
+GitHub and no project created a deployment for it). Check the project's
+Deployments list for the commit SHA before touching anything. **Redeploy in a
+row's menu rebuilds THAT row's commit**, not the latest push, so it cannot
+bring a missed commit live. Either use **Create Deployment** (top right of
+the Deployments page, branch `main`) or push another commit; the webhook
+carries the next push normally. A deployment marked CANCELED on this project
+is usually Vercel skipping a commit that changed nothing under
+`apps/homeowner` or `apps/shared`, not a failure.
+
 ## The database migration (applied 2026-09-07)
 
 **Applied to the live project on 2026-09-07** (`001`-`003`, then `004` the same day). **Nothing moved and nothing was deleted.** The migration is additive: it
