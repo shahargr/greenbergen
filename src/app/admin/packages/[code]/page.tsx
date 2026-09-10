@@ -38,10 +38,17 @@ const M_KINDS = ["booked", "accepted", "payment", "task", "done"];
 
 // Module-level, not created in render (the lint is right: a component made
 // inside a component remounts every time).
-function F({ label, children, span = 1 }: { label: string; children: React.ReactNode; span?: number }) {
-  return <label className="field" style={{ margin: 0, gridColumn: `span ${span}` }}><span className="muted small">{label}</span>{children}</label>;
+// A field in a row. Rows WRAP (see .pk-row in globals.css) rather than
+// squeezing twelve columns into whatever width the window has - on a phone
+// the old grid left each input two characters wide (Shahar: "fix the font
+// size, this is not a nice design"). A field's width is a hint: narrow for
+// an order number, wide for a sentence, full for a line of its own; the
+// old span numbers map onto those so every row keeps its shape.
+type W = "narrow" | "" | "wide" | "full";
+const widthOf = (span: number): W => (span >= 12 ? "full" : span >= 5 ? "wide" : span <= 1 ? "narrow" : "");
+function F({ label, children, span = 2, w }: { label: string; children: React.ReactNode; span?: number; w?: W }) {
+  return <label className={`pk-f ${w ?? widthOf(span)}`}><span>{label}</span>{children}</label>;
 }
-const rowStyle = { display: "grid", gap: 8, gridTemplateColumns: "repeat(12, minmax(0, 1fr))", alignItems: "end", padding: "8px 0", borderTop: "1px solid #eee" } as const;
 function Hidden({ code, kind, id, parent }: { code: string; kind: string; id?: string; parent?: string }) {
   return (
     <>
@@ -52,8 +59,14 @@ function Hidden({ code, kind, id, parent }: { code: string; kind: string; id?: s
     </>
   );
 }
-function Del({ code, kind, id }: { code: string; kind: string; id: string }) {
-  return <form action={deleteRow} style={{ gridColumn: "span 1" }}><Hidden code={code} kind={kind} id={id} /><button className="btn ghost" title="Remove" aria-label="Remove">✕</button></form>;
+// The remove button lives INSIDE the row's own form and points it at
+// deleteRow through formAction. It used to be a form of its own nested in
+// the row's form, which HTML does not allow: the browser dropped the inner
+// form and the X quietly submitted the outer one - Save (Shahar: "the X
+// does not remove the line"). The row's hidden code, kind and id are what
+// deleteRow reads, so nothing else is needed.
+function Del({ title = "Remove" }: { title?: string }) {
+  return <button formAction={deleteRow} className="btn ghost" title={title} aria-label={title}>✕</button>;
 }
 
 export default async function AdminPackagePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ error?: string; saved?: string }> }) {
@@ -85,11 +98,11 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         <p className="muted small" style={{ marginTop: 0 }}>
           The base price is what the default configuration costs, services and hardware together. The configuration line says in words what that default is - it is what the homeowner reads next to the price.
         </p>
-        <form action={savePackage} style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}>
+        <form action={savePackage} className="pk-row first">
           <input type="hidden" name="code" value={p.code} />
-          <F label="Name" span={3}><input className="input" name="name" defaultValue={p.name} required /></F>
+          <F label="Name" w="wide"><input className="input" name="name" defaultValue={p.name} required /></F>
           <F label="Tile title" span={2}><input className="input" name="tile_title" defaultValue={p.tile_title} required /></F>
-          <F label="Tile second line"><input className="input" name="tile_line2" defaultValue={p.tile_line2 ?? ""} /></F>
+          <F label="Tile second line" w=""><input className="input" name="tile_line2" defaultValue={p.tile_line2 ?? ""} /></F>
           <F label="Base price ($)" span={2}><input className="input" name="base_price" inputMode="decimal" defaultValue={dollars(p.base_price_cents)} placeholder="1180" /></F>
           <F label="State" span={2}>
             <select className="input" name="availability" defaultValue={p.availability}>{AVAIL.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
@@ -97,25 +110,25 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <F label="Trade" span={2}>
             <select className="input" name="trade" defaultValue={p.trade}>{(trades ?? []).map((t) => <option key={t.trade} value={t.trade}>{t.trade}</option>)}</select>
           </F>
-          <F label="Configuration line (what the base price buys)" span={6}><input className="input" name="config_label" defaultValue={p.config_label ?? ""} placeholder="22 kW whole-house, natural gas, transfer switch, pad" /></F>
-          <F label="Description" span={6}><textarea className="input" name="description" rows={2} defaultValue={p.description ?? ""} /></F>
+          <F label="Configuration line (what the base price buys)" w="full"><input className="input" name="config_label" defaultValue={p.config_label ?? ""} placeholder="22 kW whole-house, natural gas, transfer switch, pad" /></F>
+          <F label="Description" w="full"><textarea className="input" name="description" rows={2} defaultValue={p.description ?? ""} /></F>
           <F label="Shelf" span={2}>
             <select className="input" name="tile_group" defaultValue={p.tile_group}><option value="front">Front page</option><option value="more">More packages</option></select>
           </F>
           <F label="Section" span={2}>
             <select className="input" name="category" defaultValue={p.category ?? ""}><option value="">—</option>{(cats ?? []).map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}</select>
           </F>
-          <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={p.sort_order} /></F>
-          <F label="Illustration"><input className="input" name="illustration" defaultValue={p.illustration ?? ""} /></F>
+          <F label="Order" w="narrow"><input className="input" name="sort_order" inputMode="numeric" defaultValue={p.sort_order} /></F>
+          <F label="Illustration" w=""><input className="input" name="illustration" defaultValue={p.illustration ?? ""} /></F>
           <F label="Season months (e.g. 10,11; blank = all year)" span={2}><input className="input" name="season_months" defaultValue={(p.season_months ?? []).join(",")} /></F>
-          <F label="Permit deposit %" span={1}><input className="input" name="permit_deposit_pct" inputMode="decimal" defaultValue={p.permit_deposit_pct ?? ""} /></F>
-          <F label="Approval note" span={3}><input className="input" name="approval_note" defaultValue={p.approval_note ?? ""} /></F>
+          <F label="Permit deposit %" w="narrow"><input className="input" name="permit_deposit_pct" inputMode="decimal" defaultValue={p.permit_deposit_pct ?? ""} /></F>
+          <F label="Approval note" w="wide"><input className="input" name="approval_note" defaultValue={p.approval_note ?? ""} /></F>
           {/* THE FRONT DOOR (052). A photograph of the work - a professional
               at it, in a house - shown large on the homeowner landing page
               when this package is promoted. Uploaded from here, shrunk in
               the browser, saved on its own (not part of this form). */}
           <PackagePhoto code={p.code} url={p.photo_url} />
-          <div style={{ gridColumn: "span 6", display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
+          <div className="pk-f full" style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
             <label className="small"><input type="checkbox" name="promote" defaultChecked={p.promote} /> Feature on the landing page</label>
             <label className="small"><input type="checkbox" name="requires_permit" defaultChecked={p.requires_permit} /> Needs a permit</label>
             <label className="small"><input type="checkbox" name="instant_book" defaultChecked={p.instant_book} /> Instant book</label>
@@ -133,19 +146,18 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <strong> Hardware</strong> lines are what the homeowner buys and the price does not include - the generator, the switch, the pad - each with the suggested product page at Home Depot and Lowe&apos;s; the package page lists them under &ldquo;What you buy&rdquo;.
         </p>
         {p.items.map((it) => (
-          <form key={it.id} action={saveRow} style={rowStyle}>
+          <form key={it.id} action={saveRow} className="pk-row">
             <Hidden code={p.code} kind="item" id={it.id} />
             <F label="Line" span={5}><input className="input" name="label" defaultValue={it.label} required /></F>
             <F label="Detail" span={3}><input className="input" name="detail" defaultValue={it.detail ?? ""} /></F>
             <F label="Kind" span={2}><select className="input" name="row_kind" defaultValue={it.kind}>{ITEM_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
             <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={it.sort_order} /></F>
-            <div style={{ display: "flex", gap: 6 }}><button className="btn">Save</button></div>
-            <Del code={p.code} kind="item" id={it.id} />
+            <div className="pk-acts"><button className="btn">Save</button><Del /></div>
             <F label="Home Depot page (hardware only)" span={6}><input className="input" name="link_home_depot" type="url" defaultValue={storeUrl(it.links, "Home Depot")} placeholder="https://www.homedepot.com/p/…" /></F>
             <F label="Lowe's page (hardware only)" span={6}><input className="input" name="link_lowes" type="url" defaultValue={storeUrl(it.links, "Lowe's")} placeholder="https://www.lowes.com/pd/…" /></F>
           </form>
         ))}
-        <form action={saveRow} style={rowStyle}>
+        <form action={saveRow} className="pk-row">
           <Hidden code={p.code} kind="item" />
           <F label="New line" span={5}><input className="input" name="label" placeholder="Underground gas line from the meter" required /></F>
           <F label="Detail" span={3}><input className="input" name="detail" /></F>
@@ -165,44 +177,43 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         </p>
         {p.levers.map((lv) => (
           <div key={lv.id} style={{ border: "1px solid #e6e6e2", borderRadius: 10, padding: "8px 12px", marginTop: 10 }}>
-            <form action={saveRow} style={{ ...rowStyle, borderTop: 0 }}>
+            <form action={saveRow} className="pk-row first">
               <Hidden code={p.code} kind="lever" id={lv.id} />
               <F label="Key" span={2}><input className="input" name="key" defaultValue={lv.key} pattern="[a-z0-9_]{1,30}" required /></F>
               <F label="Label" span={2}><input className="input" name="label" defaultValue={lv.label} required /></F>
               <F label="The question the homeowner is asked" span={5}><input className="input" name="question" defaultValue={lv.question ?? ""} /></F>
               <F label="Control"><select className="input" name="control" defaultValue={lv.control}><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
               <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={lv.sort_order} /></F>
-              <div style={{ display: "flex", gap: 6 }}><button className="btn">Save</button>
-                <form action={deleteRow}><Hidden code={p.code} kind="lever" id={lv.id} /><button className="btn ghost" title="Remove the lever and its options">✕</button></form></div>
+              <div className="pk-acts"><button className="btn">Save</button>
+                <Del title="Remove the lever and its options" /></div>
             </form>
             <div style={{ paddingLeft: 18 }}>
               {lv.options.map((o) => (
-                <form key={o.id} action={saveRow} style={rowStyle}>
+                <form key={o.id} action={saveRow} className="pk-row">
                   <Hidden code={p.code} kind="option" id={o.id} parent={lv.id} />
                   <F label="Key" span={2}><input className="input" name="key" defaultValue={o.key} pattern="[a-z0-9_]{1,30}" required /></F>
                   <F label="Answer" span={3}><input className="input" name="label" defaultValue={o.label} required /></F>
                   <F label="Chip (short)" span={2}><input className="input" name="chip" defaultValue={o.chip ?? ""} /></F>
                   <F label={`Price change ($) · ${signed(o.price_delta_cents)}`} span={2}><input className="input" name="price_delta" inputMode="decimal" defaultValue={dollars(o.price_delta_cents)} /></F>
                   <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={o.sort_order} /></F>
-                  <label className="small" style={{ gridColumn: "span 1", paddingBottom: 8 }}><input type="checkbox" name="is_default" defaultChecked={o.is_default} /> default</label>
-                  <div style={{ display: "flex", gap: 6 }}><button className="btn">Save</button></div>
-                  <Del code={p.code} kind="option" id={o.id} />
+                  <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_default" defaultChecked={o.is_default} /> default</label>
+                  <div className="pk-acts"><button className="btn">Save</button><Del /></div>
                 </form>
               ))}
-              <form action={saveRow} style={rowStyle}>
+              <form action={saveRow} className="pk-row">
                 <Hidden code={p.code} kind="option" parent={lv.id} />
                 <F label="New answer key" span={2}><input className="input" name="key" pattern="[a-z0-9_]{1,30}" placeholder="underground" required /></F>
                 <F label="Answer" span={3}><input className="input" name="label" placeholder="Underground piping" required /></F>
                 <F label="Chip" span={2}><input className="input" name="chip" /></F>
                 <F label="Price change ($, negative for a saving)" span={2}><input className="input" name="price_delta" inputMode="decimal" placeholder="850" /></F>
                 <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(lv.options.at(-1)?.sort_order ?? 0) + 10} /></F>
-                <label className="small" style={{ gridColumn: "span 1", paddingBottom: 8 }}><input type="checkbox" name="is_default" /> default</label>
+                <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_default" /> default</label>
                 <div><button className="btn">Add</button></div>
               </form>
             </div>
           </div>
         ))}
-        <form action={saveRow} style={{ ...rowStyle, marginTop: 10 }}>
+        <form action={saveRow} className="pk-row" style={{ marginTop: 10 }}>
           <Hidden code={p.code} kind="lever" />
           <F label="New lever key" span={2}><input className="input" name="key" pattern="[a-z0-9_]{1,30}" placeholder="piping" required /></F>
           <F label="Label" span={2}><input className="input" name="label" placeholder="Gas piping" required /></F>
@@ -218,16 +229,16 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         <h2 className="section-title">Photos we ask for</h2>
         <p className="muted small" style={{ marginTop: 0 }}>What the homeowner photographs so a contractor can confirm the price without a visit.</p>
         {p.photos.map((ph) => (
-          <form key={ph.id} action={saveRow} style={rowStyle}>
+          <form key={ph.id} action={saveRow} className="pk-row">
             <Hidden code={p.code} kind="photo" id={ph.id} />
             <F label="Key" span={2}><input className="input" name="key" defaultValue={ph.key} required /></F>
             <F label="Label" span={3}><input className="input" name="label" defaultValue={ph.label} required /></F>
             <F label="Hint" span={5}><input className="input" name="hint" defaultValue={ph.hint ?? ""} /></F>
             <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={ph.sort_order} /></F>
-            <div style={{ display: "flex", gap: 6 }}><button className="btn">Save</button><Del code={p.code} kind="photo" id={ph.id} /></div>
+            <div className="pk-acts"><button className="btn">Save</button><Del /></div>
           </form>
         ))}
-        <form action={saveRow} style={rowStyle}>
+        <form action={saveRow} className="pk-row">
           <Hidden code={p.code} kind="photo" />
           <F label="New key" span={2}><input className="input" name="key" placeholder="meter" required /></F>
           <F label="Label" span={3}><input className="input" name="label" placeholder="Gas meter" required /></F>
@@ -242,7 +253,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         <h2 className="section-title">The progress line</h2>
         <p className="muted small" style={{ marginTop: 0 }}>Booked and accepted are derived; payment nodes carry a percent of the contract; task nodes are hand-marked (permit issued, inspection passed). Changes apply to new bookings only.</p>
         {p.milestones.map((m) => (
-          <form key={m.id} action={saveRow} style={rowStyle}>
+          <form key={m.id} action={saveRow} className="pk-row">
             <Hidden code={p.code} kind="milestone" id={m.id} />
             <F label="#"><input className="input" name="sequence_no" inputMode="numeric" defaultValue={m.sequence_no} /></F>
             <F label="Key" span={2}><input className="input" name="key" defaultValue={m.key} required /></F>
@@ -250,11 +261,11 @@ export default async function AdminPackagePage({ params, searchParams }: { param
             <F label="Name" span={3}><input className="input" name="name" defaultValue={m.name} required /></F>
             <F label="% of contract"><input className="input" name="percent_of_contract" inputMode="decimal" defaultValue={m.percent_of_contract ?? ""} /></F>
             <F label="Typical range" span={2}><input className="input" name="typical_range" defaultValue={m.typical_range ?? ""} /></F>
-            <div style={{ display: "flex", gap: 6, gridColumn: "span 2" }}><button className="btn">Save</button><Del code={p.code} kind="milestone" id={m.id} /></div>
+            <div className="pk-acts"><button className="btn">Save</button><Del /></div>
             <F label="What triggers it" span={12}><input className="input" name="trigger_description" defaultValue={m.trigger_description ?? ""} /></F>
           </form>
         ))}
-        <form action={saveRow} style={rowStyle}>
+        <form action={saveRow} className="pk-row">
           <Hidden code={p.code} kind="milestone" />
           <F label="#"><input className="input" name="sequence_no" inputMode="numeric" defaultValue={(p.milestones.at(-1)?.sequence_no ?? 0) + 1} /></F>
           <F label="Key" span={2}><input className="input" name="key" placeholder="rough_in" required /></F>
@@ -262,7 +273,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <F label="Name" span={3}><input className="input" name="name" placeholder="Rough-in inspected" required /></F>
           <F label="% of contract"><input className="input" name="percent_of_contract" inputMode="decimal" /></F>
           <F label="Typical range" span={2}><input className="input" name="typical_range" /></F>
-          <div style={{ gridColumn: "span 2" }}><button className="btn">Add</button></div>
+          <div className="pk-acts"><button className="btn">Add</button></div>
         </form>
       </div>
 
@@ -276,26 +287,26 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         {p.videos.map((v) => {
           const pct = (n: number) => (v.shown ? `${Math.round((n / v.shown) * 100)}%` : "—");
           return (
-            <form key={v.id} action={saveRow} style={rowStyle}>
+            <form key={v.id} action={saveRow} className="pk-row">
               <Hidden code={p.code} kind="video" id={v.id} />
               <F label="Version" span={2}><input className="input" name="label" defaultValue={v.label} required /></F>
               <F label="Link (YouTube or a video file)" span={5}><input className="input" name="url" type="url" defaultValue={v.url} required /></F>
               <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={v.sort_order} /></F>
-              <label className="small" style={{ gridColumn: "span 1", paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked={v.is_active} /> on</label>
-              <div style={{ display: "flex", gap: 6, gridColumn: "span 2" }}><button className="btn">Save</button><Del code={p.code} kind="video" id={v.id} /></div>
-              <p className="muted small" style={{ gridColumn: "span 12", margin: 0 }}>
+              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked={v.is_active} /> on</label>
+              <div className="pk-acts"><button className="btn">Save</button><Del /></div>
+              <p className="muted small" className="pk-f full" style={{ margin: 0 }}>
                 Shown to {v.shown} · played {v.plays} ({pct(v.plays)}) · watched to the end {v.completes} ({pct(v.completes)}) · booked within 14 days {v.booked} ({pct(v.booked)})
               </p>
             </form>
           );
         })}
-        <form action={saveRow} style={rowStyle}>
+        <form action={saveRow} className="pk-row">
           <Hidden code={p.code} kind="video" />
           <F label="New version" span={2}><input className="input" name="label" placeholder="A - Shahar explains" required /></F>
           <F label="Link" span={5}><input className="input" name="url" type="url" placeholder="https://youtu.be/…" required /></F>
           <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(p.videos.at(-1)?.sort_order ?? 0) + 10} /></F>
-          <label className="small" style={{ gridColumn: "span 1", paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked /> on</label>
-          <div style={{ gridColumn: "span 2" }}><button className="btn">Add</button></div>
+          <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked /> on</label>
+          <div className="pk-acts"><button className="btn">Add</button></div>
         </form>
       </div>
 

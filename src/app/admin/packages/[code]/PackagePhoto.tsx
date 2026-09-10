@@ -72,7 +72,7 @@ export function PackagePhoto({ code, url }: { code: string; url: string | null }
   }
 
   return (
-    <div style={{ gridColumn: "span 6", display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+    <div className="pk-f full" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
       {current
         // eslint-disable-next-line @next/next/no-img-element
         ? <img src={current} alt="" style={{ width: 128, height: 96, objectFit: "cover", borderRadius: 10 }} />

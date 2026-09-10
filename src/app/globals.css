@@ -1408,3 +1408,20 @@ a.homepanel-alert:hover { text-decoration: underline; }
 }
 .tasktable tr.tasktable-group:hover td { background: #eef2ee; }
 .tasktable tr.child td { background: #fbfcfa; }
+
+/* Package editor (admin/packages/[code]). Rows WRAP; a field's width is a
+   hint, not a column count, so a phone gets two fields to a line and a
+   desktop gets the whole row. */
+.pk-row { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; padding: 10px 0; border-top: 1px solid #eee; }
+.pk-row.first { border-top: 0; padding-top: 0; }
+.pk-f { display: grid; gap: 4px; margin: 0; flex: 1 1 150px; min-width: 0; }
+.pk-f > span { font-size: 12px; color: var(--muted); line-height: 1.25; }
+.pk-f.narrow { flex: 0 1 96px; }
+.pk-f.wide { flex: 3 1 260px; }
+.pk-f.full { flex: 1 1 100%; }
+.pk-f .input { width: 100%; font-size: 15px; min-height: 40px; }
+.pk-acts { display: flex; gap: 6px; align-items: center; padding-bottom: 1px; }
+@media (max-width: 640px) {
+  .pk-f, .pk-f.narrow, .pk-f.wide { flex: 1 1 calc(50% - 10px); }
+  .pk-f.full { flex-basis: 100%; }
+}
