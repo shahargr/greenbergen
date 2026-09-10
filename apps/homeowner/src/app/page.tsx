@@ -4,7 +4,7 @@ import { createClient } from "@shared/supabase/server";
 import { isSignedIn } from "@shared/supabase/session";
 import { rpc } from "@shared/rpc";
 import { AppBar, Card, ChevronIcon, Screen } from "@shared/ui";
-import { featured, isQuote, loadTagline, loadTiles, type Tile } from "@shared/catalogue";
+import { featured, fromPrice, isQuote, loadTagline, loadTiles, type Tile } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { dollars } from "@shared/format";
 import { SITE_ORIGIN } from "@shared/site";
@@ -134,7 +134,10 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
 // One scene: the work, photographed when Admin has the photo, drawn when
 // not; the name; and what it costs the community.
 function Scene({ t }: { t: Tile }) {
-  const price = t.base_price_cents != null ? `from ${dollars(t.base_price_cents)}` : isQuote(t) ? "A person prices it" : "Coming soon";
+  // "from" is the package's floor - its cheapest configuration - read from
+  // the package, never typed here (053).
+  const floor = fromPrice(t);
+  const price = floor != null ? `from ${dollars(floor)}` : isQuote(t) ? "A person prices it" : "Coming soon";
   return (
     <Link href={`/packages/${t.code}`} className="scene">
       <span className={`scene-pic ${t.photo_url ? "" : "drawn"}`}>

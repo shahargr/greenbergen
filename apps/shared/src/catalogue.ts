@@ -62,7 +62,15 @@ export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_gr
   photo_url?: string | null;
   promote?: boolean;
   base_price_cents?: number | null;
+  // The cheapest configuration (migration 053): base plus the lowest answer
+  // on every lever. What a "from" line says; computed in the database so a
+  // price edit moves every panel at once.
+  from_price_cents?: number | null;
 };
+
+// The number after "from": the floor when the database gives it, the base
+// price on the static fallback, nothing when the package has no price.
+export const fromPrice = (t: Tile): number | null => t.from_price_cents ?? t.base_price_cents ?? null;
 
 // WHAT THE LANDING PAGE FEATURES. Admin's choice first (promote, in shelf
 // order); when nothing is flagged, the first open front-page tiles, so the
