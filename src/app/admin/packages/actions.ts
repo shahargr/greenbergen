@@ -77,6 +77,7 @@ export async function saveRow(formData: FormData) {
     name: s(formData, "name"), sequence_no: s(formData, "sequence_no"),
     percent_of_contract: s(formData, "percent_of_contract"), typical_range: s(formData, "typical_range"),
     trigger_description: s(formData, "trigger_description"),
+    url: s(formData, "url"), is_active: b(formData, "is_active"),
   };
   // Milestone kind rides in row_kind too; the function reads 'kind'.
   const { data, error } = await supabase.rpc("admin_package_row_save", { p_kind: kind, p_id: id, p_parent: parent, p_patch: patch });

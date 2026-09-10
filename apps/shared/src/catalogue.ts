@@ -25,6 +25,9 @@ export type Package = {
   instant_book: boolean; approval_note: string | null; illustration: string; description: string | null;
   sort_order: number; items: { label: string; detail: string | null }[]; levers: Lever[]; photos: PhotoReq[];
   milestones: MilestoneTpl[];
+  // The explainer versions (migration 049). Optional: the static fallback
+  // predates them, and a package may simply have none.
+  videos?: { id: string; label: string; url: string }[];
 };
 export type CommunityService = {
   code: string; name: string; cadence: string; summary: string; description: string; price_cents: number;

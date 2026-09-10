@@ -17,12 +17,13 @@ type Lever = { id: string; key: string; label: string; control: string; question
 type Photo = { id: string; key: string; label: string; hint: string | null; sort_order: number };
 type Milestone = { id: string; key: string; kind: string; name: string; sequence_no: number; percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null };
 type Server = { contact_id: string; name: string; status: string; price_cents: number | null; note: string | null; updated_at: string };
+type Video = { id: string; label: string; url: string; sort_order: number; is_active: boolean; shown: number; plays: number; completes: number; booked: number };
 type Pkg = {
   code: string; name: string; tile_title: string; tile_line2: string | null; trade: string; tile_group: string;
   availability: string; base_price_cents: number | null; config_label: string | null; requires_permit: boolean;
   permit_deposit_pct: number | null; instant_book: boolean; approval_note: string | null; illustration: string | null;
   description: string | null; sort_order: number; is_active: boolean; category: string | null; season_months: number[] | null;
-  covered: boolean; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[];
+  covered: boolean; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[]; videos: Video[];
 };
 
 const dollars = (c: number | null | undefined) => (c == null ? "" : (c / 100).toFixed(c % 100 === 0 ? 0 : 2));
@@ -243,6 +244,39 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <F label="Name" span={3}><input className="input" name="name" placeholder="Rough-in inspected" required /></F>
           <F label="% of contract"><input className="input" name="percent_of_contract" inputMode="decimal" /></F>
           <F label="Typical range" span={2}><input className="input" name="typical_range" /></F>
+          <div style={{ gridColumn: "span 2" }}><button className="btn">Add</button></div>
+        </form>
+      </div>
+
+      {/* 5b. THE VIDEO, IN VERSIONS */}
+      <div className="card" id="video" style={{ marginTop: 14 }}>
+        <h2 className="section-title">The explainer video</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Shown in the second half of the package screen. Add more than one active version and each viewer is assigned one, the same one every visit;
+          the numbers say which version earns the play, the finish and the booking within fourteen days. A YouTube link embeds; any other https link plays as a file.
+        </p>
+        {p.videos.map((v) => {
+          const pct = (n: number) => (v.shown ? `${Math.round((n / v.shown) * 100)}%` : "—");
+          return (
+            <form key={v.id} action={saveRow} style={rowStyle}>
+              <Hidden code={p.code} kind="video" id={v.id} />
+              <F label="Version" span={2}><input className="input" name="label" defaultValue={v.label} required /></F>
+              <F label="Link (YouTube or a video file)" span={5}><input className="input" name="url" type="url" defaultValue={v.url} required /></F>
+              <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={v.sort_order} /></F>
+              <label className="small" style={{ gridColumn: "span 1", paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked={v.is_active} /> on</label>
+              <div style={{ display: "flex", gap: 6, gridColumn: "span 2" }}><button className="btn">Save</button><Del code={p.code} kind="video" id={v.id} /></div>
+              <p className="muted small" style={{ gridColumn: "span 12", margin: 0 }}>
+                Shown to {v.shown} · played {v.plays} ({pct(v.plays)}) · watched to the end {v.completes} ({pct(v.completes)}) · booked within 14 days {v.booked} ({pct(v.booked)})
+              </p>
+            </form>
+          );
+        })}
+        <form action={saveRow} style={rowStyle}>
+          <Hidden code={p.code} kind="video" />
+          <F label="New version" span={2}><input className="input" name="label" placeholder="A - Shahar explains" required /></F>
+          <F label="Link" span={5}><input className="input" name="url" type="url" placeholder="https://youtu.be/…" required /></F>
+          <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(p.videos.at(-1)?.sort_order ?? 0) + 10} /></F>
+          <label className="small" style={{ gridColumn: "span 1", paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked /> on</label>
           <div style={{ gridColumn: "span 2" }}><button className="btn">Add</button></div>
         </form>
       </div>

@@ -6,6 +6,7 @@ import { Illustration } from "@shared/Illustrations";
 import { NotifyMe } from "./NotifyMe";
 import { PackageConfigurator } from "./PackageConfigurator";
 import { QuoteForm } from "./QuoteForm";
+import { PackageVideo } from "./PackageVideo";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
             <h1>{pkg.availability === "quote" ? "This one gets a person, not a price." : "Tell us in a sentence."}</h1>
             <p className="lead">{pkg.description}</p>
           </div>
+          {(pkg.videos?.length ?? 0) > 0 && <PackageVideo videos={pkg.videos!} signedIn={signedIn} title={pkg.name} />}
           <QuoteForm code={pkg.code} signedIn={signedIn} homes={homes} />
         </div>
       </Screen>
@@ -94,6 +96,11 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
             ))}
           </ul>
         </Card>
+
+        {/* The explainer, in the second half: after what is included, before
+            the number (Shahar). One version per viewer out of however many
+            Admin set up; what they do with it is counted. */}
+        {(pkg.videos?.length ?? 0) > 0 && <PackageVideo videos={pkg.videos!} signedIn={signedIn} title={pkg.name} />}
 
         <PackageConfigurator pkg={pkg} initial={selections} signedIn={signedIn} openAdjust={adjust === "1"} covered={covered} />
       </div>
