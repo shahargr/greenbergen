@@ -53,9 +53,14 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
           kicker={isDefault ? "Community price · most common setup" : "Updated price"} />
       </Card>
 
-      <button type="button" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }} onClick={() => setOpen(true)}>
-        Not what you need? <strong style={{ marginLeft: 4 }}>Adjust it.</strong>
-      </button>
+      {/* Two verbs right under the price (Shahar, 2026-09-10): order it as
+          it stands, or refine the scope first. Order goes straight into
+          the wizard; when nobody covers the trade yet, the same button
+          starts it as a DIY project, which is what actually works today. */}
+      <div className="row" style={{ gap: 8 }}>
+        <Link href={covered ? bookHref : planHref} className="btn btn-primary" style={{ flex: 1 }}>{covered ? "Order now" : "Start as DIY"}</Link>
+        <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setOpen(true)}>Refine scope</button>
+      </div>
 
       <div>
         <h6>Good to know</h6>
