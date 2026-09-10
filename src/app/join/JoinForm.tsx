@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TradeTilesGrid } from "@/components/TradeTiles";
+import { GoogleIcon } from "../login/LoginForm";
 
 type TradeGroup = { stage: string; trades: string[] };
 
@@ -87,6 +88,43 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
 
   const completeLink =
     typeof window !== "undefined" ? `${window.location.origin}/vendor/complete` : "/vendor/complete";
+
+  // Google, for the invitation case: the link already says who invited you,
+  // and Google already knows your name and email, so there is nothing left to
+  // type. We hand off with the invitation token in the return address; the
+  // /join/finish route redeems it once the session exists.
+  //
+  // Only offered when this is an account, not a business registration:
+  // vendor_register needs the email BEFORE the hop (that is the order the
+  // code path uses too), and with Google the email only arrives after it.
+  async function google() {
+    setError("");
+    setOfferLogin(false);
+    setBusy(true);
+    const supabase = createClient();
+    const after = inviteToken
+      ? `/join/finish?invite=${encodeURIComponent(inviteToken)}&next=${encodeURIComponent("/after-login")}`
+      : "/after-login";
+    const typed = email.trim();
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(after)}`,
+        // Puts the invited address in the account chooser. It is a hint, not a
+        // restriction - signing in with another Google account still works.
+        ...(/^[^@\s]+@[^@\s]+$/.test(typed) ? { queryParams: { login_hint: typed } } : {}),
+      },
+    });
+    if (err) {
+      setBusy(false);
+      setError(
+        /not enabled|unsupported provider/i.test(err.message)
+          ? "Google sign-in is not switched on for this project yet - use the email code below."
+          : friendly(err.message)
+      );
+    }
+    // On success the browser has already left for Google.
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -290,6 +328,22 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
 
       <div className="card" style={{ padding: "18px 20px", display: "grid", gap: 10 }}>
         <span className="section-title" style={{ marginBottom: 0 }}>About you</span>
+        {wantsProjects && !wantsServices ? (
+          <>
+            <button type="button" className="btn google-btn" disabled={busy} onClick={() => void google()}>
+              <GoogleIcon /> Continue with Google
+            </button>
+            <p className="muted small" style={{ margin: 0, textAlign: "center" }}>
+              {inviteToken ? "Accepts the invitation and signs you in — nothing to fill in." : "We take your name and email from Google — nothing to fill in."}
+            </p>
+            <div className="divider" role="presentation"><span>or</span></div>
+          </>
+        ) : wantsProjects && wantsServices ? (
+          <p className="muted small" style={{ margin: 0 }}>
+            Registering a business needs your details on the form, so this one
+            is filled in by hand. You can still sign in with Google afterwards.
+          </p>
+        ) : null}
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="join-name">Your name</label>
           <input id="join-name" className="input" required value={name} onChange={(e) => setName(e.target.value)} />
