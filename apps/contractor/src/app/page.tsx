@@ -31,10 +31,13 @@ export default async function Landing() {
           <h1>Work from the people who live here.</h1>
           {/* The community line, editable in Admin (config.public_tagline).
               It used to sit under the logo; the logo now names the app. */}
-          {tagline && <p className="step-kicker" style={{ margin: "-4px 0 8px" }}>{tagline}</p>}
+          {/* One line on a phone (Shahar): the kicker shrinks with the
+              screen and never wraps. The headline stays two lines at 25 px -
+              one line would need 19 px, which is not a headline. */}
+          {tagline && <p className="step-kicker" style={{ margin: "-4px 0 8px", whiteSpace: "nowrap", letterSpacing: "0.08em", fontSize: "clamp(9.5px, 2.75vw, 11px)" }}>{tagline}</p>}
           <p className="lead">
-            Green Bergen is a real community, not just a marketplace. Neighbours book pre-priced
-            packages; you accept the ones you want at the community price.
+            <Brand /> is a community, not a marketplace. Neighbours book pre-priced packages at a
+            fair price, and you can accept or pass on the ones you want.
           </p>
         </div>
 
