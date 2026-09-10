@@ -46,7 +46,7 @@ export const DOOR_ENTRY: Record<DoorKey, string> = {
 export const DOOR_LABEL: Record<DoorKey, { title: string; blurb: string }> = {
   homeowner: { title: "Homeowner", blurb: "Price a package, book it, follow the job." },
   // One door. Project management is a trade you offer, not a different you.
-  expert: { title: "Home experts", blurb: "Offers at the community price, your jobs, and the projects you run." },
+  expert: { title: "Professionals", blurb: "Offers at the community price, your jobs, and the projects you run." },
   admin: { title: "Admin", blurb: "The whole record: everyone's projects, deals, the portal." },
 };
 

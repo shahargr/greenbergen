@@ -56,7 +56,7 @@ No version comparison. Rebuild every time.
   same `app_users` row, and ONE host - the portal proxies `/home` and `/pro`
   to them (`next.config.ts`), because a session cookie cannot cross
   `vercel.app` hosts. (a) `apps/homeowner/` - packages, booking, projects,
-  the contractor directory. (b) `apps/contractor/` - **Home experts**: the
+  the contractor directory. (b) `apps/contractor/` - **Professionals** (the door was called Home experts until 2026-09-10): the
   offer feed and jobs for a trade, plus the board, tasks and money for
   whoever runs the work. **Read `apps/contractor/BUILD.md`** - it records
   four settled decisions (pooling is opt-in on the HOMEOWNER's side and is

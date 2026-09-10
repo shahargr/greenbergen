@@ -129,7 +129,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
         {/* Tasks and messages in ONE list, in the same clothes - a closed
             line each, Outlook-style, expanding to the body and the verbs.
             The Update sheet is the shared one, so it is the same sheet a
-            Home expert opens on the same task. */}
+            professional opens on the same task. */}
         <Messages data={portal} tasks={open} base="/inbox" projectHref={(id) => `/project/${id}`} heading="From your projects" />
       </div>
     </Screen>

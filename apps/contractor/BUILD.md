@@ -91,7 +91,7 @@ apps/shared/                     # imported as @shared/*
 
 - **Vercel**: project `greenbergen-pro`, Root Directory `apps/contractor`,
   production branch `main`. Renamed from `greenbergen-contractor` on
-  2026-09-09 to match the door: this is the Home experts app, and project
+  2026-09-09 to match the door: this is the Professionals app (named "Home experts" until 2026-09-10), and project
   management is a trade inside it, not a separate project. The folder keeps
   its name so the Root Directory setting stays valid. The HOSTNAME did NOT
   follow the rename: Vercel's short `<name>.vercel.app` is a domain record on

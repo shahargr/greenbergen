@@ -13,7 +13,7 @@ import { ReadyCard } from "@/components/ReadyCard";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Work" };
 
-// The Home expert's landing, and the one screen that has to answer "what am
+// The professional's landing, and the one screen that has to answer "what am
 // I doing today" without being read.
 //
 // It used to open with four rows of paperwork and a Next card explaining

@@ -41,8 +41,8 @@ export const DOORS: Record<DoorKey, Door> = {
   // kind of member wearing different trades - not three kinds of person.
   expert: {
     key: "expert",
-    label: "Home experts",
-    short: "Home expert",
+    label: "Professionals",
+    short: "Professional",
     full: "Your work",
     blurb: "Offers at the community price, your jobs, and the projects you run.",
     url: url(process.env.NEXT_PUBLIC_DOOR_EXPERT, `${SITE_ORIGIN}/pro`),
