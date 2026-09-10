@@ -44,7 +44,12 @@ export async function getMe(): Promise<Me> {
   if (!claims?.sub) return { signed_in: false };
 
   const { data, error } = await timed("me.rpc", () => rpc<Me>(supabase, "contractor_me"));
-  if (!error && data && data.signed_in) return data;
+  // A payload that arrived proves the function exists. contractor_me (v219)
+  // also returns a key named `missing` - the documents still outstanding -
+  // which is not this flag; left in place it showed "the migration has not
+  // been applied" to a contractor whose only gap was a W-9 (Shahar,
+  // 2026-09-10). outstanding() below is the app's own list of that.
+  if (!error && data && data.signed_in) return { ...data, missing: false };
   if (error) console.error("contractor_me:", error.message);
 
   // Signed in either way. A read that failed is a degraded screen, never a
