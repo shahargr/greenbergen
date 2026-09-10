@@ -33,7 +33,7 @@ export const DOORS: Record<DoorKey, Door> = {
     label: "Homeowner",
     short: "Homeowner",
     full: "Your home",
-    blurb: "Price a package, book it, follow the job.",
+    blurb: "Manage your home, DIY style or with vetted professionals.",
     url: url(process.env.NEXT_PUBLIC_DOOR_HOMEOWNER, `${SITE_ORIGIN}/home`),
   },
   // ONE door for everyone who works on homes. Project management is a trade
@@ -44,7 +44,7 @@ export const DOORS: Record<DoorKey, Door> = {
     label: "Professionals",
     short: "Professional",
     full: "Your work",
-    blurb: "Offers at the community price, your jobs, and the projects you run.",
+    blurb: "Service the community and run your projects.",
     url: url(process.env.NEXT_PUBLIC_DOOR_EXPERT, `${SITE_ORIGIN}/pro`),
   },
   portal: {

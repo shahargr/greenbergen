@@ -44,9 +44,9 @@ export const DOOR_ENTRY: Record<DoorKey, string> = {
 // Named the way Shahar names them out loud - homeowner, contractor, project
 // experts, admin - one door for everyone who works on homes.
 export const DOOR_LABEL: Record<DoorKey, { title: string; blurb: string }> = {
-  homeowner: { title: "Homeowner", blurb: "Price a package, book it, follow the job." },
+  homeowner: { title: "Homeowner", blurb: "Manage your home, DIY style or with vetted professionals." },
   // One door. Project management is a trade you offer, not a different you.
-  expert: { title: "Professionals", blurb: "Offers at the community price, your jobs, and the projects you run." },
+  expert: { title: "Professionals", blurb: "Service the community and run your projects." },
   admin: { title: "Admin", blurb: "The whole record: everyone's projects, deals, the portal." },
 };
 
