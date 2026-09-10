@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { deleteRow, savePackage, saveRow } from "../actions";
+import { PackagePhoto } from "./PackagePhoto";
 
 export const dynamic = "force-dynamic";
 
@@ -108,17 +109,9 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <F label="Approval note" span={3}><input className="input" name="approval_note" defaultValue={p.approval_note ?? ""} /></F>
           {/* THE FRONT DOOR (052). A photograph of the work - a professional
               at it, in a house - shown large on the homeowner landing page
-              when this package is promoted. Upload it under Admin > Photos
-              (the public-media bucket) or paste any https address. */}
-          <F label="Photo of the work (https URL; shown on the landing page)" span={5}>
-            <input className="input" name="photo_url" type="url" defaultValue={p.photo_url ?? ""} placeholder="https://…/public-media/packages/water-heater.jpg" />
-          </F>
-          <div style={{ gridColumn: "span 1", display: "flex", alignItems: "center" }}>
-            {p.photo_url
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={p.photo_url} alt="" style={{ width: 56, height: 42, objectFit: "cover", borderRadius: 8 }} />
-              : <span className="muted small">no photo</span>}
-          </div>
+              when this package is promoted. Uploaded from here, shrunk in
+              the browser, saved on its own (not part of this form). */}
+          <PackagePhoto code={p.code} url={p.photo_url} />
           <div style={{ gridColumn: "span 6", display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
             <label className="small"><input type="checkbox" name="promote" defaultChecked={p.promote} /> Feature on the landing page</label>
             <label className="small"><input type="checkbox" name="requires_permit" defaultChecked={p.requires_permit} /> Needs a permit</label>

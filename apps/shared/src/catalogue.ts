@@ -66,9 +66,10 @@ export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_gr
 
 // WHAT THE LANDING PAGE FEATURES. Admin's choice first (promote, in shelf
 // order); when nothing is flagged, the first open front-page tiles, so the
-// page is never empty. Never more than four: it is a shop window, not the
-// catalogue.
-export function featured(tiles: Tile[], max = 4): Tile[] {
+// page is never empty. Capped at six (Shahar's list, 2026-09-10: EV,
+// generator, water heater, faucet, internet + contract review, GC as a
+// service): it is a shop window, not the catalogue.
+export function featured(tiles: Tile[], max = 6): Tile[] {
   const chosen = tiles.filter((t) => t.promote).sort((a, b) => a.sort_order - b.sort_order);
   if (chosen.length > 0) return chosen.slice(0, max);
   return tiles.filter((t) => t.tile_group === "front" && isOpen(t)).sort((a, b) => a.sort_order - b.sort_order).slice(0, max);

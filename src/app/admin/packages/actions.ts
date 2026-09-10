@@ -51,8 +51,9 @@ export async function savePackage(formData: FormData) {
     illustration: s(formData, "illustration"), sort_order: s(formData, "sort_order"),
     permit_deposit_pct: s(formData, "permit_deposit_pct"), season_months: s(formData, "season_months"),
     requires_permit: b(formData, "requires_permit"), instant_book: b(formData, "instant_book"), is_active: b(formData, "is_active"),
-    // The landing page (052): the photograph and whether to feature it.
-    photo_url: s(formData, "photo_url"), promote: b(formData, "promote"),
+    // The landing page (052): whether to feature it. The photograph is
+    // saved on its own by setPackagePhoto, so this form never clears it.
+    promote: b(formData, "promote"),
   };
   const { data, error } = await supabase.rpc("admin_package_save", { p_code: code, p_patch: patch });
   if (error || data?.ok === false) {
@@ -95,4 +96,16 @@ export async function deleteRow(formData: FormData) {
   const { data, error } = await supabase.rpc("admin_package_row_delete", { p_kind: kind, p_id: id });
   if (error || data?.ok === false) finish(code, false, data?.reason ?? error?.message ?? "Not removed.", kind);
   finish(code, true, "Removed.", kind);
+}
+
+// The photograph of the work (052), recorded after the browser has put the
+// file in public-media. An empty URL removes it. Returns instead of
+// redirecting: the uploader stays on the page and shows the result.
+export async function setPackagePhoto(code: string, url: string): Promise<{ ok?: true; error?: string }> {
+  const supabase = await admin();
+  const { data, error } = await supabase.rpc("admin_package_save", { p_code: code.toLowerCase(), p_patch: { photo_url: url } });
+  if (error || data?.ok === false) return { error: data?.reason ?? error?.message ?? "Not saved." };
+  revalidatePath("/admin/packages");
+  revalidatePath(`/admin/packages/${code}`);
+  return { ok: true };
 }
