@@ -51,6 +51,14 @@ carries the next push normally. A deployment marked CANCELED on this project
 is usually Vercel skipping a commit that changed nothing under
 `apps/homeowner` or `apps/shared`, not a failure.
 
+**The Hobby plan caps deployments per day**, and three projects build on
+every push, so a busy evening spends the cap by itself - after which
+pushes are dropped silently, some getting through as the rolling window
+frees a slot (2026-09-10: seven consecutive pushes never built the portal
+while two of them built the other apps). Batch pushes when many are
+coming, check the SHA on each project's Deployments list before assuming
+a change is live, and use Create Deployment when one is missing.
+
 ## The database migration (applied 2026-09-07)
 
 **Applied to the live project on 2026-09-07** (`001`-`003`, then `004` the same day). **Nothing moved and nothing was deleted.** The migration is additive: it
