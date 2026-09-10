@@ -649,3 +649,19 @@ a.house:hover { transform: translateY(-1px); }
 .pkg-hero > img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
 .pkg-hero > .tag { position: absolute; top: 12px; left: 12px; z-index: 1; }
 .pkg-hero .video-poster, .pkg-hero .video-frame { border-radius: 0; }
+
+/* project money (finance/FinancialsScreen) */
+.fin-totals .t { font-size: 17px; }
+.fin-bar { height: 6px; border-radius: 3px; background: var(--color-soft); overflow: hidden; margin-top: 4px; }
+.fin-bar > span { display: block; height: 100%; background: var(--color-ok); border-radius: 3px; }
+.fin-rows { display: flex; flex-direction: column; }
+.fin-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--color-divider); }
+.fin-row:first-child { border-top: 0; padding-top: 2px; }
+.fin-row .n { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--color-soft-2); color: var(--muted); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 1px; }
+.fin-change { padding: 10px 0 4px; border-top: 1px solid var(--color-divider); }
+.fin-thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.fin-thumbs img { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; display: block; }
+.fin-ledger summary::-webkit-details-marker { display: none; }
+.fin-ledger summary { list-style: none; }
+.fin-ledger summary::before { content: "▸ "; color: var(--muted); }
+.fin-ledger[open] summary::before { content: "▾ "; }

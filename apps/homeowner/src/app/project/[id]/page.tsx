@@ -295,6 +295,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               <span className="m" style={{ display: "block" }}>Scope, photos, permits, payments</span></span>
             <ChevronIcon />
           </Link>
+          <Link href={`/project/${b.project_id}/money`} className="home-row nav-row">
+            <span className="grow"><span className="t">Money</span>
+              <span className="m" style={{ display: "block" }}>What was agreed, what you paid, changes asked for</span></span>
+            <ChevronIcon />
+          </Link>
           <Link href={`/project/${b.project_id}/people`} className="home-row nav-row">
             <span className="grow"><span className="t">People</span>
               <span className="m" style={{ display: "block" }}>Who can see this job</span></span>

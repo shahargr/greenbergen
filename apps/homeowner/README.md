@@ -156,6 +156,12 @@ cannot do.
   the member has one or more) → address → home facts → photos → budget →
   booked; `?mode=plan` saves a plan instead (home → when → planned, nothing
   sent); `?from=<project>` posts a saved plan (facts → photos → budget → post).
+- `src/app/project/[id]/money/` the project's money (migration 057): what was
+  agreed, paid and still owed per contract, the milestones and what each side
+  can do to them, the changes a contractor asked for, the ledger. The screen
+  itself is `apps/shared/src/finance/` and is the same one the Professionals
+  app shows at `/pro/project/[id]/money`; `project_financials()` decides
+  which side of it you are on (help topic `money`).
 - `src/app/homes/new/` claim another home without ordering anything.
 - `src/app/services/[code]/` the community-service pattern (salt bags).
 - `src/app/project/` the member's home(s): live, planned and done on each,

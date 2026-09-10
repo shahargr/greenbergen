@@ -220,6 +220,22 @@ export default async function ProjectPage({
           </Link>
         </section>
 
+        {/* Money. Contracts, milestones, the changes asked for and the
+            ledger - the payor's side for whoever runs the site, the
+            payee's for a trade on it. */}
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="divider-label">Money</div>
+          <Link href={`/project/${id}/money`} className="home-row">
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">{money(roll?.owed ?? seat.owed) ? `${money(roll?.owed ?? seat.owed)} owed` : "Contracts and payments"}</span>
+              <span className="m" style={{ display: "block" }}>
+                {manages ? "Milestones, approvals, what was paid, changes to decide" : "Your milestones, request a payment, ask for a change"}
+              </span>
+            </span>
+            <ChevronIcon />
+          </Link>
+        </section>
+
         {/* Bids. The address rule applies here too: a trade invited to bid
             sees the town until they win it. */}
         <section className="stack" style={{ gap: 8 }}>

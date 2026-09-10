@@ -143,6 +143,7 @@ the app is small.
 | `homeowner_offer_accept(project, contact)` | First accept wins (row locked). Writes the contract, binds payment stages, **seats the contractor**, sets `bids.won = true`, settles the other bids, tells the homeowner. |
 | `homeowner_offer_decline(project)` | Pass. |
 | `contracts`, `payment_stages`, `project_billing_plan`, `stage_payment_quote` | Money. Stages are written at posting from the package's `payment` milestones. |
+| `project_financials`, `payment_stage_*`, `fin_payment_record`, `fin_receipt_confirm`, `change_order_request` / `_decide` (migration 057) | The money page, `/project/[id]/money` (shared screen in `apps/shared/src/finance`): the payor sets the schedule, approves and records what was paid through `record_manual_payment`; the payee requests a payment, asks for a change (a change order is a child contract plus a scope line, with the evidence on it) and confirms the money landed. Help topic `money`. |
 | `actions` | The one task list. `homeowner_post_internal` writes the `task` milestones here. |
 | `homeowner_task_update(project, action, note, file_ids[], complete)` | Post an update with attachments; closes only when `complete`. |
 | `files` / `file_links` / `record_project_file` / `project-media` bucket | Documents and photos, with entitlement and quota checks. `files.vantage_point` keys a photo to a package slot. |
