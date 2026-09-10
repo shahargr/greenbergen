@@ -83,17 +83,51 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
             of buying that package. */}
         {scenes.length > 0 && (
           <section className="stack" style={{ gap: 8 }}>
-            <div className="divider-label">What we do</div>
+            {/* The rail is longer than the screen. Two cues say so: the
+                count on the right of the label (every package, not just
+                the promoted ones), and a card width that always leaves the
+                second card cut at the edge (Shahar: "I need to see there
+                are more"). */}
+            <div className="row" style={{ alignItems: "center", gap: 10 }}>
+              <div className="divider-label" style={{ flex: 1 }}>What we do</div>
+              <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
+                All {tiles.length} packages<ChevronIcon />
+              </Link>
+            </div>
             <div className="scenes" aria-label="Featured packages">
               {scenes.map((t) => <Scene key={t.code} t={t} />)}
               <Link href="/packages" className="scene more">
                 <span className="scene-more">
-                  <strong>All packages</strong>
+                  <strong>All {tiles.length} packages</strong>
                   <span className="small text-muted">Every one pre-priced for the community.</span>
                   <span className="chev"><ChevronIcon /></span>
                 </span>
               </Link>
             </div>
+
+            {/* The way in, right under the work it leads to - not a bar
+                pinned to the bottom of the screen. A member signs in from
+                the top right; this card is for everyone else. */}
+            <Card soft pad>
+              {inviter ? (
+                <div className="stack" style={{ gap: 8 }}>
+                  <p className="small" style={{ margin: 0 }}>
+                    <strong>Join the community {inviter.first} is part of.</strong>{" "}
+                    <span className="text-muted">Three fields and an email code, then pick your first package.</span>
+                  </p>
+                  <Link href={joinHref} className="btn btn-primary btn-block">Join {inviter.first} in the community</Link>
+                  <Link href="/packages" className="btn btn-ghost btn-block">See the packages first</Link>
+                </div>
+              ) : (
+                <div className="stack" style={{ gap: 10 }}>
+                  <p className="small" style={{ margin: 0 }}>
+                    <strong>Pick a package, add your address.</strong>{" "}
+                    <span className="text-muted">Your account is created at the last step, and nothing is charged today.</span>
+                  </p>
+                  <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
+                </div>
+              )}
+            </Card>
           </section>
         )}
 
@@ -119,20 +153,6 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
             )}
           </section>
         )}
-      </div>
-      <div className="actions">
-        {inviter ? (
-          <>
-            <Link href={joinHref} className="btn btn-primary btn-block">Join {inviter.first} in the community</Link>
-            <Link href="/packages" className="btn btn-ghost btn-block">See the packages first</Link>
-          </>
-        ) : (
-          <>
-            <Link href="/packages" className="btn btn-primary btn-block">Start with a package</Link>
-            <p className="tiny text-muted center" style={{ margin: 0 }}>Pick a package, add your address. You create your account at the last step.</p>
-          </>
-        )}
-        <p className="small text-muted center" style={{ margin: "4px 0 0" }}>Already a member? <Link href="/login">Sign in</Link></p>
       </div>
     </Screen>
   );

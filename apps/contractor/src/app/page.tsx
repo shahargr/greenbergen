@@ -28,7 +28,9 @@ export default async function Landing() {
           in this page, unable to go back to the main landing"). The root
           sends a visitor to the homeowner landing and a member to their
           doors; an absolute address, because this app lives under /pro. */}
-      <AppBar brand home={`${SITE_ORIGIN}/`} />
+      {/* A member logs in from the top right, like the homeowner door;
+          the bar at the bottom is for joining only (Shahar, 2026-09-10). */}
+      <AppBar brand home={`${SITE_ORIGIN}/`} right={<Link href="/login" className="btn btn-ghost">Log in</Link>} />
       <div className="body">
         <div className="hero">
           <h1>Work from the people who live here.</h1>
@@ -64,7 +66,6 @@ export default async function Landing() {
       </div>
       <div className="actions">
         <Link href="/join" className="btn btn-primary btn-block">Join as a contractor</Link>
-        <Link href="/login" className="btn btn-ghost btn-block">I already have an account</Link>
       </div>
     </Screen>
   );
