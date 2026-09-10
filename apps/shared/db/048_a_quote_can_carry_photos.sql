@@ -53,7 +53,9 @@ begin
   select id into v_persona from public.personas where name = 'Bobby';
 
   -- Count what will be attached before writing the note, so the note says so.
-  select count(*) into v_files from unnest(coalesce(p_file_ids, '{}'::uuid[])) x where public.can_see_file(x);
+  -- Exists AND visible: can_see_file says yes to anything for an admin.
+  select count(*) into v_files from unnest(coalesce(p_file_ids, '{}'::uuid[])) x
+   where exists (select 1 from public.files fx where fx.id = x) and public.can_see_file(x);
 
   insert into public.actions (action, domain, status, priority, project_id, source, created_by, assigned_to, assigned_to_persona_id, depth_level, notes, desired_outcome)
   values ('Quote request from the homeowner app: ' || v_label || ' - ' || coalesce(u.full_name, u.email, 'a member'),
@@ -68,7 +70,8 @@ begin
   returning id into v_id;
 
   foreach f in array coalesce(p_file_ids, '{}'::uuid[]) loop
-    if public.can_see_file(f) and not exists (select 1 from public.file_links fl where fl.file_id = f and fl.action_id = v_id) then
+    if exists (select 1 from public.files fx where fx.id = f) and public.can_see_file(f)
+       and not exists (select 1 from public.file_links fl where fl.file_id = f and fl.action_id = v_id) then
       insert into public.file_links (file_id, action_id, role, created_by_user_id) values (f, v_id, 'evidence', me);
     end if;
   end loop;
