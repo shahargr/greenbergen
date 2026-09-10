@@ -10,19 +10,27 @@ import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Notice, Screen } from "@shared/ui";
 import { withBase } from "@shared/site";
 
-// Three fields, then the code from the email (Supabase issues 8 digits;
-// the field takes 6 to 10 so a project setting can't strand anyone). Signing up and
-// signing in are the same act (Supabase email OTP); the database trigger
-// makes the app_users row and the customer agreement, then
-// homeowner_register adds the ZIP, the town and the silent referral.
+// The account, in one form. Signing up and signing in are the same act
+// (Supabase email OTP); the database trigger makes the app_users row and
+// the customer agreement, then homeowner_register adds the ZIP, the town,
+// the phone and the silent referral.
 //
 // TWO PLACES IT LIVES. On its own at /join (a screen of its own, with the
-// app bar), and EMBEDDED at checkout (Shahar, 2026-09-10: a visitor starts
-// buying a package and registers only at the last step). Embedded, it
-// draws no screen of its own, takes its title from the caller, and hands
-// control back with onDone instead of navigating - the booking continues
-// where it was. The Google path has to leave the page; the caller is told
-// first (onBeforeGoogle) so it can put the half-filled booking somewhere safe.
+// app bar), and EMBEDDED at checkout - the last step of a booking, a quote,
+// a group purchase, a "tell me when it opens" (Shahar, 2026-09-10: a
+// visitor buys first and registers last, and that applies to every book-now
+// flow). Embedded, it draws no screen of its own, takes its title from the
+// caller, and hands control back with onDone instead of navigating.
+//
+// NEW OR ALREADY A MEMBER (Shahar): embedded, the form opens on "New here"
+// - name, email, phone, and the ZIP unless the flow already knows the
+// address - and one tap switches to "I'm a member", which is just the
+// email and the code (or Google). A member coming back is told apart so
+// the caller can act on it (onMember): the booking wizard reloads to offer
+// their homes rather than book a typed address as a new one.
+//
+// The Google path has to leave the page; the caller is told first
+// (onBeforeGoogle) so it can put the half-filled booking somewhere safe.
 
 const COMMON_DOMAINS = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "icloud.com", "aol.com"];
 
@@ -40,43 +48,63 @@ function emailSuggestion(email: string): string | null {
   return null;
 }
 
+const digits = (s: string) => s.replace(/\D/g, "");
+// A 5-digit ZIP inside a typed address, when the flow already has one.
+export const zipIn = (address: string | null | undefined) => address?.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] ?? "";
+
 export type JoinEmbed = {
   title: string;
   lead?: string;
-  // Signed in (code path): the caller carries on. Google never reaches
-  // this - the browser leaves and comes back to `next`.
+  // The address the flow already holds; its ZIP is used and not asked again.
+  address?: string | null;
+  // Signed in as a NEW member (code path): the caller carries on.
   onDone: () => void;
+  // Signed in as an EXISTING member: the caller may want their homes.
+  // Defaults to onDone.
+  onMember?: () => void;
   onBeforeGoogle?: () => void;
 };
 
 export function JoinForm({ refId, prefillName, next, embed }: { refId: string | null; prefillName: string; next: string; embed?: JoinEmbed }) {
   const router = useRouter();
+  const knownZip = zipIn(embed?.address);
+  const [who, setWho] = useState<"new" | "member">("new");
   const [name, setName] = useState(prefillName);
   const [email, setEmail] = useState("");
-  const [zip, setZip] = useState("");
+  const [phone, setPhone] = useState("");
+  const [zip, setZip] = useState(knownZip);
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"form" | "code">("form");
   const [busy, setBusy] = useState(false);
-  const [errors, setErrors] = useState<{ name?: string; email?: string; zip?: string; submit?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; zip?: string; submit?: string }>({});
   const [outside, setOutside] = useState(false);
 
   const suggestion = emailSuggestion(email);
+  const member = !!embed && who === "member";
+  const askZip = !knownZip || !isBergenZip(knownZip);
+
+  // The three (or four) fields, checked. A member only needs the email.
+  function check(needEmail: boolean): boolean {
+    const errs: typeof errors = {};
+    if (!member) {
+      if (!name.trim()) errs.name = "Your name, so the contractor knows who to ask for.";
+      if (embed && digits(phone).length < 10) errs.phone = "A number the contractor can reach you on.";
+      if (!/^\d{5}$/.test(zip.trim())) errs.zip = "A 5-digit ZIP code.";
+      else if (!isBergenZip(zip.trim())) { errs.zip = `${zip.trim()} is outside Bergen County. We're Bergen-only for now — we'll save your email and tell you when we expand.`; setOutside(true); }
+    }
+    if (needEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) errs.email = suggestion ? `That email looks unfinished — did you mean ${suggestion}?` : "That email looks unfinished.";
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const errs: typeof errors = {};
-    if (!name.trim()) errs.name = "Your name, so the contractor knows who to ask for.";
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) errs.email = suggestion ? `That email looks unfinished — did you mean ${suggestion}?` : "That email looks unfinished.";
-    if (!/^\d{5}$/.test(zip.trim())) errs.zip = "A 5-digit ZIP code.";
-    else if (!isBergenZip(zip.trim())) { errs.zip = `${zip.trim()} is outside Bergen County. We're Bergen-only for now — we'll save your email and tell you when we expand.`; setOutside(true); }
-    setErrors(errs);
-    if (Object.keys(errs).length) return;
-
+    if (!check(true)) return;
     setBusy(true);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { data: { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(next)}` },
+      options: { data: member ? undefined : { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(next)}` },
     });
     setBusy(false);
     if (error) {
@@ -86,19 +114,16 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
     setStep("code");
   }
 
-  // Same three fields, then Google instead of a code. The finish route
-  // registers the ZIP and referral once Google sends the browser back.
+  // Same fields, then Google instead of a code. The finish route registers
+  // the ZIP, phone and referral once Google sends the browser back.
   async function google() {
-    const errs: typeof errors = {};
-    if (!name.trim()) errs.name = "Your name, so the contractor knows who to ask for.";
-    if (!/^\d{5}$/.test(zip.trim())) errs.zip = "A 5-digit ZIP code.";
-    else if (!isBergenZip(zip.trim())) { errs.zip = `${zip.trim()} is outside Bergen County. We're Bergen-only for now.`; setOutside(true); }
-    setErrors(errs);
-    if (Object.keys(errs).length) return;
+    if (!check(false)) return;
     setBusy(true);
     embed?.onBeforeGoogle?.();
     const supabase = createClient();
-    const finish = `/join/finish?${new URLSearchParams({ name: name.trim(), zip: zip.trim(), ...(refId ? { ref: refId } : {}), next }).toString()}`;
+    const finish = member
+      ? next
+      : `/join/finish?${new URLSearchParams({ name: name.trim(), zip: zip.trim(), ...(digits(phone) ? { phone: phone.trim() } : {}), ...(refId ? { ref: refId } : {}), next }).toString()}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(finish)}` },
@@ -118,16 +143,18 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
       setErrors({ submit: /expired/i.test(error.message) ? "That code expired. Go back and we'll send a fresh one." : "That code didn't match. Check the email and try again." });
       return;
     }
-    // The profile row exists now (signup trigger). Add ZIP, town, referral.
-    const { error: regErr } = await supabase.rpc("homeowner_register", {
-      p_full_name: name.trim(), p_zip: zip.trim(), p_town: townForZip(zip.trim()), p_ref: refId,
-    });
-    if (regErr && !isMissingFunction(regErr)) console.warn("homeowner_register:", friendly(regErr.message));
+    if (!member) {
+      // The profile row exists now (signup trigger). Add ZIP, town, phone, referral.
+      const { error: regErr } = await supabase.rpc("homeowner_register", {
+        p_full_name: name.trim(), p_zip: zip.trim(), p_town: townForZip(zip.trim()), p_ref: refId, p_phone: digits(phone) ? phone.trim() : null,
+      });
+      if (regErr && !isMissingFunction(regErr)) console.warn("homeowner_register:", friendly(regErr.message));
+    }
     if (embed) {
       // The caller keeps going; the server-rendered parts of the page learn
       // about the session on their next render.
       router.refresh();
-      embed.onDone();
+      if (member) (embed.onMember ?? embed.onDone)(); else embed.onDone();
       return;
     }
     router.replace(next);
@@ -147,7 +174,7 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
       <form className={formClass} onSubmit={verify} noValidate>
         <div className="hero">
           <h1>Check your email.</h1>
-          <p className="lead">We sent a sign-in code to <strong>{email.trim()}</strong>. It&apos;s good for five minutes.{embed ? " Type it here and the booking carries on." : " The link in the email works too."}</p>
+          <p className="lead">We sent a sign-in code to <strong>{email.trim()}</strong>. It&apos;s good for five minutes.{embed ? " Type it here and you carry on where you were." : " The link in the email works too."}</p>
         </div>
         <label className="field">
           <span className="field-label">Code</span>
@@ -169,15 +196,26 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
   return shell("/", (
     <form className={formClass} onSubmit={submit} noValidate>
       <div className="hero">
-        <h1>{embed?.title ?? "Three fields. That's it."}</h1>
-        <p className="lead">{embed?.lead ?? "We'll ask about your home only when a project needs it."}</p>
+        <h1>{member ? "Welcome back." : embed?.title ?? "Three fields. That's it."}</h1>
+        <p className="lead">{member ? "The email you joined with; we send a code, and you pick up where you were." : embed?.lead ?? "We'll ask about your home only when a project needs it."}</p>
       </div>
 
-      <label className="field">
-        <span className="field-label">Full name</span>
-        <input className={`input ${errors.name ? "invalid" : ""}`} autoComplete="name" placeholder="Marta Feld" value={name} onChange={(e) => setName(e.target.value)} />
-        {errors.name && <p className="hint error">{errors.name}</p>}
-      </label>
+      {/* Embedded only: new here, or already a member. On /join a member
+          has the Sign in link at the bottom, as before. */}
+      {embed && (
+        <div className="seg" role="tablist">
+          <label className="seg-opt"><input type="radio" name="who" hidden checked={who === "new"} onChange={() => { setWho("new"); setErrors({}); }} />New here</label>
+          <label className="seg-opt"><input type="radio" name="who" hidden checked={who === "member"} onChange={() => { setWho("member"); setErrors({}); }} />I&apos;m a member</label>
+        </div>
+      )}
+
+      {!member && (
+        <label className="field">
+          <span className="field-label">Full name</span>
+          <input className={`input ${errors.name ? "invalid" : ""}`} autoComplete="name" placeholder="Marta Feld" value={name} onChange={(e) => setName(e.target.value)} />
+          {errors.name && <p className="hint error">{errors.name}</p>}
+        </label>
+      )}
       <label className="field">
         <span className="field-label">Email</span>
         <input className={`input ${errors.email ? "invalid" : ""}`} type="email" inputMode="email" autoComplete="email" autoCapitalize="none" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -189,19 +227,24 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
           <p className="hint">Did you mean <button type="button" className="btn btn-ghost" style={{ padding: 0, minHeight: 0, fontSize: 12, fontFamily: "inherit", fontWeight: 600 }} onClick={() => setEmail(suggestion)}>{suggestion}</button>?</p>
         ) : null}
       </label>
-      <label className="field">
-        <span className="field-label">ZIP code</span>
-        <input className={`input ${errors.zip ? "invalid" : ""}`} inputMode="numeric" autoComplete="postal-code" maxLength={5} placeholder="07666" value={zip}
-          onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setOutside(false); }} />
-        {errors.zip && <p className="hint error">{errors.zip}</p>}
-        {!errors.zip && isBergenZip(zip) && <p className="hint">{townForZip(zip)} — you&apos;re in.</p>}
-      </label>
-
-      <p className="small text-muted" style={{ margin: 0 }}>
-        {embed
-          ? "No card. Already a member? Use the email you joined with and the code signs you in."
-          : "No address, no phone, no card. Prices are the same for everyone in the community."}
-      </p>
+      {!member && (
+        <label className="field">
+          <span className="field-label">Phone {embed ? "" : <span className="text-muted">(optional)</span>}</span>
+          <input className={`input ${errors.phone ? "invalid" : ""}`} type="tel" inputMode="tel" autoComplete="tel" placeholder="(201) 555-0142" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          {errors.phone ? <p className="hint error">{errors.phone}</p> : embed ? <p className="hint">For the contractor on the day, and for us if a question comes up.</p> : null}
+        </label>
+      )}
+      {!member && askZip && (
+        <label className="field">
+          <span className="field-label">ZIP code</span>
+          <input className={`input ${errors.zip ? "invalid" : ""}`} inputMode="numeric" autoComplete="postal-code" maxLength={5} placeholder="07666" value={zip}
+            onChange={(e) => { setZip(e.target.value.replace(/\D/g, "")); setOutside(false); }} />
+          {errors.zip && <p className="hint error">{errors.zip}</p>}
+          {!errors.zip && isBergenZip(zip) && <p className="hint">{townForZip(zip)} — you&apos;re in.</p>}
+        </label>
+      )}
+      {!member && !askZip && <p className="small text-muted" style={{ margin: 0 }}>{townForZip(knownZip)}, from the address you gave. No card.</p>}
+      {!member && askZip && !embed && <p className="small text-muted" style={{ margin: 0 }}>No address, no card. Prices are the same for everyone in the community.</p>}
 
       {errors.submit && <Notice kind="error" title="We couldn't save that.">{errors.submit}</Notice>}
 

@@ -96,7 +96,8 @@ export function QuoteForm({
           next={`/packages/${code}`}
           embed={{
             title: "Tell us who you are, then tell us what you need.",
-            lead: "Three fields make your account; a person comes back to you the way you choose.",
+            lead: "Your account in a few fields; a person comes back to you the way you choose.",
+            address: typed || null,
             onDone: () => router.refresh(),
           }}
         />

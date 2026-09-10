@@ -638,3 +638,10 @@ a.house:hover { transform: translateY(-1px); }
 .house-cap { display: flex; flex-direction: column; gap: 1px; padding: 10px 12px 12px; }
 .house-cap strong { font-family: var(--font-heading); font-weight: 800; font-size: 14px; line-height: 1.2; }
 .house.wide .house-cap strong { font-size: 16px; }
+
+/* The package header when it is a photograph or the video (the line art
+   keeps .illus). Edge to edge, rounded like a card, the tag in the corner. */
+.pkg-hero { position: relative; border-radius: var(--radius-card); overflow: hidden; background: var(--color-soft-2); }
+.pkg-hero > img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+.pkg-hero > .tag { position: absolute; top: 12px; left: 12px; z-index: 1; }
+.pkg-hero .video-poster, .pkg-hero .video-frame { border-radius: 0; }

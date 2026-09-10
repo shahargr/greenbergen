@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
+import { JoinForm } from "@/app/join/JoinForm";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { Notice } from "@shared/ui";
 
@@ -19,14 +20,16 @@ export function NotifyMe({ code, trade, signedIn }: { code: string; trade: strin
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
+  const router = useRouter();
 
   const who = trade ? trade.toLowerCase() : "someone";
 
+  // The same account step every book-now flow has (Shahar): in place, new
+  // member or returning, and the button appears once the session exists.
   if (!signedIn) {
     return (
-      <Link href={`/join?next=${encodeURIComponent(`/packages/${code}`)}`} className="btn btn-secondary btn-block">
-        Join, and we&apos;ll tell you when this opens up
-      </Link>
+      <JoinForm refId={null} prefillName="" next={`/packages/${code}`}
+        embed={{ title: "Tell us who to call when this opens.", lead: `Your account in a few fields; you hear from us the day a ${who} contractor is approved. Nothing is charged or committed.`, onDone: () => router.refresh() }} />
     );
   }
 

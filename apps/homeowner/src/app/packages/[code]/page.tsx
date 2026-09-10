@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { decodeSelections, isHardware, loadCovered, loadPackage } from "@shared/catalogue";
+import { decodeSelections, isHardware, loadCovered, loadPackage, type Package } from "@shared/catalogue";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
 import { Illustration } from "@shared/Illustrations";
@@ -10,8 +10,27 @@ import { PackageVideo } from "./PackageVideo";
 
 export const dynamic = "force-dynamic";
 
-// Screen 5 - the money screen. Illustration, then the scope, then the price
-// - the number must feel earned by everything above it.
+// Screen 5 - the money screen. The work itself at the top - the explainer
+// video when the package has one, else the photograph, else the line art -
+// then the scope, then the price: the number must feel earned by everything
+// above it.
+//
+// THE HEADER IS THE VIDEO (Shahar, 2026-09-10, on the EV charger: "the
+// video can even replace the header large image"). One version per viewer
+// out of however many Admin set up, what they do with it counted; the
+// package photograph is its poster. Before this the video sat in the second
+// half of the screen and the header ignored the photograph altogether.
+function PackageHero({ pkg, signedIn, children }: { pkg: Package; signedIn: boolean; children?: React.ReactNode }) {
+  if ((pkg.videos?.length ?? 0) > 0) {
+    return <div className="pkg-hero"><PackageVideo videos={pkg.videos!} signedIn={signedIn} title={pkg.name} poster={pkg.photo_url ?? null} />{children}</div>;
+  }
+  if (pkg.photo_url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <div className="pkg-hero"><img src={pkg.photo_url} alt={pkg.name} />{children}</div>;
+  }
+  return <div className="illus"><Illustration name={pkg.illustration} />{children}</div>;
+}
+
 export default async function PackagePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string; adjust?: string }> }) {
   const { code } = await params;
   const { sel, adjust } = await searchParams;
@@ -38,10 +57,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
       <Screen>
         <AppBar back={back} title={pkg.name} />
         <div className="body">
-          <div className="illus">
-            <Illustration name={pkg.illustration} />
-            <span className="tag tag-neutral">Coming soon</span>
-          </div>
+          <PackageHero pkg={pkg} signedIn={signedIn}><span className="tag tag-neutral">Coming soon</span></PackageHero>
           <div className="hero">
             <h1>We&apos;re not ready to price this one.</h1>
             <p className="lead">{pkg.description ?? "It is on the list. When we can put one honest number on it for everyone, it goes live here."}</p>
@@ -60,15 +76,11 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
       <Screen>
         <AppBar back={back} title={pkg.name} />
         <div className="body">
-          <div className="illus">
-            <Illustration name={pkg.illustration} />
-            <span className="tag tag-outline">{pkg.availability === "quote" ? "Get a quote" : "Something else"}</span>
-          </div>
+          <PackageHero pkg={pkg} signedIn={signedIn}><span className="tag tag-outline">{pkg.availability === "quote" ? "Get a quote" : "Something else"}</span></PackageHero>
           <div className="hero">
             <h1>{pkg.availability === "quote" ? "This one gets a person, not a price." : "Tell us in a sentence."}</h1>
             <p className="lead">{pkg.description}</p>
           </div>
-          {(pkg.videos?.length ?? 0) > 0 && <PackageVideo videos={pkg.videos!} signedIn={signedIn} title={pkg.name} />}
           <QuoteForm code={pkg.code} signedIn={signedIn} homes={homes} />
         </div>
       </Screen>
@@ -80,10 +92,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
     <Screen>
       <AppBar back={back} title={pkg.name} />
       <div className="body">
-        <div className="illus">
-          <Illustration name={pkg.illustration} />
-          {pkg.requires_permit && <span className="tag tag-accent">Permit package</span>}
-        </div>
+        <PackageHero pkg={pkg} signedIn={signedIn}>{pkg.requires_permit && <span className="tag tag-accent">Permit package</span>}</PackageHero>
 
         <Card pad>
           <h6 style={{ marginBottom: 6 }}>What&apos;s included</h6>
@@ -124,11 +133,6 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
             </ul>
           </Card>
         )}
-
-        {/* The explainer, in the second half: after what is included, before
-            the number (Shahar). One version per viewer out of however many
-            Admin set up; what they do with it is counted. */}
-        {(pkg.videos?.length ?? 0) > 0 && <PackageVideo videos={pkg.videos!} signedIn={signedIn} title={pkg.name} />}
 
         <PackageConfigurator pkg={pkg} initial={selections} signedIn={signedIn} openAdjust={adjust === "1"} covered={covered} />
       </div>

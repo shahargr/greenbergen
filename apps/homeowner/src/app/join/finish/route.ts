@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const name = (searchParams.get("name") ?? "").trim();
   const zip = (searchParams.get("zip") ?? "").trim();
+  const phone = (searchParams.get("phone") ?? "").trim();
   const ref = searchParams.get("ref");
   const rawNext = searchParams.get("next") ?? "/welcome";
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/welcome";
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.rpc("homeowner_register", {
       p_full_name: name || claims.user_metadata?.full_name || null,
       p_zip: zip, p_town: townForZip(zip), p_ref: ref && /^[0-9a-f-]{36}$/i.test(ref) ? ref : null,
+      p_phone: phone || null,
     });
     if (error) console.warn("homeowner_register:", error.message);
   }

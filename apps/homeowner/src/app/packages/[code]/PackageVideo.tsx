@@ -52,7 +52,9 @@ function pick(key: string, n: number): number {
 
 const youtubeId = (url: string) => url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/)?.[1] ?? null;
 
-export function PackageVideo({ videos, signedIn, title }: { videos: PackageVideoRow[]; signedIn: boolean; title: string }) {
+// poster: the package photograph, when there is one - the still a visitor
+// sees before the tap, in place of YouTube's own thumbnail.
+export function PackageVideo({ videos, signedIn, title, poster: posterProp = null }: { videos: PackageVideoRow[]; signedIn: boolean; title: string; poster?: string | null }) {
   const key = useSyncExternalStore(noop, readViewerKey, () => null);
   const [playing, setPlaying] = useState(false);
   const sent = useRef<Set<string>>(new Set());
@@ -75,7 +77,7 @@ export function PackageVideo({ videos, signedIn, title }: { videos: PackageVideo
 
   if (!video) return null;
   const yt = youtubeId(video.url);
-  const poster = yt ? `https://img.youtube.com/vi/${yt}/hqdefault.jpg` : null;
+  const poster = posterProp ?? (yt ? `https://img.youtube.com/vi/${yt}/hqdefault.jpg` : null);
 
   return (
     <div className="video-box">

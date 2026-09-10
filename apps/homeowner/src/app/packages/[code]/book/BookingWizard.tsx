@@ -288,12 +288,17 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
               lead: pending === "plan"
                 ? "Three fields make your account; the plan goes on it. Nothing is sent to anyone."
                 : `Three fields make your account, and your ${pkg.tile_title.toLowerCase()} goes out at ${dollars(price)} the moment the code is in. Nothing is charged today.`,
+              address,
               onBeforeGoogle: () => stash(pending),
               onDone: () => {
                 setAuthed(true);
                 setStep(back);
                 if (pending === "plan") void plan(); else void book();
               },
+              // An existing member: their homes are on file. Reload this
+              // page signed in and the wizard opens on the home picker
+              // rather than booking the typed address as a new home.
+              onMember: () => { router.replace(here); router.refresh(); },
             }}
           />
           {shotCount > 0 && (
@@ -446,6 +451,10 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
           {!dbReady && <Notice title="Preview mode">The database migration for bookings has not been applied yet, so this walk-through ends at the last button.</Notice>}
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
             <button className={`btn btn-primary btn-block  ${checking ? "busy" : ""}`} disabled={checking}>{checking ? <><span className="spin" /> Checking the address…</> : "Continue"}</button>
+            {/* A member who is signed out lands here too (Shahar). Signing
+                in brings them back to this page with their homes to pick
+                from, instead of typing one they already have. */}
+            {!authed && <p className="small text-muted center" style={{ margin: "4px 0 0" }}>Already a member? <Link href={`/login?next=${encodeURIComponent(here)}`}>Sign in</Link> and pick your home.</p>}
           </div>
         </form>
       </Screen>
