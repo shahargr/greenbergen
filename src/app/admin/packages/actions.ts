@@ -81,6 +81,11 @@ export async function saveRow(formData: FormData) {
     percent_of_contract: s(formData, "percent_of_contract"), typical_range: s(formData, "typical_range"),
     trigger_description: s(formData, "trigger_description"),
     url: s(formData, "url"), is_active: b(formData, "is_active"),
+    // Store links on a hardware line (054): one field per store, sent as
+    // the JSON list the database keeps. Blank fields drop out.
+    links: JSON.stringify(
+      ([["Home Depot", s(formData, "link_home_depot")], ["Lowe's", s(formData, "link_lowes")]] as [string, string][])
+        .filter(([, url]) => url).map(([label, url]) => ({ label, url }))),
   };
   // Milestone kind rides in row_kind too; the function reads 'kind'.
   const { data, error } = await supabase.rpc("admin_package_row_save", { p_kind: kind, p_id: id, p_parent: parent, p_patch: patch });

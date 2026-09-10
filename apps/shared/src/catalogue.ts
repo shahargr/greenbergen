@@ -13,6 +13,14 @@ export type Availability = "priced" | "coming_soon" | "quote" | "custom";
 export type LeverOption = { key: string; label: string; price_delta_cents: number; is_default: boolean; chip?: string | null };
 export type Lever = { key: string; label: string; control: "seg" | "radio"; question: string | null; options: LeverOption[] };
 export type PhotoReq = { key: string; label: string; hint: string | null };
+// A scope line. work = what gets done; assurance = what comes with it;
+// hardware = what the homeowner buys before the crew arrives, not in the
+// price, with the suggested product pages (migration 054). kind and links
+// are optional because the static fallback predates them: no kind reads
+// as work.
+export type StoreLink = { label: string; url: string };
+export type Item = { label: string; detail: string | null; kind?: "work" | "assurance" | "hardware"; links?: StoreLink[] };
+export const isHardware = (i: Item) => i.kind === "hardware";
 export type MilestoneKind = "booked" | "accepted" | "payment" | "task" | "done";
 export type MilestoneTpl = {
   key: string; kind: MilestoneKind; name: string; sequence_no: number;
@@ -23,7 +31,7 @@ export type Package = {
   tile_group: "front" | "more"; availability: Availability; base_price_cents: number | null;
   config_label: string | null; requires_permit: boolean; permit_deposit_pct: number | null;
   instant_book: boolean; approval_note: string | null; illustration: string; description: string | null;
-  sort_order: number; items: { label: string; detail: string | null }[]; levers: Lever[]; photos: PhotoReq[];
+  sort_order: number; items: Item[]; levers: Lever[]; photos: PhotoReq[];
   milestones: MilestoneTpl[];
   // The explainer versions (migration 049). Optional: the static fallback
   // predates them, and a package may simply have none.

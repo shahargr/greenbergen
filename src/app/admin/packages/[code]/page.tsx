@@ -12,7 +12,10 @@ export const dynamic = "force-dynamic";
 // cost; the photos we ask for; the progress line; and who has signed up
 // to serve it. Every row is its own small form - save one thing at a time,
 // which is how a price list is actually maintained.
-type Item = { id: string; label: string; detail: string | null; kind: string; sort_order: number };
+type StoreLink = { label: string; url: string };
+type Item = { id: string; label: string; detail: string | null; kind: string; sort_order: number; links: StoreLink[] };
+const ITEM_KINDS: [string, string][] = [["work", "Work"], ["assurance", "Assurance"], ["hardware", "Hardware (you buy)"]];
+const storeUrl = (links: StoreLink[] | null | undefined, label: string) => links?.find((l) => l.label === label)?.url ?? "";
 type Option = { id: string; key: string; label: string; chip: string | null; price_delta_cents: number; is_default: boolean; sort_order: number };
 type Lever = { id: string; key: string; label: string; control: string; question: string | null; sort_order: number; options: Option[] };
 type Photo = { id: string; key: string; label: string; hint: string | null; sort_order: number };
@@ -125,25 +128,32 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       {/* 2. SCOPE LINES */}
       <div className="card" id="item" style={{ marginTop: 14 }}>
         <h2 className="section-title">What the basic setup includes</h2>
-        <p className="muted small" style={{ marginTop: 0 }}>Work lines are what gets done; assurance lines are what comes with it (insurance, warranty). A DIY project shows the work lines as its steps.</p>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Work lines are what gets done; assurance lines are what comes with it (insurance, warranty). A DIY project shows the work lines as its steps.
+          <strong> Hardware</strong> lines are what the homeowner buys and the price does not include - the generator, the switch, the pad - each with the suggested product page at Home Depot and Lowe&apos;s; the package page lists them under &ldquo;What you buy&rdquo;.
+        </p>
         {p.items.map((it) => (
           <form key={it.id} action={saveRow} style={rowStyle}>
             <Hidden code={p.code} kind="item" id={it.id} />
             <F label="Line" span={5}><input className="input" name="label" defaultValue={it.label} required /></F>
             <F label="Detail" span={3}><input className="input" name="detail" defaultValue={it.detail ?? ""} /></F>
-            <F label="Kind" span={2}><select className="input" name="row_kind" defaultValue={it.kind}><option value="work">Work</option><option value="assurance">Assurance</option></select></F>
+            <F label="Kind" span={2}><select className="input" name="row_kind" defaultValue={it.kind}>{ITEM_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
             <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={it.sort_order} /></F>
             <div style={{ display: "flex", gap: 6 }}><button className="btn">Save</button></div>
             <Del code={p.code} kind="item" id={it.id} />
+            <F label="Home Depot page (hardware only)" span={6}><input className="input" name="link_home_depot" type="url" defaultValue={storeUrl(it.links, "Home Depot")} placeholder="https://www.homedepot.com/p/…" /></F>
+            <F label="Lowe's page (hardware only)" span={6}><input className="input" name="link_lowes" type="url" defaultValue={storeUrl(it.links, "Lowe's")} placeholder="https://www.lowes.com/pd/…" /></F>
           </form>
         ))}
         <form action={saveRow} style={rowStyle}>
           <Hidden code={p.code} kind="item" />
           <F label="New line" span={5}><input className="input" name="label" placeholder="Underground gas line from the meter" required /></F>
           <F label="Detail" span={3}><input className="input" name="detail" /></F>
-          <F label="Kind" span={2}><select className="input" name="row_kind" defaultValue="work"><option value="work">Work</option><option value="assurance">Assurance</option></select></F>
+          <F label="Kind" span={2}><select className="input" name="row_kind" defaultValue="work">{ITEM_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
           <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={(p.items.at(-1)?.sort_order ?? 0) + 10} /></F>
           <div><button className="btn">Add</button></div>
+          <F label="Home Depot page (hardware only)" span={6}><input className="input" name="link_home_depot" type="url" placeholder="https://www.homedepot.com/p/…" /></F>
+          <F label="Lowe's page (hardware only)" span={6}><input className="input" name="link_lowes" type="url" placeholder="https://www.lowes.com/pd/…" /></F>
         </form>
       </div>
 

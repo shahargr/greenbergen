@@ -86,8 +86,13 @@ export default async function PackagesPage({ searchParams }: { searchParams: Pro
                 <div>
                   <div className="divider-label">What it includes</div>
                   <ul className="small" style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-                    {p.items.filter((i) => i.kind !== "assurance").map((i, n) => <li key={n}>{i.label}{i.detail ? <span className="text-muted"> · {i.detail}</span> : null}</li>)}
+                    {p.items.filter((i) => i.kind === "work" || !i.kind).map((i, n) => <li key={n}>{i.label}{i.detail ? <span className="text-muted"> · {i.detail}</span> : null}</li>)}
                   </ul>
+                  {/* Hardware (054): bought by the owner, delivered to the
+                      house, installed by you. Not in the community price. */}
+                  {p.items.some((i) => i.kind === "hardware") && (
+                    <p className="tiny text-muted" style={{ margin: "6px 0 0" }}><strong>The owner supplies:</strong> {p.items.filter((i) => i.kind === "hardware").map((i) => i.label.toLowerCase()).join(", ")}. The price is your work only.</p>
+                  )}
                   {p.items.some((i) => i.kind === "assurance") && (
                     <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>Comes with: {p.items.filter((i) => i.kind === "assurance").map((i) => i.label.toLowerCase()).join(", ")}.</p>
                   )}
