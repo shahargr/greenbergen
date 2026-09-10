@@ -169,7 +169,7 @@ function HouseCard({ h, wide = false }: { h: House; wide?: boolean }) {
           // eslint-disable-next-line @next/next/no-img-element
           ? <img src={h.photo} alt="" loading="lazy" decoding="async" />
           : <Illustration name="house" className="text-muted" />}
-        <span className={`tag ${h.completed ? "tag-neutral" : "tag-status"}`}>{h.completed ? "Completed" : "Live now"}</span>
+        <span className={`tag ${h.completed ? "tag-neutral" : "tag-status"}`}>{h.completed ? "Delivered" : "Live now"}</span>
       </span>
       <span className="house-cap">
         <strong>{h.title}</strong>

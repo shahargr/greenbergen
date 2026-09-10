@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
+import { SITE_ORIGIN } from "@shared/site";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,11 @@ export default async function Landing() {
 
   return (
     <Screen>
-      <AppBar brand />
+      {/* The logo leaves this door for the front door (Shahar: "I'm stuck
+          in this page, unable to go back to the main landing"). The root
+          sends a visitor to the homeowner landing and a member to their
+          doors; an absolute address, because this app lives under /pro. */}
+      <AppBar brand home={`${SITE_ORIGIN}/`} />
       <div className="body">
         <div className="hero">
           <h1>Work from the people who live here.</h1>
