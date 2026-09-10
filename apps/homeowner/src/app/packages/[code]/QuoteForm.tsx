@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@shared/supabase/client";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { Card, Notice, StatusHero } from "@shared/ui";
+import { Evidence, type Attached } from "@shared/Evidence";
 
 // The get-a-quote track, the "something else" tile and the community
 // services: one sentence from the homeowner becomes one task in the unified
@@ -42,11 +43,18 @@ export function QuoteForm({
   // same thing back - so nobody waits by the wrong device.
   const [reach, setReach] = useState<Reach>("email");
   const [phone, setPhone] = useState("");
+  // PHOTOS AND FILES (Shahar: "for all items requiring engagement with an
+  // expert, allow to upload images or files"). They are recorded under the
+  // home you picked - a file has to belong to a project you are on - and
+  // linked to the request. No home picked, no uploader: there is nowhere
+  // to file them yet, and the hint says so.
+  const [files, setFiles] = useState<Attached[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
 
   const address = withAddress.length === 0 ? typed : pick === ELSEWHERE ? typed : pick;
+  const homeProject = withAddress.find((h) => h.address === pick)?.project_id ?? null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,6 +65,7 @@ export function QuoteForm({
     const { data, error } = await supabase.rpc("homeowner_quote_request", {
       p_code: code, p_note: note.trim(), p_address: address.trim() || null,
       p_reach: reach, p_phone: reach === "email" ? null : phone.trim(),
+      p_file_ids: files.length ? files.map((f) => f.id) : null,
     });
     setBusy(false);
     if (error) { setErr(isMissingFunction(error) ? "This part isn't switched on yet — text us instead and a person answers." : friendly(error.message)); return; }
@@ -117,6 +126,16 @@ export function QuoteForm({
           <p className="hint">Once a home is on your profile, it is offered here instead.</p>
         </label>
       )}
+
+      <div className="field">
+        <span className="field-label">Photos or files <span className="text-muted">(optional)</span></span>
+        {homeProject
+          ? <>
+              <Evidence key={homeProject} projectId={homeProject} caption="Quote request" onChange={setFiles} />
+              <p className="hint">A photo of the space, a sketch, a plan, an old quote - anything that helps a person price it right.</p>
+            </>
+          : <p className="hint">Pick one of your homes above to attach photos; they are filed under it.</p>}
+      </div>
 
       <div className="field">
         <span className="field-label">How should we reach you?</span>
