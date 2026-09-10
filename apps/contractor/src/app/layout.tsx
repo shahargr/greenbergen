@@ -3,6 +3,7 @@ import "@shared/styles/warm-ink.css";
 import "./globals.css";
 import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
+import { NavOrigin } from "@shared/BackButton";
 
 // The same shell as the homeowner app, deliberately. A contractor and a
 // homeowner are two sides of one community, not two products, and they
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <div className="app">
           <OfflineBanner />
+          <NavOrigin />
           {children}
         </div>
       </body>

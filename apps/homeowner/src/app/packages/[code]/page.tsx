@@ -40,9 +40,10 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   const signedIn = me.signed_in;
   const homes = me.signed_in ? me.homes.map((h) => ({ project_id: h.project_id, address: h.address, name: h.name })) : [];
   if (!pkg) notFound();
-  // One catalogue screen now, so one place to go back to. tile_group no longer
-  // decides which drawer a package came out of, because there is no drawer.
-  const back = "/packages";
+  // Back goes where you came from - the landing rail, the grid, a project -
+  // through the browser's history; the grid only when there is no page of
+  // ours behind this one (a shared link). See BackButton.
+  const back = { fallback: "/packages" };
   // Every tile is a link now, coming-soon ones included, so this page has to
   // answer for all of them. Coverage is a second, cheap cached read rather
   // than a field on the package: it changes when someone is approved, on a

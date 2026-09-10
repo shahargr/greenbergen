@@ -3,6 +3,7 @@ import "@shared/styles/warm-ink.css";
 import "./globals.css";
 import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
+import { NavOrigin } from "@shared/BackButton";
 
 export const metadata: Metadata = {
   title: { default: "Green Bergen Community", template: "%s · Green Bergen Community" },
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <div className="app">
           <OfflineBanner />
+          <NavOrigin />
           {children}
         </div>
       </body>

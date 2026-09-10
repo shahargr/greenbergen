@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { DOORS, DOOR_ORDER, JOIN, NOT_SELF_SERVE, type DoorKey } from "./doors";
+import { BackButton } from "./BackButton";
 
 // The wording of last resort, if config.public_tagline is unset and the
 // database is unreachable. Editable in Admin; see migration 013.
@@ -98,7 +99,10 @@ export function Wordmark({ size = 15, door = APP_DOOR }: { size?: number; door?:
 // AppBar - brand / back + title / trailing action.
 export function AppBar({
   back, title, sub, right, brand = false, door, home = "/",
-}: { back?: string | (() => void); title?: string; sub?: string; right?: ReactNode; brand?: boolean;
+}: { // A string is a fixed destination; a function is the page's own step
+     // logic; { fallback } goes back through the browser's history while a
+     // page of ours is behind this one, else to the fallback (BackButton).
+     back?: string | (() => void) | { fallback: string }; title?: string; sub?: string; right?: ReactNode; brand?: boolean;
      // Overrides the build's door for the logo line. Rarely needed: the app
      // already knows which door it is - the exception is the inbox, which is
      // one page serving every door and names the one you came through.
@@ -114,6 +118,7 @@ export function AppBar({
       {typeof back === "function" && (
         <button type="button" onClick={back} className="btn btn-ghost btn-icon" aria-label="Back"><BackIcon /></button>
       )}
+      {typeof back === "object" && back !== null && <BackButton fallback={back.fallback} />}
       {brand && !title && (
         <Link href={home} className="brand grow">
           {/* The logo names the app you are in, signed in or not. The pitch
