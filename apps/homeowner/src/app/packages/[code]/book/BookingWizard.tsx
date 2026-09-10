@@ -101,12 +101,14 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   const deposit = depositCents(pkg, price);
   const hasHomes = homes.length > 0;
   const knownHouse = told(knownFacts);
+  // Resumed with homes on file: a member came back through Google, so the
+  // home picker first; what they typed is kept for "Another address".
   const [step, setStep] = useState<Step>(
-    restored ? (restored.pending === "plan" ? "when" : "budget")
+    restored ? (hasHomes ? "home" : restored.pending === "plan" ? "when" : "budget")
       : mode === "post" ? (knownHouse ? "photos" : "facts") : hasHomes ? "home" : "address");
   const [reusedFacts, setReusedFacts] = useState(mode === "post" && knownHouse);
   // Resumed: the typed address stands, not one of the member's homes.
-  const [homeId, setHomeId] = useState<string | null>(hasHomes && !restored ? homes[0]!.project_id : null);
+  const [homeId, setHomeId] = useState<string | null>(hasHomes ? homes[0]!.project_id : null);
   const [address, setAddress] = useState(restored?.address ?? planned?.address ?? knownAddress ?? "");
   const [unit, setUnit] = useState(restored?.unit ?? "");
   const [geo, setGeo] = useState<Geo | null>(restored?.geo ?? null);
@@ -134,7 +136,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   // ---- which home --------------------------------------------------------
   function chooseHome(e: React.FormEvent) {
     e.preventDefault();
-    if (homeId === "new") { setAddress(""); setGeo(null); setErr(""); setStep("address"); return; }
+    if (homeId === "new") { if (!restored) setAddress(""); setGeo(null); setErr(""); setStep("address"); return; }
     const h = homes.find((x) => x.project_id === homeId);
     if (!h) { setErr("Pick a home."); return; }
     setAddress(h.address ?? "");

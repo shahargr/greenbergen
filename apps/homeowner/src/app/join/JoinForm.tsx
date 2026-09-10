@@ -22,12 +22,14 @@ import { withBase } from "@shared/site";
 // flow). Embedded, it draws no screen of its own, takes its title from the
 // caller, and hands control back with onDone instead of navigating.
 //
-// NEW OR ALREADY A MEMBER (Shahar): embedded, the form opens on "New here"
-// - name, email, phone, and the ZIP unless the flow already knows the
-// address - and one tap switches to "I'm a member", which is just the
-// email and the code (or Google). A member coming back is told apart so
-// the caller can act on it (onMember): the booking wizard reloads to offer
-// their homes rather than book a typed address as a new one.
+// NEW OR ALREADY A MEMBER is not a question the form asks (Shahar: "why
+// do we need already-member when Google sign-in is presented?"). Google
+// signs in whoever you are, and so does the email code. The form asks
+// name, email, phone, and the ZIP unless the flow already knows the
+// address; a member typing their own name again loses nothing. Who you
+// were is read AFTER the sign-in: homes on file means a member, and the
+// caller hears it (onMember) - the booking wizard reloads to offer those
+// homes rather than book a typed address as a new one.
 //
 // The Google path has to leave the page; the caller is told first
 // (onBeforeGoogle) so it can put the half-filled booking somewhere safe.
@@ -68,7 +70,6 @@ export type JoinEmbed = {
 export function JoinForm({ refId, prefillName, next, embed }: { refId: string | null; prefillName: string; next: string; embed?: JoinEmbed }) {
   const router = useRouter();
   const knownZip = zipIn(embed?.address);
-  const [who, setWho] = useState<"new" | "member">("new");
   const [name, setName] = useState(prefillName);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -80,18 +81,15 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
   const [outside, setOutside] = useState(false);
 
   const suggestion = emailSuggestion(email);
-  const member = !!embed && who === "member";
   const askZip = !knownZip || !isBergenZip(knownZip);
 
-  // The three (or four) fields, checked. A member only needs the email.
+  // The fields, checked.
   function check(needEmail: boolean): boolean {
     const errs: typeof errors = {};
-    if (!member) {
-      if (!name.trim()) errs.name = "Your name, so the contractor knows who to ask for.";
-      if (embed && digits(phone).length < 10) errs.phone = "A number the contractor can reach you on.";
-      if (!/^\d{5}$/.test(zip.trim())) errs.zip = "A 5-digit ZIP code.";
-      else if (!isBergenZip(zip.trim())) { errs.zip = `${zip.trim()} is outside Bergen County. We're Bergen-only for now — we'll save your email and tell you when we expand.`; setOutside(true); }
-    }
+    if (!name.trim()) errs.name = "Your name, so the contractor knows who to ask for.";
+    if (embed && digits(phone).length < 10) errs.phone = "A number the contractor can reach you on.";
+    if (!/^\d{5}$/.test(zip.trim())) errs.zip = "A 5-digit ZIP code.";
+    else if (!isBergenZip(zip.trim())) { errs.zip = `${zip.trim()} is outside Bergen County. We're Bergen-only for now — we'll save your email and tell you when we expand.`; setOutside(true); }
     if (needEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) errs.email = suggestion ? `That email looks unfinished — did you mean ${suggestion}?` : "That email looks unfinished.";
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -104,7 +102,7 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { data: member ? undefined : { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(next)}` },
+      options: { data: { full_name: name.trim() }, emailRedirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(next)}` },
     });
     setBusy(false);
     if (error) {
@@ -121,9 +119,7 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
     setBusy(true);
     embed?.onBeforeGoogle?.();
     const supabase = createClient();
-    const finish = member
-      ? next
-      : `/join/finish?${new URLSearchParams({ name: name.trim(), zip: zip.trim(), ...(digits(phone) ? { phone: phone.trim() } : {}), ...(refId ? { ref: refId } : {}), next }).toString()}`;
+    const finish = `/join/finish?${new URLSearchParams({ name: name.trim(), zip: zip.trim(), ...(digits(phone) ? { phone: phone.trim() } : {}), ...(refId ? { ref: refId } : {}), next }).toString()}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}${withBase("/auth/confirm")}?next=${encodeURIComponent(finish)}` },
@@ -142,6 +138,13 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
       setBusy(false);
       setErrors({ submit: /expired/i.test(error.message) ? "That code expired. Go back and we'll send a fresh one." : "That code didn't match. Check the email and try again." });
       return;
+    }
+    // Who signed in? Homes on file means a member who was here before; the
+    // caller may want those homes rather than what was typed.
+    let member = false;
+    if (embed) {
+      const { data: meRow } = await supabase.rpc("homeowner_me");
+      member = Array.isArray(meRow?.homes) && meRow.homes.length > 0;
     }
     if (!member) {
       // The profile row exists now (signup trigger). Add ZIP, town, phone, referral.
@@ -167,7 +170,10 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
       ? <div className="stack" style={{ gap: 14 }}>{inner}</div>
       : <Screen><AppBar back={back} />{inner}</Screen>;
   const formClass = embed ? "stack" : "body";
-  const actionsStyle = embed ? { padding: 0 } : { padding: 0, marginTop: "auto" as const };
+  // Embedded, the buttons sit in the flow. ".actions" is the screen's sticky
+  // bottom bar, and a form inside another screen's bar floated over the page.
+  const actionsClass = embed ? "stack" : "actions";
+  const actionsStyle = embed ? { gap: 8 } : { padding: 0, marginTop: "auto" as const };
 
   if (step === "code") {
     return shell(() => setStep("form"), (
@@ -184,7 +190,7 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
         </label>
         {errors.submit && <Notice kind="error">{errors.submit}</Notice>}
         <p className="small text-muted">Nothing arrived? Look in spam, or <button type="button" className="btn btn-ghost" style={{ padding: 0, minHeight: 0, fontSize: 13 }} onClick={() => setStep("form")}>go back and resend</button>.</p>
-        <div className="actions" style={actionsStyle}>
+        <div className={actionsClass} style={actionsStyle}>
           <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={busy || code.length < 6}>
             {busy ? <><span className="spin" /> Signing you in…</> : "Continue"}
           </button>
@@ -196,26 +202,15 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
   return shell("/", (
     <form className={formClass} onSubmit={submit} noValidate>
       <div className="hero">
-        <h1>{member ? "Welcome back." : embed?.title ?? "Three fields. That's it."}</h1>
-        <p className="lead">{member ? "The email you joined with; we send a code, and you pick up where you were." : embed?.lead ?? "We'll ask about your home only when a project needs it."}</p>
+        <h1>{embed?.title ?? "Three fields. That's it."}</h1>
+        <p className="lead">{embed?.lead ?? "We'll ask about your home only when a project needs it."}</p>
       </div>
 
-      {/* Embedded only: new here, or already a member. On /join a member
-          has the Sign in link at the bottom, as before. */}
-      {embed && (
-        <div className="seg" role="tablist">
-          <label className="seg-opt"><input type="radio" name="who" hidden checked={who === "new"} onChange={() => { setWho("new"); setErrors({}); }} />New here</label>
-          <label className="seg-opt"><input type="radio" name="who" hidden checked={who === "member"} onChange={() => { setWho("member"); setErrors({}); }} />I&apos;m a member</label>
-        </div>
-      )}
-
-      {!member && (
-        <label className="field">
-          <span className="field-label">Full name</span>
-          <input className={`input ${errors.name ? "invalid" : ""}`} autoComplete="name" placeholder="Marta Feld" value={name} onChange={(e) => setName(e.target.value)} />
-          {errors.name && <p className="hint error">{errors.name}</p>}
-        </label>
-      )}
+      <label className="field">
+        <span className="field-label">Full name</span>
+        <input className={`input ${errors.name ? "invalid" : ""}`} autoComplete="name" placeholder="Marta Feld" value={name} onChange={(e) => setName(e.target.value)} />
+        {errors.name && <p className="hint error">{errors.name}</p>}
+      </label>
       <label className="field">
         <span className="field-label">Email</span>
         <input className={`input ${errors.email ? "invalid" : ""}`} type="email" inputMode="email" autoComplete="email" autoCapitalize="none" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -227,14 +222,12 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
           <p className="hint">Did you mean <button type="button" className="btn btn-ghost" style={{ padding: 0, minHeight: 0, fontSize: 12, fontFamily: "inherit", fontWeight: 600 }} onClick={() => setEmail(suggestion)}>{suggestion}</button>?</p>
         ) : null}
       </label>
-      {!member && (
-        <label className="field">
-          <span className="field-label">Phone {embed ? "" : <span className="text-muted">(optional)</span>}</span>
-          <input className={`input ${errors.phone ? "invalid" : ""}`} type="tel" inputMode="tel" autoComplete="tel" placeholder="(201) 555-0142" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          {errors.phone ? <p className="hint error">{errors.phone}</p> : embed ? <p className="hint">For the contractor on the day, and for us if a question comes up.</p> : null}
-        </label>
-      )}
-      {!member && askZip && (
+      <label className="field">
+        <span className="field-label">Phone {embed ? "" : <span className="text-muted">(optional)</span>}</span>
+        <input className={`input ${errors.phone ? "invalid" : ""}`} type="tel" inputMode="tel" autoComplete="tel" placeholder="(201) 555-0142" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        {errors.phone ? <p className="hint error">{errors.phone}</p> : embed ? <p className="hint">For the contractor on the day, and for us if a question comes up.</p> : null}
+      </label>
+      {askZip && (
         <label className="field">
           <span className="field-label">ZIP code</span>
           <input className={`input ${errors.zip ? "invalid" : ""}`} inputMode="numeric" autoComplete="postal-code" maxLength={5} placeholder="07666" value={zip}
@@ -243,15 +236,16 @@ export function JoinForm({ refId, prefillName, next, embed }: { refId: string | 
           {!errors.zip && isBergenZip(zip) && <p className="hint">{townForZip(zip)} — you&apos;re in.</p>}
         </label>
       )}
-      {!member && !askZip && <p className="small text-muted" style={{ margin: 0 }}>{townForZip(knownZip)}, from the address you gave. No card.</p>}
-      {!member && askZip && !embed && <p className="small text-muted" style={{ margin: 0 }}>No address, no card. Prices are the same for everyone in the community.</p>}
+      {!askZip && <p className="small text-muted" style={{ margin: 0 }}>{townForZip(knownZip)}, from the address you gave. No card.</p>}
+      {askZip && !embed && <p className="small text-muted" style={{ margin: 0 }}>No address, no card. Prices are the same for everyone in the community.</p>}
+      {embed && <p className="small text-muted" style={{ margin: 0 }}>Already a member? Same email, and Google or the code signs you straight in.</p>}
 
       {errors.submit && <Notice kind="error" title="We couldn't save that.">{errors.submit}</Notice>}
 
       {/* Google leads, same as the sign-in screen. It sits below the fields
           rather than above them because the name and ZIP have to be captured
           before we hand off to Google, but of the two ways in it is first. */}
-      <div className="actions" style={actionsStyle}>
+      <div className={actionsClass} style={actionsStyle}>
         <button type="button" className="btn btn-primary btn-block" onClick={() => void google()} disabled={busy || outside}><GoogleMark /> Continue with Google</button>
         <div className="divider-label" style={{ justifyContent: "center" }}><span>or</span></div>
         <button className={`btn btn-secondary btn-block ${busy ? "busy" : ""}`} disabled={busy || outside}>

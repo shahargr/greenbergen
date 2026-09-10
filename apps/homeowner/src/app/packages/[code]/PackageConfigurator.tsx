@@ -62,6 +62,16 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
         <NumberedNotes items={notes} />
       </div>
 
+      {/* Nobody covers it yet and no session: "tell me when it opens" is a
+          whole account step, so it lives here in the flow. The sticky bar
+          below is for buttons only; a form inside it floated over the page. */}
+      {!covered && !signedIn && (
+        <div className="stack" style={{ gap: 6 }}>
+          <NotifyMe code={pkg.code} trade={pkg.trade} signedIn={signedIn} />
+          <p className="tiny text-muted center" style={{ margin: 0 }}>No cost and no commitment — it tells us which trade to go find next.</p>
+        </div>
+      )}
+
       {/* Two ways to take this on, named and equal. The old screen made one
           the button and the other a reluctant "not yet", which framed doing
           it yourself as failing to buy - when it is a real choice, and the
@@ -96,10 +106,14 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
               reference. It becomes turn-key the day we can hand it over.
             </p>
 
-            <NotifyMe code={pkg.code} trade={pkg.trade} signedIn={signedIn} />
-            <p className="tiny text-muted center" style={{ margin: 0 }}>
-              No cost and no commitment — it tells us which trade to go find next.
-            </p>
+            {signedIn && (
+              <>
+                <NotifyMe code={pkg.code} trade={pkg.trade} signedIn={signedIn} />
+                <p className="tiny text-muted center" style={{ margin: 0 }}>
+                  No cost and no commitment — it tells us which trade to go find next.
+                </p>
+              </>
+            )}
           </>
         )}
       </div>
