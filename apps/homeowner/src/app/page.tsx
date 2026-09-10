@@ -8,6 +8,7 @@ import { featured, fromPrice, isQuote, loadTagline, loadTiles, type Tile } from 
 import { Illustration } from "@shared/Illustrations";
 import { dollars } from "@shared/format";
 import { SITE_ORIGIN } from "@shared/site";
+import { loadDoors } from "@shared/doors.server";
 import { loadShowcase, type House } from "@/lib/showcase";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,13 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
   const { ref, name } = await searchParams;
   const supabase = await createClient();
   const [signedIn, tagline, { tiles }, houses] = await Promise.all([isSignedIn(supabase), loadTagline(), loadTiles(), loadShowcase()]);
-  if (signedIn && !ref) redirect("/project");
+  // A member does not need the shop window. One door: their projects.
+  // Several doors (Shahar holds all three): the picker on the portal,
+  // never a silent drop into this one app.
+  if (signedIn && !ref) {
+    const doors = await loadDoors();
+    redirect(doors.held.length > 1 ? `${SITE_ORIGIN}/choose` : "/project");
+  }
 
   let inviter: RefPreview | null = null;
   if (ref && /^[0-9a-f-]{36}$/i.test(ref)) {
