@@ -11,6 +11,13 @@ export const dynamic = "force-dynamic";
 // there is no bidding. A trade who arrives expecting to undercut someone
 // should understand in ten seconds that they are in the wrong place - and a
 // trade who is sick of paying for leads should understand they are not.
+// The name in running text, coloured like the wordmark: green, then ink.
+const Brand = () => (
+  <span style={{ fontFamily: "var(--font-heading)", fontWeight: 800, letterSpacing: "-0.01em" }}>
+    <span style={{ color: "var(--color-brand)" }}>green</span><span style={{ color: "var(--color-text)" }}>bergen</span>
+  </span>
+);
+
 export default async function Landing() {
   const supabase = await createClient();
   if (await isSignedIn(supabase)) redirect("/work");
@@ -34,17 +41,16 @@ export default async function Landing() {
         <Card pad>
           <ul className="scope">
             <li><span className="ic"><CheckIcon size={18} /></span><span><strong>No bidding, no haggling.</strong><br /><span className="text-muted">The price is published before you see the job. Accept it or pass — nobody undercuts anybody.</span></span></li>
-            <li><span className="ic"><CheckIcon size={18} /></span><span><strong>No lead fees.</strong><br /><span className="text-muted">You never pay to look at work, and you are never one of six people called about the same boiler.</span></span></li>
+            <li><span className="ic"><CheckIcon size={18} /></span><span><strong>No lead fees.</strong><br /><span className="text-muted">You never pay to look at work and submit your request to deliver it.</span></span></li>
             <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Scope and photos up front.</strong><br /><span className="text-muted">What is included is written down, and the homeowner supplies the photos, so you can price without driving over.</span></span></li>
-            <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Paid directly by the homeowner.</strong><br /><span className="text-muted">Green Bergen never holds your money.</span></span></li>
+            <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Milestone payments are automatic.</strong><br /><span className="text-muted"><Brand /> never holds your money.</span></span></li>
           </ul>
         </Card>
 
         <Card soft pad>
           <div className="kicker">Before you can accept</div>
           <p className="small" style={{ margin: "6px 0 0" }}>
-            Your trade licence, a general liability certificate, workers&apos; comp and a W-9 — plus a
-            look from a person here. Browsing the work needs none of it.
+            Some jobs require a license, insurance and verification. Upload your documents and that&apos;s it.
           </p>
         </Card>
       </div>
