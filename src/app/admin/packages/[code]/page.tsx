@@ -294,7 +294,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
               <F label="Order"><input className="input" name="sort_order" inputMode="numeric" defaultValue={v.sort_order} /></F>
               <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name="is_active" defaultChecked={v.is_active} /> on</label>
               <div className="pk-acts"><button className="btn">Save</button><Del /></div>
-              <p className="muted small" className="pk-f full" style={{ margin: 0 }}>
+              <p className="muted small pk-f full" style={{ margin: 0 }}>
                 Shown to {v.shown} · played {v.plays} ({pct(v.plays)}) · watched to the end {v.completes} ({pct(v.completes)}) · booked within 14 days {v.booked} ({pct(v.booked)})
               </p>
             </form>
