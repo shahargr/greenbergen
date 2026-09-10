@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
 import { createClient } from "@/lib/supabase/server";
 import { JoinForm, type InvitePrefill } from "./JoinForm";
@@ -14,6 +15,13 @@ export default async function JoinPage({
   let prefill: InvitePrefill | null = null;
   if (invite) {
     const supabase = await createClient();
+    // Already signed in - someone who followed an invitation from a device
+    // they use anyway. Signing up again is the wrong ask: redeem the token
+    // against the session they already have and send them on.
+    const { data: auth } = await supabase.auth.getClaims();
+    if (auth?.claims?.sub) {
+      redirect(`/join/finish?invite=${encodeURIComponent(invite)}&next=${encodeURIComponent("/after-login")}`);
+    }
     const { data } = await supabase.rpc("invitation_preview", { p_token: invite });
     if (data?.ok) prefill = data as InvitePrefill;
   }
