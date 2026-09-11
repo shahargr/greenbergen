@@ -322,3 +322,26 @@ export function Skeleton({ h = 14, w = "100%", style }: { h?: number; w?: string
 export const HouseIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>
 );
+
+// LONG TEXT, FOLDED. Shahar (2026-09-11), on a task whose notes ran for two
+// screens: "description should show just a few lines with expandable item."
+//
+// A few lines, then Show more. No JavaScript and no second copy of the text:
+// the whole paragraph lives inside the <summary>, clamped by CSS, and opening
+// the <details> un-clamps the same node. Short text is not folded at all -
+// a "Show more" on three lines is a lie about how much there is.
+export function LongText({ text, lines = 6, className = "small", style }: {
+  text: string; lines?: number; className?: string; style?: React.CSSProperties;
+}) {
+  const long = text.length > 320 || text.split("\n").length > lines;
+  if (!long) {
+    return <p className={className} style={{ margin: 0, whiteSpace: "pre-wrap", ...style }}>{text}</p>;
+  }
+  return (
+    <details className="longtext" style={{ ["--longtext-lines" as string]: String(lines), ...style }}>
+      <summary>
+        <p className={`longtext-body ${className}`}>{text}</p>
+      </summary>
+    </details>
+  );
+}

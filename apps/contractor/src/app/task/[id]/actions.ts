@@ -144,3 +144,51 @@ export async function deleteTask(formData: FormData) {
   revalidatePath("/");
   redirect(back);
 }
+
+// WHAT THE TASK COST (migration 065). A sign bought online, a part from the
+// supply house, a permit fee: money that belongs to this task and to no
+// contract. task_payment_log owns every rule - who may record, which rails
+// need a reference, who was paid - and this only shapes the form.
+export async function logTaskPayment(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const back = safeBack(formData.get("back"));
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
+  if (!id) redirect(back);
+
+  const money = (v: FormDataEntryValue | null) => {
+    const s = String(v ?? "").replace(/[$,\s]/g, "");
+    if (!s) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+  const txt = (v: FormDataEntryValue | null) => { const s = String(v ?? "").trim(); return s || null; };
+
+  const amount = money(formData.get("amount"));
+  if (amount == null || amount <= 0) redirect(here({ error: "Enter what it cost." }));
+
+  const fileIds = String(formData.get("file_ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("task_payment_log", {
+    p_action: id,
+    p_amount: amount,
+    p_method: txt(formData.get("method")),
+    p_payee_name: txt(formData.get("payee")),
+    p_reference: txt(formData.get("reference")),
+    p_paid_on: txt(formData.get("paid_on")),
+    p_from_account: txt(formData.get("from_account")),
+    p_notes: txt(formData.get("notes")),
+    p_awaiting: String(formData.get("awaiting") ?? "") === "1",
+    p_file_ids: fileIds.length > 0 ? fileIds : null,
+  });
+  if (error) redirect(here({ error: error.message }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That payment did not save." }));
+
+  revalidatePath(`/task/${id}`);
+  revalidatePath("/money");
+  revalidatePath("/");
+  redirect(here({
+    ok: data?.awaiting
+      ? `Logged. ${data?.paid_to ?? "They"} have a confirmation task open until it lands.`
+      : `Logged against this task, paid to ${data?.paid_to ?? "them"}.`,
+  }));
+}

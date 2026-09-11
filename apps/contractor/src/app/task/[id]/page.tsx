@@ -4,9 +4,10 @@ import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
-import { AppBar, Card, Notice, Screen } from "@shared/ui";
-import { editTask, saveTask, cancelTask, deleteTask } from "./actions";
+import { AppBar, Card, LongText, Notice, Screen } from "@shared/ui";
+import { editTask, saveTask, cancelTask, deleteTask, logTaskPayment } from "./actions";
 import { NoteBox } from "./NoteBox";
+import { PaymentBox, type Method } from "./PaymentBox";
 import { ChevronIcon } from "@shared/ui";
 import type { Target } from "@shared/inbox/data";
 
@@ -28,7 +29,21 @@ type Detail = {
   evidence: { id: string; file_name: string | null; kind: string | null; role: string | null }[];
   comments: { author: string | null; body: string | null; created_at: string | null }[];
   open_children: number;
+  // What this task cost, and whether the person looking may add to it
+  // (migration 065). Money follows the money ladder: a crew member reads
+  // the work and never the cost, so both come back empty for them.
+  can_log_payment: boolean;
+  payments: Payment[];
+  methods: Method[];
 };
+
+type Payment = {
+  id: string; description: string | null; amount: number | null; paid_on: string | null;
+  status: string; reference: string | null; from_account: string | null;
+  method: string | null; paid_to: string | null; contract_id: string | null;
+};
+
+const usd = (n: number | null) => (n == null ? "—" : `$${Math.round(n).toLocaleString()}`);
 
 // A note and what it carries (migration 037). Evidence hangs off the NOTE,
 // not just the task, so the history reads as what someone said and showed.
@@ -124,11 +139,17 @@ export default async function TaskPage({
           </p>
         )}
 
+        {/* The description, folded to a few lines: some of these run for two
+            screens, and the task's own state is what you came for (Shahar). */}
         {(t.desired_outcome || t.notes) && (
           <Card soft pad>
             {t.desired_outcome && <><div className="kicker">Done looks like</div>
-              <p className="small" style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{t.desired_outcome}</p></>}
-            {t.notes && <p className="small" style={{ margin: t.desired_outcome ? "10px 0 0" : 0, whiteSpace: "pre-wrap" }}>{t.notes}</p>}
+              <LongText text={t.desired_outcome} lines={4} style={{ marginTop: 4 }} /></>}
+            {t.notes && (
+              <div style={{ marginTop: t.desired_outcome ? 10 : 0 }}>
+                <LongText text={t.notes} lines={6} />
+              </div>
+            )}
           </Card>
         )}
 
@@ -273,6 +294,56 @@ export default async function TaskPage({
 
         {closed && (
           <Card soft pad><div className="small">This task is {t.status.toLowerCase()}. Reopening is a portal action.</div></Card>
+        )}
+
+        {/* WHAT IT COST (migration 065). A sign bought online, a part from
+            the supply house, a permit fee - money that belongs to this task
+            and to no contract. It lands in the project's ledger under other
+            costs, where the money page already gathers it. */}
+        {(t.payments.length > 0 || t.can_log_payment) && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">
+              Money{t.payments.length > 0 ? ` · ${usd(t.payments.reduce((n, p) => n + (p.amount ?? 0), 0))} on this task` : ""}
+            </div>
+
+            {t.payments.map((p) => (
+              <div className="home-row" key={p.id} style={{ cursor: "default", alignItems: "flex-start" }}>
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="t">{usd(p.amount)}{p.paid_to ? ` to ${p.paid_to}` : ""}</span>
+                  <span className="m" style={{ display: "block" }}>
+                    {[
+                      p.paid_on ? shortDate(p.paid_on) : null,
+                      p.method,
+                      p.reference ? `ref ${p.reference}` : null,
+                      p.from_account,
+                    ].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                <span className={`tag ${p.status === "paid - receipt filed" || p.status === "settled" ? "tag-ok" : "tag-outline"}`}
+                  style={{ whiteSpace: "nowrap" }}>
+                  {p.status === "paid - receipt filed" ? "receipt filed" : p.status === "paid - pending confirmation" ? "awaiting" : p.status}
+                </span>
+              </div>
+            ))}
+
+            {t.can_log_payment && (
+              <details className="home-panel">
+                <summary className="home-row">
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">Log a payment</span>
+                    <span className="m" style={{ display: "block" }}>Something you bought or paid for to get this done</span>
+                  </span>
+                  <span className="chev"><ChevronIcon /></span>
+                </summary>
+                <form action={logTaskPayment} className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+                  <input type="hidden" name="id" value={t.id} />
+                  <input type="hidden" name="back" value={to} />
+                  <PaymentBox projectId={t.project_id} methods={t.methods}
+                    people={people.map((p) => ({ contact_id: p.contact_id, name: p.name }))} />
+                </form>
+              </details>
+            )}
+          </section>
         )}
 
         {photos.length > 0 && (

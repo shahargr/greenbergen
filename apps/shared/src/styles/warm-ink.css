@@ -272,6 +272,22 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .prop .shot.empty { display: grid; place-items: center; color: var(--color-divider-strong); }
 .prop .shot.empty svg { width: 34px; height: 34px; }
 
+/* LONG TEXT, FOLDED to a few lines with a Show more (see ui.tsx LongText).
+   The paragraph lives inside the summary so there is only ever one copy of
+   it; opening the details un-clamps that same node. */
+.longtext > summary { display: block; cursor: pointer; list-style: none; }
+.longtext > summary::-webkit-details-marker { display: none; }
+.longtext .longtext-body {
+  margin: 0; white-space: pre-wrap; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--longtext-lines, 6);
+}
+.longtext[open] .longtext-body { display: block; }
+.longtext > summary::after {
+  content: "Show more"; display: inline-block; margin-top: 8px;
+  font-size: 12px; font-weight: 700; color: var(--color-accent);
+}
+.longtext[open] > summary::after { content: "Show less"; }
+
 /* The face of a project on its own screen: a dashed frame asking for one,
    or a small button on the photo to change it (migration 063). */
 .cover-empty { display: grid; justify-items: center; gap: 4px; width: 100%; padding: 18px 12px; border: 1.5px dashed var(--color-divider-strong); border-radius: var(--radius-tile); background: transparent; color: var(--color-text); font: inherit; cursor: pointer; }
