@@ -4,7 +4,7 @@ import { createClient } from "@shared/supabase/server";
 import { isSignedIn } from "@shared/supabase/session";
 import { rpc } from "@shared/rpc";
 import { AppBar, Card, ChevronIcon, Screen } from "@shared/ui";
-import { featured, loadTagline, loadTiles } from "@shared/catalogue";
+import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { SITE_ORIGIN } from "@shared/site";
 import { loadDoors } from "@shared/doors.server";
@@ -35,7 +35,7 @@ type RefPreview = { ok: boolean; first?: string; name?: string; line?: string };
 export default async function Landing({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string; tab?: string }> }) {
   const { ref, name, tab: tabParam } = await searchParams;
   const supabase = await createClient();
-  const [signedIn, tagline, { tiles }, houses] = await Promise.all([isSignedIn(supabase), loadTagline(), loadTiles(), loadShowcase()]);
+  const [signedIn, settings, { tiles }, houses] = await Promise.all([isSignedIn(supabase), loadPublicSettings(), loadTiles(), loadShowcase()]);
   // A member does not need the shop window. One door: their projects.
   // Several doors (Shahar holds all three): the picker on the portal,
   // never a silent drop into this one app.
@@ -97,12 +97,30 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           </Card>
         ) : null}
 
-        <div className="hero">
-          <h1 style={{ fontSize: 26 }}>
+        {/* THE FIRST THIRD IS A PHOTOGRAPH (Shahar, 2026-09-11): "1st 1/3 of
+            page should be an image, and not text. image of couple in front of
+            their house smiling as if they have completed a great project."
+
+            A stranger decides in a second whether this is for them, and a
+            paragraph is not what decides it. So the page opens on the picture
+            - full bleed, a third of the screen - and the sentence that used
+            to be the hero is one line under it. The photograph is data
+            (config.landing_hero_url, uploaded in Admin > Landing photo);
+            until there is one, the house is drawn on the warm ground so the
+            page is whole either way. */}
+        <div className={`front-hero ${settings.hero ? "" : "drawn"}`}>
+          {settings.hero
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={settings.hero} alt="" fetchPriority="high" />
+            : <Illustration name="house" />}
+        </div>
+
+        <div className="hero" style={{ marginTop: -4 }}>
+          <h1 style={{ fontSize: 21 }}>
             {inviter && name ? <>Welcome, {name}. The safe way to meet contractors in our community.</> : <>The safe way to meet contractors in our community.</>}
           </h1>
           {/* The community line, editable in Admin (config.public_tagline). */}
-          {tagline && <p className="step-kicker" style={{ margin: "6px 0 0" }}>{tagline}</p>}
+          {settings.tagline && <p className="step-kicker" style={{ margin: "6px 0 0" }}>{settings.tagline}</p>}
         </div>
 
         {/* TWO TABS (Shahar, 2026-09-11): the services, and our projects.
@@ -123,18 +141,22 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
                 first step of buying that package. */}
             {scenes.length > 0 && (
               <section className="stack" style={{ gap: 10 }}>
-                {/* The rail is longer than the screen. Two cues say so: the
-                    count on the right of the label (every package, not just
-                    the promoted ones), and a card width that always leaves
-                    the second card cut at the edge (Shahar: "I need to see
-                    there are more"). */}
+                {/* FOUR ACROSS, AND THE FIFTH CUT AT THE EDGE. Shahar: "have
+                    one line carousel of projects they can do, starting with an
+                    EV charger, Standby generator, Water heater replacement,
+                    and fixing Toilet... (try to fit 4 panels and show there
+                    are more, if not, fit 3 and show there are more)."
+                    .scenes.four sizes the card so four fit a phone with the
+                    next one showing at the edge - three on the narrowest
+                    ones, where four would be too small to read. The order is
+                    the data: promoted packages by sort_order (072). */}
                 <div className="row" style={{ alignItems: "center", gap: 10 }}>
                   <div className="divider-label" style={{ flex: 1 }}>What we do</div>
                   <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
                     All {tiles.length} packages<ChevronIcon />
                   </Link>
                 </div>
-                <div className="scenes" aria-label="Featured packages">
+                <div className="scenes four" aria-label="Featured packages">
                   {scenes.map((t) => <Scene key={t.code} t={t} />)}
                   <SceneMore count={tiles.length} />
                 </div>

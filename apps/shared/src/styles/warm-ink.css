@@ -644,6 +644,35 @@ blockquote { margin: 0; padding: 0 0 0 var(--space-3); border-left: 2px solid va
 /* THE FRONT DOOR (052). Scenes: the promoted packages as photographs of the
    work in a horizontal rail - about one and three quarters visible (Shahar:
    1.78, not 1.3; the pictures were a third too large). Houses: the projects, live one wide, built ones two-up. */
+/* THE FRONT DOOR'S FIRST THIRD (Shahar, 2026-09-11): a photograph, not a
+   paragraph. Full bleed, up against the app bar, about a third of the screen
+   - tall enough to be the thing you see, short enough that the first package
+   is on screen with it. The photo is data (config.landing_hero_url); with
+   none set the house is drawn on the warm ground so the page is whole. */
+.front-hero {
+  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-6)) 0;
+  height: 34vh; min-height: 190px; max-height: 340px;
+  background: var(--color-soft-2); overflow: hidden; position: relative;
+}
+.front-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.front-hero.drawn { display: grid; place-items: center; color: var(--muted); }
+.front-hero.drawn svg { width: 46%; max-width: 210px; height: auto; }
+
+/* FOUR ACROSS, THE FIFTH CUT AT THE EDGE. A card at 23.5% of the column is
+   about four across a 430px screen with the next one showing; the clamp keeps
+   it readable on a narrow phone, where it becomes three and a half - which is
+   what Shahar asked for when four will not fit. */
+.scenes.four .scene { flex: 0 0 clamp(88px, 23.5%, 112px); border-radius: var(--radius-tile); }
+.scenes.four .scene-pic { aspect-ratio: 1 / 1; }
+.scenes.four .scene-cap { padding: 8px 9px 10px; gap: 1px; }
+.scenes.four .scene-cap strong { font-size: 11.5px; line-height: 1.15; }
+.scenes.four .scene-cap strong small { display: block; font-size: 10.5px; }
+.scenes.four .scene-cap .small { font-size: 10.5px; }
+.scenes.four .scene.more { flex-basis: clamp(88px, 23.5%, 112px); }
+.scenes.four .scene-more { padding: 10px 9px; gap: 4px; }
+.scenes.four .scene-more strong { font-size: 12px; line-height: 1.2; }
+.scenes.four .scene-more .small { display: none; }
+
 .scenes { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 calc(-1 * var(--space-6)); padding: 4px var(--space-6) 10px; scrollbar-width: none; }
 .scenes::-webkit-scrollbar { display: none; }
 /* 58% of the column, on a rail that bleeds into the side padding: the

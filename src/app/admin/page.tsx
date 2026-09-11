@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { saveBanner, savePublicTagline, saveTips, saveTrashRetention, saveWelcomeVideo, setGodMode } from "./actions";
+import { LandingPhoto } from "./LandingPhoto";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -20,7 +21,7 @@ export default async function AdminHome() {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
   const godOn = (await cookies()).get("gb_god")?.value === "1";
-  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url, public_tagline").maybeSingle();
+  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url, public_tagline, landing_hero_url").maybeSingle();
   const trashDays = cfgRow?.trash_retention_days ?? 14;
   const { data: bannerRows } = await supabase
     .from("community_banners")
@@ -80,6 +81,15 @@ export default async function AdminHome() {
             placeholder="A real community, not just a marketplace." style={{ maxWidth: 420 }} />
           <button className="btn">Save</button>
         </form>
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 8 }}>
+        <h2 className="section-title">Landing photo</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          The first thing a stranger sees on the homeowner app — the top third of the page,
+          before any words. Edits reach every visitor within five minutes.
+        </p>
+        <LandingPhoto url={(cfgRow?.landing_hero_url as string | null) ?? null} />
       </div>
 
       <div className="card" style={{ display: "grid", gap: 8 }}>

@@ -99,6 +99,18 @@ export async function savePublicTagline(formData: FormData) {
     : `/admin?saved=1`);
 }
 
+// The photograph across the top third of the homeowner landing page (072),
+// recorded after the browser has put the file in public-media. An empty URL
+// removes it. Returns instead of redirecting: the uploader stays on the page
+// and shows the result.
+export async function setLandingHero(url: string): Promise<{ ok?: true; error?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("landing_hero_set", { p_url: url });
+  if (error || data?.ok === false) return { error: data?.reason ?? error?.message ?? "Not saved." };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
 // The welcome video shown to first-run users (YouTube link or MP4 URL).
 export async function saveWelcomeVideo(formData: FormData) {
   const supabase = await createClient();

@@ -25,11 +25,6 @@ const BUCKETS: { key: Bucket; label: string }[] = [
 const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> =>
   b.state === "planned" ? "planned" : b.state === "closed" ? "cancelled" : b.state === "done" ? "done" : "live";
 
-const ContractorsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17" cy="9" r="2.6" /><path d="M17.5 14.6c2.2.5 3.5 2.2 3.5 4.4" />
-  </svg>
-);
 
 export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string; home?: string }> }) {
   const { ok, show, home } = await searchParams;
@@ -134,16 +129,13 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </div>
         </Card>
 
-        {/* Who does the work. The directory is the answer to "who are these
-            people" - trades, area, record - without turning into a lead list. */}
-        <Link href="/contractors" className="home-row">
-          <span className="ic"><ContractorsIcon /></span>
-          <span className="grow">
-            <span className="t">The contractors</span>
-            <span className="m" style={{ display: "block" }}>Who is approved, what they do, where they work, how they have done.</span>
-          </span>
-          <ChevronIcon />
-        </Link>
+        {/* THE CONTRACTOR DIRECTORY IS NOT HERE YET. Shahar
+            (2026-09-11): "the contractors list should be removed for now,
+            until we have enough." A directory of three people reads as a
+            shortage, not a community, and it is the one screen on this app
+            whose whole job is to be reassuring. /contractors still exists and
+            still works - nothing links to it until the list can carry its own
+            weight. */}
 
         {/* The jobs - planned, live, done, cancelled. The list of HOMES is not
             here any more: it lives in the profile (gear), where it can be
