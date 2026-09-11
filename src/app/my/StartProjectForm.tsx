@@ -65,6 +65,11 @@ export function StartProjectForm({
   // Wizard answers, kept so a conditional question can appear as it is earned.
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
+  // WHICH JOB TYPE THIS IS (migration 071). The featured tiles are the
+  // catalogue's packages under another name, so a project started from one
+  // records the code - and then wears that type's photo instead of the
+  // house's. A job typed by hand has no type, and that is honest.
+  const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState("");
 
@@ -126,6 +131,7 @@ export function StartProjectForm({
           {[
             {
               name: "Emergency generator",
+              code: "generator",
               icon: (
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2.5" y="8" width="19" height="10" rx="2" />
@@ -137,6 +143,7 @@ export function StartProjectForm({
             },
             {
               name: "EV charger installation",
+              code: "ev_charger",
               icon: (
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="5" y="3" width="10" height="18" rx="2" />
@@ -148,6 +155,7 @@ export function StartProjectForm({
             },
             {
               name: "Water heater replacement",
+              code: "water_heater",
               icon: (
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="7" y="2.5" width="10" height="16" rx="3.5" />
@@ -158,6 +166,7 @@ export function StartProjectForm({
             },
             {
               name: "Quick fix / repair",
+              code: null,
               icon: (
                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14.7 6.3a4 4 0 0 0 5.2 5.2l-8.6 8.6a2.2 2.2 0 0 1-3.1-3.1l8.6-8.6a4 4 0 0 0-2.1-2.1z" />
@@ -170,7 +179,7 @@ export function StartProjectForm({
               key={j.name}
               type="button"
               className={name === j.name ? "featured-job on" : "featured-job"}
-              onClick={() => setName(name === j.name ? "" : j.name)}
+              onClick={() => { setName(name === j.name ? "" : j.name); setCode(name === j.name ? null : j.code); }}
             >
               <span className="featured-job-icon">{j.icon}</span>
               <span className="featured-job-name">{j.name}</span>
@@ -212,13 +221,15 @@ export function StartProjectForm({
           </div>
         )}
 
+        {code && <input type="hidden" name="package" value={code} />}
+
         {WIZARDS[name] ? (
           <input type="hidden" name="name" value={name} />
         ) : (
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="pj-name">What are we doing?</label>
             <input id="pj-name" name="name" className="input" required autoComplete="off"
-              value={name} onChange={(e) => setName(e.target.value)}
+              value={name} onChange={(e) => { setName(e.target.value); setCode(null); }}
               placeholder="e.g. Kitchen remodel, new pool, generator" />
           </div>
         )}

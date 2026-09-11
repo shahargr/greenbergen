@@ -149,6 +149,9 @@ export async function createJob(formData: FormData) {
     p_name: name,
     p_description: description || null,
     p_parent_project_id: parentId,
+    // The job type, when the owner picked one of the featured tiles rather
+    // than typing a name. It is what gives the project its face (071).
+    p_package_code: String(formData.get("package") ?? "").trim() || null,
   });
   if (error || !data?.ok) {
     redirect(`/my/new-project?error=${encodeURIComponent(data?.reason ?? "Could not create the project — try again.")}`);

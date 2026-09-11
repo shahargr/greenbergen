@@ -5,7 +5,8 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { GROUPINGS, coverUrls, getBoard, groupTasks, money, runs, type GroupKey, type Seat } from "@/lib/board";
+import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, money, openBeneath, runs, type GroupKey, type Node, type Seat } from "@/lib/board";
+import { PropertyCard } from "@/components/PropertyCard";
 import { SearchBox } from "@/components/SearchBox";
 import { matchesQuery } from "@/lib/search";
 import { ProjectSetup } from "./ProjectSetup";
@@ -100,10 +101,10 @@ export default async function ProjectPage({
   const liveKids = kids.filter((s) => !s.status.startsWith("Closed")).length;
   const parent = seat.parent_project_id && board.seats.some((s) => s.project_id === seat.parent_project_id)
     ? seat.parent_project_id : null;
-  const openByProject = new Map<string, number>();
-  for (const t of board.tasks) {
-    if (t.state === "open" && t.project_id) openByProject.set(t.project_id, (openByProject.get(t.project_id) ?? 0) + 1);
-  }
+  // Open work at or beneath each of them. Counting the rows ON a child is
+  // what made 55 Walnut - a live house with a hundred and fifty open tasks on
+  // the jobs under it - read as "not started" (Shahar's screenshot).
+  const openByProject = openBeneath(board.seats, board.tasks);
 
   // The day this site is having, not the day UTC is having: a visit logged at
   // eight in the evening in Bergen County is still today's visit.
@@ -118,6 +119,37 @@ export default async function ProjectPage({
   const visits = Array.isArray(visitData) ? visitData : [];
   const closedAlready = seat.status.startsWith("Closed");
   const onSite = !!seat.address;
+
+  // A FOLDER, NOT A SITE.
+  //
+  // Shahar (2026-09-11), looking at Green Bergen Development wearing the site
+  // panels: "top level should show different view, higher one on projects
+  // only. design and deploy a view that shows at a higher level the project
+  // under it (only its children)."
+  //
+  // He is right that the nine panels ask questions a development cannot
+  // answer - "trades on site this week" of a thing that is not a place, "open
+  // tasks on this site" of four sites at once. A development holds
+  // PROPERTIES, and the only useful thing to say about it is how each of them
+  // is doing. So it gets the portfolio instead, and nothing else.
+  const folderTree = !onSite && kids.length > 0
+    ? buildTree(board.seats, board.tasks, board.me?.contact_id ?? null) : [];
+  const findNode = (ns: Node[]): Node | null => {
+    for (const n of ns) {
+      if (n.seat.project_id === id) return n;
+      const found = findNode(n.children);
+      if (found) return found;
+    }
+    return null;
+  };
+  const node = folderTree.length > 0 ? findNode(folderTree) : null;
+  const isFolder = !!node;
+  const childNodes = node?.children ?? [];
+  const liveNodes = childNodes.filter((n) => !n.seat.status.startsWith("Closed"));
+  const doneNodes = childNodes.filter((n) => n.seat.status.startsWith("Closed"));
+  // What its children ARE, said in the right word: a development holds
+  // addresses, anything else holds work.
+  const childWord = liveNodes.every((n) => n.seat.address) ? "Properties" : "Projects";
 
   // OPEN WORK ACROSS THE WHOLE PROPERTY, not just this row.
   //
@@ -213,8 +245,8 @@ export default async function ProjectPage({
   // One signed-URL round trip for the cover and everything hanging off the
   // visits - they all live in the same private bucket.
   const visitPaths = panel === "visits" ? visits.flatMap((v) => v.files.map((f) => f.path)) : [];
-  const signed = await w.step("media", () => coverUrls(supabase, [seat.cover, ...visitPaths]));
-  const cover = signed[seat.cover ?? ""] ?? null;
+  const signed = await w.step("media", () => coverUrls(supabase, [seat.cover, ...visitPaths, ...kids.map((k) => k.cover)]));
+  const cover = faceUrl(seat, signed);
   w.done();
 
   const jobRows = (list: Seat[], empty: string) => (
@@ -261,7 +293,7 @@ export default async function ProjectPage({
             photo, the scope, and how this job ends (Shahar, 2026-09-11: "move
             the cancel this job into the setting of it"). The screen below is
             only about the job running. */}
-        <ProjectSetup projectId={id} url={cover} own={seat.cover_own} canEdit={manages}
+        <ProjectSetup projectId={id} url={cover} own={seat.cover_own} stock={!!seat.cover_url} canEdit={manages}
           scopeLines={scopeLines} scopeTrades={scopeTrades}
           lifecycle={manages ? (
             <Lifecycle projectId={id} status={seat.status} closed={closedAlready}
@@ -274,6 +306,57 @@ export default async function ProjectPage({
           {seat.stage ? ` · ${seat.stage}` : ""}
         </div>
 
+        {/* A DEVELOPMENT: ONLY WHAT IS UNDER IT (Shahar, 2026-09-11).
+            Three roll-ups across the whole portfolio, then one card per
+            property with its own face and its own numbers. Every number here
+            is the family's, rolled up by buildTree - a house with its work on
+            the jobs beneath it reads as busy, which it is. */}
+        {isFolder ? (
+          <>
+            <div className="pgrid">
+              <Panel n={liveNodes.length}
+                label={childWord === "Properties"
+                  ? liveNodes.length === 1 ? "property under way" : "properties under way"
+                  : liveNodes.length === 1 ? "project under way" : "projects under way"}
+                sub={doneNodes.length > 0 ? `${doneNodes.length} finished` : "none finished yet"} />
+              <Panel n={node?.open ?? 0} label="open tasks across them all"
+                sub={late.length > 0 ? `${late.length} past its date` : "nothing is late"}
+                tone={late.length > 0 ? "late" : undefined} />
+              <Panel n={money(node?.owed) ?? "$0"} label="owed to the trades"
+                sub={(node?.count ?? 0) > 0 ? `${node?.count} project${node?.count === 1 ? "" : "s"} in all` : "nothing beneath yet"} />
+            </div>
+
+            <section className="stack" style={{ gap: 10 }}>
+              <div className="divider-label">{childWord} · {liveNodes.length}</div>
+              {liveNodes.length === 0 && (
+                <Card soft pad><div className="small">Nothing is under way here. Everything beneath this one is finished.</div></Card>
+              )}
+              {liveNodes.map((n) => (
+                <PropertyCard key={n.seat.project_id} node={n} url={faceUrl(n.seat, signed)} />
+              ))}
+            </section>
+
+            {/* The finished ones stay reachable without taking the space of a
+                card - they are a filing cabinet, not the work. */}
+            {doneNodes.length > 0 && (
+              <section className="stack" style={{ gap: 6 }}>
+                <div className="divider-label">Finished · {doneNodes.length}</div>
+                {doneNodes.map((n) => (
+                  <Link href={`/project/${n.seat.project_id}`} className="home-row" key={n.seat.project_id}>
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t">{n.seat.project_name}</span>
+                      <span className="m" style={{ display: "block" }}>
+                        {[n.seat.address, n.seat.status.replace("Closed - ", "")].filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                    <ChevronIcon />
+                  </Link>
+                ))}
+              </section>
+            )}
+          </>
+        ) : (
+          <>
         {/* THE NINE. Each says in words what its number counts, and tapping
             one puts its content in the single area below. */}
         <div className="pgrid">
@@ -526,24 +609,31 @@ export default async function ProjectPage({
             ))}
           </section>
         )}
+        </>
+        )}
       </div>
     </Screen>
   );
 }
 
 // A panel: a number, the words for what it counts, and a second line that
-// says the thing the number leaves out. Tapping it opens it below.
+// says the thing the number leaves out. With an href, tapping it opens it
+// below; without one it is simply a number that had to be said (the
+// development's roll-ups, where the only thing to open is a property).
 function Panel({ href, on, n, label, sub, tone }: {
-  href: string; on: boolean; n: number | string; label: string; sub?: string; tone?: "late";
+  href?: string; on?: boolean; n: number | string; label: string; sub?: string; tone?: "late";
 }) {
-  return (
-    <Link href={href} aria-current={on ? "page" : undefined} scroll={false}
-      className={`pnl ${tone === "late" ? "late" : ""}`}>
+  const inside = (
+    <>
       <div className="n">{n}</div>
       <div className="l">{label}</div>
       {sub && <div className={`s ${tone === "late" ? "late" : ""}`}>{sub}</div>}
-    </Link>
+    </>
   );
+  const cls = `pnl ${tone === "late" ? "late" : ""}${href ? "" : " flat"}`;
+  return href
+    ? <Link href={href} aria-current={on ? "page" : undefined} scroll={false} className={cls}>{inside}</Link>
+    : <div className={cls}>{inside}</div>;
 }
 
 function Line({ label, value, tone }: { label: string; value: string; tone?: "status" }) {

@@ -6,7 +6,7 @@ import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/u
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
-import { anyRuns, buildTree, coverUrls, getBoard } from "@/lib/board";
+import { anyRuns, buildTree, coverUrls, faceUrl, getBoard } from "@/lib/board";
 import { PropertyCard } from "@/components/PropertyCard";
 import { ReadyCard } from "@/components/ReadyCard";
 
@@ -80,7 +80,7 @@ export default async function WorkPage() {
         {live.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>
             <div className="divider-label">Your properties</div>
-            {shown.map((n) => <PropertyCard key={n.seat.project_id} node={n} url={covers[n.seat.cover ?? ""] ?? null} />)}
+            {shown.map((n) => <PropertyCard key={n.seat.project_id} node={n} url={faceUrl(n.seat, covers)} />)}
             {live.length > shown.length && (
               <Link href="/projects" className="home-row">
                 <span className="grow"><span className="t">All {top.length} on the board</span>

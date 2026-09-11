@@ -22,8 +22,8 @@ import { ChevronIcon } from "@shared/ui";
 // only about the job running. `lifecycle` is server-rendered on the page -
 // those forms post to server actions and have no business being in a client
 // component - and is simply given a place here.
-export function ProjectSetup({ projectId, url, own, canEdit, scopeLines, scopeTrades, lifecycle }: {
-  projectId: string; url: string | null; own: boolean; canEdit: boolean;
+export function ProjectSetup({ projectId, url, own, stock, canEdit, scopeLines, scopeTrades, lifecycle }: {
+  projectId: string; url: string | null; own: boolean; stock: boolean; canEdit: boolean;
   scopeLines: number; scopeTrades: number; lifecycle?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -90,7 +90,11 @@ export function ProjectSetup({ projectId, url, own, canEdit, scopeLines, scopeTr
       </div>
 
       {canEdit && !own && url && !open && (
-        <p className="tiny text-muted" style={{ margin: 0 }}>Showing the house&apos;s photo until this project has one of its own.</p>
+        <p className="tiny text-muted" style={{ margin: 0 }}>
+          {stock
+            ? "Showing the standard photo for this kind of job until this project has one of its own."
+            : "Showing the house's photo until this project has one of its own."}
+        </p>
       )}
       {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
 
@@ -110,7 +114,9 @@ export function ProjectSetup({ projectId, url, own, canEdit, scopeLines, scopeTr
             <span className="grow" style={{ minWidth: 0 }}>
               <span className="t">{busy || (own ? "Change the photo" : "Give it its own photo")}</span>
               <span className="m" style={{ display: "block" }}>
-                {own ? "The face on the board and on this screen" : "It is wearing the house's photo right now"}
+                {own ? "The face on the board and on this screen"
+                  : stock ? "It is wearing the standard photo for this kind of job"
+                  : "It is wearing the house's photo right now"}
               </span>
             </span>
             <ChevronIcon />

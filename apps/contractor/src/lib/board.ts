@@ -26,7 +26,18 @@ export type Seat = {
   // choice rather than one borrowed from the house above it.
   cover: string | null;
   cover_own: boolean;
+  // The JOB TYPE's picture (migration 071): a public url, already usable,
+  // set when this project is one of the catalogue's packages and nobody has
+  // chosen a photo of its own. A generator job looks like a generator.
+  cover_url: string | null;
+  package_code: string | null;
 };
+
+// The one place that decides which of a seat's two faces to show. The job
+// type's picture is already a url; the other is a private path that has to
+// be signed, so a screen signs what it has and asks here.
+export const faceUrl = (s: Seat, signed: Record<string, string>) =>
+  s.cover_url ?? signed[s.cover ?? ""] ?? null;
 
 export type Task = {
   id: string; action: string; status: string; priority: string | null;
@@ -157,6 +168,41 @@ export function buildTree(seats: Seat[], tasks: Task[], contactId: string | null
   const tree = roots.map(make);
   tree.sort(byWorkload);
   return tree;
+}
+
+// OPEN WORK AT OR BENEATH EVERY PROJECT.
+//
+// A container carries no tasks of its own - fn_actions_not_on_property sees
+// to that, and the work lives on the jobs beneath it. So counting the rows ON
+// 55 Walnut says nobody has started, while eleven jobs under it are busy, and
+// a screen that reads those counts calls a live house "not started". Any
+// count a screen shows ABOUT a project is the family's, never the row's.
+export function openBeneath(seats: Seat[], tasks: Task[]): Map<string, number> {
+  const own = new Map<string, number>();
+  for (const t of tasks) {
+    if (t.state !== "open" || !t.project_id) continue;
+    own.set(t.project_id, (own.get(t.project_id) ?? 0) + 1);
+  }
+  const kids = new Map<string, string[]>();
+  for (const s of seats) {
+    if (!s.parent_project_id) continue;
+    kids.set(s.parent_project_id, [...(kids.get(s.parent_project_id) ?? []), s.project_id]);
+  }
+  const out = new Map<string, number>();
+  // open guards a parent chain that loops back on itself - a bad row should
+  // make a count wrong, never make the page hang.
+  const open = new Set<string>();
+  const walk = (id: string): number => {
+    const done = out.get(id);
+    if (done !== undefined) return done;
+    if (open.has(id)) return own.get(id) ?? 0;
+    open.add(id);
+    const n = (own.get(id) ?? 0) + (kids.get(id) ?? []).reduce((a, k) => a + walk(k), 0);
+    out.set(id, n);
+    return n;
+  };
+  for (const s of seats) walk(s.project_id);
+  return out;
 }
 
 // Filtering a tree is not filtering a list: a development stays on the board

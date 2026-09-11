@@ -775,6 +775,8 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .pnl[aria-current="page"] { box-shadow: 0 0 0 2px var(--color-accent) inset, var(--shadow-card); }
 .pnl[aria-current="page"] .l { color: var(--color-text); }
 .pnl.late .n, .pnl .s.late { color: var(--color-status); }
+.pnl.flat { cursor: default; }
+.pnl.flat:hover { transform: none; }
 .pnl.soon { background: var(--color-soft-2); box-shadow: none; cursor: default; }
 .pnl.soon .n { color: var(--muted); }
 .pnl.soon:hover { transform: none; }
