@@ -96,3 +96,21 @@ export async function reopenProject(projectId: string, formData: FormData) {
   if (!data?.ok) redirect(here(projectId, { error: data?.reason ?? "That job was not reopened." }));
   redirect(here(projectId, { ok: "reopened" }));
 }
+
+// THE OTHER ENDING (migration 070). Shahar: "need to have two ways to close
+// it, as complete, or as cancelled." Complete means the work is done, and the
+// database demands nothing be open. Cancelled means it will not happen: it
+// needs a reason, and it takes the open work down with it.
+export async function cancelProject(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_project_cancel", {
+    p_project: projectId, p_reason: txt(formData.get("reason")),
+  });
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath("/");
+  revalidatePath("/work");
+  revalidatePath("/tasks");
+  if (error) redirect(here(projectId, { error: friendly(error.message, "That job was not cancelled.") }));
+  if (!data?.ok) redirect(here(projectId, { error: data?.reason ?? "That job was not cancelled." }));
+  redirect(here(projectId, { ok: data.already_paid > 0 ? "cancelled-paid" : "cancelled" }));
+}

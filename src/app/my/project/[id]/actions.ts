@@ -70,7 +70,9 @@ export async function projectPerms(projectId: string): Promise<ProjectPerms> {
   };
 }
 
-const PROJECT_STATUSES = ["In Progress", "Closed - Completed", "Closed - Incomplete"];
+// "Closed - Cancelled" joined these in migration 070: the work will not
+// happen, which is not the same fact as it being left unfinished.
+const PROJECT_STATUSES = ["In Progress", "Closed - Completed", "Closed - Cancelled", "Closed - Incomplete"];
 
 export async function saveProject(projectId: string, formData: FormData) {
   const supabase = await createClient();

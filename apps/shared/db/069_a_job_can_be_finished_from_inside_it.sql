@@ -84,8 +84,9 @@ begin
      and x.status not like 'Closed%';
   if v_kids > 0 then
     return jsonb_build_object('ok', false, 'open_children', v_kids,
-      'reason', format('%s %s beneath this one still open%s. Close %s first.',
-                       v_kids, case when v_kids = 1 then 'job is' else 'jobs are' end,
+      'reason', format('%s %s beneath this one %s still open%s. Close %s first.',
+                       v_kids, case when v_kids = 1 then 'job' else 'jobs' end,
+                       case when v_kids = 1 then 'is' else 'are' end,
                        case when v_kids = 1 then ' (' || v_kid || ')' else '' end,
                        case when v_kids = 1 then 'it' else 'them' end));
   end if;

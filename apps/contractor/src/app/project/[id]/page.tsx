@@ -8,10 +8,10 @@ import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { GROUPINGS, coverUrls, getBoard, groupTasks, money, runs, type GroupKey } from "@/lib/board";
 import { SearchBox } from "@/components/SearchBox";
 import { matchesQuery } from "@/lib/search";
-import { CoverPhoto } from "./CoverPhoto";
+import { ProjectSetup } from "./ProjectSetup";
 import { SiteVisits, type Visit } from "./SiteVisits";
 import { SiteWeekPanels, type SiteWeek } from "./SiteWeek";
-import { closeProject, reopenProject } from "./actions";
+import { cancelProject, closeProject, reopenProject } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -165,10 +165,14 @@ export default async function ProjectPage({
         {ok === "closed" && <div className="banner-ok">Finished. The record is frozen and the surveys have gone out.</div>}
         {ok === "closed-owing" && <div className="banner-ok">Finished — with money still outstanding. The ledger keeps it; the record is frozen.</div>}
         {ok === "reopened" && <div className="banner-ok">Open again.</div>}
+        {ok === "cancelled" && <div className="banner-ok">Cancelled. The record is frozen and anything open went with it.</div>}
+        {ok === "cancelled-paid" && <div className="banner-ok">Cancelled — and money had already gone out on it. The ledger keeps that.</div>}
 
-        {/* The face. Whoever runs the site can put one on it from here;
-            without one a job wears the house's photo (migration 063). */}
-        <CoverPhoto projectId={id} url={cover} own={seat.cover_own} canEdit={manages} />
+        {/* The face, and the gear that holds everything you set ONCE - the
+            photo and the scope (Shahar, 2026-09-11). The running screen below
+            is only about the job running. */}
+        <ProjectSetup projectId={id} url={cover} own={seat.cover_own} canEdit={manages}
+          scopeLines={scopeLines} scopeTrades={scopeTrades} />
 
         <div className="kicker">
           {manages ? "You run this" : seat.seat ?? "Your seat"} · {seat.status}
@@ -236,22 +240,10 @@ export default async function ProjectPage({
           </section>
         )}
 
-        {/* Scope. Nobody works without one, so it is the step before a bid,
-            a contract or a start - and the way in to the bid packages. */}
-        <section className="stack" style={{ gap: 8 }}>
-          <div className="divider-label">Scope</div>
-          <Link href={`/project/${id}/scope`} className="home-row">
-            <span className="grow" style={{ minWidth: 0 }}>
-              <span className="t">{scopeLines === 0 ? "Write the scope" : `${scopeLines} line${scopeLines === 1 ? "" : "s"} in scope`}</span>
-              <span className="m" style={{ display: "block" }}>
-                {scopeLines === 0
-                  ? "Trades, their blueprint lines, then the bid packages"
-                  : `${scopeTrades} trade${scopeTrades === 1 ? "" : "s"} on this job`}
-              </span>
-            </span>
-            <ChevronIcon />
-          </Link>
-        </section>
+        {/* Scope used to be a row here. It is a ONE-TIME job, normally done
+            when the project is created (Shahar, 2026-09-11), so it moved
+            behind the gear on the photo with the other set-once things, and
+            this screen is left to the work that is actually running. */}
 
         {/* Money. Contracts, milestones, the changes asked for and the
             ledger - the payor's side for whoever runs the site, the
@@ -460,6 +452,45 @@ export default async function ProjectPage({
                 </label>
                 <button className="btn btn-primary btn-block">Close this job as complete</button>
               </form>
+            )}
+
+            {/* THE OTHER ENDING (migration 070). Shahar: "need to have two
+                ways to close it, as complete, or as cancelled." Complete
+                means the work is done and demands nothing be open; cancelled
+                means it will not happen, needs a reason, and takes the open
+                work down with it. It is offered whatever is open, because
+                open work is the usual reason to cancel. */}
+            {!closedAlready && (
+              <details className="home-panel">
+                <summary className="home-row">
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">Cancel this job instead</span>
+                    <span className="m" style={{ display: "block" }}>
+                      The work will not happen{openHere.length > 0
+                        ? ` — ${openHere.length} open ${openHere.length === 1 ? "task goes" : "tasks go"} with it`
+                        : ""}
+                    </span>
+                  </span>
+                  <span className="chev"><ChevronIcon /></span>
+                </summary>
+                <form action={cancelProject.bind(null, id)} className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+                  <p className="tiny text-muted" style={{ margin: 0 }}>
+                    Anything still open is cancelled with it and carries your reason, so a task read
+                    a year from now says why it stopped. The record freezes either way.
+                  </p>
+                  {(roll?.paid ?? 0) > 0 && (
+                    <p className="tiny" style={{ color: "var(--color-status)", margin: 0 }}>
+                      {money(roll?.paid)} has already been paid on this job. Cancelling does not unpay it.
+                    </p>
+                  )}
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span className="field-label">Why it is being cancelled <span className="text-muted">(required)</span></span>
+                    <input className="input" name="reason" required minLength={4}
+                      placeholder="Homeowner changed their mind · replaced under warranty" />
+                  </label>
+                  <button className="btn btn-secondary btn-block btn-danger">Cancel this job</button>
+                </form>
+              </details>
             )}
           </section>
         )}
