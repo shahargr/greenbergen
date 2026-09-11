@@ -13,6 +13,9 @@ export type Seat = {
   project_id: string; project_name: string; address: string | null; status: string;
   stage: string | null; domain: string | null;
   parent_project_id: string | null; parent_name: string | null;
+  // A standing household project (insurance, mortgage, taxes, internet):
+  // the owner's, not the site's. The board leaves these out (migration 061).
+  household: boolean;
   seat: string | null; rank: number; my_open_tasks: number;
   bid_amount: number | null; latest_bid_id: string | null;
   owed: number; owed_count: number; buckets: string[];
@@ -65,11 +68,17 @@ export async function getBoard(): Promise<Board> {
   ]);
   if (meErr) console.error("me:", meErr.message);
 
+  // Household projects (insurance, mortgage, taxes...) are the homeowner's
+  // business; a contractor's board shows the jobs (Shahar, 2026-09-11:
+  // "show only tasks that are project related"). Their tasks go with them.
+  const seats = (Array.isArray(work) ? work : []).filter((s) => !s.household);
+  const household = new Set((Array.isArray(work) ? work : []).filter((s) => s.household).map((s) => s.project_id));
+  const kept = (Array.isArray(tasks) ? tasks : []).filter((t) => !t.project_id || !household.has(t.project_id));
   return {
     signed_in: true,
     me: me ?? { app_user_id: claims.sub, contact_id: null, full_name: null, email: claims.email ?? null, is_superadmin: false },
-    seats: Array.isArray(work) ? work : [],
-    tasks: Array.isArray(tasks) ? tasks : [],
+    seats,
+    tasks: kept,
     degraded: !!meErr || !Array.isArray(work),
   };
 }

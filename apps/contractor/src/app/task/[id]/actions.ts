@@ -107,3 +107,40 @@ export async function editTask(formData: FormData) {
   const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
   redirect(here({ ok: changed.length ? `Saved: ${changed.join(", ")}.` : "Nothing changed." }));
 }
+
+
+// "This will not happen." The task stays as record with the reason on it,
+// closed as Cancelled through close_action like every other closing
+// (migration 060). Back to the list, since the task is done with.
+export async function cancelTask(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const back = safeBack(formData.get("back"));
+  const reason = String(formData.get("reason") ?? "").trim();
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
+  if (!id) redirect(back);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_task_cancel", { p_action_id: id, p_reason: reason || null });
+  if (error) redirect(here({ error: error.message }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That task did not cancel." }));
+  revalidatePath("/tasks");
+  revalidatePath("/");
+  revalidatePath(`/task/${id}`);
+  redirect(back);
+}
+
+// "It was a mistake." Gone - but only a task nothing has been posted on,
+// made by you or on a site you run; the database refuses the rest with the
+// reason and points at Cancel.
+export async function deleteTask(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const back = safeBack(formData.get("back"));
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
+  if (!id) redirect(back);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_task_delete", { p_action_id: id });
+  if (error) redirect(here({ error: error.message }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That task was not deleted." }));
+  revalidatePath("/tasks");
+  revalidatePath("/");
+  redirect(back);
+}

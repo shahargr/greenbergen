@@ -5,6 +5,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { getBoard, priorityRank, topLevels, type Task } from "@/lib/board";
+import { SearchBox, matchesQuery } from "@/components/SearchBox";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Tasks" };
@@ -27,9 +28,10 @@ const CAP = 10; // rows per job before the group sends you to its own page
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ who?: string; show?: string; project?: string }>;
+  searchParams: Promise<{ who?: string; show?: string; project?: string; q?: string }>;
 }) {
-  const { who, show, project } = await searchParams;
+  const { who, show, project, q: qRaw } = await searchParams;
+  const query = (qRaw ?? "").trim();
   const w = stopwatch("/tasks");
   // The board and the badge do not depend on each other, so they leave together.
   const [board, unread] = await Promise.all([
@@ -63,7 +65,10 @@ export default async function TasksPage({
 
   const rows = byWho
     .filter((t) => (show === "late" ? isLate(t) : show === "high" ? t.priority === "High" : true))
-    .filter((t) => !project || groupOf(t).key === project);
+    .filter((t) => !project || groupOf(t).key === project)
+    // The search (Shahar: "find relevant tasks faster"): subject, notes,
+    // job, property, trade, person, status - any word, in any order.
+    .filter((t) => matchesQuery(query, [t.action, t.notes, t.project, groupOf(t).label, t.trade, t.assignee, t.status]));
 
   // Late first and oldest first, then everything dated, then the undated by
   // priority - an undated task has nothing else to order it by.
@@ -107,13 +112,13 @@ export default async function TasksPage({
   // this list, filters and all.
   const here = (() => {
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ who, show, project })) if (v) p.set(k, v);
+    for (const [k, v] of Object.entries({ who, show, project, q: query || undefined })) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/tasks?${s}` : "/tasks";
   })();
   const q = (over: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged = { who, show, project, ...over };
+    const merged = { who, show, project, q: query || undefined, ...over };
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/tasks?${s}` : "/tasks";
@@ -137,6 +142,8 @@ export default async function TasksPage({
             </p>
           </div>
         )}
+
+        <SearchBox placeholder="Find a task" count={query ? rows.length : null} />
 
         <nav className="chips" aria-label="Whose tasks">
           <Chip href={q({ who: undefined })} on={!mineOnly} label={`Everyone · ${allOpen.length}`} />
@@ -188,7 +195,7 @@ export default async function TasksPage({
         {rows.length === 0 && (
           <Card soft pad>
             <div className="small">
-              {show || mineOnly
+              {show || mineOnly || query
                 ? <>Nothing matches that. <Link href="/tasks">Show everything open</Link>.</>
                 : "All clear across every project you hold a seat on."}
             </div>

@@ -6,6 +6,7 @@ import { dayClock, shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { bucketTasks, coverUrls, getBoard, money, runs } from "@/lib/board";
+import { SearchBox, matchesQuery } from "@/components/SearchBox";
 import { siteCheck } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +33,9 @@ type SiteDay = { date: string; on_site: boolean; arrived_at: string | null; left
 
 export default async function ProjectPage({
   params, searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> }) {
+}: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string; q?: string }> }) {
   const { id } = await params;
-  const { ok, error } = await searchParams;
+  const { ok, error, q } = await searchParams;
   const w = stopwatch("/project/[id]");
   const supabase = await createClient();
 
@@ -97,8 +98,14 @@ export default async function ProjectPage({
   const nameOf = new Map(board.seats.map((s) => [s.project_id, s.project_name]));
   const openHere = board.tasks.filter((t) => t.state === "open" && t.project_id && family.has(t.project_id));
   const late = openHere.filter((t) => t.target_date && t.target_date < today);
+  // The search (Shahar: "find relevant tasks faster"): a word or two,
+  // matched against the subject, the notes, the job, the trade, the person.
+  const query = (q ?? "").trim();
+  const found = query
+    ? openHere.filter((t) => matchesQuery(query, [t.action, t.notes, t.project_id ? nameOf.get(t.project_id) ?? t.project : t.project, t.trade, t.assignee, t.status]))
+    : openHere;
   // Open work, in buckets. Never a rolling list - see TASK_BUCKETS.
-  const buckets = bucketTasks(openHere);
+  const buckets = bucketTasks(found);
   const covers = await w.step("cover", () => coverUrls(supabase, [seat.cover]));
   const cover = covers[seat.cover ?? ""] ?? null;
   w.done();
@@ -273,7 +280,9 @@ export default async function ProjectPage({
             and /tasks can never drift apart. */}
         <section className="stack" style={{ gap: 14 }}>
           <div className="divider-label">Open work · {openHere.length}</div>
+          {openHere.length > 3 && <SearchBox placeholder="Find a task on this site" count={query ? found.length : null} />}
           {openHere.length === 0 && <Card soft pad><div className="small">Nothing open on this project.</div></Card>}
+          {openHere.length > 0 && found.length === 0 && <Card soft pad><div className="small">Nothing matches &ldquo;{query}&rdquo;.</div></Card>}
           {buckets.map((b) => (
             <div key={b.key}>
               <div className="bucket">

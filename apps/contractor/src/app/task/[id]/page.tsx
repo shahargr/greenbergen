@@ -5,7 +5,7 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
-import { editTask, saveTask } from "./actions";
+import { editTask, saveTask, cancelTask, deleteTask } from "./actions";
 import { NoteBox } from "./NoteBox";
 import { ChevronIcon } from "@shared/ui";
 import type { Target } from "@shared/inbox/data";
@@ -236,6 +236,39 @@ export default async function TaskPage({
 
             <NoteBox projectId={t.project_id} />
           </form>
+        )}
+
+        {/* This will not happen - or it was a slip (migration 060). Cancel
+            keeps the task as record, with the reason; delete removes a task
+            nothing has been posted on yet, and the database says when a
+            task is a record instead. */}
+        {!closed && t.can_edit && (
+          <details className="home-panel">
+            <summary className="home-row">
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">Cancel or delete</span>
+                <span className="m" style={{ display: "block" }}>It will not happen, or it was entered by mistake</span>
+              </span>
+              <span className="chev"><ChevronIcon /></span>
+            </summary>
+            <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+              <form action={cancelTask} className="stack" style={{ gap: 8 }}>
+                <input type="hidden" name="id" value={t.id} />
+                <input type="hidden" name="back" value={to} />
+                <label className="field">
+                  <span className="field-label">Why it will not happen <span className="text-muted">(optional)</span></span>
+                  <input className="input" name="reason" placeholder="Scope changed · done by someone else · no longer needed" />
+                </label>
+                <button className="btn btn-secondary btn-block">Cancel this task</button>
+              </form>
+              <form action={deleteTask} className="stack" style={{ gap: 6 }}>
+                <input type="hidden" name="id" value={t.id} />
+                <input type="hidden" name="back" value={to} />
+                <button className="btn btn-ghost btn-block btn-danger">Delete it - it was a mistake</button>
+                <p className="tiny text-muted" style={{ margin: 0 }}>Only a task nothing has been posted on, made by you or on a site you run. Anything else is cancelled, not deleted.</p>
+              </form>
+            </div>
+          </details>
         )}
 
         {closed && (
