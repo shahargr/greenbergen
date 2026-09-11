@@ -673,6 +673,54 @@ a.house:hover { transform: translateY(-1px); }
 .pkg-hero > .tag { position: absolute; top: 12px; left: 12px; z-index: 1; }
 .pkg-hero .video-poster, .pkg-hero .video-frame { border-radius: 0; }
 
+/* THE PACKAGE PAGE AS A SEQUENCE (migration 067, Shahar's starlink.com
+   reference). The thing first and full width, then its name, its promise and
+   its price; then one claim per band; then the questions. Wide type, few
+   words, plenty of air - the argument is the order, not the density. */
+.pkg-top { display: grid; gap: var(--space-4); }
+.pkg-hero.art-only { display: grid; place-items: center; min-height: 200px; padding: var(--space-4); }
+.pkg-hero .art { display: block; width: 100%; }
+.pkg-hero .art svg { display: block; width: 100%; max-width: 260px; height: auto; margin: 0 auto; }
+.pkg-lede h1 { font-size: clamp(26px, 7.5vw, 34px); line-height: 1.08; letter-spacing: -0.02em; margin: 6px 0 0; }
+.pkg-lede .lead { margin: 8px 0 0; font-size: 15.5px; line-height: 1.5; color: var(--muted); }
+.pkg-lede .from { margin: 12px 0 0; font-size: 15px; }
+.pkg-lede .from .mono { font-family: var(--font-heading); font-weight: 800; font-size: 20px; letter-spacing: -0.01em; }
+
+/* One claim, one band. A picture when there is one; the words either way. */
+.claims { display: grid; gap: var(--space-5); margin: var(--space-3) 0; }
+.claim > img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: var(--radius-card); margin-bottom: var(--space-3); background: var(--color-soft-2); }
+.claim h2 { font-size: clamp(21px, 5.6vw, 26px); line-height: 1.15; letter-spacing: -0.015em; margin: 0; }
+.claim p { margin: 8px 0 0; font-size: 15px; line-height: 1.55; color: var(--muted); }
+
+/* The questions, folded. */
+.faq { border-top: 1px solid var(--color-divider); }
+.faq:last-of-type { border-bottom: 1px solid var(--color-divider); }
+.faq > summary { display: flex; align-items: center; gap: 10px; padding: 14px 0; cursor: pointer; list-style: none; font-weight: 700; font-size: 15px; }
+.faq > summary::-webkit-details-marker { display: none; }
+.faq > summary > span:first-child { flex: 1; min-width: 0; }
+.faq > summary .mark { position: relative; width: 14px; height: 14px; flex: none; color: var(--muted); }
+.faq > summary .mark::before, .faq > summary .mark::after { content: ""; position: absolute; background: currentColor; border-radius: 1px; }
+.faq > summary .mark::before { inset: 6px 0; height: 2px; }
+.faq > summary .mark::after { inset: 0 6px; width: 2px; transition: opacity .15s ease; }
+.faq[open] > summary .mark::after { opacity: 0; }
+.faq > p { margin: 0 0 14px; font-size: 14.5px; line-height: 1.55; color: var(--muted); }
+
+/* THE ORDER BAR THAT FOLLOWS YOU. Sticky from just under the hero to the
+   foot of the page, carrying the live price - which is why it lives inside
+   the component that owns the selections, not beside it. */
+.buybar {
+  position: sticky; bottom: 10px; z-index: 20;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; margin: var(--space-2) 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  box-shadow: 0 6px 24px rgba(22, 21, 19, 0.14), 0 0 0 1px var(--color-divider) inset;
+}
+.buybar .n { display: block; font-family: var(--font-heading); font-weight: 800; font-size: 17px; line-height: 1.1; letter-spacing: -0.01em; }
+.buybar .c { display: block; font-size: 11px; color: var(--muted); line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.buybar .btn { min-height: 40px; white-space: nowrap; }
+
 /* project money (finance/FinancialsScreen) */
 .fin-totals .t { font-size: 17px; }
 .fin-bar { height: 6px; border-radius: 3px; background: var(--color-soft); overflow: hidden; margin-top: 4px; }

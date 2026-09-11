@@ -151,8 +151,18 @@ cannot do.
   - three fields + email code - which is otherwise EMBEDDED at checkout
   (`JoinForm` `embed` prop): a visitor books first and registers last.
   `welcome/` the three steps, `login/`, `auth/confirm/`.
-- `src/app/packages/` the grid, `more/`, `[code]/` the package page with the
-  Adjust panel (levers + chat), `[code]/book/` the wizard: **which home** (when
+- `src/app/packages/` the grid, `more/`, `[code]/` the package page — one
+  template every package uses, in the order the argument runs (migration 067,
+  Shahar's starlink.com reference): the thing full width with its name, its
+  promise and its price; a run of **claim** bands, one point each; what is
+  included and what you buy; the price again with the Adjust panel (levers +
+  chat); the **questions**; the ask once more. An order bar carrying the live
+  price follows you down — which is why `PackageConfigurator` owns everything
+  below the hero and takes the story and questions as slots, rather than the
+  price being copied into three components that can drift. Claims and
+  questions are content (`blueprint_package_sections`, written for generator,
+  ev_charger and water_heater); a package with none renders the same page,
+  shorter. `[code]/book/` is the wizard: **which home** (when
   the member has one or more) → address → home facts → photos → budget →
   booked; `?mode=plan` saves a plan instead (home → when → planned, nothing
   sent); `?from=<project>` posts a saved plan (facts → photos → budget → post).

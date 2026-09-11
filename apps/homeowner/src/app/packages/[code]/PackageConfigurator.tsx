@@ -12,13 +12,27 @@ import { NotifyMe } from "./NotifyMe";
 // Screen 5b + 6: price, "adjust it", good-to-know, book. The price moves
 // live as levers change; the formula stays hidden.
 //
+// THIS OWNS THE WHOLE PAGE BELOW THE HERO (2026-09-11, the Starlink-shaped
+// rebuild). Not out of ambition - out of arithmetic. Refining the scope moves
+// the price, and the order button that follows you down the page has to carry
+// the SAME number and the SAME selections as the one in the middle of it.
+// There is exactly one place that can be true: the component holding the
+// selections. So the server-rendered story and questions are passed in as
+// slots and placed between the bar and the buttons, rather than the price
+// being copied into three components that can drift.
+//
 // covered = is anyone approved to do this trade. When nobody is, the price is
 // still real and DIY still works - what cannot happen is turn-key, because the
 // offer would go out and reach nobody. So the turn-key button becomes "tell me
 // when someone covers this" and DIY becomes the primary act. The price stays
 // on screen either way: a member deciding whether to do it themselves needs
 // the number more, not less.
-export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covered = true }: { pkg: Package; initial: Selections; signedIn: boolean; openAdjust: boolean; covered?: boolean }) {
+export function PackageConfigurator({
+  pkg, initial, signedIn, openAdjust, covered = true, story, faq,
+}: {
+  pkg: Package; initial: Selections; signedIn: boolean; openAdjust: boolean; covered?: boolean;
+  story?: React.ReactNode; faq?: React.ReactNode;
+}) {
   const [sel, setSel] = useState<Selections>(initial);
   const [open, setOpen] = useState(openAdjust);
   const price = priceFor(pkg, sel);
@@ -30,6 +44,8 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
   // its last step, not before the first (Shahar, 2026-09-10).
   const bookHref = `/packages/${pkg.code}/book?sel=${encodeURIComponent(encodeSelections(sel))}`;
   const planHref = `${bookHref}&mode=plan`;
+  const primaryHref = covered ? bookHref : planHref;
+  const primaryLabel = covered ? "Order now" : "Start as DIY";
 
   const notes: React.ReactNode[] = [];
   if (!covered) {
@@ -48,6 +64,23 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
 
   return (
     <>
+      {/* THE BAR THAT FOLLOWS YOU DOWN. Sticky from here to the foot of the
+          page, carrying the live price and the one action. It hides while
+          the scope panel is open, which is its own full-screen decision. */}
+      {!open && (
+        <div className="buybar">
+          <span className="grow" style={{ minWidth: 0 }}>
+            <span className="n mono">{dollars(price)}</span>
+            <span className="c">{isDefault ? (pkg.config_label ?? "most common setup") : configLabel(pkg, sel)}</span>
+          </span>
+          <button type="button" className="btn btn-secondary small" onClick={() => setOpen(true)}>Refine</button>
+          <Link href={primaryHref} className="btn btn-primary small">{primaryLabel}</Link>
+        </div>
+      )}
+
+      {/* The claims, what is included, and what you buy - server-rendered. */}
+      {story}
+
       <Card pad={false}>
         <PriceBlock cents={price} was={isDefault ? null : pkg.base_price_cents} config={configLabel(pkg, sel)} delta={deltas} pulse
           kicker={isDefault ? "Community price · most common setup" : "Updated price"} />
@@ -58,7 +91,7 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
           the wizard; when nobody covers the trade yet, the same button
           starts it as a DIY project, which is what actually works today. */}
       <div className="row" style={{ gap: 8 }}>
-        <Link href={covered ? bookHref : planHref} className="btn btn-primary" style={{ flex: 1 }}>{covered ? "Order now" : "Start as DIY"}</Link>
+        <Link href={primaryHref} className="btn btn-primary" style={{ flex: 1 }}>{primaryLabel}</Link>
         <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setOpen(true)}>Refine scope</button>
       </div>
 
@@ -67,9 +100,11 @@ export function PackageConfigurator({ pkg, initial, signedIn, openAdjust, covere
         <NumberedNotes items={notes} />
       </div>
 
+      {/* The questions, then the last ask. */}
+      {faq}
+
       {/* Nobody covers it yet and no session: "tell me when it opens" is a
-          whole account step, so it lives here in the flow. The sticky bar
-          below is for buttons only; a form inside it floated over the page. */}
+          whole account step, so it lives here in the flow. */}
       {!covered && !signedIn && (
         <div className="stack" style={{ gap: 6 }}>
           <NotifyMe code={pkg.code} trade={pkg.trade} signedIn={signedIn} />

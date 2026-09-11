@@ -21,6 +21,10 @@ export type PhotoReq = { key: string; label: string; hint: string | null };
 export type StoreLink = { label: string; url: string };
 export type Item = { label: string; detail: string | null; kind?: "work" | "assurance" | "hardware"; links?: StoreLink[] };
 export const isHardware = (i: Item) => i.kind === "hardware";
+// A band on the package page (migration 067): a CLAIM makes one point in a
+// headline and a line or two, an FAQ is a question and its answer. Optional
+// because the static fallback predates them and most packages have none yet.
+export type PageSection = { kind: "claim" | "faq"; headline: string; body: string | null; image_url: string | null };
 export type MilestoneKind = "booked" | "accepted" | "payment" | "task" | "done";
 export type MilestoneTpl = {
   key: string; kind: MilestoneKind; name: string; sequence_no: number;
@@ -39,6 +43,8 @@ export type Package = {
   // A photograph of the work and the landing-page flag (migration 052).
   photo_url?: string | null;
   promote?: boolean;
+  // The story the page tells above the price (migration 067).
+  sections?: PageSection[];
 };
 export type CommunityService = {
   code: string; name: string; cadence: string; summary: string; description: string; price_cents: number;
