@@ -29,12 +29,15 @@ const kindOf = (mime: string, name: string) =>
 const ICON: Record<string, string> = { photo: "🖼", video: "🎬", audio: "🎙", document: "📄", other: "📎" };
 
 export function Evidence({
-  projectId, caption = "Evidence", onChange, accept = "image/*,video/*,application/pdf",
+  projectId, caption = "Evidence", onChange, accept = "image/*,video/*,application/pdf", folder = "notes",
 }: {
   projectId: string;
   caption?: string;
   onChange: (files: Attached[]) => void;
   accept?: string;
+  // Where under the project the files land. "notes" by default; a payment
+  // uploads under payments/<transaction id>, the folder the ledger reads.
+  folder?: string;
 }) {
   const pick = useRef<HTMLInputElement>(null);
   // The camera, as its own button (Shahar: "same comment, photo, upload,
@@ -70,7 +73,7 @@ export function Evidence({
   async function store(file: Blob, name: string, mime: string): Promise<Attached | null> {
     const supabase = createClient();
     const ext = (name.match(/\.[a-z0-9]+$/i)?.[0] ?? "").toLowerCase();
-    const path = `${projectId}/notes/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const path = `${projectId}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
     const { error: upErr } = await supabase.storage.from("project-media").upload(path, file, { contentType: mime || undefined });
     if (upErr) { setErr(`${name} did not upload: ${upErr.message}`); return null; }
     const kind = kindOf(mime, name);

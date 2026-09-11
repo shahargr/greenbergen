@@ -3,6 +3,7 @@ import { shortDay } from "../format";
 import { StageActions } from "./StageActions";
 import { ChangeActions, ChangeOrderButton } from "./ChangeOrder";
 import { StageSheetButton } from "./StageSheet";
+import { LogPaymentButton } from "./LogPayment";
 import { changeTone, stageTone, usd, type FinContract, type FinEvidence, type Financials, type FinStage } from "./types";
 
 // PROJECT MONEY - one screen for the payor, the payee, the investor and the
@@ -164,7 +165,13 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
       {c.stages.length > 0 && agreed > 0 && Math.abs(stagesScheduled - agreed) > 0.5 && me.may_record && (
         <p className="tiny text-muted" style={{ margin: 0 }}>The milestones add up to {usd(stagesScheduled)} against {usd(agreed)} agreed.</p>
       )}
-      {me.may_record && <StageSheetButton contractId={c.id} contractAmount={c.amount} label="Add a milestone" className="btn btn-ghost small" />}
+      {me.may_record && (
+        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          {/* A check already written lands here, milestone or not (058). */}
+          <LogPaymentButton contractId={c.id} contractTitle={c.title} payeeName={who === "—" ? null : who} projectId={projectId} methods={methods} />
+          <StageSheetButton contractId={c.id} contractAmount={c.amount} label="Add a milestone" className="btn btn-ghost small" />
+        </div>
+      )}
 
       {/* CHANGES */}
       <div className="divider-label" style={{ marginTop: 6 }}>Changes{c.change_orders.length ? ` · ${c.change_orders.length}` : ""}</div>
