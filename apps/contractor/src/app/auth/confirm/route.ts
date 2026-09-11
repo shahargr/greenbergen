@@ -1,9 +1,10 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { createClient } from "@shared/supabase/server";
-// Route handlers get no basePath for free: new URL("/x", request.url) drops
-// it and the redirect would leave the app. withBase puts it back.
-import { withBase } from "@shared/site";
+// Route handlers get no basePath for free, and behind the proxy request.url
+// is the wrong host; redirectWithin puts the base back and stays on the
+// host the browser is on.
+import { redirectWithin } from "@shared/redirect";
 
 // The emailed link lands here (PKCE ?code= or token_hash + type), then on
 // to `next` - /join/finish for a new contractor, /work for a returning one.
@@ -18,11 +19,11 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL(withBase(next), request.url));
+    if (!error) return redirectWithin(next);
   }
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
-    if (!error) return NextResponse.redirect(new URL(withBase(next), request.url));
+    if (!error) return redirectWithin(next);
   }
-  return NextResponse.redirect(new URL(withBase("/login?error=link"), request.url));
+  return redirectWithin("/login?error=link");
 }
