@@ -660,6 +660,15 @@ blockquote { margin: 0; padding: 0 0 0 var(--space-3); border-left: 2px solid va
 .scene-cap strong { font-family: var(--font-heading); font-weight: 800; font-size: 15px; line-height: 1.15; letter-spacing: -0.01em; }
 .scene-cap strong small { font-weight: 500; font-size: 13px; color: var(--muted); }
 .scene-cap .small { color: var(--muted); }
+/* The same scene card off the rail: the catalogue, two up, where a member
+   is browsing rather than being led. A package nobody can take on today is
+   quiet rather than hidden - the page behind it is still worth reading. */
+.scene-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.scene-grid .scene { flex: none; }
+.scene.dim { background: var(--color-soft-2); box-shadow: none; }
+.scene.dim .scene-pic { opacity: .62; }
+.scene.dim .scene-cap strong { color: var(--muted); }
+.scene.dim:hover { transform: none; }
 .scene.more { flex-basis: 40%; background: var(--color-soft-2); box-shadow: none; justify-content: center; }
 .scene-more { display: flex; flex-direction: column; gap: 6px; padding: 16px 14px; }
 .scene-more strong { font-family: var(--font-heading); font-weight: 800; font-size: 16px; }

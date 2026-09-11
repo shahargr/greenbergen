@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
-import { currentMonth, isOpen, loadTiles, seasonal, type Tile } from "@shared/catalogue";
+import { featured, isOpen, loadTiles } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
-import { PackageTile } from "@/components/PackageTile";
+import { Scene, SceneMore } from "@/components/Scene";
 import { PhotoBanner } from "@/components/PhotoBanner";
+import { VoiceAsk } from "@/components/VoiceAsk";
 import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
@@ -49,36 +50,20 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   const unread = await unreadForShell();
   const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";
 
-  // ONE list, each package once.
+  // THE SHOP WINDOW, THE WAY THE FRONT DOOR SHOWS IT.
   //
-  // This screen used to show a package up to three times - in "Most booked",
-  // again on the seasonal rail, and again in its category section. Three
-  // sections, three names, one job: the grid looked full while saying the
-  // same thing over and over, and a member scrolling it could not tell what
-  // was new from what they had already passed.
+  // Shahar (2026-09-11): "make this look like homeowner landing." It used to
+  // be three four-up grids of line drawings - the headline row, Renovation,
+  // Not yet - which is a filing cabinet, and a member deciding what to do
+  // next is doing exactly what a visitor on the landing is doing: looking at
+  // the work. So this is now the landing's rail of scenes, the same six
+  // promoted packages in the same clothes, ending in the way to all of them.
   //
-  // What replaced them is a headline row and the rest. The headline is
-  // tile_group = 'front' - six packages we choose to lead with, in the order
-  // we chose (migration 025). It is NOT a claim that they are bookable: every
-  // tile carries its own live-or-dim state either way, so the row we lead with
-  // and the truth about each tile stay two separate things.
-  //
-  // Below it, everything else, live before dim - the split being the only
-  // thing a member needs before tapping: can we do this now, or not yet.
-  // Category and season lost their headings; season kept its place in the
-  // ORDER, so the sprinkler blow-out surfaces in October without being filed
-  // away from where people look the other eleven months.
-  const month = currentMonth();
-  const inMonth = new Set(seasonal(tiles, month).map((t) => t.code));
-  const rank = (a: Tile, b: Tile) =>
-    Number(inMonth.has(b.code)) - Number(inMonth.has(a.code)) || a.sort_order - b.sort_order;
-  // The enabled ones first (Shahar), then what is coming soon.
-  const headline = tiles.filter((t) => t.tile_group === "front")
-    .sort((a, b) => Number(isOpen(b)) - Number(isOpen(a)) || a.sort_order - b.sort_order);
-  const rest = tiles.filter((t) => t.tile_group !== "front");
-  const live = rest.filter(isOpen).sort(rank);
-  const dim = rest.filter((t) => !isOpen(t)).sort(rank);
-  const noneLive = !headline.some(isOpen) && live.length === 0;
+  // Nothing is lost: /packages still carries every package, live and not
+  // yet, plus the group purchases, and the tail of the rail is how you get
+  // there. It is one tap where it used to be a scroll.
+  const scenes = featured(tiles);
+  const noneLive = !tiles.some(isOpen);
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
   const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;
@@ -112,15 +97,24 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             what&apos;s included.
           </p>
         </div>
-        {headline.length > 0 && (
-          <div className="tiles quad">
-            {headline.map((p) => <PackageTile key={p.code} pkg={p} />)}
-          </div>
+        {scenes.length > 0 && (
+          <section className="stack" style={{ gap: 10 }}>
+            <div className="row" style={{ alignItems: "center", gap: 10 }}>
+              <div className="divider-label" style={{ flex: 1 }}>What we do</div>
+              <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
+                All {tiles.length} packages<ChevronIcon />
+              </Link>
+            </div>
+            <div className="scenes" aria-label="Packages">
+              {scenes.map((t) => <Scene key={t.code} t={t} />)}
+              <SceneMore count={tiles.length} />
+            </div>
+          </section>
         )}
 
         {noneLive && (
           // Not a bug, and it must not read like one. When nobody approved
-          // carries any of these trades, every tile on the screen is dim -
+          // carries any of these trades, every package on the screen is dim -
           // saying so once, plainly, beats leaving a member to guess.
           <Card soft pad>
             <div className="card-title">Nothing we can book on the spot today</div>
@@ -132,27 +126,13 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </Card>
         )}
 
-        {live.length > 0 && (
-          <section className="stack" style={{ gap: 8, marginTop: 4 }}>
-            <div className="divider-label">Renovation</div>
-            <div className="tiles quad">
-              {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
-            </div>
-          </section>
-        )}
-
-        {dim.length > 0 && (
-          <section className="stack" style={{ gap: 8, marginTop: 4 }}>
-            <div className="divider-label">Not yet</div>
-            <p className="tiny text-muted" style={{ margin: "-4px 0 2px" }}>
-              Priced, but nobody approved covers it yet — or it needs a look first. Open one to
-              read what it involves, keep it as a DIY project, or ask to be told when it opens up.
-            </p>
-            <div className="tiles quad">
-              {dim.map((p) => <PackageTile key={p.code} pkg={p} />)}
-            </div>
-          </section>
-        )}
+        {/* THE WAY IN, the landing's own: pick a package, or just say it. */}
+        <Card soft pad>
+          <div className="stack" style={{ gap: 8 }}>
+            <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
+            <VoiceAsk signedIn />
+          </div>
+        </Card>
 
         {/* Who does the work. The directory is the answer to "who are these
             people" - trades, area, record - without turning into a lead list. */}

@@ -4,7 +4,7 @@ import { COMMUNITY_SERVICES, isOpen, loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, ChevronIcon, Screen, ShellIcons, StepKicker } from "@shared/ui";
 import { dollars } from "@shared/format";
-import { PackageTile } from "@/components/PackageTile";
+import { Scene } from "@/components/Scene";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Packages" };
@@ -35,15 +35,15 @@ export default async function PackagesPage() {
           <p className="lead">We negotiate and price these services on behalf of our community.</p>
         </div>
         {headline.length > 0 && (
-          <div className="tiles quad">
-            {headline.map((p) => <PackageTile key={p.code} pkg={p} />)}
+          <div className="scene-grid">
+            {headline.map((p) => <Scene key={p.code} t={p} />)}
           </div>
         )}
         {live.length > 0 && (
           <section className="stack" style={{ gap: 8, marginTop: 4 }}>
             <div className="divider-label">Renovation</div>
-            <div className="tiles quad">
-              {live.map((p) => <PackageTile key={p.code} pkg={p} />)}
+            <div className="scene-grid">
+              {live.map((p) => <Scene key={p.code} t={p} />)}
             </div>
           </section>
         )}
@@ -63,8 +63,8 @@ export default async function PackagesPage() {
               <span className="chev"><ChevronIcon /></span>
             </summary>
             <div className="drawer" style={{ paddingTop: 12 }}>
-              <div className="tiles quad">
-                {dim.map((p) => <PackageTile key={p.code} pkg={p} />)}
+              <div className="scene-grid">
+                {dim.map((p) => <Scene key={p.code} t={p} />)}
               </div>
             </div>
           </details>

@@ -154,9 +154,30 @@ export function Messages({
         </section>
       )}
 
-      {/* OPEN TASKS, as rows in the same list, in the same clothes. Late
-          first, then soonest, then the undated - and the ones assigned to
-          nobody read as unassigned rather than pretending to be yours. */}
+      <section className="stack" style={{ gap: 8 }}>
+        <div className="divider-label">{heading}{received.length ? ` · ${received.length}` : ""}</div>
+        {received.length === 0 && (
+          <Card soft pad>
+            <div className="small">
+              No messages. When a contractor, a neighbour or one of us writes to you, it lands here
+              {tasks.length > 0 ? " — above the open work below." : "."}
+            </div>
+          </Card>
+        )}
+        {restR.map(row)}
+      </section>
+
+      {/* OPEN TASKS, as rows in the same list and in the same clothes - but
+          BELOW the messages.
+          Shahar (2026-09-11), looking at a screen that was twenty-five late
+          tasks and nothing else: "this is the inbox. why does it show tasks
+          and not messages." Because he had no unread messages, and the
+          tasks were sitting on top of the place they would have been. A task
+          and a message are still the same kind of row (he asked for that);
+          what came FROM SOMEONE now leads, and what the work itself needs
+          follows. Late first, then soonest, then the undated - and the ones
+          assigned to nobody read as unassigned rather than pretending to be
+          yours. */}
       {tasks.length > 0 && (
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Open tasks · {tasks.length}</div>
@@ -165,14 +186,6 @@ export function Messages({
             .map((t) => <TaskRow key={t.id} t={t} taskBase={taskBase} projectHref={projectHref} />)}
         </section>
       )}
-
-      <section className="stack" style={{ gap: 8 }}>
-        <div className="divider-label">{heading}{received.length ? ` · ${received.length}` : ""}</div>
-        {received.length === 0 && (
-          <Card soft pad><div className="small">Nothing in your inbox. Messages about your projects land here.</div></Card>
-        )}
-        {restR.map(row)}
-      </section>
 
       {/* Sent: a folder, not a section of the inbox. Shut, counted, and one
           tap away when you want to check what you actually said. */}

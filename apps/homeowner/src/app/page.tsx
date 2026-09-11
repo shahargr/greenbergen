@@ -4,12 +4,12 @@ import { createClient } from "@shared/supabase/server";
 import { isSignedIn } from "@shared/supabase/session";
 import { rpc } from "@shared/rpc";
 import { AppBar, Card, ChevronIcon, Screen } from "@shared/ui";
-import { featured, fromPrice, isQuote, loadTagline, loadTiles, type Tile } from "@shared/catalogue";
+import { featured, loadTagline, loadTiles } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
-import { dollars } from "@shared/format";
 import { SITE_ORIGIN } from "@shared/site";
 import { loadDoors } from "@shared/doors.server";
 import { loadShowcase, type House } from "@/lib/showcase";
+import { Scene, SceneMore } from "@/components/Scene";
 import { VoiceAsk } from "@/components/VoiceAsk";
 
 export const dynamic = "force-dynamic";
@@ -136,13 +136,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
                 </div>
                 <div className="scenes" aria-label="Featured packages">
                   {scenes.map((t) => <Scene key={t.code} t={t} />)}
-                  <Link href="/packages" className="scene more">
-                    <span className="scene-more">
-                      <strong>All {tiles.length} packages</strong>
-                      <span className="small text-muted">Every one pre-priced for the community.</span>
-                      <span className="chev"><ChevronIcon /></span>
-                    </span>
-                  </Link>
+                  <SceneMore count={tiles.length} />
                 </div>
               </section>
             )}
@@ -182,29 +176,6 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
         )}
       </div>
     </Screen>
-  );
-}
-
-// One scene: the work, photographed when Admin has the photo, drawn when
-// not; the name; and what it costs the community.
-function Scene({ t }: { t: Tile }) {
-  // "from" is the package's floor - its cheapest configuration - read from
-  // the package, never typed here (053).
-  const floor = fromPrice(t);
-  const price = floor != null ? `from ${dollars(floor)}` : isQuote(t) ? "A person prices it" : "Coming soon";
-  return (
-    <Link href={`/packages/${t.code}`} className="scene">
-      <span className={`scene-pic ${t.photo_url ? "" : "drawn"}`}>
-        {t.photo_url
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={t.photo_url} alt={t.tile_title} loading="lazy" decoding="async" />
-          : <Illustration name={t.illustration} />}
-      </span>
-      <span className="scene-cap">
-        <strong>{t.tile_title}{t.tile_line2 ? <small> {t.tile_line2}</small> : null}</strong>
-        <span className="small">{price}</span>
-      </span>
-    </Link>
   );
 }
 
