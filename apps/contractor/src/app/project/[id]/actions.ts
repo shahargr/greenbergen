@@ -61,3 +61,38 @@ export async function deleteVisit(projectId: string, visitId: string) {
   if (!data?.ok) redirect(here(projectId, { error: data?.reason ?? "That visit was not removed." }));
   redirect(here(projectId, { ok: "visit-gone" }));
 }
+
+// FINISH THE JOB (migration 069). Shahar, on a job with nothing left open:
+// "The scope was complete / no place to close it as complete from inside?"
+//
+// The rules are the database's and they are old: zero open tasks anywhere in
+// the family, no live job beneath it, and closing FREEZES the record. This
+// relays the refusal in the person's own words when it comes.
+export async function closeProject(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_project_close", {
+    p_project: projectId, p_note: txt(formData.get("note")),
+  });
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath("/");
+  revalidatePath("/work");
+  if (error) redirect(here(projectId, { error: friendly(error.message, "That job was not closed.") }));
+  if (!data?.ok) redirect(here(projectId, { error: data?.reason ?? "That job was not closed." }));
+  redirect(here(projectId, {
+    ok: data.outstanding > 0 ? "closed-owing" : "closed",
+  }));
+}
+
+// Reopening is a superadmin decision - the close froze the record and things
+// may have been written against that freeze.
+export async function reopenProject(projectId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_project_reopen", {
+    p_project: projectId, p_reason: txt(formData.get("reason")),
+  });
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath("/");
+  if (error) redirect(here(projectId, { error: friendly(error.message, "That job was not reopened.") }));
+  if (!data?.ok) redirect(here(projectId, { error: data?.reason ?? "That job was not reopened." }));
+  redirect(here(projectId, { ok: "reopened" }));
+}

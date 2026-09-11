@@ -11,6 +11,7 @@ import { matchesQuery } from "@/lib/search";
 import { CoverPhoto } from "./CoverPhoto";
 import { SiteVisits, type Visit } from "./SiteVisits";
 import { SiteWeekPanels, type SiteWeek } from "./SiteWeek";
+import { closeProject, reopenProject } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,8 @@ export default async function ProjectPage({
   // What sits beneath this project, and where "back" goes - both come out of
   // the board read we already have, so neither costs a query.
   const kids = board.seats.filter((s) => s.parent_project_id === id);
+  // What still stands in the way of closing this one (migration 069).
+  const liveKids = kids.filter((s) => !s.status.startsWith("Closed")).length;
   const parent = seat.parent_project_id && board.seats.some((s) => s.project_id === seat.parent_project_id)
     ? seat.parent_project_id : null;
   const openByProject = new Map<string, number>();
@@ -90,6 +93,7 @@ export default async function ProjectPage({
   const scopeTrades = (scopeData ?? []).filter((t) => t.chosen).length;
   const week = (weekData ?? null) as SiteWeek | null;
   const visits = Array.isArray(visitData) ? visitData : [];
+  const closedAlready = seat.status.startsWith("Closed");
 
   // OPEN WORK ACROSS THE WHOLE PROPERTY, not just this row.
   //
@@ -158,6 +162,9 @@ export default async function ProjectPage({
         {ok === "visit" && <div className="banner-ok">Logged. You&apos;re on that day&apos;s roster.</div>}
         {ok === "visit-edit" && <div className="banner-ok">Changed.</div>}
         {ok === "visit-gone" && <div className="banner-ok">Removed. Anything you attached stays on the project.</div>}
+        {ok === "closed" && <div className="banner-ok">Finished. The record is frozen and the surveys have gone out.</div>}
+        {ok === "closed-owing" && <div className="banner-ok">Finished — with money still outstanding. The ledger keeps it; the record is frozen.</div>}
+        {ok === "reopened" && <div className="banner-ok">Open again.</div>}
 
         {/* The face. Whoever runs the site can put one on it from here;
             without one a job wears the house's photo (migration 063). */}
@@ -379,6 +386,83 @@ export default async function ProjectPage({
             </div>
           ))}
         </section>
+
+        {/* FINISH THE JOB (migration 069). Shahar, on a job with nothing left
+            open: "The scope was complete / no place to close it as complete
+            from inside?" There was not - the only door was the portal's Setup
+            tab, at owner rank, through a status dropdown.
+
+            The rules are the database's and they are old: zero open tasks
+            anywhere in the family, no live job beneath it, and closing FREEZES
+            the record. So the section says which of those is in the way rather
+            than offering a button that will be refused. */}
+        {manages && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">Finish this job</div>
+
+            {closedAlready ? (
+              <>
+                <Card soft pad>
+                  <div className="small">
+                    This job is {seat.status.replace("Closed - ", "").toLowerCase()}. Its tasks, contracts
+                    and payments are frozen — work that comes back belongs in a new job beneath the property.
+                  </div>
+                </Card>
+                {board.me?.is_superadmin && (
+                  <details className="home-panel">
+                    <summary className="home-row">
+                      <span className="grow" style={{ minWidth: 0 }}>
+                        <span className="t">Reopen it</span>
+                        <span className="m" style={{ display: "block" }}>Superadmin only — it unfreezes everything</span>
+                      </span>
+                      <span className="chev"><ChevronIcon /></span>
+                    </summary>
+                    <form action={reopenProject.bind(null, id)} className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+                      <label className="field" style={{ marginBottom: 0 }}>
+                        <span className="field-label">Why it is opening again</span>
+                        <input className="input" name="reason" placeholder="The motor failed again · a bill arrived late" />
+                      </label>
+                      <button className="btn btn-secondary btn-block">Reopen this job</button>
+                    </form>
+                  </details>
+                )}
+              </>
+            ) : openHere.length > 0 ? (
+              <Card soft pad>
+                <div className="small">
+                  {openHere.length} {openHere.length === 1 ? "task is" : "tasks are"} still open.
+                  A job closes as complete only when there is nothing left on it — finish or cancel
+                  {openHere.length === 1 ? " it" : " them"} and this turns into a button.
+                </div>
+              </Card>
+            ) : liveKids > 0 ? (
+              <Card soft pad>
+                <div className="small">
+                  {liveKids} {liveKids === 1 ? "job beneath this one is" : "jobs beneath this one are"} still
+                  open. Close {liveKids === 1 ? "it" : "them"} first.
+                </div>
+              </Card>
+            ) : (
+              <form action={closeProject.bind(null, id)} className="stack" style={{ gap: 8 }}>
+                <p className="small text-muted" style={{ margin: 0 }}>
+                  Nothing is open on this job. Closing it freezes the record — tasks, contracts and
+                  payments can no longer be written — and sends the surveys.
+                </p>
+                {(roll?.owed ?? seat.owed ?? 0) > 0 && (
+                  <p className="tiny" style={{ color: "var(--color-status)", margin: 0 }}>
+                    {money(roll?.owed ?? seat.owed)} is still outstanding. That does not stop you — a finished
+                    job with a bill left to pay is normal — but the ledger keeps it after the freeze.
+                  </p>
+                )}
+                <label className="field" style={{ marginBottom: 0 }}>
+                  <span className="field-label">How it ended <span className="text-muted">(optional)</span></span>
+                  <input className="input" name="note" placeholder="Shade fixed and tested, homeowner happy" />
+                </label>
+                <button className="btn btn-primary btn-block">Close this job as complete</button>
+              </form>
+            )}
+          </section>
+        )}
       </div>
     </Screen>
   );
