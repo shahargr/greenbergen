@@ -5,8 +5,9 @@ import { rpc } from "@shared/rpc";
 import { dayClock, shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { bucketTasks, coverUrls, getBoard, money, runs } from "@/lib/board";
-import { SearchBox, matchesQuery } from "@/components/SearchBox";
+import { GROUPINGS, coverUrls, getBoard, groupTasks, money, runs, type GroupKey } from "@/lib/board";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesQuery } from "@/lib/search";
 import { siteCheck } from "./actions";
 import { CoverPhoto } from "./CoverPhoto";
 
@@ -37,9 +38,16 @@ type SiteDay = { date: string; on_site: boolean; arrived_at: string | null; left
 
 export default async function ProjectPage({
   params, searchParams,
-}: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string; q?: string }> }) {
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; q?: string; by?: string; show?: string }>;
+}) {
   const { id } = await params;
-  const { ok, error, q } = await searchParams;
+  const { ok, error, q, by: byRaw, show } = await searchParams;
+  const by: GroupKey = GROUPINGS.some((g) => g.key === byRaw) ? (byRaw as GroupKey) : "timing";
+  // Open is the default; Done and All are a tap away (Shahar: "i need to see
+  // completed as well"). Only the finished list costs an extra read.
+  const wantDone = show === "done" || show === "all";
   const w = stopwatch("/project/[id]");
   const supabase = await createClient();
 
@@ -52,7 +60,7 @@ export default async function ProjectPage({
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
   const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: dayData }] = await Promise.all([
-    w.step("board", () => getBoard()),
+    w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
     w.step("scope", () => rpc<ScopeTrade[]>(supabase, "portal_scope_trades", { p_project: id })),
@@ -100,16 +108,37 @@ export default async function ProjectPage({
     }
   }
   const nameOf = new Map(board.seats.map((s) => [s.project_id, s.project_name]));
-  const openHere = board.tasks.filter((t) => t.state === "open" && t.project_id && family.has(t.project_id));
+  const here = board.tasks.filter((t) => t.project_id && family.has(t.project_id));
+  const openHere = here.filter((t) => t.state === "open");
+  const doneHere = here.filter((t) => t.state === "closed");
   const late = openHere.filter((t) => t.target_date && t.target_date < today);
+  // Which of them this view is about. Done is fetched only when asked for,
+  // so the Open view costs exactly what it did before.
+  const shown = show === "done" ? doneHere : show === "all" ? here : openHere;
   // The search (Shahar: "find relevant tasks faster"): a word or two,
-  // matched against the subject, the notes, the job, the trade, the person.
+  // matched against the subject, the notes, the job, the trade, the person,
+  // and now the contract and the phase the sections are named after.
   const query = (q ?? "").trim();
   const found = query
-    ? openHere.filter((t) => matchesQuery(query, [t.action, t.notes, t.project_id ? nameOf.get(t.project_id) ?? t.project : t.project, t.trade, t.assignee, t.status]))
-    : openHere;
-  // Open work, in buckets. Never a rolling list - see TASK_BUCKETS.
-  const buckets = bucketTasks(found);
+    ? shown.filter((t) => matchesQuery(query, [
+        t.action, t.notes, t.project_id ? nameOf.get(t.project_id) ?? t.project : t.project,
+        t.trade, t.assignee, t.status, t.contract, t.phase,
+      ]))
+    : shown;
+  // Sections. Timing by default - every task has one; trade, contract and
+  // phase are a tap away and name what they cannot place. See groupTasks.
+  const sections = groupTasks(found, by);
+  // Links that keep the rest of the view: changing the grouping must not
+  // throw away the search, and searching must not throw away the grouping.
+  const viewHref = (over: Record<string, string | undefined>) => {
+    const p = new URLSearchParams();
+    const merged: Record<string, string | undefined> = {
+      q: query || undefined, by: by === "timing" ? undefined : by, show: show || undefined, ...over,
+    };
+    for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
+    const s = p.toString();
+    return s ? `/project/${id}?${s}` : `/project/${id}`;
+  };
   const covers = await w.step("cover", () => coverUrls(supabase, [seat.cover]));
   const cover = covers[seat.cover ?? ""] ?? null;
   w.done();
@@ -280,44 +309,82 @@ export default async function ProjectPage({
           )}
         </section>
 
-        {/* OPEN WORK, IN BUCKETS - never a rolling list. A flat list of
-            everything open answers no question; what is late, what is this
-            week and what is waiting on someone else are three different
+        {/* THE WORK, IN SECTIONS - never a rolling list. A flat list of
+            everything answers no question; what is late, what is this week
+            and what is waiting on someone else are three different
             questions, and a person on site is only asking the first two.
-            The buckets and their order live in lib/board.ts so this screen
-            and /tasks can never drift apart. */}
+            That is the default. Trade, contract and phase are the other
+            three ways a build divides up (Shahar) - a tap away, each naming
+            what it cannot place rather than hiding it. The sections live in
+            lib/board.ts so this screen and /tasks cannot drift apart. */}
         <section className="stack" style={{ gap: 14 }}>
-          <div className="divider-label">Open work · {openHere.length}</div>
-          {openHere.length > 3 && <SearchBox placeholder="Find a task on this site" count={query ? found.length : null} />}
-          {openHere.length === 0 && <Card soft pad><div className="small">Nothing open on this project.</div></Card>}
-          {openHere.length > 0 && found.length === 0 && <Card soft pad><div className="small">Nothing matches &ldquo;{query}&rdquo;.</div></Card>}
-          {buckets.map((b) => (
+          <div className="divider-label">
+            {show === "done" ? "Done" : show === "all" ? "All work" : "Open work"} · {shown.length}
+          </div>
+
+          {here.length > 3 && <SearchBox placeholder="Find a task on this site" count={query ? found.length : null} />}
+
+          {/* Open / Done / All. Done is a separate read, so it is only paid
+              for when it is asked for. */}
+          <nav className="chips" aria-label="Which tasks">
+            <Chip href={viewHref({ show: undefined })} on={!show} label={`Open · ${openHere.length}`} />
+            <Chip href={viewHref({ show: "done" })} on={show === "done"}
+              label={wantDone ? `Done · ${doneHere.length}` : "Done"} />
+            <Chip href={viewHref({ show: "all" })} on={show === "all"} label="All" />
+          </nav>
+
+          {/* How they are arranged. */}
+          <nav className="chips" aria-label="Group tasks by">
+            {GROUPINGS.map((g) => (
+              <Chip key={g.key} href={viewHref({ by: g.key === "timing" ? undefined : g.key })}
+                on={by === g.key} label={g.label} />
+            ))}
+          </nav>
+
+          {shown.length === 0 && (
+            <Card soft pad>
+              <div className="small">
+                {show === "done" ? "Nothing finished on this project yet." : "Nothing open on this project."}
+              </div>
+            </Card>
+          )}
+          {shown.length > 0 && found.length === 0 && (
+            <Card soft pad><div className="small">Nothing matches &ldquo;{query}&rdquo;.</div></Card>
+          )}
+
+          {sections.map((b) => (
             <div key={b.key}>
               <div className="bucket">
                 <span className={`h ${b.tone === "status" ? "late" : ""}`}>{b.label}</span>
-                <span className="n">{b.rows.length}</span>
+                <span className="n">{b.rows.length}{b.late > 0 && b.tone !== "status" ? ` · ${b.late} late` : ""}</span>
               </div>
               <div className="bucket-rows">
                 {b.rows.map((t) => (
-                  <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(`/project/${id}`)}`}>
+                  <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(viewHref({}))}`}>
                     <span className="grow" style={{ minWidth: 0 }}>
                       <span className="t">{t.action}</span>
                       <span className="m">
                         {[
                           // Which job it is on, when that is not this row.
                           t.project_id && t.project_id !== id ? (nameOf.get(t.project_id) ?? t.project) : null,
-                          t.trade,
+                          // Whatever the section is not already named after.
+                          by === "trade" ? null : t.trade,
+                          by === "contract" ? null : t.contract,
                           t.assignee ?? (manages ? "unassigned" : null),
                           t.status !== "Not Started" ? t.status : null,
                         ].filter(Boolean).join(" · ") || "—"}
                       </span>
                     </span>
-                    {t.priority === "High" && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>High</span>}
-                    {t.target_date && (
+                    {t.state === "open" && t.priority === "High" && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>High</span>}
+                    {t.state === "closed" ? (
+                      <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>
+                        {t.completed_on ? shortDate(t.completed_on) : "done"}
+                      </span>
+                    ) : t.target_date ? (
                       <span className={`tag ${t.target_date < today ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
                         {shortDate(t.target_date)}
                       </span>
-                    )}
+                    ) : null}
                   </Link>
                 ))}
               </div>
@@ -326,6 +393,16 @@ export default async function ProjectPage({
         </section>
       </div>
     </Screen>
+  );
+}
+
+function Chip({ href, on, label }: { href: string; on: boolean; label: string }) {
+  return (
+    <Link href={href} aria-current={on ? "page" : undefined}
+      className={`tag ${on ? "" : "tag-neutral"}`}
+      style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }} scroll={false}>
+      {label}
+    </Link>
   );
 }
 

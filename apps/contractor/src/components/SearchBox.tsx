@@ -42,11 +42,5 @@ export function SearchBox({ placeholder = "Find a task", count }: { placeholder?
   );
 }
 
-// The same test the server runs, in one place so both pages agree.
-export const matchesQuery = (q: string, fields: (string | null | undefined)[]) => {
-  const needle = q.trim().toLowerCase();
-  if (!needle) return true;
-  const words = needle.split(/\s+/);
-  const hay = fields.filter(Boolean).join(" ").toLowerCase();
-  return words.every((w) => hay.includes(w));
-};
+// The test itself lives in @/lib/search - a function exported from THIS file
+// is a client export, and the server cannot call one. See the note there.

@@ -34,6 +34,12 @@ export type Task = {
   project: string | null; project_id: string | null; domain: string | null;
   has_contract: boolean; state: "open" | "closed";
   assignee_id: string | null; assignee: string | null; trade: string | null;
+  // The three ways a build's work divides up (migration 066). Each is null
+  // on most tasks - see groupTasks below, which says so on screen rather
+  // than pretending otherwise.
+  contract_id: string | null; contract: string | null;
+  phase: string | null; phase_order: number | null;
+  completed_on: string | null;
 };
 
 export type Me = {
@@ -54,7 +60,11 @@ export type Board = {
   degraded?: boolean;
 };
 
-export async function getBoard(): Promise<Board> {
+// closed: how many finished tasks to bring back with the open ones. The
+// board and the task list only ever count open work, so they pay nothing for
+// it and ask for none; a project screen that offers "Done" asks for them
+// (Shahar, 2026-09-11: "i need to see completed as well").
+export async function getBoard({ closed = 0 }: { closed?: number } = {}): Promise<Board> {
   const supabase = await createClient();
   const { data: claimsData } = await timed("me.claims", () => supabase.auth.getClaims());
   const claims = claimsData?.claims as { sub?: string; email?: string } | undefined;
@@ -67,7 +77,7 @@ export async function getBoard(): Promise<Board> {
     // The board counts open work per project out of this one read, so the
     // limit has to sit above the real total or the roll-up silently
     // undercounts and the sort goes wrong. 164 open today; 500 is headroom.
-    timed("tasks", () => rpc<Task[]>(supabase, "portal_tasks", { p_domain: "construction", p_closed_limit: 0, p_open_limit: 500 })),
+    timed("tasks", () => rpc<Task[]>(supabase, "portal_tasks", { p_domain: "construction", p_closed_limit: closed, p_open_limit: 500 })),
   ]);
   if (meErr) console.error("me:", meErr.message);
 
@@ -268,6 +278,107 @@ export function bucketTasks(tasks: Task[], now = new Date()) {
   return TASK_BUCKETS
     .map((b) => ({ ...b, rows: out.get(b.key) ?? [] }))
     .filter((b) => b.rows.length > 0);
+}
+
+// ---------------------------------------------------------------------------
+// SECTIONS. Shahar (2026-09-11): "all tasks should be in sections under
+// trade, contract, building phase. check the data we have and decide what is
+// best."
+//
+// What the data says, counted on the one project that has real volume (55
+// Walnut's New build, 254 tasks in the construction domain):
+//
+//     a trade      63   (25%)   - from its contract, its scope line, or its person
+//     a phase      60   (24%)   - a trade's stage; no trade, no phase
+//     a contract   25   (10%)
+//
+// So none of the three can be the only arrangement: each files three tasks in
+// four under "not recorded". TIMING stays the default, because every task has
+// one and it answers the question a person on site is actually asking. The
+// other three are groupings you switch to, and what is untagged gathers in a
+// named section at the bottom with its count - which is the useful thing,
+// since that section IS the list of what still needs tagging.
+export type GroupKey = "timing" | "trade" | "contract" | "phase";
+export const GROUPINGS: { key: GroupKey; label: string }[] = [
+  { key: "timing", label: "Timing" },
+  { key: "trade", label: "Trade" },
+  { key: "contract", label: "Contract" },
+  { key: "phase", label: "Phase" },
+];
+
+export type Section = { key: string; label: string; tone: "status" | null; rows: Task[]; late: number };
+
+// Inside every section, whatever the grouping: what is late first, then by
+// date, then by priority. A finished task sorts by when it finished.
+const withinSection = (a: Task, b: Task) => {
+  if (a.state !== b.state) return a.state === "open" ? -1 : 1;
+  if (a.state === "closed") {
+    return (b.completed_on ?? b.last_updated ?? "").localeCompare(a.completed_on ?? a.last_updated ?? "");
+  }
+  return (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999") ||
+    priorityRank(a.priority) - priorityRank(b.priority) ||
+    a.action.localeCompare(b.action);
+};
+
+export function groupTasks(tasks: Task[], by: GroupKey, now = new Date()): Section[] {
+  const today = now.toISOString().slice(0, 10);
+  const isLate = (t: Task) => t.state === "open" && !!t.target_date && t.target_date < today;
+
+  if (by === "timing") {
+    // A finished task has no timing left - it has an ending, so it gets one
+    // section of its own at the foot of the list.
+    const open = tasks.filter((t) => t.state === "open");
+    const done = tasks.filter((t) => t.state === "closed");
+    const sections: Section[] = bucketTasks(open, now).map((b) => ({
+      key: b.key, label: b.label, tone: b.tone,
+      rows: b.rows, late: b.rows.filter(isLate).length,
+    }));
+    if (done.length > 0) {
+      sections.push({ key: "done", label: "Done", tone: null, rows: [...done].sort(withinSection), late: 0 });
+    }
+    return sections;
+  }
+
+  // The other three read one field each, and each has an "unset" bucket that
+  // says what is missing rather than hiding it.
+  const of = (t: Task) =>
+    by === "trade" ? t.trade
+    : by === "contract" ? t.contract
+    : t.phase;
+  const missing =
+    by === "trade" ? "No trade recorded"
+    : by === "contract" ? "Not under a contract"
+    : "No phase recorded";
+
+  const map = new Map<string, Task[]>();
+  for (const t of tasks) {
+    const k = of(t) ?? "";
+    map.set(k, [...(map.get(k) ?? []), t]);
+  }
+
+  // Phase runs in the order a build runs in (trade_stages.sort_order);
+  // trades and contracts have no natural order, so they run by weight - the
+  // section with the most work first, which is where a person looks.
+  const order = (a: [string, Task[]], b: [string, Task[]]) => {
+    if (a[0] === "") return 1;
+    if (b[0] === "") return -1;
+    if (by === "phase") {
+      const pa = a[1][0]?.phase_order ?? 9999;
+      const pb = b[1][0]?.phase_order ?? 9999;
+      if (pa !== pb) return pa - pb;
+    }
+    const la = a[1].filter(isLate).length;
+    const lb = b[1].filter(isLate).length;
+    return lb - la || b[1].length - a[1].length || a[0].localeCompare(b[0]);
+  };
+
+  return [...map.entries()].sort(order).map(([k, rows]) => ({
+    key: k || "unset",
+    label: k || missing,
+    tone: null,
+    rows: [...rows].sort(withinSection),
+    late: rows.filter(isLate).length,
+  }));
 }
 
 // One signed-URL round trip for every cover on a page. Storage paths are

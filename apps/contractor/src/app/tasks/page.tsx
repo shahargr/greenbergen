@@ -5,7 +5,8 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { getBoard, priorityRank, topLevels, type Task } from "@/lib/board";
-import { SearchBox, matchesQuery } from "@/components/SearchBox";
+import { SearchBox } from "@/components/SearchBox";
+import { matchesQuery } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Tasks" };
