@@ -2,14 +2,15 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
-import { dayClock, shortDate } from "@shared/format";
+import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { GROUPINGS, coverUrls, getBoard, groupTasks, money, runs, type GroupKey } from "@/lib/board";
 import { SearchBox } from "@/components/SearchBox";
 import { matchesQuery } from "@/lib/search";
-import { siteCheck } from "./actions";
 import { CoverPhoto } from "./CoverPhoto";
+import { SiteVisits, type Visit } from "./SiteVisits";
+import { SiteWeekPanels, type SiteWeek } from "./SiteWeek";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +34,6 @@ type BidPackage = {
   n_invited: number | null; n_received: number | null; awarded_bid_id: string | null;
 };
 
-// Today on site: whether you are checked in, and when you arrived.
-type SiteDay = { date: string; on_site: boolean; arrived_at: string | null; left_at: string | null } | null;
 
 export default async function ProjectPage({
   params, searchParams,
@@ -59,12 +58,14 @@ export default async function ProjectPage({
   // the domain, and this screen wants the whole property anyway (see below),
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
-  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: dayData }] = await Promise.all([
+  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
     w.step("scope", () => rpc<ScopeTrade[]>(supabase, "portal_scope_trades", { p_project: id })),
-    w.step("day", () => rpc<SiteDay>(supabase, "portal_site_day", { p_project: id })),
+    // Who is on site this week, and the record of who has been (migration 068).
+    w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
+    w.step("visits", () => rpc<Visit[]>(supabase, "portal_site_visits", { p_project: id, p_limit: 20 })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}`);
 
@@ -87,7 +88,8 @@ export default async function ProjectPage({
   const roll = rollupData ?? null;
   const scopeLines = (scopeData ?? []).reduce((n, t) => n + t.scope_lines, 0);
   const scopeTrades = (scopeData ?? []).filter((t) => t.chosen).length;
-  const day = dayData ?? null;
+  const week = (weekData ?? null) as SiteWeek | null;
+  const visits = Array.isArray(visitData) ? visitData : [];
 
   // OPEN WORK ACROSS THE WHOLE PROPERTY, not just this row.
   //
@@ -139,8 +141,12 @@ export default async function ProjectPage({
     const s = p.toString();
     return s ? `/project/${id}?${s}` : `/project/${id}`;
   };
-  const covers = await w.step("cover", () => coverUrls(supabase, [seat.cover]));
-  const cover = covers[seat.cover ?? ""] ?? null;
+  // One signed-URL round trip for the cover and everything hanging off the
+  // visits - they all live in the same private bucket.
+  const visitPaths = visits.flatMap((v) => v.files.map((f) => f.path));
+  const signed = await w.step("media", () => coverUrls(supabase, [seat.cover, ...visitPaths]));
+  const cover = signed[seat.cover ?? ""] ?? null;
+  const visitUrls = signed;
   w.done();
 
   return (
@@ -149,8 +155,9 @@ export default async function ProjectPage({
         sub={seat.address ?? seat.parent_name ?? undefined} />
       <div className="body">
         {error && <Notice kind="error">{error}</Notice>}
-        {ok === "arrive" && <div className="banner-ok">You&apos;re on site. You&apos;re on today&apos;s roster.</div>}
-        {ok === "leave" && <div className="banner-ok">Logged. Your day here is recorded.</div>}
+        {ok === "visit" && <div className="banner-ok">Logged. You&apos;re on that day&apos;s roster.</div>}
+        {ok === "visit-edit" && <div className="banner-ok">Changed.</div>}
+        {ok === "visit-gone" && <div className="banner-ok">Removed. Anything you attached stays on the project.</div>}
 
         {/* The face. Whoever runs the site can put one on it from here;
             without one a job wears the house's photo (migration 063). */}
@@ -161,41 +168,14 @@ export default async function ProjectPage({
           {seat.stage ? ` · ${seat.stage}` : ""}
         </div>
 
-        {/* FIRST ACTION ON THE SITE - but only where there IS a site. A site
-            is a place with an address: a property has one, a job carries the
-            property's, a development is a folder of properties and has none.
-            "I'm on site" at Green Bergen Development claims to stand in a
-            place that does not exist, so the card follows the address, and
-            portal_site_check (migration 039) refuses the same case. */}
+        {/* ONLY WHERE THERE IS A SITE. A site is a place with an address: a
+            property has one, a job carries the property's, a development is a
+            folder of properties and has none. A visit to Green Bergen
+            Development claims to stand in a place that does not exist, so
+            this follows the address, and portal_site_visit_log refuses the
+            same case. */}
         {seat.address && (
           <>
-          {/* Two buttons, because this is tapped standing in a driveway;
-              arriving also puts you on the day's roster. */}
-          <Card pad>
-            <div className="between" style={{ alignItems: "flex-start" }}>
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="card-title" style={{ fontSize: 15 }}>
-                  {day?.on_site ? "You're on site" : "Log a site visit"}
-                </div>
-                <div className="small text-muted">
-                  {day?.on_site
-                    ? `Since ${dayClock(day.arrived_at)}. Log your leave when you go.`
-                    : day?.left_at
-                      ? `You were here today — left ${dayClock(day.left_at)}.`
-                      : "Records your day here and puts you on the roster."}
-                </div>
-              </div>
-              {day?.on_site && <span className="tag tag-ok">On site</span>}
-            </div>
-            <form action={(day?.on_site ? siteCheck.bind(null, id, "leave") : siteCheck.bind(null, id, "arrive"))}
-                  className="stack" style={{ gap: 8, marginTop: 10 }}>
-              <input className="input" name="note" placeholder={day?.on_site ? "Anything worth recording? (optional)" : "What are you here for? (optional)"} />
-              <button className="btn btn-primary btn-block">
-                {day?.on_site ? "Log that I'm leaving" : "I'm on site"}
-              </button>
-            </form>
-          </Card>
-
           {/* The three numbers a GC checks first. */}
           <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
             <Stat n={String(openHere.length)}
@@ -209,6 +189,14 @@ export default async function ProjectPage({
               The oldest was due {shortDate(late.sort((a, b) => (a.target_date ?? "").localeCompare(b.target_date ?? ""))[0]!.target_date)}.
             </Notice>
           )}
+
+          {/* Who is here this week, by trade - each one leading to everything
+              about that trade on this site (migration 068). */}
+          <SiteWeekPanels projectId={id} week={week} />
+
+          {/* The record of being here: a note, a photo, a voice note; yours
+              to correct or remove. This replaced the arrive/leave toggle. */}
+          <SiteVisits projectId={id} visits={visits} urls={visitUrls} canLog={!!board.me?.contact_id} />
           </>
         )}
 
