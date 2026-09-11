@@ -23,6 +23,10 @@ const SECTIONS = [
     icon: <svg {...I}><circle cx="9" cy="8" r="3.4" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17" cy="9" r="2.6" /><path d="M17.5 14.6c2.2.5 3.5 2.2 3.5 4.4" /></svg>,
   },
   {
+    href: "/admin/stats", label: "Usage",
+    icon: <svg {...I}><path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M22 20H2" /></svg>,
+  },
+  {
     href: "/admin/deals", label: "Deals",
     icon: <svg {...I}><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8Z" /><circle cx="7" cy="7" r="1.4" /></svg>,
   },

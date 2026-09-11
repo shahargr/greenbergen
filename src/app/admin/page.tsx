@@ -10,6 +10,7 @@ const MONTHS = ["January","February","March","April","May","June","July","August
 const SECTIONS = [
   { href: "/admin/photos", title: "Public pages", note: "Hero photos, galleries, about text, scope facts.", live: true, countKey: null },
   { href: "/admin/users", title: "User management", note: "Active accounts by type, invitations, seats.", live: true, countKey: "users" },
+  { href: "/admin/stats", title: "Usage", note: "Who signs in, what they do, tasks made and closed, day by day.", live: true, countKey: null },
   { href: "/admin/finance", title: "Finance", note: "Agreements, billing, receivables.", live: false, countKey: null },
   { href: "/admin/projects", title: "Project management", note: "Every project on the platform, by kind.", live: true, countKey: "projects" },
   { href: "/admin/packages", title: "Packages", note: "The catalogue: basic setup, upgrades at cost, scope, photos, progress line.", live: true, countKey: null },

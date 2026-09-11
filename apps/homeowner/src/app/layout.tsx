@@ -4,6 +4,7 @@ import "./globals.css";
 import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
 import { NavOrigin } from "@shared/BackButton";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: { default: "Green Bergen Community", template: "%s · Green Bergen Community" },
@@ -28,6 +29,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <NavOrigin />
           {children}
         </div>
+        {/* Vercel Web Analytics; records once switched on for the project. */}
+        <Analytics />
       </body>
     </html>
   );
