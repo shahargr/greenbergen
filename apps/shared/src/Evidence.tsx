@@ -175,11 +175,13 @@ export function Evidence({
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
         <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
                 onClick={() => cam.current?.click()}>
-          Photo
+          Take a photo
         </button>
+        {/* On a phone the first button is the camera; on a computer it is
+            a picker too, so this one says what it takes (Shahar). */}
         <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
                 onClick={() => pick.current?.click()}>
-          Attach a file
+          Attach photo / file
         </button>
         {recording ? (
           <button type="button" className="btn btn-primary small" onClick={stopRec}>
