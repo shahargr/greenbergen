@@ -271,6 +271,13 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .prop .shot { display: block; width: 100%; height: 132px; object-fit: cover; background: var(--color-soft-2); }
 .prop .shot.empty { display: grid; place-items: center; color: var(--color-divider-strong); }
 .prop .shot.empty svg { width: 34px; height: 34px; }
+
+/* The face of a project on its own screen: a dashed frame asking for one,
+   or a small button on the photo to change it (migration 063). */
+.cover-empty { display: grid; justify-items: center; gap: 4px; width: 100%; padding: 18px 12px; border: 1.5px dashed var(--color-divider-strong); border-radius: var(--radius-tile); background: transparent; color: var(--color-text); font: inherit; cursor: pointer; }
+.cover-empty:disabled { opacity: .6; cursor: default; }
+.cover-change { position: absolute; right: 8px; bottom: 8px; padding: 6px 10px; border: 0; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.cover-change:disabled { opacity: .7; cursor: default; }
 .prop .body { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
 .prop .t { font-family: var(--font-heading); font-weight: 800; font-size: 15.5px; line-height: 1.15; display: block; }
 .prop .m { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }

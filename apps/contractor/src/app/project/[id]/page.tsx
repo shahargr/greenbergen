@@ -8,6 +8,7 @@ import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { bucketTasks, coverUrls, getBoard, money, runs } from "@/lib/board";
 import { SearchBox, matchesQuery } from "@/components/SearchBox";
 import { siteCheck } from "./actions";
+import { CoverPhoto } from "./CoverPhoto";
 
 export const dynamic = "force-dynamic";
 
@@ -119,11 +120,9 @@ export default async function ProjectPage({
         {ok === "arrive" && <div className="banner-ok">You&apos;re on site. You&apos;re on today&apos;s roster.</div>}
         {ok === "leave" && <div className="banner-ok">Logged. Your day here is recorded.</div>}
 
-        {cover && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="shot" src={cover} alt=""
-               style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: "var(--radius-tile)", display: "block" }} />
-        )}
+        {/* The face. Whoever runs the site can put one on it from here;
+            without one a job wears the house's photo (migration 063). */}
+        <CoverPhoto projectId={id} url={cover} own={seat.cover_own} canEdit={manages} />
 
         <div className="kicker">
           {manages ? "You run this" : seat.seat ?? "Your seat"} · {seat.status}

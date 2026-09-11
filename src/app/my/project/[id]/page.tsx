@@ -478,12 +478,15 @@ export default async function ProjectPage({
     .filter((o) => (!!myAppUserId && o.owner_user_id === myAppUserId) || o.id === project.parent_project_id)
     .map((o) => ({ id: o.id, name: o.project_name, address: o.address }));
 
-  // Only a property gets an album and a cover photo.
+  // Every project gets an album and a cover: a property's is the house, a
+  // job's is its own face on the board (without one it wears the house's,
+  // migration 063).
   const coverFileId = (project as { cover_file_id?: string | null }).cover_file_id ?? null;
-  // The album: the property's own photos - the ones added to it directly,
-  // not task evidence - newest first, each with a short-lived signed URL.
+  // The album: the project's own photos - the ones added to it directly,
+  // not task evidence or a check - newest first, each with a short-lived
+  // signed URL.
   const photos: PropertyPhoto[] = [];
-  if (tab === "setup" && isHome) {
+  if (tab === "setup") {
     const { data: photoRows } = await supabase
       .from("files")
       .select("id, bucket, path, file_name, created_at")
@@ -973,8 +976,9 @@ export default async function ProjectPage({
 
         </>)}
 
-        {tab === "setup" && isHome && (
-          <PropertyPhotos projectId={project.id} photos={photos} canEdit={perms.rank >= 70 || perms.admin} />
+        {tab === "setup" && (
+          <PropertyPhotos projectId={project.id} photos={photos} isHome={isHome}
+            canEdit={perms.rank >= 50 || perms.admin} canRemove={perms.rank >= 70 || perms.admin} />
         )}
         {tab === "setup" && isHome && (perms.rank >= 70 || perms.admin) && (
           <HomeWorkstreams homeId={project.id} items={workstreams} />

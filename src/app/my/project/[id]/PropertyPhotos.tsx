@@ -13,11 +13,15 @@ const HouseGlyph = () => (
   </svg>
 );
 
-// The property's album: every photo it has, the cover marked, any one of
-// them a click away from becoming the cover. Bytes go straight from the
-// browser to Storage under <project>/photos/ - a server action only records
-// them - because Vercel caps what an action may carry at 4.5 MB.
-export function PropertyPhotos({ projectId, photos, canEdit }: { projectId: string; photos: PropertyPhoto[]; canEdit: boolean }) {
+// The project's album: every photo it has, the cover marked, any one of
+// them a click away from becoming the cover. A property's album is the
+// house; a job's is its own face on the board (without one it wears the
+// house's photo - migration 063). Bytes go straight from the browser to
+// Storage under <project>/photos/ - a server action only records them -
+// because Vercel caps what an action may carry at 4.5 MB.
+export function PropertyPhotos({ projectId, photos, canEdit, canRemove = canEdit, isHome = true }: {
+  projectId: string; photos: PropertyPhoto[]; canEdit: boolean; canRemove?: boolean; isHome?: boolean;
+}) {
   const router = useRouter();
   const pick = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState("");
@@ -69,7 +73,7 @@ export function PropertyPhotos({ projectId, photos, canEdit }: { projectId: stri
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Remove this photo from the property?")) return;
+    if (!window.confirm(isHome ? "Remove this photo from the property?" : "Remove this photo from the project?")) return;
     setErr(""); setBusy("Removing…");
     const r = await removePropertyPhoto(projectId, id);
     if (!r.ok) setErr(r.error);
@@ -90,8 +94,10 @@ export function PropertyPhotos({ projectId, photos, canEdit }: { projectId: stri
       </div>
       <p className="muted small" style={{ margin: 0 }}>
         {canEdit
-          ? "The cover shows on your home page next to this property's open projects. Yours only — not the public showcase picture."
-          : "This property's photos, as its owner keeps them."}
+          ? isHome
+            ? "The cover shows on your home page next to this property's open projects. Yours only — not the public showcase picture."
+            : "The cover is this project's face on the board and on your home page. Until it has one, it shows the house's photo."
+          : isHome ? "This property's photos, as its owner keeps them." : "This project's photos."}
       </p>
 
       {photos.length === 0 ? (
@@ -116,7 +122,7 @@ export function PropertyPhotos({ projectId, photos, canEdit }: { projectId: stri
               {canEdit && (
                 <div className="album-actions">
                   {!p.cover && <button type="button" disabled={!!busy} onClick={() => makeCover(p.id)}>Set as cover</button>}
-                  <button type="button" disabled={!!busy} onClick={() => remove(p.id)} aria-label="Remove photo">Remove</button>
+                  {canRemove && <button type="button" disabled={!!busy} onClick={() => remove(p.id)} aria-label="Remove photo">Remove</button>}
                 </div>
               )}
             </div>
@@ -144,7 +150,7 @@ export function PropertyPhotos({ projectId, photos, canEdit }: { projectId: stri
             {open.cover
               ? <span className="lightbox-caption" style={{ position: "static", transform: "none" }}>✓ Cover photo</span>
               : canEdit && <button type="button" className="btn small" disabled={!!busy} onClick={() => makeCover(open.id)}>Set as cover</button>}
-            {canEdit && (
+            {canRemove && (
               <button type="button" className="btn small" disabled={!!busy} style={{ background: "transparent", color: "#fff", borderColor: "#fff" }} onClick={() => remove(open.id)}>Remove</button>
             )}
           </div>

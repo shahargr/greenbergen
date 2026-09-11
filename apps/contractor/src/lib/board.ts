@@ -19,10 +19,13 @@ export type Seat = {
   seat: string | null; rank: number; my_open_tasks: number;
   bid_amount: number | null; latest_bid_id: string | null;
   owed: number; owed_count: number; buckets: string[];
-  // The storage path of the property's picture (migration 032) - its chosen
-  // cover, else its newest photo. A path, not a URL: sign it with
-  // coverUrls() so the whole page costs one round trip.
+  // The storage path of the project's face (migrations 032, 062, 063): its
+  // chosen cover, else the house's, else its newest photo that is not money
+  // evidence. A path, not a URL: sign it with coverUrls() so the whole page
+  // costs one round trip. cover_own says the cover is this project's own
+  // choice rather than one borrowed from the house above it.
   cover: string | null;
+  cover_own: boolean;
 };
 
 export type Task = {

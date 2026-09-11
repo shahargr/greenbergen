@@ -139,26 +139,41 @@ export async function saveProject(projectId: string, formData: FormData) {
     : `/my/project/${projectId}?tab=setup&saved=1`);
 }
 
-// A property's photos. The browser puts the bytes in Storage under
-// <project>/photos/ (never through a server action, which Vercel caps at
-// 4.5 MB); these record the file, choose which one is the cover, and remove
-// one. Owner rank, like the address - the photos are the face of the property.
+// A project's photos - a property's or a job's. The browser puts the bytes
+// in Storage under <project>/photos/ (never through a server action, which
+// Vercel caps at 4.5 MB); these record the file, choose which one is the
+// cover, and remove one. Whoever runs the project (rank 50 and up) may add
+// and choose - the same line as its name and notes; project_cover_set, the
+// one write path (migration 063), re-checks that and refuses a check or a
+// receipt as a face. Removing a photo stays with the owner.
 export type PhotoUpload = { path: string; name: string; mime: string; size: number };
 type Outcome = { ok: true } | { ok: false; error: string };
 
+async function runsIt(projectId: string): Promise<Outcome> {
+  const p = await projectPerms(projectId);
+  if (!(p.rank >= 50 || p.admin)) return { ok: false, error: "Only whoever runs this project may change its photos." };
+  return { ok: true };
+}
 async function ownerOf(projectId: string): Promise<Outcome> {
   const p = await projectPerms(projectId);
-  if (!(p.rank >= 70 || p.admin)) return { ok: false, error: "Only the owner may change the property's photos." };
+  if (!(p.rank >= 70 || p.admin)) return { ok: false, error: "Only the owner may remove a photo." };
   return { ok: true };
 }
 
-// Records an uploaded photo. The first photo a property gets becomes its
+async function setCover(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string, fileId: string): Promise<Outcome> {
+  const { data, error } = await supabase.rpc("project_cover_set", { p_project: projectId, p_file_id: fileId });
+  if (error) return { ok: false, error: error.message };
+  if (!data?.ok) return { ok: false, error: data?.reason ?? "Could not set the cover." };
+  return { ok: true };
+}
+
+// Records an uploaded photo. The first photo a project gets becomes its
 // cover, so a home with one picture never shows an empty frame.
 export async function addPropertyPhoto(projectId: string, upload: PhotoUpload): Promise<{ ok: true; fileId: string; cover: boolean } | { ok: false; error: string }> {
   const supabase = await createClient();
-  const gate = await ownerOf(projectId);
+  const gate = await runsIt(projectId);
   if (!gate.ok) return gate;
-  if (!upload.path.startsWith(`${projectId}/photos/`)) return { ok: false, error: "That file is not under this property." };
+  if (!upload.path.startsWith(`${projectId}/photos/`)) return { ok: false, error: "That file is not under this project." };
   const { data: fileId, error } = await supabase.rpc("record_project_file", {
     p_project_id: projectId, p_path: upload.path, p_file_name: upload.name,
     p_mime: upload.mime || null, p_size: upload.size, p_caption: null, p_kind: "photo",
@@ -166,26 +181,19 @@ export async function addPropertyPhoto(projectId: string, upload: PhotoUpload): 
   if (error || !fileId) return { ok: false, error: error?.message ?? "Could not record the photo." };
   const { data: row } = await supabase.from("projects").select("cover_file_id").eq("id", projectId).maybeSingle();
   let cover = false;
-  if (row && !row.cover_file_id) {
-    const { error: upErr } = await supabase.from("projects")
-      .update({ cover_file_id: fileId, last_modified_by: "portal:setup" }).eq("id", projectId);
-    cover = !upErr;
-  }
+  if (row && !row.cover_file_id) cover = (await setCover(supabase, projectId, String(fileId))).ok;
   revalidatePath(`/my/project/${projectId}`);
   revalidatePath("/my");
   return { ok: true, fileId: String(fileId), cover };
 }
 
-// Makes one of the property's own photos its cover.
+// Makes one of the project's own photos its cover.
 export async function chooseCoverPhoto(projectId: string, fileId: string): Promise<Outcome> {
   const supabase = await createClient();
-  const gate = await ownerOf(projectId);
+  const gate = await runsIt(projectId);
   if (!gate.ok) return gate;
-  const { data: f } = await supabase.from("files").select("id, project_id, kind").eq("id", fileId).maybeSingle();
-  if (!f || f.project_id !== projectId || f.kind !== "photo") return { ok: false, error: "That photo does not belong to this property." };
-  const { error } = await supabase.from("projects")
-    .update({ cover_file_id: fileId, last_modified_by: "portal:setup" }).eq("id", projectId);
-  if (error) return { ok: false, error: error.message };
+  const r = await setCover(supabase, projectId, fileId);
+  if (!r.ok) return r;
   revalidatePath(`/my/project/${projectId}`);
   revalidatePath("/my");
   return { ok: true };
@@ -198,7 +206,7 @@ export async function removePropertyPhoto(projectId: string, fileId: string): Pr
   const gate = await ownerOf(projectId);
   if (!gate.ok) return gate;
   const { data: f } = await supabase.from("files").select("id, project_id, bucket, path").eq("id", fileId).maybeSingle();
-  if (!f || f.project_id !== projectId) return { ok: false, error: "That photo does not belong to this property." };
+  if (!f || f.project_id !== projectId) return { ok: false, error: "That photo does not belong to this project." };
   const { error: delErr } = await supabase.from("files").delete().eq("id", fileId);
   if (delErr) return { ok: false, error: delErr.message };
   // The object goes after the record: a record without an object is a
