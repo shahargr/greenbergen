@@ -10,6 +10,7 @@ import { dollars } from "@shared/format";
 import { SITE_ORIGIN } from "@shared/site";
 import { loadDoors } from "@shared/doors.server";
 import { loadShowcase, type House } from "@/lib/showcase";
+import { VoiceAsk } from "@/components/VoiceAsk";
 
 export const dynamic = "force-dynamic";
 
@@ -70,12 +71,11 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           <Link href="/packages" className="btn btn-ghost btn-block">See the packages first</Link>
         </div>
       ) : (
-        <div className="stack" style={{ gap: 10 }}>
-          <p className="small" style={{ margin: 0 }}>
-            <strong>Pick a package, add your address.</strong>{" "}
-            <span className="text-muted">Your account is created at the last step, and nothing is charged today.</span>
-          </p>
+        <div className="stack" style={{ gap: 8 }}>
           <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
+          {/* Or say it: the recorder opens first, the account comes after
+              (Shahar, 2026-09-11). */}
+          <VoiceAsk signedIn={false} />
         </div>
       )}
     </Card>
@@ -153,7 +153,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
               <div className="promises">
                 <div><div className="t">Pre-priced</div><div className="d">Packages, not quotes</div></div>
                 <div><div className="t">Vetted</div><div className="d">Licensed &amp; insured</div></div>
-                <div><div className="t">Direct</div><div className="d">You pay the contractor</div></div>
+                <div><div className="t">Community</div><div className="d">Supporting our community</div></div>
               </div>
             </Card>
           </>
