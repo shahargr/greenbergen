@@ -192,16 +192,19 @@ function RecordSheet({ stage, methods, projectId, first, busy, err, onClose, onS
   );
 }
 
-export function EvidenceSheet({ projectId, busy, err, onClose, onSubmit, title = "Add to this milestone" }: {
+export function EvidenceSheet({ projectId, busy, err, onClose, onSubmit, title = "Add to this milestone", folder, caption = "Money evidence" }: {
   projectId: string; stageId?: string; contractId?: string; busy: boolean; err: string;
   onClose: () => void; onSubmit: (files: Attached[]) => Promise<void>; title?: string;
+  // Where the files land under the project; a payment's go under
+  // payments/<transaction>, the folder the ledger reads back.
+  folder?: string; caption?: string;
 }) {
   const [files, setFiles] = useState<Attached[]>([]);
   return (
     <Sheet title={title} onClose={onClose}>
       <div className="stack" style={{ gap: 10 }}>
         <p className="small text-muted" style={{ margin: 0 }}>A photo of the work, the check or the receipt; a file; or say it in a voice note.</p>
-        <Evidence projectId={projectId} caption="Money evidence" onChange={setFiles} accept="image/*,application/pdf,audio/*,video/*" />
+        <Evidence projectId={projectId} caption={caption} onChange={setFiles} accept="image/*,application/pdf,audio/*,video/*" folder={folder} />
         {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
         <button type="button" className="btn btn-primary btn-block" disabled={busy || files.length === 0} onClick={() => void onSubmit(files)}>
           {busy ? "Saving…" : files.length === 0 ? "Nothing attached yet" : `Attach ${files.length === 1 ? "it" : `${files.length} files`}`}

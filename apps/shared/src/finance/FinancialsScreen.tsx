@@ -4,6 +4,7 @@ import { StageActions } from "./StageActions";
 import { ChangeActions, ChangeOrderButton } from "./ChangeOrder";
 import { StageSheetButton } from "./StageSheet";
 import { LogPaymentButton } from "./LogPayment";
+import { TxEvidenceButton } from "./TxEvidence";
 import { changeTone, stageTone, usd, type FinContract, type FinEvidence, type Financials, type FinStage } from "./types";
 
 // PROJECT MONEY - one screen for the payor, the payee, the investor and the
@@ -221,11 +222,10 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
                   <span className="tiny">
                     {[t.paid_on ? shortDay(t.paid_on) : t.target_date ? `planned ${shortDay(t.target_date)}` : null, t.method, t.reference ? `#${t.reference}` : null, t.status].filter(Boolean).join(" · ")}
                   </span>
-                  {t.attachments.length > 0 && (
-                    <span className="fin-thumbs" style={{ marginTop: 4 }}>
-                      {t.attachments.map((a) => urls[a.path]
-                        ? <a key={a.file_id} href={urls[a.path]} target="_blank" rel="noreferrer" className="tag tag-outline">{a.kind === "photo" ? "photo" : a.file_name ?? "file"}</a>
-                        : null)}
+                  <Thumbs items={t.attachments} urls={urls} />
+                  {(me.may_record || c.payee) && (
+                    <span style={{ display: "block", marginTop: 2 }}>
+                      <TxEvidenceButton txId={t.id} contractId={c.id} projectId={projectId} label={`${usd(t.moved ? t.amount : t.target_amount ?? t.amount)}${t.paid_on ? ` on ${shortDay(t.paid_on)}` : ""}`} />
                     </span>
                   )}
                 </span>
@@ -285,7 +285,8 @@ function StageRow({ s, c, me, methods, urls, projectId }: {
 
 // The photographs and files on a milestone or a change, signed for this
 // screen only. A photo is a thumbnail; anything else is a chip.
-function Thumbs({ items, urls }: { items: FinEvidence[]; urls: Record<string, string> }) {
+type Thumb = Pick<FinEvidence, "file_id" | "file_name" | "kind" | "path"> & { role?: string };
+function Thumbs({ items, urls }: { items: Thumb[]; urls: Record<string, string> }) {
   if (items.length === 0) return null;
   return (
     <div className="fin-thumbs">
