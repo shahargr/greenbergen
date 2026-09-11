@@ -15,13 +15,16 @@ import { ChevronIcon } from "@shared/ui";
 // project image, allowing to define scope and update the photo. This will
 // replace the change photo as well."
 //
-// So the gear is the door to everything about SETTING THE JOB UP, and the
-// running screen below it is only about the job running. Two rows behind it
-// today - the photo and the scope - and it is the obvious place for the next
-// one-time thing rather than another row in the flow.
-export function ProjectSetup({ projectId, url, own, canEdit, scopeLines, scopeTrades }: {
+// And then: "move the cancel this job into the setting of it."
+//
+// So the gear is the door to everything you do to the JOB rather than to the
+// work on it: the photo, the scope, and how it ends. The screen below it is
+// only about the job running. `lifecycle` is server-rendered on the page -
+// those forms post to server actions and have no business being in a client
+// component - and is simply given a place here.
+export function ProjectSetup({ projectId, url, own, canEdit, scopeLines, scopeTrades, lifecycle }: {
   projectId: string; url: string | null; own: boolean; canEdit: boolean;
-  scopeLines: number; scopeTrades: number;
+  scopeLines: number; scopeTrades: number; lifecycle?: React.ReactNode;
 }) {
   const router = useRouter();
   const pick = useRef<HTMLInputElement>(null);
@@ -124,6 +127,15 @@ export function ProjectSetup({ projectId, url, own, canEdit, scopeLines, scopeTr
             </span>
             <ChevronIcon />
           </Link>
+
+          {/* How it ends. Last, because it is the one thing here you do once
+              and cannot take back. */}
+          {lifecycle && (
+            <div className="stack" style={{ gap: 8, marginTop: 4 }}>
+              <div className="divider-label">How this job ends</div>
+              {lifecycle}
+            </div>
+          )}
         </div>
       )}
 

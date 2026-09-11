@@ -153,7 +153,7 @@ the app is small.
 | `homeowner_task_update(project, action, note, file_ids[], complete)` | Post an update with attachments; closes only when `complete`. |
 | `files` / `file_links` / `record_project_file` / `project-media` bucket | Documents and photos, with entitlement and quota checks. `files.vantage_point` keys a photo to a package slot. |
 | `portal_bid_package`, `portal_bid_reply`, `portal_bid_negotiate`, `portal_bid_award`, `portal_bid_invite` (migration 064) | The bid package screen, `/project/[id]/bids/[pkg]`: the scope lines, every bidder with their number, and the three writes that happen on site — take down what he quoted, run a negotiation round, award. **Two rounds before any award** (help topic `contractors`): `portal_bid_negotiate` records each one against the bid with its date and what was said, so the screen can show how far it got. The desk version (full terms sheet, line-by-line comparison, AI review) stays in the portal. |
-| `project_face_photo_id(project)` / `project_cover_set(project, file)` (migrations 062–063) | The face of a project on the board and on `/project/[id]`: its chosen cover, else the house's above it, else its newest photo that is not money evidence. Whoever runs the site (rank 50 and up) chooses one from the project screen (`CoverPhoto`) - upload to `<project>/photos/`, `record_project_file`, then `project_cover_set`, which refuses a check or a receipt. The portal's Setup tab offers the same album on every project. |
+| `project_face_photo_id(project)` / `project_cover_set(project, file)` (migrations 062–063) | The face of a project on the board and on `/project/[id]`: its chosen cover, else the house's above it, else its newest photo that is not money evidence. Whoever runs the site (rank 50 and up) chooses one from behind the gear on the project screen (`ProjectSetup`) - upload to `<project>/photos/`, `record_project_file`, then `project_cover_set`, which refuses a check or a receipt. The portal's Setup tab offers the same album on every project. |
 | `homeowner_photos` / `homeowner_photo_add` | The photo request and its checklist. |
 | `messages` | The in-app thread (`channel = 'in app'`), already used by both sides. |
 | `homeowner_progress(project)` | Derived progress: nodes, current, done count. |
@@ -305,6 +305,50 @@ This is where a contractor spends their day. Per job:
   milestones with the town.
 - **Thread** — `messages` with the homeowner.
 - **Folder** — every file on the job.
+
+### C12b · The project screen (`/project/[id]`) — nine panels, one answer
+**BUILT 2026-09-11.** The working screen for a build (not a package job):
+a grid of nine panels and exactly ONE content area beneath it, belonging
+to whichever panel is lit. Shahar: *"on each panel we should have a clear
+wording explaining the numbers. each panel should be clickable. The panel
+on site this week should change to the panel content once one clicks on
+it… open work and no due date are not needed unless called for from the 9
+buttons."*
+
+Nothing stacks. The task list, the bids, the money, the jobs beneath, the
+week's trades and the visits are six views of one place, and a person is
+only ever looking at one — selected by `?panel=`, which is the only piece
+of state the screen carries between them.
+
+| Panel | Counts | Opens |
+|---|---|---|
+| `tasks` | open tasks across the whole family, with the late count in words | the sections (timing default; trade / contract / phase a chip away), the search, Open / Done / All |
+| `bids` | packages still out to bid | every package on the job → `/project/[id]/bids/[pkg]` |
+| `money` | owed to the trades, with what has been paid | contracted / paid / owed / milestones, then `/project/[id]/money` |
+| `jobs-open` | jobs beneath that are open with nothing on the board | that list |
+| `jobs-working` | jobs beneath with open tasks on them | that list |
+| `jobs-done` | jobs beneath closed as completed | that list, then cancelled ones under their own heading — cancelled is never counted as completed |
+| `week` | trades on site this week (`portal_site_week`) | each trade → `/project/[id]/trade/[trade]`. **The default on any project with an address.** |
+| `visits` | visits logged TODAY (America/New_York), with when the last one was | `SiteVisits` — see below |
+| `soon` | — | held open on purpose |
+
+A project with no address (a development) drops `week` and `visits` and
+opens on `tasks`; a project with nothing beneath it drops the three job
+panels. The ninth is always there.
+
+**Site visits** are one card — *today* — either the box you write in or
+what you wrote, editable and removable in place. The visit before it is a
+single collapsed line (`.visit-prev`), everything older a second one:
+*"build a UI design that don't take too much space on the screen but
+allows to see both this and last visit if needed."* Writing today's visit
+asks for no date; back-dating one hides behind a link.
+
+**The gear** on the photo holds everything you do to the JOB rather than
+to the work on it: the photo, the scope, and how it ends — finish as
+complete (`portal_project_close`) or cancel with a reason
+(`portal_project_cancel`), plus the superadmin reopen. Those forms are
+server-rendered on the page and passed into `ProjectSetup` (a client
+component) as the `lifecycle` slot.
 
 ### C13 · Finish and social proof
 See §10.

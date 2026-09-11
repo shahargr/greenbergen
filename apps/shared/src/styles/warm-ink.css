@@ -750,3 +750,41 @@ a.house:hover { transform: translateY(-1px); }
 /* .seg as tabs made of links (the landing): .on is the checked state */
 a.seg-opt { text-decoration: none; color: var(--muted); }
 a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 21, 19, 0.10); color: var(--color-text); }
+
+/* ---------------------------------------------------------------------------
+   THE NINE PANELS on a project screen (Shahar, 2026-09-11: "on each panel we
+   should have a clear wording explaining the numbers. each panel should be
+   clickable. The panel on site this week should change to the panel content
+   once one clicks on it").
+
+   A number alone answers nothing, so every panel carries the words for what
+   it counts; the selected one is ringed, and the ONE content area below the
+   grid belongs to whichever is selected. Nothing else on the screen competes
+   with it. */
+.pgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pnl {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 10px 9px; min-height: 86px;
+  background: var(--color-surface); border: 0; border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-card); text-align: left; text-decoration: none; color: inherit;
+  cursor: pointer; transition: transform .15s ease;
+}
+.pnl:hover { transform: translateY(-1px); }
+.pnl .n { font-family: var(--font-heading); font-weight: 700; font-size: 20px; line-height: 1.1; }
+.pnl .l { font-size: 11px; line-height: 1.25; color: var(--muted); }
+.pnl .s { margin-top: auto; padding-top: 3px; font-size: 10px; line-height: 1.25; color: var(--muted); }
+.pnl[aria-current="page"] { box-shadow: 0 0 0 2px var(--color-accent) inset, var(--shadow-card); }
+.pnl[aria-current="page"] .l { color: var(--color-text); }
+.pnl.late .n, .pnl .s.late { color: var(--color-status); }
+.pnl.soon { background: var(--color-soft-2); box-shadow: none; cursor: default; }
+.pnl.soon .n { color: var(--muted); }
+.pnl.soon:hover { transform: none; }
+@media (max-width: 330px) { .pnl { min-height: 78px; padding: 9px 8px 8px; } .pnl .n { font-size: 18px; } }
+
+/* A visit before today's: one line until you want it (Shahar: "build a UI
+   design that don't take too much space on the screen but allows to see both
+   this and last visit if needed"). */
+.visit-prev { background: var(--color-soft-2); border-radius: var(--radius-tile); }
+.visit-prev > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-size: 12px; color: var(--muted); }
+.visit-prev > summary::-webkit-details-marker { display: none; }
+.visit-prev .mark { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); flex: none; margin-right: 2px; }
+.visit-prev[open] .mark { transform: rotate(-135deg); margin-top: 4px; }

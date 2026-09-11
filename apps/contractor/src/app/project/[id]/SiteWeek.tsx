@@ -22,19 +22,23 @@ export type SiteWeekTrade = {
 };
 export type SiteWeek = { ok: boolean; from: string; to: string; money: boolean; trades: SiteWeekTrade[] };
 
-const day = (iso: string) =>
+// "Sep 8" - the project screen names the week on the panel and again above
+// this list, so the two say it the same way.
+export const weekDay = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
-export function SiteWeekPanels({ projectId, week }: { projectId: string; week: SiteWeek | null }) {
+export function SiteWeekTrades({ projectId, week }: { projectId: string; week: SiteWeek | null }) {
   const trades = week?.trades ?? [];
-  if (!week?.ok) return null;
+  if (!week?.ok) {
+    return (
+      <div className="card soft pad">
+        <div className="small">This project has no site of its own, so nobody is on it.</div>
+      </div>
+    );
+  }
 
   return (
-    <section className="stack" style={{ gap: 8 }}>
-      <div className="divider-label">
-        On site this week · {day(week.from)}–{day(week.to)}
-      </div>
-
+    <div className="stack" style={{ gap: 8 }}>
       {trades.length === 0 && (
         <div className="card soft pad">
           <div className="small">
@@ -67,6 +71,6 @@ export function SiteWeekPanels({ projectId, week }: { projectId: string; week: S
           </Link>
         );
       })}
-    </section>
+    </div>
   );
 }
