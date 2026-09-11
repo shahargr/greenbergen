@@ -153,7 +153,7 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
       <div className="divider-label" style={{ marginTop: 6 }}>Milestones{c.stages.length ? ` · ${c.stages.length}` : ""}</div>
       {c.stages.length === 0 ? (
         <p className="small text-muted" style={{ margin: 0 }}>
-          {me.may_record ? "No payment schedule yet. Add the milestones the contract names." : "The owner has not set the payment schedule yet."}
+          {me.may_record ? "No payment schedule on this contract. Payments are logged as they are made." : "The owner has not set a payment schedule."}
         </p>
       ) : (
         <div className="fin-rows">
@@ -167,9 +167,13 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
       )}
       {me.may_record && (
         <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-          {/* A check already written lands here, milestone or not (058). */}
+          {/* A check already written lands here, milestone or not (058).
+              Building a schedule is offered only where one already exists:
+              a package booking writes its own, and a contract paid as it
+              goes needs none (Shahar, 2026-09-11: "keep only log a
+              payment"). */}
           <LogPaymentButton contractId={c.id} contractTitle={c.title} payeeName={who === "—" ? null : who} projectId={projectId} methods={methods} />
-          <StageSheetButton contractId={c.id} contractAmount={c.amount} label="Add a milestone" className="btn btn-ghost small" />
+          {c.stages.length > 0 && <StageSheetButton contractId={c.id} contractAmount={c.amount} label="Add a milestone" className="btn btn-ghost small" />}
         </div>
       )}
 
@@ -198,7 +202,8 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
           </div>
         );
       })}
-      {(c.payee || me.may_record) && (
+      {/* Nothing is added to a contract that is done. */}
+      {(c.payee || me.may_record) && !["Complete", "Cancelled", "placeholder"].includes(c.status ?? "") && (
         <ChangeOrderButton contractId={c.id} contractTitle={c.title} projectId={projectId} mayRecord={me.may_record} />
       )}
 
