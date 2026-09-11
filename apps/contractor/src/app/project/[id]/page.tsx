@@ -23,10 +23,13 @@ type Rollup = {
 
 type ScopeTrade = { trade: string; chosen: boolean; scope_lines: number };
 
+// portal_bid_packages names the counts n_invited / n_received - this screen
+// asked for "invited" and "received", which are not keys the function
+// returns, so the row never showed how many were on a package.
 type BidPackage = {
   id: string; trade: string | null; category: string | null; phase: string | null;
-  status: string; reply_by: string | null; bids: number | null;
-  invited: number | null; received: number | null; awarded_bid_id: string | null;
+  status: string; reply_by: string | null;
+  n_invited: number | null; n_received: number | null; awarded_bid_id: string | null;
 };
 
 // Today on site: whether you are checked in, and when you arrived.
@@ -249,19 +252,25 @@ export default async function ProjectPage({
           {packages.length === 0 && (
             <Card soft pad><div className="small">Nothing out to bid. Creating a package is step 3 of the build order.</div></Card>
           )}
+          {/* A package opens (Shahar: "bid does not allow me to click in") -
+              its scope, its bidders, their numbers and the award. */}
           {packages.map((p) => (
-            <div className="home-row" key={p.id} style={{ cursor: "default" }}>
+            <Link href={`/project/${id}/bids/${p.id}`} className="home-row" key={p.id}>
               <span className="grow" style={{ minWidth: 0 }}>
                 <span className="t">{p.category ?? p.trade ?? "Package"}</span>
                 <span className="m" style={{ display: "block" }}>
-                  {[p.trade, p.phase, p.reply_by ? `reply by ${shortDate(p.reply_by)}` : null]
-                    .filter(Boolean).join(" · ")}
+                  {[
+                    p.trade, p.phase,
+                    p.n_invited ? `${p.n_received ?? 0} of ${p.n_invited} replied` : null,
+                    p.reply_by ? `reply by ${shortDate(p.reply_by)}` : null,
+                  ].filter(Boolean).join(" · ")}
                 </span>
               </span>
               <span className={`tag ${p.status === "awarded" ? "tag-ok" : p.status === "open" ? "tag-status" : "tag-neutral"}`}>
                 {p.status}
               </span>
-            </div>
+              <ChevronIcon />
+            </Link>
           ))}
           {packages.length > 0 && (
             <p className="tiny text-muted" style={{ margin: 0 }}>
