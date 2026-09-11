@@ -31,8 +31,8 @@ type RefPreview = { ok: boolean; first?: string; name?: string; line?: string };
 // for the work, project_about_pages.hero_photo_url for the houses. A package
 // without a photo yet draws its line art on the warm ground, so the page
 // reads the same before and after the photos are taken.
-export default async function Landing({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string }> }) {
-  const { ref, name } = await searchParams;
+export default async function Landing({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string; tab?: string }> }) {
+  const { ref, name, tab: tabParam } = await searchParams;
   const supabase = await createClient();
   const [signedIn, tagline, { tiles }, houses] = await Promise.all([isSignedIn(supabase), loadTagline(), loadTiles(), loadShowcase()]);
   // A member does not need the shop window. One door: their projects.
@@ -53,11 +53,38 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
   const scenes = featured(tiles);
   const live = houses.filter((h) => !h.completed);
   const built = houses.filter((h) => h.completed);
+  const tab: "services" | "projects" = tabParam === "projects" && houses.length > 0 ? "projects" : "services";
+
+  // The way in, on both tabs: the one thing this page is for is a person
+  // starting an order. A member signs in from the top right; this card is
+  // for everyone else.
+  const wayIn = (
+    <Card soft pad>
+      {inviter ? (
+        <div className="stack" style={{ gap: 8 }}>
+          <p className="small" style={{ margin: 0 }}>
+            <strong>Join the community {inviter.first} is part of.</strong>{" "}
+            <span className="text-muted">Three fields and an email code, then pick your first package.</span>
+          </p>
+          <Link href={joinHref} className="btn btn-primary btn-block">Join {inviter.first} in the community</Link>
+          <Link href="/packages" className="btn btn-ghost btn-block">See the packages first</Link>
+        </div>
+      ) : (
+        <div className="stack" style={{ gap: 10 }}>
+          <p className="small" style={{ margin: 0 }}>
+            <strong>Pick a package, add your address.</strong>{" "}
+            <span className="text-muted">Your account is created at the last step, and nothing is charged today.</span>
+          </p>
+          <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
+        </div>
+      )}
+    </Card>
+  );
 
   return (
     <Screen>
       <AppBar brand right={<Link href="/login" className="btn btn-ghost">Sign in</Link>} />
-      <div className="body">
+      <div className="body" style={{ gap: 18 }}>
         {inviter ? (
           <Card pad>
             <div className="row">
@@ -78,80 +105,80 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           {tagline && <p className="step-kicker" style={{ margin: "6px 0 0" }}>{tagline}</p>}
         </div>
 
-        {/* WHAT WE DO. The promoted packages as scenes: the photograph of
-            the work, the name, the community price. Each is the first step
-            of buying that package. */}
-        {scenes.length > 0 && (
-          <section className="stack" style={{ gap: 8 }}>
-            {/* The rail is longer than the screen. Two cues say so: the
-                count on the right of the label (every package, not just
-                the promoted ones), and a card width that always leaves the
-                second card cut at the edge (Shahar: "I need to see there
-                are more"). */}
-            <div className="row" style={{ alignItems: "center", gap: 10 }}>
-              <div className="divider-label" style={{ flex: 1 }}>What we do</div>
-              <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
-                All {tiles.length} packages<ChevronIcon />
-              </Link>
-            </div>
-            <div className="scenes" aria-label="Featured packages">
-              {scenes.map((t) => <Scene key={t.code} t={t} />)}
-              <Link href="/packages" className="scene more">
-                <span className="scene-more">
-                  <strong>All {tiles.length} packages</strong>
-                  <span className="small text-muted">Every one pre-priced for the community.</span>
-                  <span className="chev"><ChevronIcon /></span>
-                </span>
-              </Link>
-            </div>
-
-            {/* The way in, right under the work it leads to - not a bar
-                pinned to the bottom of the screen. A member signs in from
-                the top right; this card is for everyone else. */}
-            <Card soft pad>
-              {inviter ? (
-                <div className="stack" style={{ gap: 8 }}>
-                  <p className="small" style={{ margin: 0 }}>
-                    <strong>Join the community {inviter.first} is part of.</strong>{" "}
-                    <span className="text-muted">Three fields and an email code, then pick your first package.</span>
-                  </p>
-                  <Link href={joinHref} className="btn btn-primary btn-block">Join {inviter.first} in the community</Link>
-                  <Link href="/packages" className="btn btn-ghost btn-block">See the packages first</Link>
-                </div>
-              ) : (
-                <div className="stack" style={{ gap: 10 }}>
-                  <p className="small" style={{ margin: 0 }}>
-                    <strong>Pick a package, add your address.</strong>{" "}
-                    <span className="text-muted">Your account is created at the last step, and nothing is charged today.</span>
-                  </p>
-                  <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
-                </div>
-              )}
-            </Card>
-          </section>
+        {/* TWO TABS (Shahar, 2026-09-11): the services, and our projects.
+            The first is the shop window and its one measure is a person
+            starting an order, so it carries nothing else; the houses have
+            a tab of their own and end on the same way in. */}
+        {houses.length > 0 && (
+          <nav className="seg" aria-label="Sections">
+            <Link href="/" scroll={false} className={`seg-opt ${tab === "services" ? "on" : ""}`} aria-current={tab === "services" ? "page" : undefined}>Services</Link>
+            <Link href="/?tab=projects" scroll={false} className={`seg-opt ${tab === "projects" ? "on" : ""}`} aria-current={tab === "projects" ? "page" : undefined}>Our projects</Link>
+          </nav>
         )}
 
-        <Card pad={false}>
-          <div className="promises">
-            <div><div className="t">Pre-priced</div><div className="d">Packages, not quotes</div></div>
-            <div><div className="t">Vetted</div><div className="d">Licensed &amp; insured</div></div>
-            <div><div className="t">Direct</div><div className="d">You pay the contractor</div></div>
-          </div>
-        </Card>
-
-        {/* OUR PROJECTS. The houses, live first, each opening its public
-            page on the portal (/p/<slug>, same host, outside this app's
-            path - a plain anchor, not next/link). */}
-        {houses.length > 0 && (
-          <section className="stack" style={{ gap: 8 }}>
-            <div className="divider-label">Our projects</div>
-            {live.map((h) => <HouseCard key={h.slug} h={h} wide />)}
-            {built.length > 0 && (
-              <div className="houses">
-                {built.map((h) => <HouseCard key={h.slug} h={h} />)}
-              </div>
+        {tab === "services" && (
+          <>
+            {/* WHAT WE DO. The promoted packages as scenes: the photograph
+                of the work, the name, the community price. Each is the
+                first step of buying that package. */}
+            {scenes.length > 0 && (
+              <section className="stack" style={{ gap: 10 }}>
+                {/* The rail is longer than the screen. Two cues say so: the
+                    count on the right of the label (every package, not just
+                    the promoted ones), and a card width that always leaves
+                    the second card cut at the edge (Shahar: "I need to see
+                    there are more"). */}
+                <div className="row" style={{ alignItems: "center", gap: 10 }}>
+                  <div className="divider-label" style={{ flex: 1 }}>What we do</div>
+                  <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
+                    All {tiles.length} packages<ChevronIcon />
+                  </Link>
+                </div>
+                <div className="scenes" aria-label="Featured packages">
+                  {scenes.map((t) => <Scene key={t.code} t={t} />)}
+                  <Link href="/packages" className="scene more">
+                    <span className="scene-more">
+                      <strong>All {tiles.length} packages</strong>
+                      <span className="small text-muted">Every one pre-priced for the community.</span>
+                      <span className="chev"><ChevronIcon /></span>
+                    </span>
+                  </Link>
+                </div>
+              </section>
             )}
-          </section>
+
+            {wayIn}
+
+            <Card pad={false}>
+              <div className="promises">
+                <div><div className="t">Pre-priced</div><div className="d">Packages, not quotes</div></div>
+                <div><div className="t">Vetted</div><div className="d">Licensed &amp; insured</div></div>
+                <div><div className="t">Direct</div><div className="d">You pay the contractor</div></div>
+              </div>
+            </Card>
+          </>
+        )}
+
+        {tab === "projects" && (
+          <>
+            {/* OUR PROJECTS. The houses, live first, each opening its
+                public page on the portal (/p/<slug>, same host, outside
+                this app's path - a plain anchor, not next/link). */}
+            <section className="stack" style={{ gap: 10 }}>
+              <div className="divider-label">Our projects</div>
+              {live.map((h) => <HouseCard key={h.slug} h={h} wide />)}
+              {built.length > 0 && (
+                <div className="houses">
+                  {built.map((h) => <HouseCard key={h.slug} h={h} />)}
+                </div>
+              )}
+              <p className="small text-muted" style={{ margin: 0 }}>
+                The same people, the same standard, one package at a time.
+              </p>
+            </section>
+
+            {wayIn}
+          </>
         )}
       </div>
     </Screen>

@@ -665,3 +665,7 @@ a.house:hover { transform: translateY(-1px); }
 .fin-ledger summary { list-style: none; }
 .fin-ledger summary::before { content: "▸ "; color: var(--muted); }
 .fin-ledger[open] summary::before { content: "▾ "; }
+
+/* .seg as tabs made of links (the landing): .on is the checked state */
+a.seg-opt { text-decoration: none; color: var(--muted); }
+a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 21, 19, 0.10); color: var(--color-text); }
