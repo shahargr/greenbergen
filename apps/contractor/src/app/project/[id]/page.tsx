@@ -40,10 +40,10 @@ export default async function ProjectPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; q?: string; by?: string; show?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; q?: string; by?: string; show?: string; jobs?: string }>;
 }) {
   const { id } = await params;
-  const { ok, error, q, by: byRaw, show } = await searchParams;
+  const { ok, error, q, by: byRaw, show, jobs } = await searchParams;
   const by: GroupKey = GROUPINGS.some((g) => g.key === byRaw) ? (byRaw as GroupKey) : "timing";
   // Open is the default; Done and All are a tap away (Shahar: "i need to see
   // completed as well"). Only the finished list costs an extra read.
@@ -139,7 +139,8 @@ export default async function ProjectPage({
   const viewHref = (over: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
     const merged: Record<string, string | undefined> = {
-      q: query || undefined, by: by === "timing" ? undefined : by, show: show || undefined, ...over,
+      q: query || undefined, by: by === "timing" ? undefined : by, show: show || undefined,
+      jobs: jobs || undefined, ...over,
     };
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
     const s = p.toString();
@@ -148,10 +149,85 @@ export default async function ProjectPage({
   // One signed-URL round trip for the cover and everything hanging off the
   // visits - they all live in the same private bucket.
   const visitPaths = visits.flatMap((v) => v.files.map((f) => f.path));
+  // THE JOBS BENEATH, AS THREE COUNTS (Shahar, 2026-09-11: "Change the '5
+  // jobs beneath' section to: X open, Y working, Z completed (3 panels like
+  // the ones above)"). A dozen rows above everything else answered nothing;
+  // what a person wants at a glance is how many are moving.
+  //
+  // The three divide the jobs cleanly, and the words mean what they say:
+  //   open       still open, nothing on the board yet - waiting to start
+  //   working    still open, with tasks on it - somebody is on it
+  //   completed  closed as completed
+  //
+  // A job closed as CANCELLED is none of those, and folding it into
+  // "completed" would be a lie, so it gets a line under the tiles rather than
+  // a fourth panel. Every job beneath is reachable; none is hidden.
+  const kidOpen = kids.filter((k) => !k.status.startsWith("Closed") && (openByProject.get(k.project_id) ?? 0) === 0);
+  const kidWorking = kids.filter((k) => !k.status.startsWith("Closed") && (openByProject.get(k.project_id) ?? 0) > 0);
+  const kidDone = kids.filter((k) => k.status === "Closed - Completed");
+  const kidEnded = kids.filter((k) => k.status.startsWith("Closed") && k.status !== "Closed - Completed");
+  const kidList =
+    jobs === "open" ? kidOpen
+    : jobs === "working" ? kidWorking
+    : jobs === "completed" ? kidDone
+    : jobs === "ended" ? kidEnded
+    : null;
+
   const signed = await w.step("media", () => coverUrls(supabase, [seat.cover, ...visitPaths]));
   const cover = signed[seat.cover ?? ""] ?? null;
   const visitUrls = signed;
   w.done();
+
+  // Rendered in one of two places: under the site's numbers when there is a
+  // site, and on its own when there is not (a development has jobs beneath it
+  // and no address of its own).
+  const jobTiles = kids.length === 0 ? null : (
+    <div className="stack" style={{ gap: 8 }}>
+      <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+        <StatLink href={viewHref({ jobs: jobs === "open" ? undefined : "open" })}
+          on={jobs === "open"} n={String(kidOpen.length)} label="open" />
+        <StatLink href={viewHref({ jobs: jobs === "working" ? undefined : "working" })}
+          on={jobs === "working"} n={String(kidWorking.length)} label="working" />
+        <StatLink href={viewHref({ jobs: jobs === "completed" ? undefined : "completed" })}
+          on={jobs === "completed"} n={String(kidDone.length)} label="completed" />
+      </div>
+
+      {kidEnded.length > 0 && (
+        <Link href={viewHref({ jobs: jobs === "ended" ? undefined : "ended" })} className="tiny"
+          style={{ margin: 0, color: jobs === "ended" ? "var(--color-accent)" : "var(--muted)" }} scroll={false}>
+          {kidEnded.length} {kidEnded.length === 1 ? "job was" : "jobs were"}{" "}
+          {[...new Set(kidEnded.map((k) => k.status.replace("Closed - ", "").toLowerCase()))].join(" or ")}.
+        </Link>
+      )}
+
+      {kidList && (
+        <div className="stack" style={{ gap: 6 }}>
+          {kidList.length === 0 && (
+            <Card soft pad><div className="small">No job beneath this one is {jobs}.</div></Card>
+          )}
+          {[...kidList]
+            .sort((a, b) => (openByProject.get(b.project_id) ?? 0) - (openByProject.get(a.project_id) ?? 0)
+              || a.project_name.localeCompare(b.project_name))
+            .map((k) => {
+              const n = openByProject.get(k.project_id) ?? 0;
+              return (
+                <Link href={`/project/${k.project_id}`} className="home-row" key={k.project_id}>
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">{k.project_name}</span>
+                    <span className="m" style={{ display: "block" }}>
+                      {[k.seat && !runs(k) ? k.seat : null, k.status].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                  {n > 0
+                    ? <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>{n} open</span>
+                    : <ChevronIcon />}
+                </Link>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <Screen>
@@ -195,6 +271,10 @@ export default async function ProjectPage({
             <Stat n={String(packages.filter((p) => p.status === "open").length)} label="out to bid" />
             <Stat n={money(roll?.owed ?? seat.owed) ?? "—"} label="owed" />
           </div>
+
+          {/* The jobs beneath, counted, directly under the numbers above. */}
+          {jobTiles}
+
           {late.length > 0 && (
             <Notice kind="error" title={`${late.length} ${late.length === 1 ? "task is" : "tasks are"} late.`}>
               The oldest was due {shortDate(late.sort((a, b) => (a.target_date ?? "").localeCompare(b.target_date ?? ""))[0]!.target_date)}.
@@ -211,34 +291,11 @@ export default async function ProjectPage({
           </>
         )}
 
-        {/* What sits beneath this one. A development lists its homes, a home
-            lists its jobs - the same order as the board, busiest first. */}
-        {kids.length > 0 && (
-          <section className="stack" style={{ gap: 8 }}>
-            <div className="divider-label">
-              {kids.length} {kids.length === 1 ? "job beneath" : "jobs beneath"}
-            </div>
-            {[...kids]
-              .sort((a, b) => (openByProject.get(b.project_id) ?? 0) - (openByProject.get(a.project_id) ?? 0)
-                || a.project_name.localeCompare(b.project_name))
-              .map((k) => {
-                const n = openByProject.get(k.project_id) ?? 0;
-                return (
-                  <Link href={`/project/${k.project_id}`} className="home-row" key={k.project_id}>
-                    <span className="grow" style={{ minWidth: 0 }}>
-                      <span className="t">{k.project_name}</span>
-                      <span className="m" style={{ display: "block" }}>
-                        {[k.seat && !runs(k) ? k.seat : null, k.status].filter(Boolean).join(" · ")}
-                      </span>
-                    </span>
-                    {n > 0
-                      ? <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>{n} open</span>
-                      : <ChevronIcon />}
-                  </Link>
-                );
-              })}
-          </section>
-        )}
+        {/* The jobs beneath, as three counts rather than a list (Shahar,
+            2026-09-11). A property with a dozen jobs under it made a wall of
+            rows above everything else on the screen; what a person wants at a
+            glance is how many are moving. Tapping one opens that list. */}
+        {!seat.address && jobTiles}
 
         {/* Scope used to be a row here. It is a ONE-TIME job, normally done
             when the project is created (Shahar, 2026-09-11), so it moved
@@ -505,6 +562,22 @@ function Chip({ href, on, label }: { href: string; on: boolean; label: string })
       className={`tag ${on ? "" : "tag-neutral"}`}
       style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }} scroll={false}>
       {label}
+    </Link>
+  );
+}
+
+// A tile that is also a filter: tapping it opens the list behind the count,
+// tapping it again puts the list away.
+function StatLink({ href, on, n, label }: { href: string; on: boolean; n: string; label: string }) {
+  return (
+    <Link href={href} aria-current={on ? "page" : undefined} scroll={false}
+      className="tile" style={{
+        minHeight: 0, alignItems: "flex-start", textAlign: "left", gap: 2, padding: "12px 12px 10px",
+        textDecoration: "none", color: "inherit",
+        boxShadow: on ? "0 0 0 2px var(--color-accent) inset" : undefined,
+      }}>
+      <div className="mono" style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22 }}>{n}</div>
+      <div className="tiny text-muted">{label}</div>
     </Link>
   );
 }
