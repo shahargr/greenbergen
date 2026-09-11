@@ -153,6 +153,7 @@ the app is small.
 | `homeowner_task_update(project, action, note, file_ids[], complete)` | Post an update with attachments; closes only when `complete`. |
 | `files` / `file_links` / `record_project_file` / `project-media` bucket | Documents and photos, with entitlement and quota checks. `files.vantage_point` keys a photo to a package slot. |
 | `portal_bid_package`, `portal_bid_reply`, `portal_bid_negotiate`, `portal_bid_award`, `portal_bid_invite` (migration 064) | The bid package screen, `/project/[id]/bids/[pkg]`: the scope lines, every bidder with their number, and the three writes that happen on site — take down what he quoted, run a negotiation round, award. **Two rounds before any award** (help topic `contractors`): `portal_bid_negotiate` records each one against the bid with its date and what was said, so the screen can show how far it got. The desk version (full terms sheet, line-by-line comparison, AI review) stays in the portal. |
+| `projects.package_code` / `project_face_url(project)` (migration 071) | **A job of a known type wears that type's picture.** `package_code` is the catalogue package a project IS — written by `homeowner_book` (DIY and turn-key alike: both write a booking, both are a package), accepted by `create_home_project` so the portal's featured tiles carry it, backfilled from `project_bookings`. `project_face_url` returns that type's `blueprint_packages.photo_url` — a PUBLIC url, never a copy in the project's private bucket, because twenty generator jobs share one picture. The face is chosen: own cover → job type's photo → the house above → own photos. `portal_my_work` carries it as `cover_url` beside the private `cover` path; `faceUrl(seat, signed)` in `lib/board.ts` is the one place that picks. |
 | `project_face_photo_id(project)` / `project_cover_set(project, file)` (migrations 062–063) | The face of a project on the board and on `/project/[id]`: its chosen cover, else the house's above it, else its newest photo that is not money evidence. Whoever runs the site (rank 50 and up) chooses one from behind the gear on the project screen (`ProjectSetup`) - upload to `<project>/photos/`, `record_project_file`, then `project_cover_set`, which refuses a check or a receipt. The portal's Setup tab offers the same album on every project. |
 | `homeowner_photos` / `homeowner_photo_add` | The photo request and its checklist. |
 | `messages` | The in-app thread (`channel = 'in app'`), already used by both sides. |
@@ -349,6 +350,27 @@ complete (`portal_project_close`) or cancel with a reason
 (`portal_project_cancel`), plus the superadmin reopen. Those forms are
 server-rendered on the page and passed into `ProjectSetup` (a client
 component) as the `lifecycle` slot.
+
+### C12c · A development (`/project/[id]` with no address)
+**BUILT 2026-09-11.** A development is a folder of properties, not a
+site. The nine panels ask it questions it cannot answer — "trades on
+site this week" of a thing that is not a place, "open tasks on this
+site" of four sites at once. Shahar: *"top level should show different
+view, higher one on projects only. design and deploy a view that shows
+at a higher level the project under it (only its children)."*
+
+So a project with no address of its own and children beneath it renders
+the **portfolio** instead: three roll-ups across everything beneath
+(properties under way, open tasks across them all, owed), then one
+`PropertyCard` per live property with its own face and its own rolled-up
+numbers, then the finished ones as quiet rows. Nothing else — no panels,
+no task list, no week. The gear on the photo still works.
+
+Every number about a project is the FAMILY's, never the row's:
+`openBeneath(seats, tasks)` in `lib/board.ts`. A container carries no
+tasks of its own (`fn_actions_not_on_property`), so counting the rows on
+55 Walnut said "not started" about a house with 150 open tasks on the
+jobs under it.
 
 ### C13 · Finish and social proof
 See §10.
