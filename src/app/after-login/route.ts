@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { landing, loadDoors } from "@/lib/doors";
+import { landing } from "@/lib/doors";
+import { loadDoors } from "@/lib/doors.server";
 
 // The one place a successful sign-in lands, whichever way it arrived: the
 // emailed code (the login form pushes here), the magic link and Google

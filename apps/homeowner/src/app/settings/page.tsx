@@ -4,6 +4,7 @@ import { signedUrls } from "@/lib/booking";
 import { createClient } from "@shared/supabase/server";
 import { AppBar, Card, ChevronIcon, DoorSwitch, Notice, Screen } from "@shared/ui";
 import { loadDoors } from "@shared/doors.server";
+import { DefaultDoor } from "@shared/DefaultDoor";
 import { HomePhoto } from "./HomePhoto";
 import { InviteForm } from "@shared/invite/InviteForm";
 import { inviteToHome, removeHome, saveHome, signOut } from "./actions";
@@ -177,6 +178,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             invite_peer decides the kind and the quota; every field is
             optional; the link comes back here to copy or share. */}
         <InviteForm base="/settings" token={token} who={who} kind={kind} />
+
+        {/* Where you land when you sign in, when there is more than one
+            door to land in (migration 076). The picker screen is gone;
+            this is where the answer lives. */}
+        <DefaultDoor held={doors.held} current={doors.default_door} />
 
         <DoorSwitch held={doors.held} current="homeowner" />
 

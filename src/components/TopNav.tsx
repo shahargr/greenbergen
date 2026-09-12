@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getMe } from "@/lib/serverMe";
 import { Wordmark } from "@/components/SiteHeader";
+import { DoorMask } from "@/components/DoorMask";
 import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
 import { MaskMenu, type Person } from "@/components/MaskMenu";
@@ -34,12 +35,6 @@ const SettingsIcon = () => (
   </svg>
 );
 
-const DoorsIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" />
-    <rect x="3" y="13" width="8" height="8" rx="1.5" /><rect x="13" y="13" width="8" height="8" rx="1.5" />
-  </svg>
-);
 
 const SignOutIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -179,9 +174,12 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
-          {/* Switch door: the same picker /after-login uses. Next to Sign out
-              because they are the two ways to stop being here as this hat. */}
-          <Link href="/choose" className="iconlink" title="Switch door" aria-label="Switch door"><DoorsIcon /></Link>
+          {/* Switch door: the mask, opened right here. The picker screen it
+              used to go to is gone (Shahar, 2026-09-12) - every sign-in lands
+              in a door now, and this is how you cross to another one. Next to
+              Sign out because they are the two ways to stop being here as
+              this hat. */}
+          <DoorMask current="admin" />
           <form action={signOut} style={{ display: "inline-flex" }}>
             <button className="iconlink" title="Sign out" aria-label="Sign out"><SignOutIcon /></button>
           </form>

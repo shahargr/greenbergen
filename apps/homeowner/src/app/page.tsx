@@ -8,6 +8,7 @@ import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { SITE_ORIGIN } from "@shared/site";
 import { loadDoors } from "@shared/doors.server";
+import { DOORS, landingDoor } from "@shared/doors";
 import { loadShowcase, type House } from "@/lib/showcase";
 import { Scene, SceneMore } from "@/components/Scene";
 import { VoiceAsk } from "@/components/VoiceAsk";
@@ -39,9 +40,14 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
   // A member does not need the shop window. One door: their projects.
   // Several doors (Shahar holds all three): the picker on the portal,
   // never a silent drop into this one app.
+  // A member does not need the shop window. There is no picker any more
+  // (Shahar, 2026-09-12) - somebody who also works on homes lands in the
+  // Professionals app, which is their default unless they said otherwise in
+  // settings, and the mask in the top bar is how they cross back.
   if (signedIn && !ref) {
     const doors = await loadDoors();
-    redirect(doors.held.length > 1 ? `${SITE_ORIGIN}/choose` : "/project");
+    const land = landingDoor(doors);
+    redirect(land && land !== "homeowner" ? DOORS[land].url : "/project");
   }
 
   let inviter: RefPreview | null = null;

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DoorMask } from "./DoorMask";
 import type { ReactNode } from "react";
 import { DOORS, DOOR_ORDER, JOIN, NOT_SELF_SERVE, type DoorKey } from "./doors";
 import { BackButton } from "./BackButton";
@@ -235,13 +236,12 @@ export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/i
           <HouseIcon />
         </Link>
       )}
-      {/* Switch seat. One login opens every door you hold, so there is nothing
-          to sign out of - this goes to the picker on the portal, which sends
-          a one-door person straight back where they were. Signing out is an
-          account act and stays behind the gear. */}
-      <a href={`${DOORS.portal.url}/choose`} className="btn btn-ghost btn-icon" aria-label="Switch seat" title="Switch seat">
-        <DoorsIcon />
-      </a>
+      {/* Switch door. One login opens every door you hold, so there is nothing
+          to sign out of - this opens the mask right here rather than sending
+          anybody to a screen to be asked (the picker is gone: Shahar,
+          2026-09-12). Signing out is an account act and stays behind the
+          gear. */}
+      <DoorMask />
       <Link href={gearHref} className="btn btn-ghost btn-icon" aria-label="Your account">
         <GearIcon />
       </Link>

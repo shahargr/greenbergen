@@ -869,3 +869,27 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .visit-prev > summary::-webkit-details-marker { display: none; }
 .visit-prev .mark { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); flex: none; margin-right: 2px; }
 .visit-prev[open] .mark { transform: rotate(-135deg); margin-top: 4px; }
+
+
+/* THE DOOR MASK in the top bar (Shahar, 2026-09-12) - what replaced the
+   "Where to?" screen. A <details>, so it opens with no JavaScript; the panel
+   hangs off the right edge of the header where the icon is. */
+.door-mask { position: relative; display: inline-flex; }
+.door-mask > summary { list-style: none; cursor: pointer; }
+.door-mask > summary::-webkit-details-marker { display: none; }
+.door-mask[open] > summary { background: var(--color-soft-2); }
+.door-mask-panel {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 40;
+  min-width: 244px; max-width: min(300px, calc(100vw - 24px));
+  padding: 10px 0 2px; background: var(--color-surface);
+  border-radius: var(--radius-tile); box-shadow: 0 10px 30px rgba(22, 21, 19, .16), 0 0 0 1px var(--color-divider);
+}
+.door-mask-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  text-decoration: none; color: inherit;
+}
+.door-mask-row:hover { background: var(--color-soft-2); }
+.door-mask-row .ic { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--color-soft-2); }
+.door-mask-row:hover .ic { background: var(--color-surface); }
+.door-mask-row .t { display: block; font-weight: 700; font-size: 14px; line-height: 1.15; }
+.door-mask-row .m { display: block; font-size: 11.5px; color: var(--muted); }

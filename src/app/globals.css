@@ -1436,3 +1436,22 @@ a.homepanel-alert:hover { text-decoration: underline; }
 .usage-peak { position: absolute; top: 0; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .usage-people td, .usage-people th { font-size: 13px; white-space: nowrap; }
 .usage-people td:first-child { white-space: normal; min-width: 160px; }
+
+
+/* THE DOOR MASK in the top bar (Shahar, 2026-09-12) - what replaced the
+   "Where to?" screen. A <details>, so it opens with no JavaScript. */
+.door-mask { position: relative; display: inline-flex; }
+.door-mask > summary { list-style: none; cursor: pointer; }
+.door-mask > summary::-webkit-details-marker { display: none; }
+.door-mask-panel {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
+  min-width: 250px; max-width: min(320px, calc(100vw - 24px));
+  padding: 8px 0 4px; background: #fff; color: #1a1a1a;
+  border: 1px solid #e3e0da; border-radius: 12px; box-shadow: 0 12px 30px rgba(0, 0, 0, .16);
+}
+.door-mask-head { padding: 4px 14px 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8a8378; }
+.door-mask-note { padding: 4px 14px 8px; font-size: 12px; color: #8a8378; }
+.door-mask-row { display: block; padding: 8px 14px; text-decoration: none; color: inherit; }
+.door-mask-row:hover { background: #f6f4f0; text-decoration: none; }
+.door-mask-row strong { display: block; font-size: 14px; }
+.door-mask-row span { display: block; font-size: 12px; color: #8a8378; }

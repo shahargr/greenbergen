@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getMe, outstanding } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, DoorSwitch, Notice, Screen } from "@shared/ui";
 import { loadDoors } from "@shared/doors.server";
+import { DefaultDoor } from "@shared/DefaultDoor";
 import { InviteForm } from "@shared/invite/InviteForm";
 import { saveBusiness, signOut } from "./actions";
 
@@ -131,6 +132,11 @@ export default async function BusinessPage({ searchParams }: { searchParams: Pro
         {/* A contractor brings in the next contractor, or a homeowner they
             already work for. Same form, same function, as the homeowner app. */}
         <InviteForm base="/business" token={token} who={who} kind={kind} />
+
+        {/* Where you land when you sign in, when there is more than one
+            door to land in (migration 076). The picker screen is gone;
+            this is where the answer lives. */}
+        <DefaultDoor held={doors.held} current={doors.default_door} />
 
         <DoorSwitch held={doors.held} current="expert" />
 

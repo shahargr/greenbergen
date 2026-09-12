@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { landing, loadDoors, DOOR_URL } from "@/lib/doors";
+import { landing, DOOR_URL } from "@/lib/doors";
+import { loadDoors } from "@/lib/doors.server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,10 @@ export const dynamic = "force-dynamic";
 //   signed out  -> the homeowner app's front door (/home): what we do, the
 //                  houses, one way in. The one shop window.
 //   signed in   -> the same door logic as every sign-in (/after-login,
-//                  landing()): one door lands in its app, several ask at
-//                  /choose. No interstitial.
+//                  landing()): straight into the door they belong in. There
+//                  is no picker any more (Shahar, 2026-09-12) - their own
+//                  default if they set one, else Professionals, else
+//                  Homeowner. No interstitial of any kind.
 // The book of houses and the tally live on in public_company(); the
 // homeowner landing draws the showcase from it.
 export default async function Root() {

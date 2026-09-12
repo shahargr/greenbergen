@@ -90,6 +90,10 @@ export type Doors = {
   // Whether the expert door should show the board, the tasks and the money.
   manages: boolean;
   contractor_status: string | null;
+  // Where this person lands when they sign in, when they said (migration
+  // 076). Null means the house rule: Professionals if they hold it, else
+  // Homeowner, else the portal.
+  default_door: DoorKey | null;
 };
 
 export type DoorsRow = {
@@ -101,10 +105,12 @@ export type DoorsRow = {
   manages?: boolean;
   admin?: boolean;
   contractor_status?: string | null;
+  default_door?: string | null;
 };
 
 export const NO_DOORS: Doors = {
-  signed_in: false, name: null, email: null, held: [], manages: false, contractor_status: null,
+  signed_in: false, name: null, email: null, held: [], manages: false,
+  contractor_status: null, default_door: null,
 };
 
 // my_doors() returns one boolean per door; the app wants them in a fixed
@@ -121,5 +127,25 @@ export function readDoors(data: DoorsRow | null): Doors {
     held: DOOR_ORDER.filter((k) => has[k]),
     manages: !!data.manages,
     contractor_status: data.contractor_status ?? null,
+    default_door: DOOR_ORDER.find((k) => k === data.default_door) ?? null,
   };
+}
+
+
+// WHERE A PERSON LANDS, in one place so the three apps cannot disagree.
+//
+// Shahar (2026-09-12): "each user should have a default landing even if they
+// own multiple roles... home owner alone: land on home owner tab. home owner
+// and pro: default professional - able to update the default in settings."
+//
+// So: their own choice when they have made one and still hold that door, else
+// the working door, else the homeowner one, else the portal. Admin is never
+// the answer for somebody who holds another door - it is reached from the
+// mask in the top bar, and only shows there for somebody who has it.
+const LANDS: DoorKey[] = ["expert", "homeowner", "portal"];
+
+export function landingDoor(doors: Doors): DoorKey | null {
+  if (!doors.signed_in) return null;
+  if (doors.default_door && doors.held.includes(doors.default_door)) return doors.default_door;
+  return LANDS.find((k) => doors.held.includes(k)) ?? null;
 }
