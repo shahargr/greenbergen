@@ -5,18 +5,18 @@ import { Evidence, type Attached } from "@shared/Evidence";
 
 // The update box, with proof.
 //
-// It sits inside the server-action form and does one job the form cannot: it
-// holds the ids of files that were uploaded WHILE the note was being written,
-// and hands them over in a hidden field when Post is pressed. Same shape as
-// the scope screen's AddEvidence - upload as you go, so nothing is waiting on
-// Send and nothing is lost if the page reloads mid-thought.
+// It sits inside the task's ONE form and does the job the form cannot: it
+// holds the ids of files uploaded WHILE the note was being written, and hands
+// them over in a hidden field when the form is saved. Upload as you go, so
+// nothing is waiting on Save and nothing is lost if the page reloads
+// mid-thought.
 //
-// A recording alone is a valid note (migration 037), so the button is live as
-// soon as there is either text or an attachment - not only when there is text.
+// The buttons used to live here, which is how the screen ended up with three
+// saves and Shahar lost a drawer full of edits to the wrong one (2026-09-12).
+// There is one Save now and it belongs to the form, not to this box.
 export function NoteBox({ projectId }: { projectId: string | null }) {
   const [files, setFiles] = useState<Attached[]>([]);
   const [text, setText] = useState("");
-  const ready = text.trim().length > 0 || files.length > 0;
 
   return (
     <>
@@ -28,11 +28,6 @@ export function NoteBox({ projectId }: { projectId: string | null }) {
       {/* No project, no evidence: record_project_file files against one, and
           a task without a project is a portal oddity, not a site note. */}
       {projectId && <Evidence projectId={projectId} caption="Note evidence" onChange={setFiles} />}
-
-      <button type="submit" name="complete" value="0" className="btn btn-primary btn-block" disabled={!ready}>
-        {files.length > 0 && !text.trim() ? "Post the recording" : "Post update"}
-      </button>
-      <button type="submit" name="complete" value="1" className="btn btn-secondary btn-block">Mark complete</button>
     </>
   );
 }

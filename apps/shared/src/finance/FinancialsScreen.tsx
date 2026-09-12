@@ -5,6 +5,7 @@ import { ChangeActions, ChangeOrderButton } from "./ChangeOrder";
 import { StageSheetButton } from "./StageSheet";
 import { LogPaymentButton } from "./LogPayment";
 import { TxEvidenceButton } from "./TxEvidence";
+import { TxEditButton } from "./TxEdit";
 import { changeTone, stageTone, usd, type FinContract, type FinEvidence, type Financials, type FinStage } from "./types";
 
 // PROJECT MONEY - one screen for the payor, the payee, the investor and the
@@ -224,8 +225,11 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
                   </span>
                   <Thumbs items={t.attachments} urls={urls} />
                   {(me.may_record || c.payee) && (
-                    <span style={{ display: "block", marginTop: 2 }}>
+                    <span className="row" style={{ display: "flex", gap: 4, marginTop: 2 }}>
                       <TxEvidenceButton txId={t.id} contractId={c.id} projectId={projectId} label={`${usd(t.moved ? t.amount : t.target_amount ?? t.amount)}${t.paid_on ? ` on ${shortDay(t.paid_on)}` : ""}`} />
+                      {/* A payment that was wrong, or came back (073). Only
+                          whoever may record one may correct one. */}
+                      {me.may_record && t.moved && <TxEditButton tx={t} methods={methods} />}
                     </span>
                   )}
                 </span>

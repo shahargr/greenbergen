@@ -17,34 +17,76 @@ function safeBack(raw: FormDataEntryValue | null): string {
   return s.startsWith("/") && !s.startsWith("//") ? s : "/tasks";
 }
 
+const txt = (v: FormDataEntryValue | null) => { const s = String(v ?? "").trim(); return s || null; };
+
 const to = (path: string, params: Record<string, string>) => {
   const p = new URLSearchParams(params);
   const q = p.toString();
   return q ? `${path}?${q}` : path;
 };
 
+// ONE SAVE FOR THE WHOLE TASK.
+//
+// Shahar (2026-09-12): "if i update multiple fields, and add a photo, and only
+// save at the end, I am losing pretty much all the fields I updated. please
+// make sure that save is applicable to all the fields I updated."
+//
+// He was right and it was the app's fault, not the database's. The screen had
+// THREE forms - the edit drawer, the update box and the payment drawer - each
+// with its own save button, and pressing the last one submitted only its own
+// third of the screen and then navigated away. Everything typed in the other
+// two went in the bin, silently.
+//
+// There is one form now and every button on it saves everything: the field
+// changes, the note and its attachments, and - when the button pressed was the
+// payment's - the payment too. Which button you used only decides what ELSE
+// happens, never what gets saved.
+//
+//   save       the fields, and the note if there is one
+//   complete   ...and close the task
+//   payment    ...and log the purchase
+//
+// And it STAYS on the task afterwards ("after clicking save, you should stay
+// on this very same line added, as sometime you would want to edit"), landing
+// on the entry it just posted with an Undo beside it.
 export async function saveTask(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const back = safeBack(formData.get("back"));
   const note = String(formData.get("note") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
-  const complete = String(formData.get("complete") ?? "") === "1";
-  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
-
-  // Evidence uploaded while the note was being written (migration 037). The
-  // ids are already real files - the picker uploaded and recorded each one
-  // as it was chosen - and the database drops any that do not belong to this
-  // task's project rather than linking them.
-  const fileIds = String(formData.get("file_ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-
+  const intent = String(formData.get("do") ?? "save");
+  const complete = intent === "complete";
+  const here = (extra: Record<string, string>, hash = "") =>
+    `${to(`/task/${id}`, { back, ...extra })}${hash}`;
   if (!id) redirect(back);
-  // A recording with no text IS a note, so evidence counts as something to post.
-  if (!note && fileIds.length === 0 && !complete) {
-    redirect(here({ error: "Write an update, attach something, or mark the task complete." }));
+
+  const fileIds = String(formData.get("file_ids") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  const supabase = await createClient();
+  // What to tell them, in the order it happened.
+  const said: string[] = [];
+  let noteId = "";
+
+  // 1. THE FIELDS. Only when the edit drawer was on the page - a crew member
+  //    who may not edit never sends them, and portal_task_edit changes only
+  //    what actually differs, so an untouched drawer is a no-op.
+  if (String(formData.get("has_fields") ?? "") === "1") {
+    const s = (k: string) => String(formData.get(k) ?? "").trim();
+    const { data, error } = await supabase.rpc("portal_task_edit", {
+      p_action_id: id,
+      p_patch: {
+        action: s("action"), desired_outcome: s("desired_outcome"), status: s("status"),
+        pending_on: s("pending_on"), pending_reason: s("pending_reason"),
+        pending_category: s("pending_category"), priority: s("priority"),
+        target_date: s("target_date"), assignee: s("assignee"),
+      },
+    });
+    if (error) redirect(here({ error: error.message, edit: "1" }));
+    if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save.", edit: "1" }));
+    const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
+    if (changed.length) said.push(`Saved: ${changed.join(", ")}`);
   }
 
-  const supabase = await createClient();
-
+  // 2. THE ENTRY. A recording with no text IS a note (migration 037).
   if (note || fileIds.length > 0) {
     const { data, error } = await supabase.rpc("add_task_comment", {
       p_action_id: id, p_body: note || null, p_file_ids: fileIds.length > 0 ? fileIds : null,
@@ -52,27 +94,124 @@ export async function saveTask(formData: FormData) {
     if (error || data?.ok === false) {
       redirect(here({ error: data?.reason ?? error?.message ?? "That update did not save." }));
     }
+    if (typeof data?.id === "string") noteId = data.id;
+    said.push(fileIds.length > 0 && !note
+      ? `Posted, with ${fileIds.length} attached`
+      : "Update posted");
   }
 
+  // 3. THE PURCHASE, when that is the button that was pressed.
+  if (intent === "payment") {
+    const money = (v: FormDataEntryValue | null) => {
+      const raw = String(v ?? "").replace(/[$,\s]/g, "");
+      if (!raw) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    const amount = money(formData.get("amount"));
+    if (amount == null || amount <= 0) redirect(here({ error: "Enter what it cost." }));
+    const payFiles = String(formData.get("payment_file_ids") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    const { data, error } = await supabase.rpc("task_payment_log", {
+      p_action: id,
+      p_amount: amount,
+      p_method: txt(formData.get("method")),
+      p_payee_name: txt(formData.get("payee")),
+      p_reference: txt(formData.get("reference")),
+      p_paid_on: txt(formData.get("paid_on")),
+      p_from_account: txt(formData.get("from_account")),
+      p_notes: txt(formData.get("notes")),
+      p_awaiting: String(formData.get("awaiting") ?? "") === "1",
+      p_file_ids: payFiles.length > 0 ? payFiles : null,
+    });
+    if (error) redirect(here({ error: error.message }));
+    if (data?.ok === false) redirect(here({ error: data.reason ?? "That payment did not save." }));
+    revalidatePath("/money");
+    said.push(data?.awaiting
+      ? `Logged — ${data?.paid_to ?? "they"} have a confirmation task open until it lands`
+      : `Logged against this task, paid to ${data?.paid_to ?? "them"}`);
+  }
+
+  // 4. CLOSING, last, because everything above belongs on the task whether it
+  //    closes or not.
   if (complete) {
     const { data, error } = await supabase.rpc("portal_close_task", {
-      p_action_id: id,
-      p_unlock_reason: reason || null,
+      p_action_id: id, p_unlock_reason: reason || null,
     });
     if (error) redirect(here({ error: error.message }));
     if (data?.ok === false) {
-      // NEEDS_PHOTO and REASON_TOO_SHORT are not failures, they are the
-      // database asking for the one thing it needs - so ask for it rather
-      // than reporting an error and losing what was typed.
-      const asking = data.code === "NEEDS_PHOTO" || data.code === "REASON_TOO_SHORT";
-      redirect(here({ error: data.reason ?? "That task did not close.", ...(asking ? { why: "1" } : {}) }));
+      // These are not failures, they are the database asking for the one
+      // thing it needs - and whatever else was saved above is already saved,
+      // so say so alongside the ask.
+      // NEEDS_PHOTO is the old name of NEEDS_EVIDENCE; a page deployed
+      // before migration 074 may still be asking for it.
+      const asking = data.code === "NEEDS_EVIDENCE" || data.code === "NEEDS_PHOTO" || data.code === "REASON_TOO_SHORT";
+      redirect(here({
+        error: data.reason ?? "That task did not close.",
+        ...(said.length ? { ok: `${said.join(" · ")}.` } : {}),
+        ...(asking ? { why: "1" } : {}),
+      }));
     }
   }
 
   revalidatePath("/tasks");
   revalidatePath("/");
+  revalidatePath("/inbox");
   revalidatePath(`/task/${id}`);
-  redirect(back);
+  // Closing is the one thing that finishes with the task, so that is the one
+  // time it goes back to the list.
+  if (complete) redirect(back);
+  redirect(here(
+    { ok: said.length ? `${said.join(" · ")}.` : "Nothing changed.", ...(noteId ? { undo: noteId } : {}) },
+    noteId ? `#n${noteId}` : "",
+  ));
+}
+
+// UNDO THE LINE YOU JUST ADDED. The entry comes off the task; anything
+// attached to it stays in the project's files, because the photograph was
+// real even when the sentence was wrong (migration 073).
+export async function undoNote(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const noteId = String(formData.get("note") ?? "");
+  const back = safeBack(formData.get("back"));
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
+  if (!id || !noteId) redirect(back);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_task_note_delete", { p_id: noteId });
+  if (error) redirect(here({ error: error.message }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That entry was not removed." }));
+  revalidatePath(`/task/${id}`);
+  revalidatePath("/inbox");
+  redirect(here({ ok: "Taken back. Anything you attached stays on the project." }));
+}
+
+// CORRECT A PAYMENT (migration 073). Shahar: "inside a task, i cannot edit the
+// transaction. it is status paid, however, it was refunded. where can we edit
+// the transactions from?" - nowhere, until now. portal_transaction_edit holds
+// every rule, including which states a person may set by hand; this shapes the
+// form and stays on the task.
+export async function editPayment(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const txn = String(formData.get("txn") ?? "");
+  const back = safeBack(formData.get("back"));
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
+  if (!id || !txn) redirect(back);
+  const s = (k: string) => String(formData.get(k) ?? "").trim();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_transaction_edit", {
+    p_id: txn,
+    p_patch: {
+      description: s("description"), amount: s("amount").replace(/[$,\s]/g, ""),
+      paid_on: s("paid_on"), method: s("method"), reference: s("reference"),
+      from_account: s("from_account"), payee: s("payee"), status: s("status"),
+    },
+  });
+  if (error) redirect(here({ error: error.message, money: "1" }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That payment did not change.", money: "1" }));
+  revalidatePath(`/task/${id}`);
+  revalidatePath("/money");
+  revalidatePath("/");
+  const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
+  redirect(here({ ok: changed.length ? `Payment updated: ${changed.join(", ")}.` : "Nothing changed on that payment." }));
 }
 
 // Change the task itself - subject, outcome, stage, who holds the ball,
@@ -143,52 +282,4 @@ export async function deleteTask(formData: FormData) {
   revalidatePath("/tasks");
   revalidatePath("/");
   redirect(back);
-}
-
-// WHAT THE TASK COST (migration 065). A sign bought online, a part from the
-// supply house, a permit fee: money that belongs to this task and to no
-// contract. task_payment_log owns every rule - who may record, which rails
-// need a reference, who was paid - and this only shapes the form.
-export async function logTaskPayment(formData: FormData) {
-  const id = String(formData.get("id") ?? "");
-  const back = safeBack(formData.get("back"));
-  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
-  if (!id) redirect(back);
-
-  const money = (v: FormDataEntryValue | null) => {
-    const s = String(v ?? "").replace(/[$,\s]/g, "");
-    if (!s) return null;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
-  };
-  const txt = (v: FormDataEntryValue | null) => { const s = String(v ?? "").trim(); return s || null; };
-
-  const amount = money(formData.get("amount"));
-  if (amount == null || amount <= 0) redirect(here({ error: "Enter what it cost." }));
-
-  const fileIds = String(formData.get("file_ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("task_payment_log", {
-    p_action: id,
-    p_amount: amount,
-    p_method: txt(formData.get("method")),
-    p_payee_name: txt(formData.get("payee")),
-    p_reference: txt(formData.get("reference")),
-    p_paid_on: txt(formData.get("paid_on")),
-    p_from_account: txt(formData.get("from_account")),
-    p_notes: txt(formData.get("notes")),
-    p_awaiting: String(formData.get("awaiting") ?? "") === "1",
-    p_file_ids: fileIds.length > 0 ? fileIds : null,
-  });
-  if (error) redirect(here({ error: error.message }));
-  if (data?.ok === false) redirect(here({ error: data.reason ?? "That payment did not save." }));
-
-  revalidatePath(`/task/${id}`);
-  revalidatePath("/money");
-  revalidatePath("/");
-  redirect(here({
-    ok: data?.awaiting
-      ? `Logged. ${data?.paid_to ?? "They"} have a confirmation task open until it lands.`
-      : `Logged against this task, paid to ${data?.paid_to ?? "them"}.`,
-  }));
 }

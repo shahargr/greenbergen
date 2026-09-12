@@ -11,9 +11,11 @@ export const DEFAULT_TAGLINE = "A real community, not just a marketplace.";
 // classes from warm-ink.css; no client state here.
 
 // Card - the white surface everything sits on, with an optional tag slot.
-export function Card({ children, className = "", pad = true, soft = false, tag }: { children: ReactNode; className?: string; pad?: boolean; soft?: boolean; tag?: ReactNode }) {
+export function Card({ children, className = "", pad = true, soft = false, tag, id }: { children: ReactNode; className?: string; pad?: boolean; soft?: boolean; tag?: ReactNode; id?: string }) {
   return (
-    <div className={`card ${pad ? "pad" : ""} ${soft ? "soft" : ""} ${className}`}>
+    // id: so a screen can send the browser straight to one card - the task
+    // page lands on the entry you just posted (migration 073).
+    <div id={id} className={`card ${pad ? "pad" : ""} ${soft ? "soft" : ""} ${className}`}>
       {tag && <span className="tag" style={{ position: "absolute", top: 12, left: 12, zIndex: 1 }}>{tag}</span>}
       {children}
     </div>

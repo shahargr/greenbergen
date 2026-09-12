@@ -28,7 +28,10 @@ export function PaymentBox({ projectId, methods, people }: {
 
   return (
     <>
-      <input type="hidden" name="file_ids" value={files.map((f) => f.id).join(",")} />
+      {/* Its OWN name: the note box in the same form already uses file_ids,
+          and two hidden fields of one name would hand the note's photos to
+          the payment and the receipt to the note. */}
+      <input type="hidden" name="payment_file_ids" value={files.map((f) => f.id).join(",")} />
 
       <div className="row" style={{ gap: 8 }}>
         <label className="field grow">
@@ -61,7 +64,11 @@ export function PaymentBox({ projectId, methods, people }: {
         </label>
         <label className="field grow">
           <span className="field-label">{needsRef ? "Reference (required)" : "Reference"}</span>
-          <input className="input" name="reference" required={needsRef}
+          {/* Not `required`: this box lives in the task's one form now, and an
+              HTML-required field in a shut drawer would block the Save button
+              at the other end of the screen. task_payment_log refuses a
+              missing reference in the person's own words instead. */}
+          <input className="input" name="reference"
             placeholder={m?.name === "Check" ? "Check number" : "Order or confirmation number"} />
         </label>
       </div>
@@ -94,9 +101,17 @@ export function PaymentBox({ projectId, methods, people }: {
         </span>
       </label>
 
-      <button className="btn btn-primary btn-block" disabled={!ready}>
+      {/* This button saves the WHOLE form - the field edits and the note too -
+          and logs the purchase as well. `do` is what tells the action which
+          button was pressed. */}
+      <button name="do" value="payment" className="btn btn-primary btn-block" disabled={!ready}>
         {ready ? `Log ${amount.trim().startsWith("$") ? amount.trim() : `$${amount.trim()}`} against this task` : "Log the payment"}
       </button>
+      {needsRef && (
+        <p className="tiny text-muted" style={{ margin: 0 }}>
+          This one needs a reference — a payment without one cannot be reconciled later.
+        </p>
+      )}
     </>
   );
 }
