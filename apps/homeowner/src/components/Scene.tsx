@@ -45,12 +45,15 @@ export function Scene({ t }: { t: Tile }) {
   );
 }
 
-// The tail of a rail: what is behind "all of them".
-export function SceneMore({ count, href = "/packages" }: { count: number; href?: string }) {
+// The tail of a rail: what is behind it. It used to count them - "All 20
+// packages" - which is our inventory, not the member's business (Shahar,
+// 2026-09-12: "remove the 20 packages, just leave more packages"). A count
+// only ever reads as either "that's it?" or "twenty things to read".
+export function SceneMore({ href = "/packages" }: { href?: string }) {
   return (
     <Link href={href} className="scene more">
       <span className="scene-more">
-        <strong>All {count} packages</strong>
+        <strong>More packages</strong>
         <span className="small text-muted">Every one pre-priced for the community.</span>
         <span className="chev">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"

@@ -129,7 +129,7 @@ export default async function TasksPage({
     <Screen>
       {focused
         ? <AppBar back={q({ project: undefined })} title={heading} sub={`${rows.length} open`} />
-        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" homeHref="/work" />} />}
+        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />}
       <div className="body">
         {board.degraded && <Notice kind="error" title="Some of this may be missing.">Try again in a moment.</Notice>}
 

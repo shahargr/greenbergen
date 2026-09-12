@@ -893,3 +893,45 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .door-mask-row:hover .ic { background: var(--color-surface); }
 .door-mask-row .t { display: block; font-weight: 700; font-size: 14px; line-height: 1.15; }
 .door-mask-row .m { display: block; font-size: 11.5px; color: var(--muted); }
+
+
+/* THE HOME SCREEN'S FIRST QUARTER (Shahar, 2026-09-12): "Let's start with an
+   image (25% of the screen, slightly faded, with a text on top stating: We
+   get things done around your house). Below, 25% of screen height for the
+   carousel."
+
+   So: a quarter of the viewport of photograph, faded under a wash so the line
+   on top reads at any exposure, and the rail sized to the next quarter. Both
+   are clamped - on a short laptop window 25vh is too little to see and on a
+   tall one it is a billboard. */
+.home-hero {
+  position: relative; display: grid; place-items: center;
+  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-6)) 0;
+  height: 25vh; min-height: 150px; max-height: 260px;
+  background: var(--color-soft-2); overflow: hidden;
+}
+.home-hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Slightly faded: a wash over the photograph, dark enough that white type is
+   legible over a bright sky and light enough that it is still a photograph. */
+.home-hero::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(22, 21, 19, .28) 0%, rgba(22, 21, 19, .52) 100%);
+}
+.home-hero.drawn { color: var(--muted); }
+.home-hero.drawn::after { background: linear-gradient(180deg, rgba(22, 21, 19, .06), rgba(22, 21, 19, .16)); }
+.home-hero.drawn svg { width: 34%; max-width: 150px; height: auto; }
+.home-hero h1 {
+  position: relative; z-index: 1; margin: 0; padding: 0 var(--space-6);
+  text-align: center; color: #fff; font-size: 23px; line-height: 1.15; letter-spacing: -0.01em;
+  text-shadow: 0 1px 14px rgba(22, 21, 19, .45);
+}
+.home-hero.drawn h1 { color: var(--color-text); text-shadow: none; }
+
+/* The rail, sized to its own quarter of the screen. The card is square-ish
+   and the caption sits under it, so the height is the picture plus two lines
+   of type - clamped the same way. */
+.scenes.tall { height: clamp(150px, 25vh, 250px); align-items: stretch; }
+.scenes.tall .scene { height: 100%; }
+.scenes.tall .scene-pic { aspect-ratio: auto; flex: 1; min-height: 0; }
+.scenes.tall .scene-cap { flex: none; }
+.scenes.tall .scene.more { justify-content: center; }

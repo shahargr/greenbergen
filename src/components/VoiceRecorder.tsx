@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // In-app voice recorder (MediaRecorder). Records, previews, and hands the
 // audio Blob to the parent - which ships it to Supabase Storage while the
@@ -10,6 +10,24 @@ export function VoiceRecorder({ onReady }: { onReady: (blob: Blob | null) => voi
   const [seconds, setSeconds] = useState(0);
   const [url, setUrl] = useState<string | null>(null);
   const recRef = useRef<MediaRecorder | null>(null);
+  // WHICH MICROPHONE. Shahar (2026-09-12): "you already mentioned that you
+  // will get the opportunity to select microphone when working on a computer
+  // with more than one microphone. you failed to do this across all screens?"
+  // He was right. The apps share useMicrophones for this; the portal does not
+  // compile apps/ (see CLAUDE.md), so it keeps the same rule here. The browser
+  // picks the system default otherwise - on a Mac usually the built-in one
+  // even with a USB mic plugged in - and never says which it chose.
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
+  const [micId, setMicId] = useState("");
+  const readMics = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices?.enumerateDevices();
+      const ins = (all ?? []).filter((d) => d.kind === "audioinput");
+      setMics(ins);
+      setMicId((cur) => (cur && ins.some((d) => d.deviceId === cur) ? cur : ins[0]?.deviceId ?? ""));
+    } catch { /* no permission yet: the system default is used */ }
+  }, []);
+  useEffect(() => { void readMics(); }, [readMics]);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -20,7 +38,11 @@ export function VoiceRecorder({ onReady }: { onReady: (blob: Blob | null) => voi
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: micId ? { deviceId: { exact: micId } } : true,
+      });
+      // The first grant is what unlocks the device labels.
+      void readMics();
       const mime = MediaRecorder.isTypeSupported("audio/mp4")
         ? "audio/mp4"
         : MediaRecorder.isTypeSupported("audio/webm")
@@ -76,6 +98,14 @@ export function VoiceRecorder({ onReady }: { onReady: (blob: Blob | null) => voi
         <div>
           <button type="button" className="btn ghost" onClick={start}>🎙 Record voice</button>
         </div>
+      )}
+      {mics.length > 1 && state !== "recording" && (
+        <label className="btn-row" style={{ alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span className="muted small" style={{ flex: "none" }}>Microphone</span>
+          <select className="input" value={micId} onChange={(e) => setMicId(e.target.value)} style={{ maxWidth: 260 }}>
+            {mics.map((d, n) => <option key={d.deviceId || n} value={d.deviceId}>{d.label || `Microphone ${n + 1}`}</option>)}
+          </select>
+        </label>
       )}
       {state === "recording" && (
         <div className="btn-row">

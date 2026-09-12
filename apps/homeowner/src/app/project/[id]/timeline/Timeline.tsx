@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
+import { useMicrophones } from "@shared/useMicrophones";
+import { MicPicker } from "@shared/MicPicker";
 import { friendly } from "@shared/rpc";
 import { clock } from "@shared/format";
 import type { Message } from "@/lib/booking";
@@ -22,6 +24,9 @@ export function Timeline({ projectId, messages, urls, counterpart, canSend }: { 
   const [rec, setRec] = useState<"idle" | "recording" | "unsupported">("idle");
   const [secs, setSecs] = useState(0);
   const recRef = useRef<MediaRecorder | null>(null);
+  // Which microphone, remembered and named - the same picker every recorder
+  // in the system now has (useMicrophones).
+  const { mics, micId, setMicId, constraint, micName, read: readMics } = useMicrophones();
   const chunks = useRef<Blob[]>([]);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -39,7 +44,9 @@ export function Timeline({ projectId, messages, urls, counterpart, canSend }: { 
   async function startRec() {
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) { setRec("unsupported"); return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: constraint });
+      // The first grant is what unlocks the device labels.
+      void readMics();
       const mime = MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
       const r = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
       chunks.current = [];
@@ -147,6 +154,7 @@ export function Timeline({ projectId, messages, urls, counterpart, canSend }: { 
             <div className="rec">
               <div className="row"><div className="bars">{Array.from({ length: 14 }).map((_, i) => <span key={i} />)}</div><strong className="mono">{fmt(secs)}</strong></div>
               <p className="small text-muted" style={{ margin: 0 }}>Recording. Voice notes stay on the timeline like everything else.</p>
+              <MicPicker mics={mics} micId={micId} setMicId={setMicId} micName={micName} recording />
               <div className="row">
                 <button type="button" className="btn btn-secondary" onClick={() => stopRec(true)}>Cancel</button>
                 <button type="button" className="btn btn-primary" onClick={() => stopRec(false)}>Stop &amp; attach</button>

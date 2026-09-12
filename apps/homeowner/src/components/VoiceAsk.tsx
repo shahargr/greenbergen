@@ -6,6 +6,8 @@ import { createClient } from "@shared/supabase/client";
 import { friendly } from "@shared/rpc";
 import { Notice, StatusHero } from "@shared/ui";
 import { Sheet } from "@shared/finance/Sheet";
+import { useMicrophones } from "@shared/useMicrophones";
+import { MicPicker } from "@shared/MicPicker";
 import { JoinForm } from "@/app/join/JoinForm";
 
 // "TELL ME WHAT YOU WOULD LIKE TO DO IN THE HOUSE" (Shahar, 2026-09-11).
@@ -37,6 +39,10 @@ export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signe
   const [blob, setBlob] = useState<Blob | null>(null);
   const [url, setUrl] = useState<string>("");
   const [secs, setSecs] = useState(0);
+  // Which microphone, remembered and named (useMicrophones). Shahar
+  // (2026-09-12): "you failed to do this across all screens?" - he was right,
+  // it was on one recorder and there are four.
+  const { mics, micId, setMicId, constraint, micName, read: readMics } = useMicrophones();
   const [recording, setRecording] = useState(false);
   const [homes, setHomes] = useState<Home[] | null>(null);
   const [pick, setPick] = useState<string>(ELSEWHERE);
@@ -92,7 +98,7 @@ export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signe
       return;
     }
     let stream: MediaStream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: constraint }); void readMics(); }
     catch { setErr("No microphone. Allow it in your browser settings and try again."); return; }
     const mr = new MediaRecorder(stream);
     chunks.current = [];
@@ -181,6 +187,8 @@ export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signe
               <p className="small text-muted" style={{ margin: 0 }}>
                 Say it the way you would to a neighbour: the room, what bothers you, what you have in mind. A person listens and comes back to you. Nothing is charged.
               </p>
+              <MicPicker mics={mics} micId={micId} setMicId={setMicId} micName={micName} recording={recording} />
+
               {!blob && !recording && (
                 <button type="button" className="btn btn-primary btn-block" onClick={() => void startRec()}><MicIcon /> Start recording</button>
               )}

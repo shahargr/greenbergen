@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "./supabase/client";
 import { friendly } from "./rpc";
+import { useMicrophones } from "./useMicrophones";
+import { MicPicker } from "./MicPicker";
 
 // EVIDENCE, the way the scope screen does it: upload the file, record it with
 // record_project_file, then hand the id up. In that order, so a files row
@@ -28,10 +30,7 @@ const kindOf = (mime: string, name: string) =>
 
 const ICON: Record<string, string> = { photo: "🖼", video: "🎬", audio: "🎙", document: "📄", other: "📎" };
 
-// The name of the microphone in use, when the browser will say. Labels are
-// empty until a person has granted the microphone once.
-const micName = (mics: MediaDeviceInfo[], id: string) =>
-  mics.find((d) => d.deviceId === id)?.label || undefined;
+
 
 export function Evidence({
   projectId, caption = "Evidence", onChange, accept = "image/*,video/*,application/pdf", folder = "notes",
@@ -61,29 +60,8 @@ export function Evidence({
   const [recording, setRecording] = useState(false);
   const [secs, setSecs] = useState(0);
 
-  // WHICH MICROPHONE (Shahar, 2026-09-12: "my concern is that the computer
-  // used the internal microphone and not the one connected to USB. how can
-  // this be fixed?"). The browser picks the system default, which on a Mac is
-  // usually the built-in one even with a USB mic plugged in - and it never
-  // says which. So: list them and let a person choose, remember the choice,
-  // and always show the name of the one being used. Labels only appear once
-  // the browser has been given microphone permission at least once, which is
-  // why the list is read again after the first recording starts.
-  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
-  const [micId, setMicId] = useState<string>("");
-  const readMics = useCallback(async () => {
-    try {
-      const all = await navigator.mediaDevices?.enumerateDevices();
-      const ins = (all ?? []).filter((d) => d.kind === "audioinput");
-      setMics(ins);
-      setMicId((cur) => (cur && ins.some((d) => d.deviceId === cur) ? cur : ins[0]?.deviceId ?? ""));
-    } catch { /* no permission yet, or no API: the default is used */ }
-  }, []);
-  useEffect(() => {
-    void readMics();
-    navigator.mediaDevices?.addEventListener?.("devicechange", readMics);
-    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", readMics);
-  }, [readMics]);
+  // Which microphone, remembered, and always named (useMicrophones).
+  const { mics, micId, setMicId, constraint, micName, read: readMics } = useMicrophones();
 
   // A CAMERA BUTTON ONLY WHERE THERE IS A CAMERA. Shahar: "the take a photo
   // button opens up on my mac at attach file option, not the camera." It
@@ -158,9 +136,7 @@ export function Evidence({
     }
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: micId ? { deviceId: { exact: micId } } : true,
-      });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: constraint });
       // The first grant is what unlocks the device LABELS, so read them again.
       void readMics();
     } catch {
@@ -185,7 +161,7 @@ export function Evidence({
       setBusy("");
       // Say which microphone it came off, so "did it use the USB one" is a
       // question the screen answers instead of one you have to ask.
-      if (got) publish([...items, { ...got, mic: micName(mics, micId) }]);
+      if (got) publish([...items, { ...got, mic: micName }]);
     };
     rec.current = mr;
     started.current = Date.now();
@@ -262,27 +238,7 @@ export function Evidence({
         )}
       </div>
 
-      {/* WHICH MICROPHONE. Only when there is a choice to make, and it says
-          which one it will use either way. */}
-      {mics.length > 1 && (
-        <label className="row" style={{ gap: 8, alignItems: "center" }}>
-          <span className="tiny text-muted" style={{ flex: "none" }}>Microphone</span>
-          <select className="input" value={micId} onChange={(e) => setMicId(e.target.value)}
-                  disabled={recording} style={{ minHeight: 36, fontSize: 13, padding: "4px 34px 4px 10px" }}>
-            {mics.map((d, n) => (
-              <option key={d.deviceId || n} value={d.deviceId}>{d.label || `Microphone ${n + 1}`}</option>
-            ))}
-          </select>
-        </label>
-      )}
-      {mics.length === 1 && mics[0]?.label && !recording && (
-        <p className="tiny text-muted" style={{ margin: 0 }}>Recording on {mics[0].label}.</p>
-      )}
-      {recording && (
-        <p className="tiny text-muted" style={{ margin: 0 }}>
-          Recording on {micName(mics, micId) ?? "the default microphone"}.
-        </p>
-      )}
+      <MicPicker mics={mics} micId={micId} setMicId={setMicId} micName={micName} recording={recording} />
 
       <input ref={pick} type="file" multiple accept={accept} hidden
              onChange={(e) => void attach(e.target.files)} />

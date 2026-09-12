@@ -27,7 +27,7 @@ export default async function PackagesPage() {
   const dim = rest.filter((t) => !isOpen(t));
   return (
     <Screen>
-      <AppBar brand right={signedIn ? <ShellIcons  homeHref="/project" /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
+      <AppBar brand right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">

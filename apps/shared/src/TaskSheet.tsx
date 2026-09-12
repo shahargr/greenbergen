@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "./supabase/client";
 import { friendly } from "./rpc";
 import { Notice } from "./ui";
+import { useMicrophones } from "./useMicrophones";
+import { MicPicker } from "./MicPicker";
 
 // THE UPDATE SHEET, for every door.
 //
@@ -46,6 +48,9 @@ export function TaskSheet({
   const [note, setNote] = useState("");
   const [items, setItems] = useState<Attach[]>([]);
   const [recording, setRecording] = useState(false);
+  // Which microphone, remembered and named (useMicrophones) - the browser
+  // picks the system default otherwise and never says which it chose.
+  const { mics, micId, setMicId, constraint, micName, read: readMics } = useMicrophones();
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const recorder = useRef<MediaRecorder | null>(null);
@@ -73,7 +78,9 @@ export function TaskSheet({
   async function startRec() {
     setErr("");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: constraint });
+      // The first grant is what unlocks the device labels.
+      void readMics();
       const mr = new MediaRecorder(stream);
       chunks.current = [];
       mr.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
@@ -157,6 +164,8 @@ export function TaskSheet({
                 <button type="button" className="btn btn-secondary" onClick={() => camIn.current?.click()} disabled={recording}><CameraIcon /> Photo</button>
                 <button type="button" className="btn btn-ghost" onClick={() => fileIn.current?.click()} disabled={recording}>Attach files</button>
               </div>
+
+              <MicPicker mics={mics} micId={micId} setMicId={setMicId} micName={micName} recording={recording} />
 
               {items.length > 0 && (
                 <div className="stack" style={{ gap: 6 }}>

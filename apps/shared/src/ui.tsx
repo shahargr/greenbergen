@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { DoorMask } from "./DoorMask";
 import type { ReactNode } from "react";
 import { DOORS, DOOR_ORDER, JOIN, NOT_SELF_SERVE, type DoorKey } from "./doors";
 import { BackButton } from "./BackButton";
@@ -218,30 +217,30 @@ export function DoorSwitch({ held, current }: { held: DoorKey[]; current: DoorKe
   );
 }
 
-// The two icons that sit at the top right of every signed-in screen: the
-// inbox (with its count) and the gear. Small, quiet, and always in the same
-// place, so the shell never has to explain where the settings went.
-// The shell's destinations, top right: inbox, home, setup. This replaced the
-// bottom tab bar in the homeowner app (Shahar) - three icons in the header
-// cost no height and are where the thumb already goes for the gear.
-export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/inbox", homeHref }: { unread?: number; gearHref?: string; inboxHref?: string; homeHref?: string }) {
+// TWO ICONS, TOP RIGHT, AND NO MORE.
+//
+// Shahar (2026-09-12): "is the home button and the logo URL the same on every
+// page? if so, we can remove the home button. also, the icon of the log in as
+// 'home owner / professional / admin' can move under the settings section,
+// leaving only messages and settings."
+//
+// Both were true. The wordmark went to the app's root and the house icon to
+// its dashboard - two destinations that land on the same screen since the
+// root stopped being a second front page, so the house was a button that did
+// what the logo beside it already did. And switching doors is a rare,
+// deliberate act about your ACCOUNT: it belongs with the account, which is
+// behind the gear (DoorSwitch, on every settings screen), not in the header
+// of every page.
+//
+// What is left is the two things a person actually reaches for: what came in,
+// and everything else.
+export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/inbox" }: { unread?: number; gearHref?: string; inboxHref?: string }) {
   return (
     <span className="shell-icons">
       <Link href={inboxHref} className="btn btn-ghost btn-icon" aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}>
         <InboxIcon />
         {unread > 0 && <span className="dot-n">{unread > 9 ? "9+" : unread}</span>}
       </Link>
-      {homeHref && (
-        <Link href={homeHref} className="btn btn-ghost btn-icon" aria-label="Home">
-          <HouseIcon />
-        </Link>
-      )}
-      {/* Switch door. One login opens every door you hold, so there is nothing
-          to sign out of - this opens the mask right here rather than sending
-          anybody to a screen to be asked (the picker is gone: Shahar,
-          2026-09-12). Signing out is an account act and stays behind the
-          gear. */}
-      <DoorMask />
       <Link href={gearHref} className="btn btn-ghost btn-icon" aria-label="Your account">
         <GearIcon />
       </Link>

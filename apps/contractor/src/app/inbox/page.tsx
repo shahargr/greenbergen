@@ -50,7 +50,7 @@ export default async function InboxPage({
       {asAdmin
         ? <AppBar brand door="portal" home={DOORS.portal.url}
             right={<ShellIcons unread={unread} gearHref={`${DOORS.portal.url}/my/settings`} inboxHref={base} />} />
-        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" homeHref="/work" />} />}
+        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />}
       <div className="body">
         {ok && <div className="banner-ok">{ok}</div>}
         {error && <Notice kind="error">{error}</Notice>}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
-import { featured, isOpen, loadTiles } from "@shared/catalogue";
+import { featured, isOpen, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { unreadForShell } from "@shared/unread";
@@ -18,11 +18,17 @@ export const metadata = { title: "Green Bergen" };
 // catalogue first, then the member's own projects - planned, live, done,
 // cancelled - underneath, because a returning member scrolls to them while a
 // new one never has to. Homes themselves live in the profile.
-type Bucket = "all" | "planned" | "live" | "done" | "cancelled";
+// CANCELLED IS NOT ON THIS SCREEN. Shahar (2026-09-12): "the cancelled
+// section at the bottom of the page is a pointing finger to negative
+// experience likely - should not be here." A home screen whose last word is a
+// list of things that did not happen is an odd thing to greet somebody with,
+// and the record is not lost: a cancelled booking is still on its own project
+// page, and the ledger and the timeline still have all of it.
+type Bucket = "all" | "planned" | "live" | "done";
 const BUCKETS: { key: Bucket; label: string }[] = [
-  { key: "all", label: "All" }, { key: "planned", label: "DIY" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" }, { key: "cancelled", label: "Cancelled" },
+  { key: "all", label: "All" }, { key: "planned", label: "DIY" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" },
 ];
-const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> =>
+const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> | "cancelled" =>
   b.state === "planned" ? "planned" : b.state === "closed" ? "cancelled" : b.state === "done" ? "done" : "live";
 
 
@@ -33,9 +39,12 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // on the member's own read and the member's read does not wait on it.
   // loadSections went with the category headings: no section renders here any
   // more, so the round trip that fetched their labels was pure cost.
-  const [me, { tiles }] = await Promise.all([
+  const [me, { tiles }, settings] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("tiles", () => loadTiles()),
+    // The same photograph the front door opens on (config.landing_hero_url,
+    // migration 072), through the same cached read.
+    w.step("settings", () => loadPublicSettings()),
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/project");
@@ -62,11 +71,11 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
   const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;
-  const counts = { all: mine.length, planned: 0, live: 0, done: 0, cancelled: 0 } as Record<Bucket, number>;
-  for (const b of mine) counts[bucketOf(b)]++;
-  const shown = filter === "all" ? mine : mine.filter((b) => bucketOf(b) === filter);
+  const counts = { all: 0, planned: 0, live: 0, done: 0 } as Record<Bucket, number>;
+  for (const b of mine) { const k = bucketOf(b); if (k !== "cancelled") { counts[k]++; counts.all++; } }
+  const shown = mine.filter((b) => { const k = bucketOf(b); return k !== "cancelled" && (filter === "all" || k === filter); });
   const manyHomes = me.homes.length > 1;
-  const order: Exclude<Bucket, "all">[] = ["live", "planned", "done", "cancelled"];
+  const order: Exclude<Bucket, "all">[] = ["live", "planned", "done"];
   const href = (b: Bucket) => {
     const q = new URLSearchParams();
     if (onlyHome) q.set("home", onlyHome.project_id);
@@ -76,7 +85,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
   return (
     <Screen>
-      <AppBar brand door="homeowner" right={<ShellIcons unread={unread}  homeHref="/project" />} />
+      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} />} />
       <div className="body">
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
         {ok === "removed" && <div className="banner-ok">Removed from your DIY projects. Nothing was ever sent.</div>}
@@ -84,25 +93,36 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
         {me.degraded && <Notice kind="error" title="We couldn&apos;t load your homes just now.">Nothing is lost. <Link href="/project">Try again</Link>, and if it keeps happening tell us.</Notice>}
         <PhotoBanner bookings={me.bookings} />
 
-        <div className="hero">
-          <h1>Ready to take on a new project?</h1>
-          <p className="lead">
-            Every one of these has a number before anyone comes to look. Take it on yourself and
-            keep it in your DIY list, or hand it over turn-key and we run it. Tap one to see
-            what&apos;s included.
-          </p>
+        {/* A PICTURE, THEN THE SHELF (Shahar, 2026-09-12): "home screen
+            design is still crowded and complex, and it is hard to understand
+            what the system help me do. Let's start with an image (25% of the
+            screen, slightly faded, with a text on top stating: We get things
+            done around your house)."
+            And the paragraph under the old headline went with it - "not sure
+            why this text is necessary". It was three sentences explaining a
+            shelf that explains itself. */}
+        <div className={`home-hero ${settings.hero ? "" : "drawn"}`}>
+          {settings.hero
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={settings.hero} alt="" fetchPriority="high" />
+            : <Illustration name="house" />}
+          <h1>We get things done around your house</h1>
         </div>
         {scenes.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>
+            {/* "Chat what we do to community negotiated packages" and
+                "remove the 20 packages, just leave more packages" - the count
+                was our inventory, not their business, and the heading now
+                says what the shelf IS. */}
             <div className="row" style={{ alignItems: "center", gap: 10 }}>
-              <div className="divider-label" style={{ flex: 1 }}>What we do</div>
+              <div className="divider-label" style={{ flex: 1 }}>Community negotiated packages</div>
               <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
-                All {tiles.length} packages<ChevronIcon />
+                More packages<ChevronIcon />
               </Link>
             </div>
-            <div className="scenes" aria-label="Packages">
+            <div className="scenes four tall" aria-label="Packages">
               {scenes.map((t) => <Scene key={t.code} t={t} />)}
-              <SceneMore count={tiles.length} />
+              <SceneMore />
             </div>
           </section>
         )}
@@ -137,12 +157,12 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             still works - nothing links to it until the list can carry its own
             weight. */}
 
-        {/* The jobs - planned, live, done, cancelled. The list of HOMES is not
+        {/* The jobs - live, DIY, done. The list of HOMES is not
             here any more: it lives in the profile (gear), where it can be
             edited, and "add another home" is offered where it is actually
             needed - when a package is booked and the wizard asks which home.
             The ?home= filter still works for links that carry it. */}
-        {me.bookings.length > 0 ? (
+        {counts.all > 0 ? (
           <>
             <div className="divider-label" style={{ marginTop: 6 }}>
               {onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : "Your projects"}

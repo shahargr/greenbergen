@@ -160,7 +160,7 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
                 </div>
                 <div className="scenes four" aria-label="Featured packages">
                   {scenes.map((t) => <Scene key={t.code} t={t} />)}
-                  <SceneMore count={tiles.length} />
+                  <SceneMore />
                 </div>
               </section>
             )}

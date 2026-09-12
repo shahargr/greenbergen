@@ -33,7 +33,7 @@ export default async function ContractorsPage({ searchParams }: { searchParams: 
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons unread={unread} homeHref="/project" />} />
+      <AppBar brand right={<ShellIcons unread={unread} />} />
       <div className="body">
         <div className="hero">
           <h1>The contractors</h1>
