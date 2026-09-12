@@ -55,7 +55,11 @@ export async function saveTask(formData: FormData) {
   const note = String(formData.get("note") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
   const intent = String(formData.get("do") ?? "save");
-  const complete = intent === "complete";
+  // Choosing Completed in the Stage dropdown IS asking to close it, and it
+  // goes the same way the button does - through portal_close_task, which asks
+  // for the proof. The stage list may tell the truth without the gate moving.
+  const stageComplete = String(formData.get("status") ?? "") === "Completed";
+  const complete = intent === "complete" || (intent !== "payment" && stageComplete);
   const here = (extra: Record<string, string>, hash = "") =>
     `${to(`/task/${id}`, { back, ...extra })}${hash}`;
   if (!id) redirect(back);
@@ -71,14 +75,20 @@ export async function saveTask(formData: FormData) {
   //    what actually differs, so an untouched drawer is a no-op.
   if (String(formData.get("has_fields") ?? "") === "1") {
     const s = (k: string) => String(formData.get(k) ?? "").trim();
+    const patch: Record<string, string> = {
+      action: s("action"), desired_outcome: s("desired_outcome"),
+      pending_on: s("pending_on"), pending_reason: s("pending_reason"),
+      pending_category: s("pending_category"), priority: s("priority"),
+      target_date: s("target_date"), assignee: s("assignee"),
+    };
+    // The stage goes in the patch UNLESS it is Completed: portal_task_edit
+    // refuses that word (closing has a gate) and `complete` below takes it
+    // through portal_close_task instead. The key is left out rather than
+    // blanked - the function writes whatever it is handed, so an empty string
+    // would set the status to an empty string.
+    if (!stageComplete) patch.status = s("status");
     const { data, error } = await supabase.rpc("portal_task_edit", {
-      p_action_id: id,
-      p_patch: {
-        action: s("action"), desired_outcome: s("desired_outcome"), status: s("status"),
-        pending_on: s("pending_on"), pending_reason: s("pending_reason"),
-        pending_category: s("pending_category"), priority: s("priority"),
-        target_date: s("target_date"), assignee: s("assignee"),
-      },
+      p_action_id: id, p_patch: patch,
     });
     if (error) redirect(here({ error: error.message, edit: "1" }));
     if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save.", edit: "1" }));
@@ -100,16 +110,21 @@ export async function saveTask(formData: FormData) {
       : "Update posted");
   }
 
-  // 3. THE PURCHASE, when that is the button that was pressed.
-  if (intent === "payment") {
-    const money = (v: FormDataEntryValue | null) => {
-      const raw = String(v ?? "").replace(/[$,\s]/g, "");
-      if (!raw) return null;
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : null;
-    };
-    const amount = money(formData.get("amount"));
-    if (amount == null || amount <= 0) redirect(here({ error: "Enter what it cost." }));
+  // 3. THE PURCHASE - whenever one has been filled in, whichever button was
+  //    pressed. Shahar (2026-09-12): "when clicking update & close, this kills
+  //    anything we did in the log a payment section as it is outside that
+  //    section." It was true: only the payment's own button logged it. An
+  //    amount typed in is a payment somebody means to record, so every Update
+  //    records it. Nothing on this screen is lost by pressing the wrong save.
+  const money = (v: FormDataEntryValue | null) => {
+    const raw = String(v ?? "").replace(/[$,\s]/g, "");
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  const amount = money(formData.get("amount"));
+  if (intent === "payment" || amount != null) {
+    if (amount == null || amount <= 0) redirect(here({ error: "Enter what it cost.", money: "1" }));
     const payFiles = String(formData.get("payment_file_ids") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
     const { data, error } = await supabase.rpc("task_payment_log", {
       p_action: id,
@@ -123,8 +138,11 @@ export async function saveTask(formData: FormData) {
       p_awaiting: String(formData.get("awaiting") ?? "") === "1",
       p_file_ids: payFiles.length > 0 ? payFiles : null,
     });
-    if (error) redirect(here({ error: error.message }));
-    if (data?.ok === false) redirect(here({ error: data.reason ?? "That payment did not save." }));
+    // The fields and the comment above are already saved; say so with the
+    // refusal, and reopen the drawer so the payment is where they left it.
+    const kept = said.length ? `${said.join(" · ")} — but ` : "";
+    if (error) redirect(here({ error: kept + error.message, money: "1" }));
+    if (data?.ok === false) redirect(here({ error: kept + (data.reason ?? "that payment did not save."), money: "1" }));
     revalidatePath("/money");
     said.push(data?.awaiting
       ? `Logged — ${data?.paid_to ?? "they"} have a confirmation task open until it lands`

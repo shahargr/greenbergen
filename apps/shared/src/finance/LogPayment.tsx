@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Evidence, type Attached } from "../Evidence";
 import { Sheet } from "./Sheet";
 import { callFin } from "./call";
+import { createClient } from "../supabase/client";
 import type { FinMethod } from "./types";
 
 // A payment against the contract, no milestone needed - the check already
@@ -22,6 +23,20 @@ export function LogPaymentButton({ contractId, contractTitle, payeeName, project
   const [err, setErr] = useState("");
   const txId = useMemo(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : null), [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const [method, setMethod] = useState(methods[0]?.id ?? "");
+  // THE ACCOUNTS THIS JOB HAS ALREADY BEEN PAID FROM (migration 075). Shahar
+  // (2026-09-12): "can we start with nothing, but as data progress it is added
+  // to a drop down automatically (per project)." No list to maintain - it is
+  // the record, read when the sheet opens and empty on a new job.
+  const [accounts, setAccounts] = useState<string[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void (async () => {
+      const { data } = await createClient().rpc("portal_payment_accounts", { p_project: projectId });
+      if (live && Array.isArray(data)) setAccounts(data as string[]);
+    })();
+    return () => { live = false; };
+  }, [open, projectId]);
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
   const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10));
@@ -81,7 +96,12 @@ export function LogPaymentButton({ contractId, contractTitle, payeeName, project
             <div className="row" style={{ gap: 8, alignItems: "flex-end" }}>
               <div className="field grow">
                 <label htmlFor="lp-from">From which account</label>
-                <input id="lp-from" className="input" value={from} onChange={(e) => setFrom(e.target.value)} placeholder="55 Walnut, personal…" />
+                <input id="lp-from" className="input" value={from} onChange={(e) => setFrom(e.target.value)}
+                  list="fin-account-list" autoComplete="off"
+                  placeholder={accounts[0] ? `${accounts[0]}, or a new one` : "55 Walnut, personal…"} />
+                <datalist id="fin-account-list">
+                  {accounts.map((a) => <option key={a} value={a} />)}
+                </datalist>
               </div>
               <div className="field grow">
                 <label htmlFor="lp-inv">Their invoice</label>

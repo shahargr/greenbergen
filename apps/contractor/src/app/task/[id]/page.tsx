@@ -70,12 +70,22 @@ type Note = {
 const CLOSED = ["Completed", "Cancelled", "Force Cancelled", "Superseded"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// THE VOCABULARY IS THE DATABASE'S (rulebook 15). These are the open stages
-// of actions_status_check - Completed and Cancelled are not here because
-// closing goes through Mark complete, which records the why and the photo.
+// THE VOCABULARY IS THE DATABASE'S (rulebook 15) - the open stages of
+// actions_status_check, plus Completed.
+//
+// Completed used to be missing on purpose, because closing has to go through
+// portal_close_task, which asks for the proof. Shahar (2026-09-12): "this page
+// needs to be such that all that is required to close it is in one place...
+// i cannot seem to set the task stage to complete." He is right that the list
+// lying about the vocabulary is worse than the detour it was protecting: the
+// stage now offers Completed and choosing it routes through the same gate,
+// so the rule is kept and the dropdown tells the truth.
+//
+// Cancelled is still not here: it needs a reason and it is an ending, not a
+// stage - it lives under "This task will not happen".
 // Parked = you set it down; Pending on Others = you are blocked and the
 // unblock comes from outside, so it needs a reason (help: actions).
-const STAGES = ["Not Started", "In Progress", "Pending on Others", "Parked"] as const;
+const STAGES = ["Not Started", "In Progress", "Pending on Others", "Parked", "Completed"] as const;
 const PRIORITIES = ["Missing", "No Priority", "Low", "Medium", "High"] as const;
 const PENDING_KINDS = [["", "—"], ["decision", "A decision"], ["delivery", "A delivery"], ["inspection", "An inspection"], ["legal", "Legal / permit"], ["financial", "Money"]] as const;
 
@@ -106,6 +116,16 @@ export default async function TaskPage({
   if (!data) notFound();
 
   const t = data;
+  // THE ACCOUNTS THIS JOB HAS BEEN PAID FROM (migration 075). Shahar
+  // (2026-09-12): "have a place to update one's payment sources for easy
+  // select in the drop down. can we start with nothing, but as data progress
+  // it is added to a drop down automatically (per project)." There is no list
+  // to maintain - the list IS the record, most recently used first, empty on
+  // a new job. It costs a read only where money can be logged.
+  const { data: acctData } = t.can_log_payment && t.project_id
+    ? await w.step("accounts", () => rpc<string[]>(supabase, "portal_payment_accounts", { p_project: t.project_id }))
+    : { data: null };
+  const accounts = Array.isArray(acctData) ? acctData : [];
   const notes = Array.isArray(noteData) ? noteData : [];
   const people = (Array.isArray(targetData) ? targetData : []).find((x) => x.project_id === t.project_id)?.people ?? [];
   // The current assignee may sit on a parent project rather than this one;
@@ -315,7 +335,7 @@ export default async function TaskPage({
                   <span className="chev"><ChevronIcon /></span>
                 </summary>
                 <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-                  <PaymentBox projectId={t.project_id} methods={t.methods}
+                  <PaymentBox projectId={t.project_id} methods={t.methods} accounts={accounts}
                     people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
                 </div>
               </details>
@@ -329,10 +349,11 @@ export default async function TaskPage({
             <div className="stack" style={{ gap: 8 }}>
               <button name="do" value="save" className="btn btn-primary btn-block">Update &amp; close</button>
               <button name="do" value="complete" className="btn btn-secondary btn-block">Update &amp; mark complete</button>
-              <Link href={to} className="btn btn-ghost btn-block">Cancel / back</Link>
+              <Link href={to} className="btn btn-ghost btn-block">Discard &amp; go back</Link>
               <p className="tiny text-muted" style={{ margin: 0 }}>
                 Both Updates save everything on this screen — the fields, the comment, the files,
                 the payment. The first stays here so you can carry on; the second closes the task.
+                Discard leaves without saving any of it.
               </p>
             </div>
           </form>
@@ -347,12 +368,17 @@ export default async function TaskPage({
           <details className="home-panel">
             <summary className="home-row">
               <span className="grow" style={{ minWidth: 0 }}>
-                <span className="t">Cancel or delete</span>
-                <span className="m" style={{ display: "block" }}>It will not happen, or it was entered by mistake</span>
+                <span className="t">This task will not happen</span>
+                <span className="m" style={{ display: "block" }}>Call it off, or remove one entered by mistake</span>
               </span>
               <span className="chev"><ChevronIcon /></span>
             </summary>
             <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+              <p className="tiny text-muted" style={{ margin: 0 }}>
+                Not the same as Discard above: that one throws away what you typed and leaves the
+                screen. These two end the TASK — calling it off keeps it as a record with your
+                reason on it, deleting removes it as though it had never been entered.
+              </p>
               <form action={cancelTask} className="stack" style={{ gap: 8 }}>
                 <input type="hidden" name="id" value={t.id} />
                 <input type="hidden" name="back" value={to} />
@@ -360,12 +386,12 @@ export default async function TaskPage({
                   <span className="field-label">Why it will not happen <span className="text-muted">(optional)</span></span>
                   <input className="input" name="reason" placeholder="Scope changed · done by someone else · no longer needed" />
                 </label>
-                <button className="btn btn-secondary btn-block">Cancel this task</button>
+                <button className="btn btn-secondary btn-block">Call this task off</button>
               </form>
               <form action={deleteTask} className="stack" style={{ gap: 6 }}>
                 <input type="hidden" name="id" value={t.id} />
                 <input type="hidden" name="back" value={to} />
-                <button className="btn btn-ghost btn-block btn-danger">Delete it - it was a mistake</button>
+                <button className="btn btn-ghost btn-block btn-danger">Delete it — it was entered by mistake</button>
                 <p className="tiny text-muted" style={{ margin: 0 }}>Only a task nothing has been posted on, made by you or on a site you run. Anything else is cancelled, not deleted.</p>
               </form>
             </div>
@@ -454,7 +480,8 @@ export default async function TaskPage({
                     </div>
                     <label className="field">
                       <span className="field-label">From which account <span className="text-muted">(optional)</span></span>
-                      <input className="input" name="from_account" defaultValue={p.from_account ?? ""} />
+                      <input className="input" name="from_account" defaultValue={p.from_account ?? ""}
+                        list="task-account-list" autoComplete="off" />
                     </label>
                     <label className="field">
                       <span className="field-label">Where it stands</span>
@@ -476,6 +503,10 @@ export default async function TaskPage({
 
         <datalist id="task-payee-list">
           {people.map((x) => <option key={x.contact_id} value={x.name ?? ""} />)}
+        </datalist>
+        {/* Every account this job has already been paid from, newest first. */}
+        <datalist id="task-account-list">
+          {accounts.map((a) => <option key={a} value={a} />)}
         </datalist>
 
         {proof > 0 && (

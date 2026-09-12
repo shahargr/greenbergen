@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "./supabase/client";
 import { friendly } from "./rpc";
 
@@ -17,7 +17,7 @@ import { friendly } from "./rpc";
 // It uploads as it goes and reports ids through onChange, so the form it sits
 // in only has to submit them. Nothing here decides who may attach what: the
 // database checks that the file belongs to the project before it links it.
-export type Attached = { id: string; name: string; kind: string; preview?: string };
+export type Attached = { id: string; name: string; kind: string; preview?: string; mic?: string };
 
 const kindOf = (mime: string, name: string) =>
   mime.startsWith("image/") ? "photo"
@@ -27,6 +27,11 @@ const kindOf = (mime: string, name: string) =>
   : "other";
 
 const ICON: Record<string, string> = { photo: "🖼", video: "🎬", audio: "🎙", document: "📄", other: "📎" };
+
+// The name of the microphone in use, when the browser will say. Labels are
+// empty until a person has granted the microphone once.
+const micName = (mics: MediaDeviceInfo[], id: string) =>
+  mics.find((d) => d.deviceId === id)?.label || undefined;
 
 export function Evidence({
   projectId, caption = "Evidence", onChange, accept = "image/*,video/*,application/pdf", folder = "notes",
@@ -55,6 +60,42 @@ export function Evidence({
   const started = useRef<number>(0);
   const [recording, setRecording] = useState(false);
   const [secs, setSecs] = useState(0);
+
+  // WHICH MICROPHONE (Shahar, 2026-09-12: "my concern is that the computer
+  // used the internal microphone and not the one connected to USB. how can
+  // this be fixed?"). The browser picks the system default, which on a Mac is
+  // usually the built-in one even with a USB mic plugged in - and it never
+  // says which. So: list them and let a person choose, remember the choice,
+  // and always show the name of the one being used. Labels only appear once
+  // the browser has been given microphone permission at least once, which is
+  // why the list is read again after the first recording starts.
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
+  const [micId, setMicId] = useState<string>("");
+  const readMics = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices?.enumerateDevices();
+      const ins = (all ?? []).filter((d) => d.kind === "audioinput");
+      setMics(ins);
+      setMicId((cur) => (cur && ins.some((d) => d.deviceId === cur) ? cur : ins[0]?.deviceId ?? ""));
+    } catch { /* no permission yet, or no API: the default is used */ }
+  }, []);
+  useEffect(() => {
+    void readMics();
+    navigator.mediaDevices?.addEventListener?.("devicechange", readMics);
+    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", readMics);
+  }, [readMics]);
+
+  // A CAMERA BUTTON ONLY WHERE THERE IS A CAMERA. Shahar: "the take a photo
+  // button opens up on my mac at attach file option, not the camera." It
+  // does: capture="environment" is a hint phones honour and desktops ignore,
+  // so on a laptop the two buttons did exactly the same thing under two
+  // different names. This shows it only on a device that actually has a rear
+  // camera to open - a coarse pointer with no hover, which is a phone or a
+  // tablet.
+  const [handheld, setHandheld] = useState(false);
+  useEffect(() => {
+    setHandheld(window.matchMedia?.("(pointer: coarse) and (hover: none)")?.matches ?? false);
+  }, []);
 
   useEffect(() => {
     if (!recording) return;
@@ -85,7 +126,12 @@ export function Evidence({
     // record_project_file answers with the id, sometimes wrapped.
     const id = (typeof data === "string" ? data : data?.file_id ?? data?.id ?? null) as string | null;
     if (!id) { setErr("That file was uploaded but not recorded."); return null; }
-    return { id, name, kind, preview: kind === "photo" ? URL.createObjectURL(file) : undefined };
+    // A photo and a recording both keep a local url: one to look at, one to
+    // play back before it is posted.
+    return {
+      id, name, kind,
+      preview: kind === "photo" || kind === "audio" ? URL.createObjectURL(file) : undefined,
+    };
   }
 
   async function attach(files: FileList | null) {
@@ -112,7 +158,11 @@ export function Evidence({
     }
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: micId ? { deviceId: { exact: micId } } : true,
+      });
+      // The first grant is what unlocks the device LABELS, so read them again.
+      void readMics();
     } catch {
       // Denied, or no microphone. Both are the person's business, not an error.
       setErr("No microphone. Allow it in your browser settings, or attach a file instead.");
@@ -133,7 +183,9 @@ export function Evidence({
       const ext = type.includes("mp4") ? ".m4a" : type.includes("ogg") ? ".ogg" : ".webm";
       const got = await store(blob, `voice-note${ext}`, type);
       setBusy("");
-      if (got) publish([...items, got]);
+      // Say which microphone it came off, so "did it use the USB one" is a
+      // question the screen answers instead of one you have to ask.
+      if (got) publish([...items, { ...got, mic: micName(mics, micId) }]);
     };
     rec.current = mr;
     started.current = Date.now();
@@ -160,25 +212,41 @@ export function Evidence({
       {items.length > 0 && (
         <div className="stack" style={{ gap: 6 }}>
           {items.map((i) => (
-            <div className="row" key={i.id} style={{ gap: 10, alignItems: "center" }}>
-              {i.preview
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={i.preview} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flex: "none" }} />
-                : <span aria-hidden style={{ width: 40, height: 40, borderRadius: 8, background: "var(--color-soft-2)", display: "grid", placeItems: "center", flex: "none" }}>{ICON[i.kind] ?? "📎"}</span>}
-              <span className="grow small" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
-              <button type="button" className="btn btn-ghost small" onClick={() => remove(i.id)}>Remove</button>
-            </div>
+            // A RECORDING PLAYS RIGHT HERE (Shahar: "i cannot play it back
+            // after closing the record option to see what is there"). It was a
+            // filename and nothing else, so there was no way to know whether
+            // the microphone had heard you until the note was posted.
+            i.kind === "audio" ? (
+              <div className="stack" key={i.id} style={{ gap: 4 }}>
+                <div className="row" style={{ gap: 10, alignItems: "center" }}>
+                  <audio className="grow" src={i.preview} controls preload="metadata" style={{ height: 34, minWidth: 0 }} />
+                  <button type="button" className="btn btn-ghost small" onClick={() => remove(i.id)}>Remove</button>
+                </div>
+                {i.mic && <span className="tiny text-muted">Recorded on {i.mic}.</span>}
+              </div>
+            ) : (
+              <div className="row" key={i.id} style={{ gap: 10, alignItems: "center" }}>
+                {i.preview
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={i.preview} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flex: "none" }} />
+                  : <span aria-hidden style={{ width: 40, height: 40, borderRadius: 8, background: "var(--color-soft-2)", display: "grid", placeItems: "center", flex: "none" }}>{ICON[i.kind] ?? "📎"}</span>}
+                <span className="grow small" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
+                <button type="button" className="btn btn-ghost small" onClick={() => remove(i.id)}>Remove</button>
+              </div>
+            )
           ))}
         </div>
       )}
 
       <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
-                onClick={() => cam.current?.click()}>
-          Take a photo
-        </button>
-        {/* On a phone the first button is the camera; on a computer it is
-            a picker too, so this one says what it takes (Shahar). */}
+        {/* Only where there IS a camera to open: on a laptop this button and
+            the next one did the same thing under two names. */}
+        {handheld && (
+          <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
+                  onClick={() => cam.current?.click()}>
+            Take a photo
+          </button>
+        )}
         <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
                 onClick={() => pick.current?.click()}>
           Attach photo / file
@@ -193,6 +261,28 @@ export function Evidence({
           </button>
         )}
       </div>
+
+      {/* WHICH MICROPHONE. Only when there is a choice to make, and it says
+          which one it will use either way. */}
+      {mics.length > 1 && (
+        <label className="row" style={{ gap: 8, alignItems: "center" }}>
+          <span className="tiny text-muted" style={{ flex: "none" }}>Microphone</span>
+          <select className="input" value={micId} onChange={(e) => setMicId(e.target.value)}
+                  disabled={recording} style={{ minHeight: 36, fontSize: 13, padding: "4px 34px 4px 10px" }}>
+            {mics.map((d, n) => (
+              <option key={d.deviceId || n} value={d.deviceId}>{d.label || `Microphone ${n + 1}`}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      {mics.length === 1 && mics[0]?.label && !recording && (
+        <p className="tiny text-muted" style={{ margin: 0 }}>Recording on {mics[0].label}.</p>
+      )}
+      {recording && (
+        <p className="tiny text-muted" style={{ margin: 0 }}>
+          Recording on {micName(mics, micId) ?? "the default microphone"}.
+        </p>
+      )}
 
       <input ref={pick} type="file" multiple accept={accept} hidden
              onChange={(e) => void attach(e.target.files)} />

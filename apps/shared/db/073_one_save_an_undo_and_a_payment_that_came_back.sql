@@ -214,8 +214,8 @@ begin
     select c.id into v_payee from public.contacts c
      where c.disabled_at is null and lower(coalesce(c.person_name, c.name)) = lower(v_name) limit 1;
     if v_payee is null then
-      insert into public.contacts (name, person_name, contact_type, created_by)
-      values (v_name, v_name, 'vendor', 'portal:transaction-edit')
+      insert into public.contacts (name, person_name, source, created_by)
+      values (v_name, v_name, 'transaction edit', 'portal:transaction-edit')
       returning id into v_payee;
     end if;
     if v_payee is distinct from t.contractor_id then

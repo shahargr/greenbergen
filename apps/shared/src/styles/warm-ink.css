@@ -131,16 +131,50 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* The label is the QUESTION being asked - it reads first, so it is ink,
    not grey. Grey is for the answer's hint underneath (.hint). */
 .field > label, .field-label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--color-text); }
+/* A FIELD HAS TO LOOK LIKE A FIELD (Shahar, 2026-09-12, on a form of them:
+   "unless i click i could not tell if there is a drop down, etc. bad UI.
+   check other places in the website and fix the same").
+
+   It was `border: 1.5px solid transparent` - the edge existed only on hover,
+   which a phone does not have - and `appearance: none` on a <select> took the
+   caret away without putting one back. So every control on every screen read
+   as flat text until you poked it. Now: a quiet edge always, a darker one on
+   hover, the accent on focus, and a real caret on anything that opens. */
 .input {
   width: 100%; min-height: 50px; padding: 10px 16px; font-size: 16px; font-weight: 500; color: var(--color-text);
   caret-color: var(--color-accent); background: var(--color-surface);
-  border: 1.5px solid transparent; border-radius: var(--radius-input); appearance: none;
+  border: 1.5px solid var(--color-divider); border-radius: var(--radius-input); appearance: none;
   box-shadow: 0 1px 2px rgba(22, 21, 19, 0.04);
 }
 .input::placeholder { color: color-mix(in srgb, var(--muted) 75%, transparent); }
 .input:hover { border-color: var(--color-divider-strong); }
 .input:focus-visible { border-color: var(--color-accent); outline: none; }
 .input.invalid { border-color: var(--color-danger); }
+.input:disabled { background: var(--color-soft-2); color: var(--muted); }
+
+/* THE CARET, on everything that opens a list. Drawn rather than imported, so
+   it inherits the ink and costs no request. */
+select.input {
+  padding-right: 40px; cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%236b6459' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 15px center;
+}
+select.input:focus-visible, select.input:hover { background-color: var(--color-surface); }
+/* A date field is a picker too, and Safari and Chrome each hide its handle
+   differently - this makes the one they do draw visible and clickable. */
+input[type="date"].input, input[type="time"].input, input[type="datetime-local"].input { cursor: pointer; }
+input[type="date"].input::-webkit-calendar-picker-indicator,
+input[type="time"].input::-webkit-calendar-picker-indicator,
+input[type="datetime-local"].input::-webkit-calendar-picker-indicator {
+  opacity: .55; cursor: pointer; padding: 4px; margin-right: -4px;
+}
+input[type="date"].input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+/* A field wired to a datalist offers a list too, and nothing said so. */
+input.input[list] {
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%236b6459' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 15px center;
+}
 textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .hint { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
 .hint.error { color: var(--color-danger); }

@@ -13,18 +13,32 @@ export type Method = { id: string; name: string; requires_reference: boolean };
 // being filled in, and it follows the payment method - a rail that needs a
 // reference (check number, Zelle confirmation) says so before the database
 // has to refuse the payment for the lack of one.
-export function PaymentBox({ projectId, methods, people }: {
+export function PaymentBox({ projectId, methods, people, accounts = [] }: {
   projectId: string | null;
   methods: Method[];
   people: { contact_id: string; name: string }[];
+  // Every account this job has already been paid from (migration 075). No
+  // list to maintain: it is the record, and it fills itself.
+  accounts?: string[];
 }) {
   const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [payee, setPayee] = useState("");
   const [files, setFiles] = useState<Attached[]>([]);
+  const [reference, setReference] = useState("");
   const m = methods.find((x) => x.id === methodId);
   const needsRef = !!m?.requires_reference;
-  const ready = amount.trim().length > 0 && payee.trim().length > 0;
+  // STARTED means an amount is in the box: from that moment this IS a payment
+  // somebody means to record, so every Update on the form logs it (the action
+  // does not wait for this box's own button any more). Which means the form
+  // must not submit while it is half-filled - `required` is form-wide, so the
+  // browser stops any of the three buttons and points at what is missing.
+  // Shahar (2026-09-12): "is there a way to disable anything outside the panel
+  // when working on it, but add an option to cancel so we are not blocked?"
+  // This is that, without freezing the screen: finish it, or Clear it.
+  const started = amount.trim().length > 0;
+  const ready = started && payee.trim().length > 0 && (!needsRef || reference.trim().length > 0);
+  const clear = () => { setAmount(""); setPayee(""); setReference(""); };
 
   return (
     <>
@@ -48,6 +62,7 @@ export function PaymentBox({ projectId, methods, people }: {
       <label className="field">
         <span className="field-label">Who you paid</span>
         <input className="input" name="payee" value={payee} onChange={(e) => setPayee(e.target.value)}
+          required={started}
           list="task-payee-list" placeholder="The sign shop, the supplier, the person" autoComplete="off" />
         <datalist id="task-payee-list">
           {people.map((p) => <option key={p.contact_id} value={p.name} />)}
@@ -64,18 +79,23 @@ export function PaymentBox({ projectId, methods, people }: {
         </label>
         <label className="field grow">
           <span className="field-label">{needsRef ? "Reference (required)" : "Reference"}</span>
-          {/* Not `required`: this box lives in the task's one form now, and an
-              HTML-required field in a shut drawer would block the Save button
-              at the other end of the screen. task_payment_log refuses a
-              missing reference in the person's own words instead. */}
-          <input className="input" name="reference"
+          {/* Required only once an amount is in the box, and only on a rail
+              that needs one. An empty drawer never blocks the form. */}
+          <input className="input" name="reference" value={reference} required={started && needsRef}
+            onChange={(e) => setReference(e.target.value)}
             placeholder={m?.name === "Check" ? "Check number" : "Order or confirmation number"} />
         </label>
       </div>
 
       <label className="field">
         <span className="field-label">From which account <span className="text-muted">(optional)</span></span>
-        <input className="input" name="from_account" placeholder="Business card ·4821, checking, cash" />
+        <input className="input" name="from_account" list="task-account-list" autoComplete="off"
+          placeholder={accounts[0] ? `${accounts[0]}, or a new one` : "Business card ·4821, checking, cash"} />
+        <span className="hint">
+          {accounts.length > 0
+            ? `${accounts.length} ${accounts.length === 1 ? "account" : "accounts"} used on this job so far — pick one, or type a new one and it joins the list.`
+            : "Type it once and it is offered on every payment on this job from then on."}
+        </span>
       </label>
 
       <label className="field">
@@ -101,16 +121,25 @@ export function PaymentBox({ projectId, methods, people }: {
         </span>
       </label>
 
-      {/* This button saves the WHOLE form - the field edits and the note too -
-          and logs the purchase as well. `do` is what tells the action which
-          button was pressed. */}
+      {/* This button saves the WHOLE form - the field edits and the comment
+          too - and logs the purchase. So do the two at the foot of the page:
+          an amount in the box is a payment, whichever button you press. */}
       <button name="do" value="payment" className="btn btn-primary btn-block" disabled={!ready}>
         {ready ? `Log ${amount.trim().startsWith("$") ? amount.trim() : `$${amount.trim()}`} against this task` : "Log the payment"}
       </button>
-      {needsRef && (
-        <p className="tiny text-muted" style={{ margin: 0 }}>
-          This one needs a reference — a payment without one cannot be reconciled later.
-        </p>
+      {started && (
+        <>
+          <button type="button" className="btn btn-ghost btn-block" onClick={clear}>
+            Clear this payment
+          </button>
+          <p className="tiny text-muted" style={{ margin: 0 }}>
+            {ready
+              ? "This payment goes in with whichever Update you press — you do not have to use this button."
+              : needsRef && !reference.trim()
+                ? `${m?.name ?? "This"} needs a reference — a payment without one cannot be reconciled later. Fill it in, or Clear this payment to leave without it.`
+                : "Say who you paid to finish it, or Clear this payment to leave without it."}
+          </p>
+        </>
       )}
     </>
   );
