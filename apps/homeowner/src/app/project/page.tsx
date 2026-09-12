@@ -7,6 +7,7 @@ import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/u
 import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { Scene, SceneMore } from "@/components/Scene";
+import { HomeHero, HOME_LINE } from "@/components/HomeHero";
 import { PhotoBanner } from "@/components/PhotoBanner";
 import { VoiceAsk } from "@/components/VoiceAsk";
 import { stopwatch } from "@shared/perf";
@@ -101,13 +102,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             And the paragraph under the old headline went with it - "not sure
             why this text is necessary". It was three sentences explaining a
             shelf that explains itself. */}
-        <div className={`home-hero ${settings.hero ? "" : "drawn"}`}>
-          {settings.hero
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={settings.hero} alt="" fetchPriority="high" />
-            : <Illustration name="house" />}
-          <h1>We get things done around your house</h1>
-        </div>
+        <HomeHero photo={settings.hero} line={HOME_LINE} />
         {scenes.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>
             {/* "Chat what we do to community negotiated packages" and

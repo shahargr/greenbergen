@@ -8,6 +8,7 @@ import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { SITE_ORIGIN } from "@shared/site";
 import { loadShowcase, type House } from "@/lib/showcase";
+import { HomeHero, HOME_LINE } from "@/components/HomeHero";
 import { Scene, SceneMore } from "@/components/Scene";
 import { VoiceAsk } from "@/components/VoiceAsk";
 
@@ -99,31 +100,20 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           </Card>
         ) : null}
 
-        {/* THE FIRST THIRD IS A PHOTOGRAPH (Shahar, 2026-09-11): "1st 1/3 of
-            page should be an image, and not text. image of couple in front of
-            their house smiling as if they have completed a great project."
+        {/* THE SAME FIRST QUARTER AS THE HOME SCREEN. It used to be a third
+            of the page of photograph with the sentence UNDER it; the member's
+            home screen got the line moved ON to the image and this one did
+            not (Shahar, 2026-09-12: "it seems you are selectively fixing what
+            i am asking for"). One component now - HomeHero - so a change to
+            the way a home screen opens cannot land on half the app. */}
+        <HomeHero photo={settings.hero} line={inviter && name ? `Welcome, ${name}. ${HOME_LINE.toLowerCase()}` : HOME_LINE} />
 
-            A stranger decides in a second whether this is for them, and a
-            paragraph is not what decides it. So the page opens on the picture
-            - full bleed, a third of the screen - and the sentence that used
-            to be the hero is one line under it. The photograph is data
-            (config.landing_hero_url, uploaded in Admin > Landing photo);
-            until there is one, the house is drawn on the warm ground so the
-            page is whole either way. */}
-        <div className={`front-hero ${settings.hero ? "" : "drawn"}`}>
-          {settings.hero
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={settings.hero} alt="" fetchPriority="high" />
-            : <Illustration name="house" />}
-        </div>
-
-        <div className="hero" style={{ marginTop: -4 }}>
-          <h1 style={{ fontSize: 21 }}>
-            {inviter && name ? <>Welcome, {name}. The safe way to meet contractors in our community.</> : <>The safe way to meet contractors in our community.</>}
-          </h1>
-          {/* The community line, editable in Admin (config.public_tagline). */}
-          {settings.tagline && <p className="step-kicker" style={{ margin: "6px 0 0" }}>{settings.tagline}</p>}
-        </div>
+        {/* The community line, editable in Admin (config.public_tagline). One
+            line: this is the shop window and a stranger reads it, but the
+            picture above has already said what we do. */}
+        {settings.tagline && (
+          <p className="step-kicker center" style={{ margin: "-2px 0 0" }}>{settings.tagline}</p>
+        )}
 
         {/* TWO TABS (Shahar, 2026-09-11): the services, and our projects.
             The first is the shop window and its one measure is a person
@@ -153,12 +143,12 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
                     ones, where four would be too small to read. The order is
                     the data: promoted packages by sort_order (072). */}
                 <div className="row" style={{ alignItems: "center", gap: 10 }}>
-                  <div className="divider-label" style={{ flex: 1 }}>What we do</div>
+                  <div className="divider-label" style={{ flex: 1 }}>Community negotiated packages</div>
                   <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
-                    All {tiles.length} packages<ChevronIcon />
+                    More packages<ChevronIcon />
                   </Link>
                 </div>
-                <div className="scenes four" aria-label="Featured packages">
+                <div className="scenes four tall" aria-label="Featured packages">
                   {scenes.map((t) => <Scene key={t.code} t={t} />)}
                   <SceneMore />
                 </div>
