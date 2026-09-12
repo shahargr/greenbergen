@@ -28,10 +28,12 @@ import { NotifyMe } from "./NotifyMe";
 // on screen either way: a member deciding whether to do it themselves needs
 // the number more, not less.
 export function PackageConfigurator({
-  pkg, initial, signedIn, openAdjust, covered = true, story, faq,
+  pkg, initial, signedIn, openAdjust, covered = true, story, faq, products,
 }: {
   pkg: Package; initial: Selections; signedIn: boolean; openAdjust: boolean; covered?: boolean;
   story?: React.ReactNode; faq?: React.ReactNode;
+  // The optional hardware, server-rendered (migration 077).
+  products?: React.ReactNode;
 }) {
   const [sel, setSel] = useState<Selections>(initial);
   const [open, setOpen] = useState(openAdjust);
@@ -94,6 +96,9 @@ export function PackageConfigurator({
         <Link href={primaryHref} className="btn btn-primary" style={{ flex: 1 }}>{primaryLabel}</Link>
         <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setOpen(true)}>Refine scope</button>
       </div>
+
+      {/* What you buy yourself, right after the price it is NOT part of. */}
+      {products}
 
       <div>
         <h6>Good to know</h6>

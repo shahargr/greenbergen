@@ -7,8 +7,6 @@ import { AppBar, Card, ChevronIcon, Screen } from "@shared/ui";
 import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { SITE_ORIGIN } from "@shared/site";
-import { loadDoors } from "@shared/doors.server";
-import { DOORS, landingDoor } from "@shared/doors";
 import { loadShowcase, type House } from "@/lib/showcase";
 import { Scene, SceneMore } from "@/components/Scene";
 import { VoiceAsk } from "@/components/VoiceAsk";
@@ -37,18 +35,16 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
   const { ref, name, tab: tabParam } = await searchParams;
   const supabase = await createClient();
   const [signedIn, settings, { tiles }, houses] = await Promise.all([isSignedIn(supabase), loadPublicSettings(), loadTiles(), loadShowcase()]);
-  // A member does not need the shop window. One door: their projects.
-  // Several doors (Shahar holds all three): the picker on the portal,
-  // never a silent drop into this one app.
-  // A member does not need the shop window. There is no picker any more
-  // (Shahar, 2026-09-12) - somebody who also works on homes lands in the
-  // Professionals app, which is their default unless they said otherwise in
-  // settings, and the mask in the top bar is how they cross back.
-  if (signedIn && !ref) {
-    const doors = await loadDoors();
-    const land = landingDoor(doors);
-    redirect(land && land !== "homeowner" ? DOORS[land].url : "/project");
-  }
+  // A member does not need the shop window: signed in, this front page is
+  // their own home screen instead.
+  //
+  // It used to send somebody who ALSO works on homes across to Professionals,
+  // which turned every route into this page into a bounce - the mask, the
+  // wordmark in the header, a bookmark (Shahar, 2026-09-12: "even when i
+  // click home owner i land on professional"). Deciding which door a person
+  // belongs in happens ONCE, at sign-in, in landing() on the portal. A door's
+  // own front page has no business overruling a person who is standing in it.
+  if (signedIn && !ref) redirect("/project");
 
   let inviter: RefPreview | null = null;
   if (ref && /^[0-9a-f-]{36}$/i.test(ref)) {

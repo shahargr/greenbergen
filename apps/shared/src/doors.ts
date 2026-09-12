@@ -20,7 +20,15 @@ export type Door = {
   short: string;   // the line under the logo - has to fit beside a 15px wordmark
   full: string;    // what the switcher says
   blurb: string;   // why you would go there
-  url: string;
+  url: string;     // the door's front page
+  // WHERE THE SWITCHER LANDS YOU: the inside of the door, not its front page.
+  // Shahar (2026-09-12): "even when i click home owner i land on
+  // professional." He did - /home is the homeowner app's ROOT, and the root
+  // sends a signed-in person to the door they belong in, which for somebody
+  // who also works on homes is Professionals. So the switcher was handing
+  // him to the very redirect he was trying to get past. A person who picks a
+  // door has already decided; they go straight in.
+  entry: string;
 };
 
 // One host, four paths (see site.ts for why). NEXT_PUBLIC_DOOR_* still
@@ -35,6 +43,7 @@ export const DOORS: Record<DoorKey, Door> = {
     full: "Your home",
     blurb: "Manage your home, DIY style or with vetted professionals.",
     url: url(process.env.NEXT_PUBLIC_DOOR_HOMEOWNER, `${SITE_ORIGIN}/home`),
+    entry: `${url(process.env.NEXT_PUBLIC_DOOR_HOMEOWNER, `${SITE_ORIGIN}/home`)}/project`,
   },
   // ONE door for everyone who works on homes. Project management is a trade
   // (migration 030), so a GC, a plumber and a project manager are the same
@@ -46,6 +55,7 @@ export const DOORS: Record<DoorKey, Door> = {
     full: "Your work",
     blurb: "Service the community and run your projects.",
     url: url(process.env.NEXT_PUBLIC_DOOR_EXPERT, `${SITE_ORIGIN}/pro`),
+    entry: `${url(process.env.NEXT_PUBLIC_DOOR_EXPERT, `${SITE_ORIGIN}/pro`)}/work`,
   },
   portal: {
     key: "portal",
@@ -54,6 +64,7 @@ export const DOORS: Record<DoorKey, Door> = {
     full: "The portal",
     blurb: "Everything: admin, deals, the whole record.",
     url: url(process.env.NEXT_PUBLIC_DOOR_PORTAL, SITE_ORIGIN),
+    entry: `${url(process.env.NEXT_PUBLIC_DOOR_PORTAL, SITE_ORIGIN)}/my`,
   },
 };
 

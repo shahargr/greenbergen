@@ -227,6 +227,25 @@ export async function loadCovered(trade: string | null | undefined): Promise<boo
 }
 
 // One package, whole. ~4.5 kB - what the package page and the wizard need.
+// SUGGESTED PRODUCTS (migration 077). Shahar, on the EV charger package:
+// "Build a list of suggested products to purchase as part of the package,
+// which is optional. Just grab the product name, rating if you have, price,
+// and short link stating the product and store."
+//
+// Never part of the price - the package buys the LABOUR. The price and the
+// rating are a snapshot of what the store showed on checked_on, not a promise,
+// and either may be null because nobody has recorded one yet.
+export type PackageProduct = {
+  id: string; name: string; store: string; url: string;
+  price_cents: number | null; rating: number | null; rating_count: number | null;
+  note: string | null; checked_on: string | null;
+};
+
+export async function loadPackageProducts(code: string): Promise<PackageProduct[]> {
+  const rows = await catalogueRpc<PackageProduct[]>("homeowner_package_products", { p_code: code });
+  return Array.isArray(rows) ? rows : [];
+}
+
 export async function loadPackage(code: string): Promise<{ pkg: Package | null; source: "database" | "static" }> {
   const row = await catalogueRpc<Package | null>("homeowner_package", { p_code: code });
   if (row && typeof row === "object" && row.code) return { pkg: row, source: "database" };

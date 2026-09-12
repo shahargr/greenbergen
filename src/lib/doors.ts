@@ -37,15 +37,21 @@ export const DOOR_URL: Record<DoorKey, string> = {
   admin: "/my",
 };
 
-// WHERE A HOP LANDS. Not the app's front page: that is a sales pitch, and a
-// person who just picked a door has already been sold. It lands on the app's
-// sign-in with the dashboard as ?next=, which does the right thing in both
-// worlds - already signed in there, it redirects straight through; not yet
-// (the apps live on separate vercel.app hosts and cannot share a cookie), it
-// is one Google tap rather than a landing page asking them to join.
+// WHERE A HOP LANDS: the INSIDE of the door, never its front page.
+//
+// The front page is a sales pitch, and worse, it redirects - the homeowner
+// root sends a signed-in person to the door they belong in, so pointing the
+// switcher at it handed somebody straight back to where they were trying to
+// leave (Shahar, 2026-09-12: "even when i click home owner i land on
+// professional"). A person who picks a door has already decided.
+//
+// Straight in, not via the app's sign-in: the three apps are proxied under
+// this one origin now (rewrites in next.config.ts), so the session cookie
+// already travels. The ?next= hop was from the days of separate vercel.app
+// hosts, and it only added a redirect.
 export const DOOR_ENTRY: Record<DoorKey, string> = {
-  homeowner: `${DOOR_URL.homeowner}/login?next=${encodeURIComponent("/project")}`,
-  expert: `${DOOR_URL.expert}/login?next=${encodeURIComponent("/work")}`,
+  homeowner: `${DOOR_URL.homeowner}/project`,
+  expert: `${DOOR_URL.expert}/work`,
   admin: "/my",
 };
 

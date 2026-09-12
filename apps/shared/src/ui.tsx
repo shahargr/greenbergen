@@ -178,7 +178,7 @@ export function DoorSwitch({ held, current }: { held: DoorKey[]; current: DoorKe
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Also yours</div>
           {yours.map((k) => (
-            <a key={k} href={DOORS[k].url} className="home-row">
+            <a key={k} href={DOORS[k].entry} className="home-row">
               <span className="ic"><DoorIcon door={k} size={20} /></span>
               <span className="grow" style={{ minWidth: 0 }}>
                 <span className="t">{DOORS[k].full}</span>

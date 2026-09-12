@@ -83,7 +83,7 @@ export function DoorMask({ current }: { current?: DoorKey }) {
         )}
 
         {others.map((k) => (
-          <a key={k} href={DOORS[k].url} className="door-mask-row">
+          <a key={k} href={DOORS[k].entry} className="door-mask-row">
             <span className="ic"><Door door={k} /></span>
             <span className="grow" style={{ minWidth: 0 }}>
               <span className="t">{DOORS[k].label}</span>
