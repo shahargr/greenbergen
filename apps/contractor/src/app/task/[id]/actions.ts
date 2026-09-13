@@ -227,7 +227,28 @@ export async function editPayment(formData: FormData) {
   const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
   if (!id || !txn) redirect(back);
   const s = (k: string) => String(formData.get(k) ?? "").trim();
+  const ids = (k: string) => s(k).split(",").map((x) => x.trim()).filter(Boolean);
   const supabase = await createClient();
+
+  // THE RECEIPTS FIRST (migration 084). Shahar (2026-09-13): "when logging a
+  // payment. i need a way to edit it and add photos into it. right now i
+  // cannot." Its own function rather than more keys on the patch: attaching a
+  // photo is not editing a field, and the form must not resend the whole file
+  // list every time somebody fixes a reference number.
+  //
+  // Before the fields, so that if the fields are refused the paperwork is
+  // already filed - a receipt is the thing you were least likely to have
+  // another copy of.
+  const add = ids("add_file_ids");
+  const drop = ids("remove_file_ids");
+  if (add.length > 0 || drop.length > 0) {
+    const { data: fd, error: fe } = await supabase.rpc("portal_transaction_files", {
+      p_id: txn, p_add: add.length > 0 ? add : null, p_remove: drop.length > 0 ? drop : null,
+    });
+    if (fe) redirect(here({ error: fe.message, money: "1" }));
+    if (fd?.ok === false) redirect(here({ error: fd.reason ?? "Those files did not attach.", money: "1" }));
+  }
+
   const { data, error } = await supabase.rpc("portal_transaction_edit", {
     p_id: txn,
     p_patch: {
@@ -242,7 +263,12 @@ export async function editPayment(formData: FormData) {
   revalidatePath("/money");
   revalidatePath("/");
   const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
-  redirect(here({ ok: changed.length ? `Payment updated: ${changed.join(", ")}.` : "Nothing changed on that payment." }));
+  const paper = [
+    add.length > 0 ? `${add.length} receipt${add.length === 1 ? "" : "s"} filed` : null,
+    drop.length > 0 ? `${drop.length} taken off` : null,
+  ].filter(Boolean);
+  const said = [...changed, ...paper];
+  redirect(here({ ok: said.length ? `Payment updated: ${said.join(", ")}.` : "Nothing changed on that payment." }));
 }
 
 // editTask lived here until 2026-09-13: a second save for the field drawer,

@@ -8,6 +8,7 @@ import { AppBar, Card, LongText, Notice, Screen } from "@shared/ui";
 import { saveTask, undoNote, editPayment, cancelTask, deleteTask } from "./actions";
 import { NoteBox } from "./NoteBox";
 import { PaymentBox, type Method } from "./PaymentBox";
+import { ReceiptBox, type ReceiptFile } from "./ReceiptBox";
 import { ChevronIcon } from "@shared/ui";
 import type { Target } from "@shared/inbox/data";
 
@@ -46,6 +47,10 @@ type Payment = {
   id: string; description: string | null; amount: number | null; paid_on: string | null;
   status: string; reference: string | null; from_account: string | null;
   method: string | null; paid_to: string | null; contract_id: string | null;
+  // The receipts for THIS payment (migration 084). Until then a file_link
+  // had a column for every target except a transaction, so three payments on
+  // one task shared one undifferentiated pile of paper.
+  files: ReceiptFile[];
 };
 
 const usd = (n: number | null) => (n == null ? "—" : `$${Math.round(n).toLocaleString()}`);
@@ -139,8 +144,13 @@ export default async function TaskPage({
   if (t.assignee && !people.some((p) => p.contact_id === t.assignee!.id)) {
     people.unshift({ contact_id: t.assignee.id, name: t.assignee.name ?? "Assigned", seat: null });
   }
-  // One signed-URL round trip for every attachment on the page.
-  const notePaths = notes.flatMap((n) => n.files.map((f) => f.path));
+  // ONE signed-URL round trip for every attachment on the page - the notes'
+  // and the payments' receipts together, because they live in the same
+  // private bucket and two calls would buy nothing.
+  const notePaths = [
+    ...notes.flatMap((n) => n.files.map((f) => f.path)),
+    ...t.payments.flatMap((p) => (p.files ?? []).map((f) => f.path)),
+  ];
   const noteUrls: Record<string, string> = {};
   if (notePaths.length > 0) {
     const { data: signed } = await w.step("noteFiles", () =>
@@ -156,7 +166,12 @@ export default async function TaskPage({
   // photograph - the evidence for a certificate IS the certificate. Anything
   // on the task or on a note against it counts, which is what portal_close_task
   // counts too, so the screen and the gate cannot disagree.
-  const proof = (t.evidence ?? []).length + notes.reduce((n, c) => n + c.files.length, 0);
+  // A receipt filed against a payment counts too - portal_close_task walks
+  // the same relationship (migration 084), and the screen must not disagree
+  // with the gate about what proof exists.
+  const proof = (t.evidence ?? []).length
+    + notes.reduce((n, c) => n + c.files.length, 0)
+    + t.payments.reduce((n, p) => n + (p.files ?? []).length, 0);
   // ONE BOX, NOT TWO. Shahar (2026-09-13): "the system forces me both to
   // update comment header and what happened so i can close it as complete."
   //
@@ -464,6 +479,15 @@ export default async function TaskPage({
                     style={{ whiteSpace: "nowrap" }}>
                     {p.status === "paid - receipt filed" ? "receipt filed" : p.status === "paid - pending confirmation" ? "awaiting" : p.status}
                   </span>
+                  {/* Whether the paper is actually here. "receipt filed" is a
+                      STATUS somebody chose; this is the file count, and until
+                      migration 084 the two could say opposite things because
+                      a receipt could not be attached to a payment at all. */}
+                  {(p.files ?? []).length > 0 && (
+                    <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>
+                      {p.files.length} on file
+                    </span>
+                  )}
                 </>
               );
               if (!t.can_log_payment) {
@@ -522,6 +546,11 @@ export default async function TaskPage({
                         and the record of it happening stays.
                       </span>
                     </label>
+
+                    {/* THE PAPER (migration 084). Add one, or take one off -
+                        both go in with the same Save as the fields. */}
+                    <ReceiptBox projectId={t.project_id} existing={p.files ?? []} urls={noteUrls} />
+
                     <button className="btn btn-primary btn-block">Save this payment</button>
                   </form>
                 </details>
