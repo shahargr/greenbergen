@@ -136,8 +136,20 @@ export async function saveTask(formData: FormData) {
     return Number.isFinite(n) ? n : null;
   };
   const amount = money(formData.get("amount"));
+  // 'out' is a payment, 'in' is a credit or refund. The amount is POSITIVE
+  // either way - transactions.direction carries the sign, which is what all
+  // eight money roll-ups already read (migration 086). Shahar tried a
+  // negative and got "Enter what it cost", which was true and unhelpful.
+  const direction = String(formData.get("direction") ?? "out") === "in" ? "in" : "out";
   if (intent === "payment" || amount != null) {
-    if (amount == null || amount <= 0) redirect(here({ error: "Enter what it cost.", money: "1" }));
+    if (amount == null || amount <= 0) {
+      redirect(here({
+        error: direction === "in"
+          ? "Enter how much came back, as a positive number — “Money in” is what makes it a credit, not a minus sign."
+          : "Enter what it cost.",
+        money: "1",
+      }));
+    }
     const payFiles = String(formData.get("payment_file_ids") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
     const { data, error } = await supabase.rpc("task_payment_log", {
       p_action: id,
@@ -150,6 +162,7 @@ export async function saveTask(formData: FormData) {
       p_notes: txt(formData.get("notes")),
       p_awaiting: String(formData.get("awaiting") ?? "") === "1",
       p_file_ids: payFiles.length > 0 ? payFiles : null,
+      p_direction: direction,
     });
     // The fields and the comment above are already saved; say so with the
     // refusal, and reopen the drawer so the payment is where they left it.
@@ -157,9 +170,13 @@ export async function saveTask(formData: FormData) {
     if (error) redirect(here({ error: kept + error.message, money: "1" }));
     if (data?.ok === false) redirect(here({ error: kept + (data.reason ?? "that payment did not save."), money: "1" }));
     revalidatePath("/money");
-    said.push(data?.awaiting
-      ? `Logged — ${data?.paid_to ?? "they"} have a confirmation task open until it lands`
-      : `Logged against this task, paid to ${data?.paid_to ?? "them"}`);
+    said.push(data?.credit
+      ? (data?.awaiting
+          ? `Credit logged — ${data?.paid_to ?? "they"} have a confirmation task open until it is confirmed`
+          : `Credit logged from ${data?.paid_to ?? "them"} — it comes off what this task has cost`)
+      : (data?.awaiting
+          ? `Logged — ${data?.paid_to ?? "they"} have a confirmation task open until it lands`
+          : `Logged against this task, paid to ${data?.paid_to ?? "them"}`));
   }
 
   // 4. CLOSING, last, because everything above belongs on the task whether it

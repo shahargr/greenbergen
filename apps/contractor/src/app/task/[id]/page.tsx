@@ -47,6 +47,9 @@ type Payment = {
   id: string; description: string | null; amount: number | null; paid_on: string | null;
   status: string; reference: string | null; from_account: string | null;
   method: string | null; paid_to: string | null; contract_id: string | null;
+  // 'out' is a payment, 'in' is a credit or refund. Positive either way -
+  // the sign lives here, not on the amount (migration 086).
+  direction: "in" | "out" | null;
   // The receipts for THIS payment (migration 084). Until then a file_link
   // had a column for every target except a transaction, so three payments on
   // one task shared one undifferentiated pile of paper.
@@ -66,6 +69,16 @@ const TXN_STATES = [
   ["paid - receipt filed", "Paid, receipt on file"],
   ["paid - pending confirmation", "Paid, waiting on them to confirm"],
   ["refunded", "Refunded — it came back"],
+  ["disputed", "Disputed"],
+  ["cancelled", "Cancelled — it never happened"],
+] as const;
+
+// A credit has its own two states: it landed, or you are waiting on them to
+// confirm it. portal_transaction_edit refuses the payment words on an 'in'
+// row and these on an 'out' one, so the select must offer the right pair.
+const CREDIT_STATES = [
+  ["payment received", "Received"],
+  ["payment received - pending confirmation", "Waiting on them to confirm"],
   ["disputed", "Disputed"],
   ["cancelled", "Cancelled — it never happened"],
 ] as const;
@@ -169,6 +182,13 @@ export default async function TaskPage({
   // A receipt filed against a payment counts too - portal_close_task walks
   // the same relationship (migration 084), and the screen must not disagree
   // with the gate about what proof exists.
+  // WHAT THIS TASK HAS COST, NET. A credit is a positive amount travelling
+  // the other way (migration 086), so it SUBTRACTS - summing every row would
+  // make money coming back look like money going out.
+  const counted = t.payments.filter((p) => !SPENT_NOT.includes(p.status));
+  const credited = counted.filter((p) => p.direction === "in")
+    .reduce((n, p) => n + (p.amount ?? 0), 0);
+  const net = counted.reduce((n, p) => n + (p.direction === "in" ? -1 : 1) * (p.amount ?? 0), 0);
   const proof = (t.evidence ?? []).length
     + notes.reduce((n, c) => n + c.files.length, 0)
     + t.payments.reduce((n, p) => n + (p.files ?? []).length, 0);
@@ -456,9 +476,8 @@ export default async function TaskPage({
         {t.payments.length > 0 && (
           <section className="stack" style={{ gap: 8 }}>
             <div className="divider-label">
-              Money · {usd(t.payments
-                .filter((p) => !SPENT_NOT.includes(p.status))
-                .reduce((n, p) => n + (p.amount ?? 0), 0))} on this task
+              Money · {usd(net)} on this task
+              {credited > 0 ? ` · ${usd(credited)} credited back` : ""}
             </div>
 
             {t.payments.map((p) => {
@@ -471,7 +490,8 @@ export default async function TaskPage({
                 <>
                   <span className="grow" style={{ minWidth: 0 }}>
                     <span className="t" style={back ? { textDecoration: "line-through", color: "var(--muted)" } : undefined}>
-                      {usd(p.amount)}{p.paid_to ? ` to ${p.paid_to}` : ""}
+                      {p.direction === "in" ? "− " : ""}{usd(p.amount)}
+                      {p.paid_to ? `${p.direction === "in" ? " from " : " to "}${p.paid_to}` : ""}
                     </span>
                     <span className="m" style={{ display: "block" }}>{line || p.description || "—"}</span>
                   </span>
@@ -515,7 +535,7 @@ export default async function TaskPage({
                       </label>
                     </div>
                     <label className="field">
-                      <span className="field-label">Who was paid</span>
+                      <span className="field-label">{p.direction === "in" ? "Who it came from" : "Who was paid"}</span>
                       <input className="input" name="payee" defaultValue={p.paid_to ?? ""} list="task-payee-list" autoComplete="off" />
                     </label>
                     <div className="row" style={{ gap: 8 }}>
@@ -538,8 +558,11 @@ export default async function TaskPage({
                     </label>
                     <label className="field">
                       <span className="field-label">Where it stands</span>
-                      <select className="input" name="status" defaultValue={TXN_STATES.some(([v]) => v === p.status) ? p.status : "paid"}>
-                        {TXN_STATES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      <select className="input" name="status"
+                        defaultValue={(p.direction === "in" ? CREDIT_STATES : TXN_STATES).some(([v]) => v === p.status)
+                          ? p.status : (p.direction === "in" ? "payment received" : "paid")}>
+                        {(p.direction === "in" ? CREDIT_STATES : TXN_STATES).map(([v, l]) =>
+                          <option key={v} value={v}>{l}</option>)}
                       </select>
                       <span className="hint">
                         Refunded means it went out and came back — it stops counting as a cost of this job,
