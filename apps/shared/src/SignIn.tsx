@@ -4,7 +4,7 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "./supabase/client";
 import { AppBar, Notice, Screen } from "./ui";
-import { withBase } from "./site";
+import { AFTER_LOGIN, isHostPath, withBase } from "./site";
 
 // ONE sign-in screen for all four doors.
 //
@@ -21,20 +21,39 @@ import { withBase } from "./site";
 //
 // Same Supabase Auth behind both, and the same app_users row either way - the
 // choice here is only how you prove it is you.
-export function SignIn({ home, footer, title = "Welcome back." }: {
-  home: string;
+export function SignIn({ footer, title = "Welcome back." }: {
   footer?: React.ReactNode;
   title?: string;
 }) {
-  return <Suspense fallback={null}><SignInInner home={home} footer={footer} title={title} /></Suspense>;
+  return <Suspense fallback={null}><SignInInner footer={footer} title={title} /></Suspense>;
 }
 
-function SignInInner({ home, footer, title }: { home: string; footer?: React.ReactNode; title: string }) {
+function SignInInner({ footer, title }: { footer?: React.ReactNode; title: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const rawNext = params.get("next");
-  // Only our own paths, never an absolute URL someone pasted into ?next=.
-  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : home;
+  // WHERE THIS SIGN-IN LANDS.
+  //
+  // An explicit ?next= still wins - a deep link is somebody who already said
+  // where they were going, and only our own paths, never an absolute URL
+  // somebody pasted in.
+  //
+  // Otherwise the portal decides, not this app. Every one of these screens
+  // used to land on its own front door, which meant signing in at /home/login
+  // put you in the homeowner app whatever your settings said (Shahar,
+  // 2026-09-13: "per settings i was logged as professional, but landed on the
+  // home owner page"). /after-login is the one screen that reads my_doors()
+  // and app_users.default_door, and it is the same answer from all three.
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : AFTER_LOGIN;
+
+  // /after-login belongs to the HOST, not to this app: router.push would
+  // prefix it with this app's basePath and ask the homeowner app for a route
+  // only the portal has.
+  const go = (path: string) => {
+    if (isHostPath(path)) { window.location.replace(path); return; }
+    router.replace(path);
+    router.refresh();
+  };
   const linkError = params.get("error") === "link";
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -76,8 +95,7 @@ function SignInInner({ home, footer, title }: { home: string; footer?: React.Rea
     const supabase = createClient();
     const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
     if (error) { setBusy(false); setErr(/expired/i.test(error.message) ? "That code expired. Go back for a fresh one." : "That code didn't match."); return; }
-    router.replace(next);
-    router.refresh();
+    go(next);
   }
 
   return (

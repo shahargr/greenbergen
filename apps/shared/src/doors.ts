@@ -143,20 +143,17 @@ export function readDoors(data: DoorsRow | null): Doors {
 }
 
 
-// WHERE A PERSON LANDS, in one place so the three apps cannot disagree.
+// WHERE A PERSON LANDS is decided in ONE place, and it is not here.
 //
-// Shahar (2026-09-12): "each user should have a default landing even if they
-// own multiple roles... home owner alone: land on home owner tab. home owner
-// and pro: default professional - able to update the default in settings."
+// landingDoor() used to live at this spot: the same rule as the portal's
+// landing() in src/lib/doors.ts, written a second time so the apps could use
+// it, and then never called by any of them. Two answers to one question, one
+// of them dead - which is how signing in at /home/login went on landing in
+// the homeowner app whatever app_users.default_door said (Shahar, 2026-09-13:
+// "per settings i was logged as professional, but landed on the home owner
+// page").
 //
-// So: their own choice when they have made one and still hold that door, else
-// the working door, else the homeowner one, else the portal. Admin is never
-// the answer for somebody who holds another door - it is reached from the
-// mask in the top bar, and only shows there for somebody who has it.
-const LANDS: DoorKey[] = ["expert", "homeowner", "portal"];
-
-export function landingDoor(doors: Doors): DoorKey | null {
-  if (!doors.signed_in) return null;
-  if (doors.default_door && doors.held.includes(doors.default_door)) return doors.default_door;
-  return LANDS.find((k) => doors.held.includes(k)) ?? null;
-}
+// The apps hand the question over instead: every sign-in goes to
+// /after-login on the portal (site.ts: AFTER_LOGIN), which reads my_doors()
+// and answers once. Deleted rather than kept - a second copy of a routing
+// rule is a bug waiting for the two to drift.

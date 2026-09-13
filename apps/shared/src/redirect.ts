@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withBase } from "./site";
+import { isHostPath, withBase } from "./site";
 
 // A REDIRECT THAT STAYS ON THE HOST THE BROWSER IS ON.
 //
@@ -16,5 +16,8 @@ import { withBase } from "./site";
 // so it stays on the right host whichever one that is, and cookies set
 // through cookies() in the handler ride on this response as on any other.
 export function redirectWithin(path: string, status: 303 | 307 = 303) {
-  return new NextResponse(null, { status, headers: { Location: withBase(path) } });
+  // /after-login is the portal's, at the root of the host these apps are
+  // proxied behind - prefixing it with this app's basePath would ask the
+  // homeowner app for a route only the portal has (Shahar, 2026-09-13).
+  return new NextResponse(null, { status, headers: { Location: isHostPath(path) ? path : withBase(path) } });
 }

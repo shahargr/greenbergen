@@ -6,6 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, groupWork, money, openBeneath, readMoney, runs, type Group, type GroupKey, type Node, type Seat, type TaskMoney } from "@/lib/board";
+import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
 import { SearchBox } from "@/components/SearchBox";
 import { matchesQuery } from "@/lib/search";
@@ -47,20 +48,17 @@ type BidPackage = {
 };
 
 // The nine. Eight carry a number; the ninth is held open (Shahar: "leave the
-// 9th panel as a place holder for now").
-type PanelKey =
-  | "tasks" | "bids" | "money"
-  | "jobs-open" | "jobs-working" | "jobs-done"
-  | "week" | "visits" | "soon";
+// 9th panel as a place holder for now"). The KEYS live in lib/lens.ts, with
+// the lens that decides which of them a person is offered and in what order.
 
 export default async function ProjectPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; q?: string; by?: string; show?: string; panel?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; q?: string; by?: string; show?: string; panel?: string; as?: string; who?: string }>;
 }) {
   const { id } = await params;
-  const { ok, error, q, by: byRaw, show, panel: panelRaw } = await searchParams;
+  const { ok, error, q, by: byRaw, show, panel: panelRaw, as: asRaw, who } = await searchParams;
   const by: GroupKey = GROUPINGS.some((g) => g.key === byRaw) ? (byRaw as GroupKey) : "timing";
   // Open is the default; Done and All are a tap away (Shahar: "i need to see
   // completed as well"). Only the finished list costs an extra read, and only
@@ -91,7 +89,10 @@ export default async function ProjectPage({
     // (migration 078) - one read for the whole family, so a category can
     // carry its money without a query per task. Only the work panel needs
     // it, and which panel that is cannot be settled until the seat is read.
-    (!panelRaw || panelRaw === "tasks")
+    // The week panel needs it too - that is where a working lens offers "log
+    // a payment", and the offer must not appear for somebody the database
+    // would refuse.
+    (!panelRaw || panelRaw === "tasks" || panelRaw === "week")
       ? w.step("taskMoney", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id }))
       : Promise.resolve({ data: null }),
   ]);
@@ -181,6 +182,9 @@ export default async function ProjectPage({
   const openHere = here.filter((t) => t.state === "open");
   const doneHere = here.filter((t) => t.state === "closed");
   const late = openHere.filter((t) => t.target_date && t.target_date < today);
+  // What is YOURS on this site - the number a trade means by "my work".
+  const myOpen = board.me?.contact_id
+    ? openHere.filter((t) => t.assignee_id === board.me!.contact_id).length : 0;
 
   // THE JOBS BENEATH, AS THREE COUNTS (Shahar, 2026-09-11). The words mean
   // what they say:
@@ -201,22 +205,51 @@ export default async function ProjectPage({
   // no jobs to count. The grid stays three wide either way and the ninth is
   // always the one being held open.
   const hasKids = kids.length > 0;
-  const offered: PanelKey[] = [
+
+  // WHERE YOU STAND ON THIS PROJECT, and what that makes the screen look like
+  // (Shahar, 2026-09-13: "When i'm a GC I need to be able to quickly see the
+  // GC view on the project... allow me to log in as GC / Professional / home
+  // owner / investor / viewer").
+  //
+  // portal_my_work already carries the seat and its authority rank, so the
+  // lens costs no read. It changes the ORDER and the SET of panels and where
+  // the screen opens - never what the database will hand over, which is why
+  // it is safe to let anybody look down their own ladder. See lib/lens.ts.
+  const actualLens = lensOf(seat.seat, seat.rank);
+  const lenses = lensesFor(actualLens, !!board.me?.is_superadmin);
+  const lens = readLens(asRaw, lenses, actualLens);
+  const asParam = lens.key === actualLens ? undefined : lens.key;
+
+  // What this project HAS, crossed with what this lens shows. A development
+  // has no address, so no site and no week; a job with nothing beneath it has
+  // no jobs to count.
+  const possible = new Set<PanelKey>([
     "tasks", "bids", "money",
     ...(hasKids ? (["jobs-open", "jobs-working", "jobs-done"] as PanelKey[]) : []),
     ...(onSite ? (["week", "visits"] as PanelKey[]) : []),
     "soon",
-  ];
+  ]);
+  const offered: PanelKey[] = lens.panels.filter((k) => possible.has(k));
   const wanted = (panelRaw ?? "") as PanelKey;
-  // On site this week is what the screen opens on - it is the question a
-  // person running a build asks first. Off site, the work itself is.
-  const fallback: PanelKey = onSite ? "week" : "tasks";
+  // Where the lens opens, if this project has that panel at all - a trade
+  // lands on the week, an investor on the money, and neither has to hunt.
+  const fallback: PanelKey = offered.includes(lens.first)
+    ? lens.first
+    : offered.find((k) => k !== "soon") ?? "tasks";
   const panel: PanelKey = offered.includes(wanted) && wanted !== "soon" ? wanted : fallback;
 
   // Which tasks this view is about. Done is fetched only when asked for, so
   // the Open view costs exactly what it did before.
-  const shown = panel !== "tasks" ? openHere
+  const pool = panel !== "tasks" ? openHere
     : show === "done" ? doneHere : show === "all" ? here : openHere;
+  // MINE, on a lens that came here to work. Shahar (2026-09-13): "the
+  // contractor needs a view on the project - from this week tasks". A trade
+  // standing on a site with two hundred and fifty tasks on it means their
+  // own, and the Professional lens says so by default; one tap widens it.
+  // Nothing is hidden - the count of everyone's work is on the chip beside it.
+  const canSplit = !!board.me?.contact_id && myOpen > 0 && myOpen < openHere.length;
+  const onlyMine = canSplit && (who ? who === "mine" : lens.key === "pro");
+  const shown = onlyMine ? pool.filter((t) => t.assignee_id === board.me!.contact_id) : pool;
   // The search (Shahar: "find relevant tasks faster"): a word or two,
   // matched against the subject, the notes, the job, the trade, the person,
   // and the contract and phase the sections are named after.
@@ -246,6 +279,7 @@ export default async function ProjectPage({
     const merged: Record<string, string | undefined> = {
       panel: panel === fallback ? undefined : panel,
       q: query || undefined, by: by === "timing" ? undefined : by, show: show || undefined,
+      as: asParam, who: who || undefined,
       ...over,
     };
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
@@ -254,8 +288,19 @@ export default async function ProjectPage({
   };
   // Moving to another panel drops the task view's own state - a search for
   // "jimmy" has no meaning on the money panel, and carrying it there only
-  // makes the back button lie.
-  const panelHref = (k: PanelKey) => k === fallback ? `/project/${id}` : `/project/${id}?panel=${k}`;
+  // makes the back button lie. The lens is not view state, it is who you are
+  // standing as, so it survives every hop on this screen.
+  const keepAs = (extra = "") => {
+    const p = new URLSearchParams(extra);
+    if (asParam) p.set("as", asParam);
+    const s = p.toString();
+    return s ? `/project/${id}?${s}` : `/project/${id}`;
+  };
+  const panelHref = (k: PanelKey) => k === fallback ? keepAs() : keepAs(`panel=${k}`);
+  // Switching lens starts the view again from that lens's own first panel -
+  // carrying "panel=bids" into the Professional lens, which has no bids,
+  // would land on a panel that is not there.
+  const lensHref = (l: Lens) => l.key === actualLens ? `/project/${id}` : `/project/${id}?as=${l.key}`;
 
   // "under each category allow me to log a payment" (Shahar, 2026-09-13).
   // A payment hangs off a TASK - that is where the receipt belongs and where
@@ -374,6 +419,31 @@ export default async function ProjectPage({
           {seat.stage ? ` · ${seat.stage}` : ""}
         </div>
 
+        {/* VIEWING AS. Shahar (2026-09-13): "allow me to log in as GC /
+            Professional / home owner / investor / viewer. This currently does
+            not work."
+
+            It changes the SHAPE of this screen and nothing else: which panels
+            you are offered, in what order, and where it opens. Every read
+            under it still goes through the same database gates, so a lens can
+            never show you something your seat does not already reach - which
+            is exactly why looking down your own ladder is safe, and how you
+            check what your trades are actually looking at. */}
+        {!isFolder && lenses.length > 1 && (
+          <section className="stack" style={{ gap: 6 }}>
+            <nav className="chips" aria-label="View this project as">
+              <span className="tiny text-muted" style={{ alignSelf: "center", marginRight: 2 }}>Viewing as</span>
+              {lenses.map((l) => (
+                <Chip key={l.key} href={lensHref(l)} on={l.key === lens.key}
+                  label={l.key === actualLens ? `${l.label} · you` : l.label} />
+              ))}
+            </nav>
+            <p className="tiny text-muted" style={{ margin: 0 }}>
+              {lens.full}.{lens.key === actualLens ? "" : " This only changes what the screen puts first — never what you are allowed to see."}
+            </p>
+          </section>
+        )}
+
         {/* A DEVELOPMENT: ONLY WHAT IS UNDER IT (Shahar, 2026-09-11).
             Three roll-ups across the whole portfolio, then one card per
             property with its own face and its own numbers. Every number here
@@ -487,6 +557,56 @@ export default async function ProjectPage({
               On site this week{week ? ` · ${weekDay(week.from)}–${weekDay(week.to)}` : ""}
             </div>
             <SiteWeekTrades projectId={id} week={week} />
+
+            {/* THE THREE THINGS SOMEBODY WORKING ON SITE ACTUALLY DOES.
+                Shahar (2026-09-13): "the contractor needs a view on the
+                project - from this week tasks, to logging payments, and
+                adding site visit."
+
+                They were all here already and all of them were a hunt: the
+                work behind a panel in the grid, the payment inside whichever
+                task it belonged to, the visit behind another panel. Under a
+                working lens they are three rows where the week ends, in the
+                order the day runs in. */}
+            {lens.onSite && (
+              <div className="stack" style={{ gap: 6 }}>
+                <Link href={panelHref("tasks")} className="home-row">
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">
+                      The work{myOpen > 0 ? ` · ${myOpen} yours` : openHere.length > 0 ? ` · ${openHere.length} open` : ""}
+                    </span>
+                    <span className="m" style={{ display: "block" }}>
+                      {late.length > 0 ? `${late.length} past its date` : "What is late, what is this week, what is waiting"}
+                    </span>
+                  </span>
+                  <ChevronIcon />
+                </Link>
+                {taskMoney.can_log && (
+                  <Link href={`/project/${id}/pay?back=${encodeURIComponent(keepAs())}`} className="home-row">
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t">Log a payment</span>
+                      <span className="m" style={{ display: "block" }}>
+                        A receipt, an invoice, something you bought — filed against the task it belongs to
+                      </span>
+                    </span>
+                    <ChevronIcon />
+                  </Link>
+                )}
+                <Link href={panelHref("visits")} className="home-row">
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">
+                      {visits.some((v) => v.on_date === today) ? "Today's site visit" : "Log today's site visit"}
+                    </span>
+                    <span className="m" style={{ display: "block" }}>
+                      {visits.some((v) => v.on_date === today)
+                        ? "Already logged — open it to add a photo or change what it says"
+                        : "A note, a photo, a voice note. It puts you on the day's roster."}
+                    </span>
+                  </span>
+                  <ChevronIcon />
+                </Link>
+              </div>
+            )}
           </section>
         )}
 
@@ -609,6 +729,14 @@ export default async function ProjectPage({
 
             {here.length > 3 && <SearchBox placeholder="Find a task on this site" count={query ? found.length : null} />}
 
+            {/* Whose. Only where the answer is not the same either way. */}
+            {canSplit && (
+              <nav className="chips" aria-label="Whose tasks">
+                <Chip href={viewHref({ who: "mine" })} on={onlyMine} label={`Mine · ${myOpen}`} />
+                <Chip href={viewHref({ who: "all" })} on={!onlyMine} label={`Everyone · ${openHere.length}`} />
+              </nav>
+            )}
+
             {/* Open / Done / All. Done is a separate read, so it is only paid
                 for when it is asked for. */}
             <nav className="chips" aria-label="Which tasks">
@@ -629,7 +757,9 @@ export default async function ProjectPage({
             {shown.length === 0 && (
               <Card soft pad>
                 <div className="small">
-                  {show === "done" ? "Nothing finished on this project yet." : "Nothing open on this project."}
+                  {show === "done" ? "Nothing finished on this project yet."
+                    : onlyMine ? "Nothing on this site is assigned to you. Everyone's work is one tap away, above."
+                    : "Nothing open on this project."}
                 </div>
               </Card>
             )}
