@@ -82,7 +82,8 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 // so the rule is kept and the dropdown tells the truth.
 //
 // Cancelled is still not here: it needs a reason and it is an ending, not a
-// stage - it lives under "This task will not happen".
+// stage - it lives under "Cancel this task", at the foot of the task's own
+// panel (Shahar, 2026-09-13).
 // Parked = you set it down; Pending on Others = you are blocked and the
 // unblock comes from outside, so it needs a reason (help: actions).
 const STAGES = ["Not Started", "In Progress", "Pending on Others", "Parked", "Completed"] as const;
@@ -93,10 +94,10 @@ export default async function TaskPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; edit?: string; undo?: string; money?: string }>;
+  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, ok, why, edit, undo, money } = await searchParams;
+  const { back, error, ok, why, undo, money } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : "/tasks";
 
   const w = stopwatch("/task/[id]");
@@ -151,9 +152,18 @@ export default async function TaskPage({
   // on the task or on a note against it counts, which is what portal_close_task
   // counts too, so the screen and the gate cannot disagree.
   const proof = (t.evidence ?? []).length + notes.reduce((n, c) => n + c.files.length, 0);
-  // It asks for a reason whenever there is nothing attached - not only when
-  // the task is flagged as requiring evidence.
-  const needsWhy = why === "1" || proof === 0;
+  // ONE BOX, NOT TWO. Shahar (2026-09-13): "the system forces me both to
+  // update comment header and what happened so i can close it as complete."
+  //
+  // It did, and it was this screen's doing rather than the database's. The
+  // task closes on PROOF or on a REASON; the screen used to put the reason in
+  // its own unlabelled input ABOVE the comment box, so a task with nothing
+  // attached showed two writing boxes and closing needed the top one. There is
+  // one box now - what you write in it IS the reason when there is nothing
+  // attached (the action hands it over). This field only appears if the
+  // database still refuses, which now only happens on a genuinely empty
+  // update.
+  const askWhy = why === "1";
 
   return (
     <Screen>
@@ -180,6 +190,8 @@ export default async function TaskPage({
           </div>
         )}
 
+        {/* THE TASK LINE. Shahar (2026-09-13): "Task line, below expanded
+            info about the task." */}
         <div className="hero">
           <h1 style={{ fontSize: 24 }}>{t.action}</h1>
           <p className="lead">
@@ -198,9 +210,16 @@ export default async function TaskPage({
           </p>
         )}
 
-        {/* The description, folded to a few lines: some of these run for two
-            screens, and the task's own state is what you came for (Shahar). */}
-        {(t.desired_outcome || t.notes) && (
+        {t.open_children > 0 && (
+          <Notice kind="info" title={`${t.open_children} step${t.open_children === 1 ? "" : "s"} still open beneath this.`}>
+            Those close first — the database blocks a parent while a gate child is open.
+          </Notice>
+        )}
+
+        {/* Read-only: the expanded task, for somebody who may not change it,
+            and for a task that has ended. The editable version below shows
+            the same words in their fields, so it is one or the other. */}
+        {(closed || !t.can_edit) && (t.desired_outcome || t.notes) && (
           <Card soft pad>
             {t.desired_outcome && <><div className="kicker">Done looks like</div>
               <LongText text={t.desired_outcome} lines={4} style={{ marginTop: 4 }} /></>}
@@ -212,190 +231,193 @@ export default async function TaskPage({
           </Card>
         )}
 
-        {t.open_children > 0 && (
-          <Notice kind="info" title={`${t.open_children} step${t.open_children === 1 ? "" : "s"} still open beneath this.`}>
-            Those close first — the database blocks a parent while a gate child is open.
-          </Notice>
-        )}
-
-        {t.pending_on && (
+        {(closed || !t.can_edit) && t.pending_on && (
           <Notice kind="info" title={`Waiting on ${t.pending_on}.`}>{t.pending_reason ?? "No reason recorded."}</Notice>
         )}
 
-        {/* ONE FORM, ONE SAVE (Shahar, 2026-09-12).
-            This screen used to be three forms - the fields, the update, the
-            payment - each with its own save button, and pressing one of them
-            threw away whatever had been typed in the other two, silently. It
-            is one form now and every button on it saves ALL of it. Which
-            button you pressed only decides what ELSE happens: nothing,
-            closing the task, or logging the purchase. */}
+        {/* ONE FORM, TWO PARTS (Shahar, 2026-09-12 and 2026-09-13).
+            The screen once had three forms, three save buttons, and pressing
+            one silently threw away what had been typed in the other two. It
+            is ONE form now: every button on it saves ALL of it, and which
+            button you pressed only decides what ELSE happens.
+
+            The two parts are the ones Shahar asked for. First the TASK -
+            what it is, its stage, its priority, who holds the ball and why,
+            with save, cancel-the-changes and cancel-the-task under it.
+            Then, after that part, what you DO about it: log a payment
+            against it, or post an update and close it. */}
         {!closed && (
-          <form action={saveTask} className="stack" style={{ gap: 12 }}>
+          <form action={saveTask} className="stack" style={{ gap: 18 }}>
             <input type="hidden" name="id" value={t.id} />
             <input type="hidden" name="back" value={to} />
 
-            {/* EVERYTHING THE TASK IS. Shut by default because most visits
-                are to post an update; open when a save just failed, so
-                nothing typed is lost to a reload. Closing is not here -
-                Mark complete is at the foot of this same form. */}
+            {/* ---- PART ONE: THE TASK ---------------------------------- */}
             {t.can_edit && (
-              <details className="home-panel" open={edit === "1"}>
-                <summary className="home-row">
-                  <span className="grow" style={{ minWidth: 0 }}>
-                    <span className="t">Edit the task</span>
-                    <span className="m" style={{ display: "block" }}>Subject, outcome, stage, who holds the ball, priority, date, assignee</span>
-                  </span>
-                  <span className="chev"><ChevronIcon /></span>
-                </summary>
-                <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-                  {/* Says the fields are on the page at all: a crew member who
-                      may not edit never sends them, and the action knows. */}
-                  <input type="hidden" name="has_fields" value="1" />
-                  <label className="field">
-                    <span className="field-label">Subject</span>
-                    <input className="input" name="action" defaultValue={t.action} required maxLength={300} />
+              <section className="stack" style={{ gap: 10 }}>
+                <div className="divider-label">The task</div>
+                {/* Says the fields are on the page at all: a crew member who
+                    may not edit never sends them, and the action knows. */}
+                <input type="hidden" name="has_fields" value="1" />
+                <label className="field">
+                  <span className="field-label">Task</span>
+                  <input className="input" name="action" defaultValue={t.action} required maxLength={300} />
+                </label>
+                <label className="field">
+                  <span className="field-label">Done looks like <span className="text-muted">(the end state, not the work)</span></span>
+                  <textarea className="input" name="desired_outcome" rows={3} defaultValue={t.desired_outcome ?? ""} />
+                </label>
+                <div className="row" style={{ gap: 8 }}>
+                  <label className="field grow">
+                    <span className="field-label">Stage</span>
+                    <select className="input" name="status" defaultValue={STAGES.includes(t.status as typeof STAGES[number]) ? t.status : "Not Started"}>
+                      {STAGES.map((x) => <option key={x} value={x}>{x}</option>)}
+                    </select>
                   </label>
-                  <label className="field">
-                    <span className="field-label">Done looks like <span className="text-muted">(the end state, not the work)</span></span>
-                    <textarea className="input" name="desired_outcome" rows={2} defaultValue={t.desired_outcome ?? ""} />
+                  <label className="field grow">
+                    <span className="field-label">Priority</span>
+                    <select className="input" name="priority" defaultValue={t.priority ?? "Missing"}>
+                      {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
+                    </select>
                   </label>
-                  <div className="row" style={{ gap: 8 }}>
-                    <label className="field grow">
-                      <span className="field-label">Stage</span>
-                      <select className="input" name="status" defaultValue={STAGES.includes(t.status as typeof STAGES[number]) ? t.status : "Not Started"}>
-                        {STAGES.map((x) => <option key={x} value={x}>{x}</option>)}
-                      </select>
-                    </label>
-                    <label className="field grow">
-                      <span className="field-label">Priority</span>
-                      <select className="input" name="priority" defaultValue={t.priority ?? "Missing"}>
-                        {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                  <label className="field">
-                    <span className="field-label">Pending on <span className="text-muted">(who or what holds the ball)</span></span>
-                    <input className="input" name="pending_on" defaultValue={t.pending_on ?? ""} placeholder="Steve at Andersen · the town inspector · a decision from Ifat" />
-                  </label>
-                  <div className="row" style={{ gap: 8 }}>
-                    <label className="field grow">
-                      <span className="field-label">Why <span className="text-muted">(required when Pending on Others)</span></span>
-                      <input className="input" name="pending_reason" defaultValue={t.pending_reason ?? ""} placeholder="Waiting for the revised quote" />
-                    </label>
-                    <label className="field" style={{ flex: "0 0 40%" }}>
-                      <span className="field-label">Kind</span>
-                      <select className="input" name="pending_category" defaultValue={t.pending_category ?? ""}>
-                        {PENDING_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="row" style={{ gap: 8 }}>
-                    <label className="field grow">
-                      <span className="field-label">Due</span>
-                      <input className="input" name="target_date" type="date" defaultValue={t.target_date ?? ""} />
-                    </label>
-                    <label className="field grow">
-                      <span className="field-label">Assigned to</span>
-                      <select className="input" name="assignee" defaultValue={t.assignee?.id ?? ""}>
-                        <option value="">Nobody yet</option>
-                        {people.map((x) => (
-                          <option key={x.contact_id} value={x.contact_id}>{x.me ? `${x.name} (me)` : x.name}{x.seat ? ` · ${x.seat}` : ""}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
                 </div>
-              </details>
+                <label className="field">
+                  <span className="field-label">Pending on <span className="text-muted">(who or what holds the ball)</span></span>
+                  <input className="input" name="pending_on" defaultValue={t.pending_on ?? ""} placeholder="Steve at Andersen · the town inspector · a decision from Ifat" />
+                </label>
+                <div className="row" style={{ gap: 8 }}>
+                  <label className="field grow">
+                    <span className="field-label">Why <span className="text-muted">(required when Pending on Others)</span></span>
+                    <input className="input" name="pending_reason" defaultValue={t.pending_reason ?? ""} placeholder="Waiting for the revised quote" />
+                  </label>
+                  <label className="field" style={{ flex: "0 0 40%" }}>
+                    <span className="field-label">Type</span>
+                    <select className="input" name="pending_category" defaultValue={t.pending_category ?? ""}>
+                      {PENDING_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <label className="field grow">
+                    <span className="field-label">Due</span>
+                    <input className="input" name="target_date" type="date" defaultValue={t.target_date ?? ""} />
+                  </label>
+                  <label className="field grow">
+                    <span className="field-label">Assigned to</span>
+                    <select className="input" name="assignee" defaultValue={t.assignee?.id ?? ""}>
+                      <option value="">Nobody yet</option>
+                      {people.map((x) => (
+                        <option key={x.contact_id} value={x.contact_id}>{x.me ? `${x.name} (me)` : x.name}{x.seat ? ` · ${x.seat}` : ""}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {/* SAVE · CANCEL THE CHANGES · CANCEL THE TASK, in that
+                    order, right under the fields they belong to. Save takes
+                    the whole screen with it, so nothing typed further down
+                    is ever lost to pressing it. */}
+                <div className="row" style={{ gap: 8 }}>
+                  <button name="do" value="save" className="btn btn-primary grow">Save</button>
+                  <Link href={`/task/${t.id}?back=${encodeURIComponent(to)}`} className="btn btn-ghost grow">Cancel changes</Link>
+                </div>
+
+                {/* THE END OF THE TASK, not the end of the edit. This
+                    replaced the old "This task will not happen" panel
+                    (Shahar, 2026-09-13) and sits with the task rather than
+                    at the foot of the page, which is where the confusion
+                    with Discard came from. Both buttons skip the browser's
+                    validation - a half-filled payment further down must not
+                    stand between somebody and calling a task off. */}
+                <details className="home-panel">
+                  <summary className="home-row">
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t">Cancel the task</span>
+                      <span className="m" style={{ display: "block" }}>Call it off, or remove one entered by mistake</span>
+                    </span>
+                    <span className="chev"><ChevronIcon /></span>
+                  </summary>
+                  <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+                    <p className="tiny text-muted" style={{ margin: 0 }}>
+                      Not the same as Cancel changes: that one throws away what you have typed.
+                      These end the TASK — calling it off keeps it as a record with your reason
+                      on it, deleting removes it as though it had never been entered.
+                    </p>
+                    <label className="field">
+                      <span className="field-label">Why it will not happen <span className="text-muted">(optional)</span></span>
+                      <input className="input" name="cancel_reason" placeholder="Scope changed · done by someone else · no longer needed" />
+                    </label>
+                    <button formAction={cancelTask} formNoValidate className="btn btn-secondary btn-block">
+                      Call this task off
+                    </button>
+                    <button formAction={deleteTask} formNoValidate className="btn btn-ghost btn-block btn-danger">
+                      Delete it — it was entered by mistake
+                    </button>
+                    <p className="tiny text-muted" style={{ margin: 0 }}>
+                      Only a task nothing has been posted on, made by you or on a site you run.
+                      Anything else is cancelled, not deleted.
+                    </p>
+                  </div>
+                </details>
+              </section>
             )}
 
-            {/* WHAT HAPPENED. The note and whatever it carries. */}
-            <div className="stack" style={{ gap: 8 }}>
-              <div className="divider-label">Comment</div>
-              {needsWhy && (
-                <label className="stack" style={{ gap: 4 }}>
-                  <span className="tiny text-muted">
-                    Nothing attached to this task yet. Closing it without proof records why, against
-                    the task — a photo, a certificate or a recording is enough either way.
+            {/* ---- PART TWO: WHAT YOU DO ABOUT IT ---------------------- */}
+            <section className="stack" style={{ gap: 10 }}>
+              <div className="divider-label">Against this task</div>
+
+              {/* WHAT IT COST (migration 065). Inside the same form, so
+                  logging a purchase saves the field edits and the update
+                  with it, and an amount in the box is logged by whichever
+                  button gets pressed. */}
+              {t.can_log_payment && (
+                <details className="home-panel" open={money === "1"}>
+                  <summary className="home-row">
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t">Log a payment</span>
+                      <span className="m" style={{ display: "block" }}>Something you bought or paid for to get this done</span>
+                    </span>
+                    <span className="chev"><ChevronIcon /></span>
+                  </summary>
+                  <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+                    <PaymentBox projectId={t.project_id} methods={t.methods} accounts={accounts}
+                      people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
+                  </div>
+                </details>
+              )}
+
+              {/* THE UPDATE. One writing box, and the proof that goes with
+                  it - a photo, the certificate, a recording. */}
+              {/* A div, not a label: Evidence carries buttons, and a click
+                  on a button inside a label goes to the label's control. */}
+              <div className="field">
+                <span className="field-label">Update the status</span>
+                <NoteBox projectId={t.project_id} />
+              </div>
+
+              {/* Only when the database has actually refused - see askWhy. */}
+              {askWhy && (
+                <label className="field">
+                  <span className="field-label">Why it closes with nothing attached</span>
+                  <input name="unlock_reason" className="input" autoFocus
+                    placeholder="Nothing to photograph · the certificate is with the town · done by phone" />
+                  <span className="hint">
+                    A few words, recorded against the task. Or attach the proof above instead —
+                    a photo, a certificate or a recording all count.
                   </span>
-                  <input name="reason" className="input" placeholder="Why there is no photo (a few words)" />
                 </label>
               )}
-              <NoteBox projectId={t.project_id} />
-            </div>
 
-            {/* WHAT IT COST (migration 065). Inside this form, so logging a
-                purchase saves the field edits and the note with it. */}
-            {t.can_log_payment && (
-              <details className="home-panel" open={money === "1"}>
-                <summary className="home-row">
-                  <span className="grow" style={{ minWidth: 0 }}>
-                    <span className="t">Log a payment</span>
-                    <span className="m" style={{ display: "block" }}>Something you bought or paid for to get this done</span>
-                  </span>
-                  <span className="chev"><ChevronIcon /></span>
-                </summary>
-                <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-                  <PaymentBox projectId={t.project_id} methods={t.methods} accounts={accounts}
-                    people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
-                </div>
-              </details>
-            )}
-
-            {/* THREE WAYS OUT, no more (Shahar, 2026-09-12: "Need to simplify
-                the task update... cancel / back, update & close, update &
-                close complete"). Neither Update is ever disabled: you may
-                have changed only a field, and a save that will not press is
-                how the last version lost a drawer full of them. */}
-            <div className="stack" style={{ gap: 8 }}>
-              <button name="do" value="save" className="btn btn-primary btn-block">Update &amp; close</button>
-              <button name="do" value="complete" className="btn btn-secondary btn-block">Update &amp; mark complete</button>
-              <Link href={to} className="btn btn-ghost btn-block">Discard &amp; go back</Link>
-              <p className="tiny text-muted" style={{ margin: 0 }}>
-                Both Updates save everything on this screen — the fields, the comment, the files,
-                the payment. The first stays here so you can carry on; the second closes the task.
-                Discard leaves without saving any of it.
-              </p>
-            </div>
+              <div className="stack" style={{ gap: 8 }}>
+                <button name="do" value="save" className="btn btn-primary btn-block">Post the update</button>
+                <button name="do" value="complete" className="btn btn-secondary btn-block">Post it &amp; mark complete</button>
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  Either button saves the whole screen — the task fields, the update, the files and
+                  the payment. The first stays here so you can carry on; the second closes the task,
+                  and what you wrote above is the reason on record if nothing is attached.
+                </p>
+              </div>
+            </section>
           </form>
-        )}
-
-        {/* This will not happen - or it was a slip (migration 060). Cancel
-            keeps the task as record, with the reason; delete removes a task
-            nothing has been posted on yet, and the database says when a
-            task is a record instead. Its own forms: they end the task rather
-            than saving it. */}
-        {!closed && t.can_edit && (
-          <details className="home-panel">
-            <summary className="home-row">
-              <span className="grow" style={{ minWidth: 0 }}>
-                <span className="t">This task will not happen</span>
-                <span className="m" style={{ display: "block" }}>Call it off, or remove one entered by mistake</span>
-              </span>
-              <span className="chev"><ChevronIcon /></span>
-            </summary>
-            <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-              <p className="tiny text-muted" style={{ margin: 0 }}>
-                Not the same as Discard above: that one throws away what you typed and leaves the
-                screen. These two end the TASK — calling it off keeps it as a record with your
-                reason on it, deleting removes it as though it had never been entered.
-              </p>
-              <form action={cancelTask} className="stack" style={{ gap: 8 }}>
-                <input type="hidden" name="id" value={t.id} />
-                <input type="hidden" name="back" value={to} />
-                <label className="field">
-                  <span className="field-label">Why it will not happen <span className="text-muted">(optional)</span></span>
-                  <input className="input" name="reason" placeholder="Scope changed · done by someone else · no longer needed" />
-                </label>
-                <button className="btn btn-secondary btn-block">Call this task off</button>
-              </form>
-              <form action={deleteTask} className="stack" style={{ gap: 6 }}>
-                <input type="hidden" name="id" value={t.id} />
-                <input type="hidden" name="back" value={to} />
-                <button className="btn btn-ghost btn-block btn-danger">Delete it — it was entered by mistake</button>
-                <p className="tiny text-muted" style={{ margin: 0 }}>Only a task nothing has been posted on, made by you or on a site you run. Anything else is cancelled, not deleted.</p>
-              </form>
-            </div>
-          </details>
         )}
 
         {closed && (

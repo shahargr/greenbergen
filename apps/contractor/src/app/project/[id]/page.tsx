@@ -5,7 +5,7 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, money, openBeneath, runs, type GroupKey, type Node, type Seat } from "@/lib/board";
+import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, groupWork, money, openBeneath, readMoney, runs, type Group, type GroupKey, type Node, type Seat, type TaskMoney } from "@/lib/board";
 import { PropertyCard } from "@/components/PropertyCard";
 import { SearchBox } from "@/components/SearchBox";
 import { matchesQuery } from "@/lib/search";
@@ -79,7 +79,7 @@ export default async function ProjectPage({
   // the domain, and this screen wants the whole property anyway (see below),
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
-  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }] = await Promise.all([
+  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }, { data: moneyData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
@@ -87,6 +87,13 @@ export default async function ProjectPage({
     // Who is on site this week, and the record of who has been (migration 068).
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
     w.step("visits", () => rpc<Visit[]>(supabase, "portal_site_visits", { p_project: id, p_limit: 20 })),
+    // What every task on this site and beneath it has cost and still owes
+    // (migration 078) - one read for the whole family, so a category can
+    // carry its money without a query per task. Only the work panel needs
+    // it, and which panel that is cannot be settled until the seat is read.
+    (!panelRaw || panelRaw === "tasks")
+      ? w.step("taskMoney", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id }))
+      : Promise.resolve({ data: null }),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}`);
 
@@ -222,7 +229,15 @@ export default async function ProjectPage({
     : shown;
   // Sections. Timing by default - every task has one; trade, contract and
   // phase are a tap away and name what they cannot place. See groupTasks.
-  const sections = panel === "tasks" ? groupTasks(found, by) : [];
+  //
+  // Timing stays a flat list of buckets: late first, this week next, and
+  // collapsing those would hide the two things the screen exists to say.
+  // The other three NEST and carry their money (Shahar, 2026-09-13: "build
+  // hierarchy so i can see everything Frame related... and under each
+  // category allow me to log a payment") - see groupWork.
+  const taskMoney = readMoney(moneyData);
+  const sections = panel === "tasks" && by === "timing" ? groupTasks(found, by) : [];
+  const groups = panel === "tasks" && by !== "timing" ? groupWork(found, by, taskMoney) : [];
 
   // Links that keep the rest of the view: changing the panel must not throw
   // away nothing, but changing the grouping must not throw away the search.
@@ -241,6 +256,59 @@ export default async function ProjectPage({
   // "jimmy" has no meaning on the money panel, and carrying it there only
   // makes the back button lie.
   const panelHref = (k: PanelKey) => k === fallback ? `/project/${id}` : `/project/${id}?panel=${k}`;
+
+  // "under each category allow me to log a payment" (Shahar, 2026-09-13).
+  // A payment hangs off a TASK - that is where the receipt belongs and where
+  // anybody looks for it - so a category's payment row opens the category's
+  // own tasks to choose from, with the money fields already there.
+  const payHref = (g: Group) => {
+    const p = new URLSearchParams({ back: viewHref({}) });
+    if (g.trade) p.set("trade", g.trade);
+    else if (g.phase) p.set("phase", g.phase);
+    else p.set("untagged", "1");
+    return `/project/${id}/pay?${p.toString()}`;
+  };
+
+  // ONE TASK, one row - written once and used by both arrangements, so the
+  // flat buckets and the nested categories cannot drift apart.
+  const taskRow = (t: (typeof board.tasks)[number]) => {
+    const m = taskMoney.tasks[t.id];
+    return (
+      <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(viewHref({}))}`}>
+        <span className="grow" style={{ minWidth: 0 }}>
+          <span className="t">{t.action}</span>
+          <span className="m">
+            {[
+              // Which job it is on, when that is not this row.
+              t.project_id && t.project_id !== id ? (nameOf.get(t.project_id) ?? t.project) : null,
+              // Whatever the section is not already named after.
+              by === "trade" || by === "phase" ? null : t.trade,
+              by === "contract" ? null : t.contract,
+              t.assignee ?? (manages ? "unassigned" : null),
+              t.status !== "Not Started" ? t.status : null,
+            ].filter(Boolean).join(" · ") || "—"}
+          </span>
+        </span>
+        {/* A receipt still to pay is the loudest thing a task can carry. */}
+        {m && m.owed > 0 && (
+          <span className="tag tag-status" style={{ whiteSpace: "nowrap" }}>{money(m.owed)} to pay</span>
+        )}
+        {m && m.owed === 0 && m.spent > 0 && (
+          <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>{money(m.spent)}</span>
+        )}
+        {t.state === "open" && t.priority === "High" && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>High</span>}
+        {t.state === "closed" ? (
+          <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>
+            {t.completed_on ? shortDate(t.completed_on) : "done"}
+          </span>
+        ) : t.target_date ? (
+          <span className={`tag ${t.target_date < today ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
+            {shortDate(t.target_date)}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
 
   // One signed-URL round trip for the cover and everything hanging off the
   // visits - they all live in the same private bucket.
@@ -569,43 +637,25 @@ export default async function ProjectPage({
               <Card soft pad><div className="small">Nothing matches &ldquo;{query}&rdquo;.</div></Card>
             )}
 
+            {/* TIMING: flat buckets, exactly as they were. Late and This
+                week are the two things this screen exists to say, and a
+                bucket you have to open is a bucket you do not read. */}
             {sections.map((b) => (
               <div key={b.key}>
                 <div className="bucket">
                   <span className={`h ${b.tone === "status" ? "late" : ""}`}>{b.label}</span>
                   <span className="n">{b.rows.length}{b.late > 0 && b.tone !== "status" ? ` · ${b.late} late` : ""}</span>
                 </div>
-                <div className="bucket-rows">
-                  {b.rows.map((t) => (
-                    <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(viewHref({}))}`}>
-                      <span className="grow" style={{ minWidth: 0 }}>
-                        <span className="t">{t.action}</span>
-                        <span className="m">
-                          {[
-                            // Which job it is on, when that is not this row.
-                            t.project_id && t.project_id !== id ? (nameOf.get(t.project_id) ?? t.project) : null,
-                            // Whatever the section is not already named after.
-                            by === "trade" ? null : t.trade,
-                            by === "contract" ? null : t.contract,
-                            t.assignee ?? (manages ? "unassigned" : null),
-                            t.status !== "Not Started" ? t.status : null,
-                          ].filter(Boolean).join(" · ") || "—"}
-                        </span>
-                      </span>
-                      {t.state === "open" && t.priority === "High" && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>High</span>}
-                      {t.state === "closed" ? (
-                        <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>
-                          {t.completed_on ? shortDate(t.completed_on) : "done"}
-                        </span>
-                      ) : t.target_date ? (
-                        <span className={`tag ${t.target_date < today ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
-                          {shortDate(t.target_date)}
-                        </span>
-                      ) : null}
-                    </Link>
-                  ))}
-                </div>
+                <div className="bucket-rows">{b.rows.map(taskRow)}</div>
               </div>
+            ))}
+
+            {/* TRADE · CONTRACT · PHASE: the hierarchy, each category
+                carrying its count, what is late, what it has cost and what
+                is still to pay, and a way to log a payment against it. */}
+            {groups.map((g) => (
+              <GroupBlock key={g.key} g={g} depth={0} row={taskRow} payHref={payHref}
+                canLog={taskMoney.can_log} />
             ))}
           </section>
         )}
@@ -634,6 +684,68 @@ function Panel({ href, on, n, label, sub, tone }: {
   return href
     ? <Link href={href} aria-current={on ? "page" : undefined} scroll={false} className={cls}>{inside}</Link>
     : <div className={cls}>{inside}</div>;
+}
+
+// A CATEGORY, AND WHAT IS UNDER IT.
+//
+// Shahar (2026-09-13): "even when i click on trade to sort, it might sort, but
+// not show things nested under every trade. build hierarchy so i can see
+// everything Frame related (example the receipt i need to pay) and under each
+// category allow me to log a payment."
+//
+// So a category is a panel that opens, not a heading: its line says how much
+// work is under it, how much of that is late, what has been paid and what is
+// still owed, and opening it shows the trades beneath it, then the work, then
+// the way to log a payment against the category.
+//
+// It opens by itself when there is something owed or something late - the two
+// reasons a person is on this screen - and stays shut otherwise, which is what
+// makes a hundred and forty tasks readable at all.
+function GroupBlock({ g, depth, row, payHref, canLog }: {
+  g: Group;
+  depth: number;
+  row: (t: Group["rows"][number]) => React.ReactNode;
+  payHref: (g: Group) => string;
+  canLog: boolean;
+}) {
+  const open = g.owed > 0 || g.late > 0;
+  const line = [
+    `${g.n} ${g.n === 1 ? "task" : "tasks"}`,
+    g.late > 0 ? `${g.late} late` : null,
+    g.owed > 0 ? `${money(g.owed)} to pay` : null,
+    g.spent > 0 ? `${money(g.spent)} paid` : null,
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <details className="home-panel" open={open} style={depth > 0 ? { marginLeft: 0 } : undefined}>
+      <summary className="home-row">
+        <span className="grow" style={{ minWidth: 0 }}>
+          <span className="t">{g.label}</span>
+          <span className="m" style={{ display: "block" }}>{line}</span>
+        </span>
+        {g.owed > 0 && <span className="tag tag-status" style={{ whiteSpace: "nowrap" }}>{money(g.owed)}</span>}
+        <span className="chev"><ChevronIcon /></span>
+      </summary>
+      <div className="drawer stack" style={{ gap: 10, paddingTop: 10 }}>
+        {g.sub.map((s) => (
+          <GroupBlock key={s.key} g={s} depth={depth + 1} row={row} payHref={payHref} canLog={canLog} />
+        ))}
+        {g.rows.length > 0 && <div className="bucket-rows">{g.rows.map(row)}</div>}
+        {/* The payment belongs to a task; this row is the way in. */}
+        {canLog && g.rows.length > 0 && (
+          <Link href={payHref(g)} className="home-row">
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">Log a payment in {g.label.toLowerCase()}</span>
+              <span className="m" style={{ display: "block" }}>
+                A receipt, an invoice, something you bought — filed against the task it belongs to
+              </span>
+            </span>
+            <span className="chev"><ChevronIcon /></span>
+          </Link>
+        )}
+      </div>
+    </details>
+  );
 }
 
 function Line({ label, value, tone }: { label: string; value: string; tone?: "status" }) {

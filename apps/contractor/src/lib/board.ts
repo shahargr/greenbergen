@@ -427,6 +427,175 @@ export function groupTasks(tasks: Task[], by: GroupKey, now = new Date()): Secti
   }));
 }
 
+// ---------------------------------------------------------------------------
+// THE HIERARCHY, WITH THE MONEY ON IT.
+//
+// Shahar (2026-09-13): "every receipt is likely connected to a phase in the
+// project. foundation, frame, etc... so the open tasks should be nested under
+// a trade... even when i click on trade to sort, it might sort, but not show
+// things nested under every trade. build hierarchy so i can see everything
+// Frame related (example the receipt i need to pay) and under each category
+// allow me to log a payment."
+//
+// The hierarchy is already in the data and nothing was drawing it. A PHASE
+// (trade_stages) holds TRADES; a trade holds TASKS; a task holds the money.
+// portal_tasks returns all three on every row, so nesting costs no read -
+// only portal_task_money does, and that is one call for the whole site
+// (migration 078).
+//
+// What the counts on 55 Walnut say, and why the shape is what it is:
+//
+//     no trade at all        141 tasks   30 of the 35 that carry money
+//     Others / PM             66
+//     Rough and mechanical    29   Framing 14, Plumbing 12, Electrical 2, HVAC 1
+//     Site preparation         6
+//     everything else          9
+//
+// So the untagged pile is not an edge case, it is the biggest section AND
+// where nearly every receipt is. It gets a name, a number and the same
+// payment affordance as any other category - hiding it would hide the work.
+export type Money = { spent: number; owed: number; n: number };
+export type TaskMoney = {
+  tasks: Record<string, Money>; spent: number; owed: number;
+  // Whether to offer logging one - the same gate portal_task_detail uses.
+  can_log: boolean;
+};
+
+export const EMPTY_MONEY: TaskMoney = { tasks: {}, spent: 0, owed: 0, can_log: false };
+
+// portal_task_money returns nothing at all to somebody who may not see the
+// money, so a missing read must read as "no money", never as zero-and-allowed.
+export const readMoney = (d: unknown): TaskMoney => {
+  const m = (d ?? {}) as Partial<TaskMoney>;
+  return {
+    tasks: (m.tasks && typeof m.tasks === "object" ? m.tasks : {}) as Record<string, Money>,
+    spent: Number(m.spent ?? 0), owed: Number(m.owed ?? 0), can_log: m.can_log === true,
+  };
+};
+
+// A category on the project screen: a phase, a trade, a contract or a timing
+// bucket. `sub` is the level beneath it (trades under a phase) and is empty
+// for the arrangements that have only one level.
+export type Group = {
+  key: string;
+  label: string;
+  tone: "status" | null;
+  rows: Task[];       // the tasks filed directly here
+  sub: Group[];       // the categories beneath, each with its own rows
+  n: number;          // tasks at or beneath this category
+  late: number;       // ...of those, how many are past their date
+  spent: number;      // money that has left, on this category and beneath
+  owed: number;       // ...and what is still to pay - the receipts
+  // What a payment logged HERE belongs to, for the "log a payment" row.
+  // Null on a category that is not a trade or a phase (timing, contract).
+  trade: string | null;
+  phase: string | null;
+};
+
+const sumMoney = (rows: Task[], m: TaskMoney) =>
+  rows.reduce((a, t) => {
+    const x = m.tasks[t.id];
+    return x ? { spent: a.spent + x.spent, owed: a.owed + x.owed } : a;
+  }, { spent: 0, owed: 0 });
+
+const roll = (g: Omit<Group, "n" | "late" | "spent" | "owed">, m: TaskMoney, today: string): Group => {
+  const own = sumMoney(g.rows, m);
+  const late = g.rows.filter((t) => t.state === "open" && !!t.target_date && t.target_date < today).length;
+  return {
+    ...g,
+    n: g.rows.length + g.sub.reduce((a, s) => a + s.n, 0),
+    late: late + g.sub.reduce((a, s) => a + s.late, 0),
+    spent: own.spent + g.sub.reduce((a, s) => a + s.spent, 0),
+    owed: own.owed + g.sub.reduce((a, s) => a + s.owed, 0),
+  };
+};
+
+// Where the money is comes first inside a level, then what is late, then
+// weight. A category with a receipt outstanding is the one thing on this
+// screen somebody is looking for.
+const byWeight = (a: Group, b: Group) =>
+  (b.owed - a.owed) || (b.late - a.late) || (b.n - a.n) || a.label.localeCompare(b.label);
+
+export function groupWork(
+  tasks: Task[], by: GroupKey, m: TaskMoney = EMPTY_MONEY, now = new Date(),
+): Group[] {
+  const today = now.toISOString().slice(0, 10);
+  const leaf = (key: string, label: string, rows: Task[], extra: Partial<Group> = {}): Group =>
+    roll({ key, label, tone: null, rows: [...rows].sort(withinSection), sub: [],
+           trade: null, phase: null, ...extra }, m, today);
+
+  // TIMING keeps its own order - late, this week, waiting, later, undated -
+  // because that order IS the answer to the question it asks. It never nests.
+  if (by === "timing") {
+    return groupTasks(tasks, by, now).map((s) =>
+      roll({ key: s.key, label: s.label, tone: s.tone, rows: s.rows, sub: [], trade: null, phase: null }, m, today));
+  }
+
+  if (by === "contract") {
+    return groupTasks(tasks, by, now)
+      .map((s) => leaf(s.key, s.label, s.rows))
+      .sort(byWeight);
+  }
+
+  if (by === "trade") {
+    const map = new Map<string, Task[]>();
+    for (const t of tasks) map.set(t.trade ?? "", [...(map.get(t.trade ?? "") ?? []), t]);
+    return [...map.entries()]
+      .map(([k, rows]) => leaf(k || "unset", k || "No trade recorded", rows, { trade: k || null }))
+      .sort(byWeight);
+  }
+
+  // PHASE nests: the phase, then the trades inside it, then the work. A task
+  // with a trade always has a phase (portal_tasks reads it off trades.stage),
+  // so the only rows that land directly on a phase are the untagged ones,
+  // which get a phase of their own at the foot.
+  const phases = new Map<string, Map<string, Task[]>>();
+  for (const t of tasks) {
+    const p = t.phase ?? "";
+    const tr = t.trade ?? "";
+    if (!phases.has(p)) phases.set(p, new Map());
+    const inner = phases.get(p)!;
+    inner.set(tr, [...(inner.get(tr) ?? []), t]);
+  }
+  const orderOf = new Map<string, number>();
+  for (const t of tasks) if (t.phase) orderOf.set(t.phase, t.phase_order ?? 9999);
+
+  const out = [...phases.entries()].map(([p, inner]) => {
+    // A phase with exactly one trade in it is not a hierarchy, it is a row
+    // wearing two hats - its tasks sit straight on the phase.
+    const trades = [...inner.entries()];
+    if (trades.length === 1) {
+      const [tr, rows] = trades[0]!;
+      return roll({
+        key: p || "unset",
+        label: p ? (tr && tr !== p ? `${p} · ${tr}` : p) : (tr || "No phase recorded"),
+        tone: null, rows: [...rows].sort(withinSection), sub: [],
+        trade: tr || null, phase: p || null,
+      }, m, today);
+    }
+    return roll({
+      key: p || "unset",
+      label: p || "No phase recorded",
+      tone: null,
+      rows: [],
+      sub: trades
+        .map(([tr, rows]) => leaf(`${p}|${tr}`, tr || "No trade recorded", rows,
+          { trade: tr || null, phase: p || null }))
+        .sort(byWeight),
+      trade: null, phase: p || null,
+    }, m, today);
+  });
+
+  // Phases run in the order a build runs in; the untagged pile sits last,
+  // however big it is - it is a gap in the record, not a stage of the work.
+  out.sort((a, b) => {
+    if (a.phase === null) return 1;
+    if (b.phase === null) return -1;
+    return (orderOf.get(a.phase) ?? 9999) - (orderOf.get(b.phase) ?? 9999);
+  });
+  return out;
+}
+
 // One signed-URL round trip for every cover on a page. Storage paths are
 // private; a signed URL lasts an hour, which outlives any page view.
 export async function coverUrls(

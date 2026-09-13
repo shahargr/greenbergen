@@ -53,7 +53,18 @@ export async function saveTask(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const back = safeBack(formData.get("back"));
   const note = String(formData.get("note") ?? "").trim();
-  const reason = String(formData.get("reason") ?? "").trim();
+  // WHY IT CLOSES WITH NOTHING ATTACHED - and the update IS that reason.
+  //
+  // Shahar (2026-09-13): "the system forces me both to update comment header
+  // and what happened so i can close it as complete."
+  //
+  // portal_close_task has always asked for ONE of two things: the proof, or a
+  // sentence saying why there is none. The screen was asking for both, because
+  // it kept a second, unlabelled input for that sentence sitting above the
+  // update box. A person who has written what happened has already said why -
+  // so the update is handed over as the reason, and the separate field only
+  // appears if the database still refuses (nothing written, nothing attached).
+  const reason = String(formData.get("unlock_reason") ?? "").trim() || note;
   const intent = String(formData.get("do") ?? "save");
   // Choosing Completed in the Stage dropdown IS asking to close it, and it
   // goes the same way the button does - through portal_close_task, which asks
@@ -90,8 +101,10 @@ export async function saveTask(formData: FormData) {
     const { data, error } = await supabase.rpc("portal_task_edit", {
       p_action_id: id, p_patch: patch,
     });
-    if (error) redirect(here({ error: error.message, edit: "1" }));
-    if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save.", edit: "1" }));
+    // The fields are on the page rather than behind a drawer now, so a
+    // refusal needs nothing opened - it lands where the fields already are.
+    if (error) redirect(here({ error: error.message }));
+    if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save." }));
     const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
     if (changed.length) said.push(`Saved: ${changed.join(", ")}`);
   }
@@ -232,39 +245,10 @@ export async function editPayment(formData: FormData) {
   redirect(here({ ok: changed.length ? `Payment updated: ${changed.join(", ")}.` : "Nothing changed on that payment." }));
 }
 
-// Change the task itself - subject, outcome, stage, who holds the ball,
-// priority, date, assignee (migration 044). The form sends every field it
-// shows; portal_task_edit changes only what differs and enforces the
-// vocabulary, the pending-needs-a-reason rule and who may edit. Stays on
-// the task afterwards, because you are usually not done with it.
-export async function editTask(formData: FormData) {
-  const id = String(formData.get("id") ?? "");
-  const back = safeBack(formData.get("back"));
-  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
-  if (!id) redirect(back);
-  const s = (k: string) => String(formData.get(k) ?? "").trim();
-  const patch = {
-    action: s("action"),
-    desired_outcome: s("desired_outcome"),
-    status: s("status"),
-    pending_on: s("pending_on"),
-    pending_reason: s("pending_reason"),
-    pending_category: s("pending_category"),
-    priority: s("priority"),
-    target_date: s("target_date"),
-    assignee: s("assignee"),
-  };
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("portal_task_edit", { p_action_id: id, p_patch: patch });
-  if (error) redirect(here({ error: error.message }));
-  if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save.", edit: "1" }));
-  revalidatePath("/tasks");
-  revalidatePath("/inbox");
-  revalidatePath(`/task/${id}`);
-  const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
-  redirect(here({ ok: changed.length ? `Saved: ${changed.join(", ")}.` : "Nothing changed." }));
-}
-
+// editTask lived here until 2026-09-13: a second save for the field drawer,
+// from when this screen had three forms. saveTask does the fields now, in
+// step 1, along with everything else on the page. Deleted rather than kept
+// "just in case" - a second way to write the same row is how the two drift.
 
 // "This will not happen." The task stays as record with the reason on it,
 // closed as Cancelled through close_action like every other closing
@@ -272,7 +256,10 @@ export async function editTask(formData: FormData) {
 export async function cancelTask(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const back = safeBack(formData.get("back"));
-  const reason = String(formData.get("reason") ?? "").trim();
+  // Its own name: this button now lives INSIDE the task's one form, next to
+  // an unlock reason and a pending reason, and three fields called "reason"
+  // would hand the wrong sentence to the wrong function.
+  const reason = String(formData.get("cancel_reason") ?? "").trim();
   const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
   if (!id) redirect(back);
   const supabase = await createClient();
