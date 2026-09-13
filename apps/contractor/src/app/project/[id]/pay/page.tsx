@@ -31,10 +31,10 @@ export default async function CategoryPayPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ trade?: string; phase?: string; untagged?: string; back?: string; error?: string; task?: string }>;
+  searchParams: Promise<{ trade?: string; phase?: string; owner?: string; untagged?: string; back?: string; error?: string; task?: string }>;
 }) {
   const { id } = await params;
-  const { trade, phase, untagged, back, error, task } = await searchParams;
+  const { trade, phase, owner, untagged, back, error, task } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
 
   const w = stopwatch("/project/[id]/pay");
@@ -86,10 +86,20 @@ export default async function CategoryPayPage({
 
   // WHICH CATEGORY. Untagged is a category too - on 55 Walnut it holds most
   // of the receipts, so hiding it would hide the work (see groupWork).
-  const label = untagged === "1" ? "work with no trade recorded" : (trade ?? phase ?? "this site");
-  const inCategory = board.tasks.filter((t) =>
-    t.state === "open" && t.project_id && family.has(t.project_id) &&
-    (untagged === "1" ? !t.trade : trade ? t.trade === trade : phase ? t.phase === phase : true));
+  const label = owner ? `${owner}'s work`
+    : untagged === "1" ? "work with no trade recorded"
+    : (trade ?? phase ?? "this site");
+  const inCategory = board.tasks.filter((t) => {
+    if (t.state !== "open" || !t.project_id || !family.has(t.project_id)) return false;
+    // An owner category is what no trade claimed, held by one person - the
+    // same rule groupWork files it under (Shahar, 2026-09-13: "anything you
+    // don't know club under the owner").
+    if (owner) return !t.trade && (t.assignee ?? "Nobody yet") === owner;
+    if (trade) return t.trade === trade;
+    if (phase) return t.phase === phase;
+    if (untagged === "1") return !t.trade;
+    return true;
+  });
 
   // What is owed first - the receipt you are holding is almost always one of
   // these - then the rest, soonest first.
@@ -105,7 +115,8 @@ export default async function CategoryPayPage({
   const methods = (methodData ?? []) as Method[];
   const nameOf = new Map(board.seats.map((s) => [s.project_id, s.project_name]));
   const here = `/project/${id}/pay?${new URLSearchParams({
-    ...(trade ? { trade } : {}), ...(phase ? { phase } : {}), ...(untagged ? { untagged } : {}), back: to,
+    ...(trade ? { trade } : {}), ...(phase ? { phase } : {}), ...(owner ? { owner } : {}),
+    ...(untagged ? { untagged } : {}), back: to,
   }).toString()}`;
   w.done();
 

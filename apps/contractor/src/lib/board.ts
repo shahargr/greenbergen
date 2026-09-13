@@ -44,7 +44,14 @@ export type Task = {
   target_date: string | null; last_updated: string | null; notes: string | null;
   project: string | null; project_id: string | null; domain: string | null;
   has_contract: boolean; state: "open" | "closed";
-  assignee_id: string | null; assignee: string | null; trade: string | null;
+  // WHO HOLDS IT. assignee_id is the CONTACT and only the contact, so "is
+  // this mine" keeps its old answer; assignee is the holder's NAME whichever
+  // kind of holder it is, and assignee_kind says which (migration 079).
+  // A task held by an assistant - Zoe, Bobby, the Financial Controller - is
+  // held, and used to read as unassigned on every screen here.
+  assignee_id: string | null; assignee: string | null;
+  assignee_kind: "person" | "assistant" | null;
+  trade: string | null;
   // The three ways a build's work divides up (migration 066). Each is null
   // on most tasks - see groupTasks below, which says so on screen rather
   // than pretending otherwise.
@@ -490,6 +497,12 @@ export type Group = {
   // Null on a category that is not a trade or a phase (timing, contract).
   trade: string | null;
   phase: string | null;
+  // WHO HOLDS IT, when no trade does. Shahar (2026-09-13): "club them by
+  // trade. anything you don't know club under the owner." A task with no
+  // trade recorded is filed under the person it is assigned to rather than
+  // in one nameless heap - on 55 Walnut that heap was 141 of 254 tasks, and
+  // a category nobody is accountable for is a category nobody clears.
+  owner: string | null;
 };
 
 const sumMoney = (rows: Task[], m: TaskMoney) =>
@@ -497,6 +510,11 @@ const sumMoney = (rows: Task[], m: TaskMoney) =>
     const x = m.tasks[t.id];
     return x ? { spent: a.spent + x.spent, owed: a.owed + x.owed } : a;
   }, { spent: 0, owed: 0 });
+
+// Whose it is when no trade will own it. Unassigned is still a name on the
+// screen - "Nobody yet" is a category somebody has to clear, and hiding it
+// among the trades is how it stays uncleared.
+const ownerOf = (t: Task) => t.assignee ?? "Nobody yet";
 
 const roll = (g: Omit<Group, "n" | "late" | "spent" | "owed">, m: TaskMoney, today: string): Group => {
   const own = sumMoney(g.rows, m);
@@ -510,10 +528,17 @@ const roll = (g: Omit<Group, "n" | "late" | "spent" | "owed">, m: TaskMoney, tod
   };
 };
 
-// Where the money is comes first inside a level, then what is late, then
-// weight. A category with a receipt outstanding is the one thing on this
-// screen somebody is looking for.
+// A NAMED TRADE ALWAYS OUTRANKS A PERSON. The trades are the arrangement
+// Shahar asked for; the owner groups are what is left over until somebody
+// files them, so they gather at the foot however big they are - and on this
+// data they are the biggest thing on the screen, which is precisely why they
+// must not be the top of it.
+//
+// Inside each half: where the money is, then what is late, then weight. A
+// category with a receipt outstanding is the one thing somebody is looking
+// for on this screen.
 const byWeight = (a: Group, b: Group) =>
+  (a.owner ? 1 : 0) - (b.owner ? 1 : 0) ||
   (b.owed - a.owed) || (b.late - a.late) || (b.n - a.n) || a.label.localeCompare(b.label);
 
 export function groupWork(
@@ -522,13 +547,24 @@ export function groupWork(
   const today = now.toISOString().slice(0, 10);
   const leaf = (key: string, label: string, rows: Task[], extra: Partial<Group> = {}): Group =>
     roll({ key, label, tone: null, rows: [...rows].sort(withinSection), sub: [],
-           trade: null, phase: null, ...extra }, m, today);
+           trade: null, phase: null, owner: null, ...extra }, m, today);
+
+  // Tasks that no trade will claim, split by who holds them rather than
+  // heaped under one heading (Shahar, 2026-09-13).
+  const byOwner = (rows: Task[], prefix: string): Group[] => {
+    const map = new Map<string, Task[]>();
+    for (const t of rows) map.set(ownerOf(t), [...(map.get(ownerOf(t)) ?? []), t]);
+    return [...map.entries()]
+      .map(([who, rs]) => leaf(`${prefix}|owner|${who}`, who, rs, { owner: who }))
+      .sort(byWeight);
+  };
 
   // TIMING keeps its own order - late, this week, waiting, later, undated -
   // because that order IS the answer to the question it asks. It never nests.
   if (by === "timing") {
     return groupTasks(tasks, by, now).map((s) =>
-      roll({ key: s.key, label: s.label, tone: s.tone, rows: s.rows, sub: [], trade: null, phase: null }, m, today));
+      roll({ key: s.key, label: s.label, tone: s.tone, rows: s.rows, sub: [],
+             trade: null, phase: null, owner: null }, m, today));
   }
 
   if (by === "contract") {
@@ -538,11 +574,16 @@ export function groupWork(
   }
 
   if (by === "trade") {
-    const map = new Map<string, Task[]>();
-    for (const t of tasks) map.set(t.trade ?? "", [...(map.get(t.trade ?? "") ?? []), t]);
-    return [...map.entries()]
-      .map(([k, rows]) => leaf(k || "unset", k || "No trade recorded", rows, { trade: k || null }))
-      .sort(byWeight);
+    const named = new Map<string, Task[]>();
+    const loose: Task[] = [];
+    for (const t of tasks) {
+      if (t.trade) named.set(t.trade, [...(named.get(t.trade) ?? []), t]);
+      else loose.push(t);
+    }
+    return [
+      ...[...named.entries()].map(([k, rows]) => leaf(k, k, rows, { trade: k })),
+      ...byOwner(loose, "trade"),
+    ].sort(byWeight);
   }
 
   // PHASE nests: the phase, then the trades inside it, then the work. A task
@@ -564,25 +605,29 @@ export function groupWork(
     // A phase with exactly one trade in it is not a hierarchy, it is a row
     // wearing two hats - its tasks sit straight on the phase.
     const trades = [...inner.entries()];
-    if (trades.length === 1) {
+    if (trades.length === 1 && trades[0]![0]) {
       const [tr, rows] = trades[0]!;
       return roll({
         key: p || "unset",
-        label: p ? (tr && tr !== p ? `${p} · ${tr}` : p) : (tr || "No phase recorded"),
+        label: p ? (tr !== p ? `${p} · ${tr}` : p) : tr,
         tone: null, rows: [...rows].sort(withinSection), sub: [],
-        trade: tr || null, phase: p || null,
+        trade: tr, phase: p || null, owner: null,
       }, m, today);
     }
+    // Inside a phase, a trade is a category and the rows no trade claims are
+    // split by who holds them, same rule as the trade arrangement.
+    const sub = [
+      ...trades.filter(([tr]) => tr).map(([tr, rows]) =>
+        leaf(`${p}|${tr}`, tr, rows, { trade: tr, phase: p || null })),
+      ...byOwner(inner.get("") ?? [], p || "nophase"),
+    ].sort(byWeight);
     return roll({
       key: p || "unset",
       label: p || "No phase recorded",
       tone: null,
       rows: [],
-      sub: trades
-        .map(([tr, rows]) => leaf(`${p}|${tr}`, tr || "No trade recorded", rows,
-          { trade: tr || null, phase: p || null }))
-        .sort(byWeight),
-      trade: null, phase: p || null,
+      sub,
+      trade: null, phase: p || null, owner: null,
     }, m, today);
   });
 

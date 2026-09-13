@@ -223,7 +223,11 @@ function Chip({ href, on, label }: { href: string; on: boolean; label: string })
 function Row({ t, late, back }: { t: Task; late: boolean; back: string }) {
   const meta = [
     t.trade,
-    t.assignee ?? "unassigned",
+    // An assistant holding a task is a holder (migration 079); this line
+    // used to call every one of them "unassigned".
+    t.assignee
+      ? (t.assignee_kind === "assistant" ? `${t.assignee} · assistant` : t.assignee)
+      : "nobody holds this",
     t.status && t.status !== "Not Started" ? t.status : null,
   ].filter(Boolean) as string[];
   return (

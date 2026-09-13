@@ -13,7 +13,10 @@ import { matchesQuery } from "@/lib/search";
 import { ProjectSetup } from "./ProjectSetup";
 import { SiteVisits, type Visit } from "./SiteVisits";
 import { SiteWeekTrades, weekDay, type SiteWeek } from "./SiteWeek";
-import { cancelProject, closeProject, reopenProject } from "./actions";
+// cancelProject is deliberately NOT imported: the row that called it is
+// greyed out for now (Shahar, 2026-09-13 - "this is too risky"). The action
+// and migration 070 stay where they are; one import turns it back on.
+import { closeProject, reopenProject } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +62,12 @@ export default async function ProjectPage({
 }) {
   const { id } = await params;
   const { ok, error, q, by: byRaw, show, panel: panelRaw, as: asRaw, who } = await searchParams;
-  const by: GroupKey = GROUPINGS.some((g) => g.key === byRaw) ? (byRaw as GroupKey) : "timing";
+  // TRADE IS THE DEFAULT ARRANGEMENT NOW. Shahar (2026-09-13), looking at
+  // one bucket holding almost everything: "where there are tasks open, club
+  // them by trade. anything you don't know club under the owner." Timing is
+  // still the first chip - late and this week are the day's question - but a
+  // site with 250 open tasks answers "what is going on here" by trade.
+  const by: GroupKey = GROUPINGS.some((g) => g.key === byRaw) ? (byRaw as GroupKey) : "trade";
   // Open is the default; Done and All are a tap away (Shahar: "i need to see
   // completed as well"). Only the finished list costs an extra read, and only
   // the tasks panel asks for it - which panel that is cannot be settled until
@@ -278,7 +286,7 @@ export default async function ProjectPage({
     const p = new URLSearchParams();
     const merged: Record<string, string | undefined> = {
       panel: panel === fallback ? undefined : panel,
-      q: query || undefined, by: by === "timing" ? undefined : by, show: show || undefined,
+      q: query || undefined, by: by === "trade" ? undefined : by, show: show || undefined,
       as: asParam, who: who || undefined,
       ...over,
     };
@@ -309,6 +317,9 @@ export default async function ProjectPage({
   const payHref = (g: Group) => {
     const p = new URLSearchParams({ back: viewHref({}) });
     if (g.trade) p.set("trade", g.trade);
+    // An owner category is "no trade, held by this person", and its payment
+    // screen must shortlist exactly that - not every untagged task on site.
+    else if (g.owner) p.set("owner", g.owner);
     else if (g.phase) p.set("phase", g.phase);
     else p.set("untagged", "1");
     return `/project/${id}/pay?${p.toString()}`;
@@ -329,7 +340,11 @@ export default async function ProjectPage({
               // Whatever the section is not already named after.
               by === "trade" || by === "phase" ? null : t.trade,
               by === "contract" ? null : t.contract,
-              t.assignee ?? (manages ? "unassigned" : null),
+              // An assistant is a holder, said as one - it used to read
+              // "unassigned" (migration 079).
+              t.assignee
+                ? (t.assignee_kind === "assistant" ? `${t.assignee} · assistant` : t.assignee)
+                : (manages ? "nobody holds this" : null),
               t.status !== "Not Started" ? t.status : null,
             ].filter(Boolean).join(" · ") || "—"}
           </span>
@@ -354,6 +369,74 @@ export default async function ProjectPage({
       </Link>
     );
   };
+
+  // EVERY PANEL, WITH WHAT IT COUNTS AND WHETHER IT COUNTS ANYTHING.
+  // Built as data so the grid can drop the empty ones and the line beneath
+  // can name them, without the two lists being written twice (Shahar,
+  // 2026-09-13: "where there is 0 tasks open, you can hide the panels").
+  //
+  // `quiet` is what the line calls it - a noun, not a count, because the
+  // count is the thing that is missing.
+  const visitsToday = visits.filter((v) => v.on_date === today).length;
+  const beforeToday = visits.find((v) => v.on_date !== today);
+  const PANELS: Record<PanelKey, {
+    n: number | string; empty: boolean; label: string; sub?: string; tone?: "late"; quiet: string;
+  }> = {
+    tasks: {
+      n: openHere.length, empty: openHere.length === 0, quiet: "open work",
+      label: hasKids ? "tasks open on this site" : "tasks still open",
+      sub: late.length > 0 ? `${late.length} past its date` : "nothing is late",
+      tone: late.length > 0 ? "late" : undefined,
+    },
+    bids: {
+      n: openPkgs.length, empty: openPkgs.length === 0, quiet: "bids",
+      label: "packages out to bid",
+      sub: packages.length > openPkgs.length ? `${packages.length - openPkgs.length} settled` : "waiting on numbers",
+    },
+    money: {
+      // Money is never empty in the way a count is: "nothing owed" is an
+      // answer somebody came here for, and $0 paid on a live job is news.
+      n: money(owed) ?? "$0", empty: owed === 0 && (roll?.paid ?? 0) === 0 && (roll?.contracted ?? 0) === 0,
+      quiet: "money", label: "owed to the trades",
+      sub: money(roll?.paid) ? `${money(roll?.paid)} paid so far` : "nothing paid yet",
+    },
+    "jobs-open": {
+      n: kidOpen.length, empty: kidOpen.length === 0, quiet: "jobs not started",
+      label: "jobs not started", sub: "open, nothing on the board",
+    },
+    "jobs-working": {
+      n: kidWorking.length, empty: kidWorking.length === 0, quiet: "jobs being worked",
+      label: "jobs being worked", sub: "open, with tasks on them",
+    },
+    "jobs-done": {
+      n: kidDone.length, empty: kidDone.length === 0 && kidEnded.length === 0, quiet: "jobs completed",
+      label: "jobs completed",
+      sub: kidEnded.length > 0 ? `${kidEnded.length} cancelled` : "closed and frozen",
+    },
+    week: {
+      n: week?.trades.length ?? 0, empty: (week?.trades.length ?? 0) === 0, quiet: "who is on site",
+      label: "trades on site this week",
+      sub: week ? `${weekDay(week.from)}–${weekDay(week.to)}` : "this week",
+    },
+    visits: {
+      // Today's count, and what came before it - never "last Sep 11" on the
+      // eleventh of September.
+      n: visitsToday, empty: visitsToday === 0, quiet: "today's site visit",
+      label: "site visits logged today",
+      sub: visitsToday > 0
+        ? beforeToday ? `before that ${shortDate(beforeToday.on_date)}` : "the first one here"
+        : beforeToday ? `last was ${shortDate(beforeToday.on_date)}` : "nobody has logged one",
+    },
+    soon: { n: "—", empty: false, quiet: "", label: "held for what comes next" },
+  };
+  // The one you are looking at stays whatever it counts - a panel that
+  // vanished when you opened it would be a screen arguing with you.
+  const shownPanels = offered
+    .filter((k) => !PANELS[k].empty || k === panel)
+    .map((k) => ({ key: k, ...PANELS[k] }));
+  const emptyPanels = offered
+    .filter((k) => PANELS[k].empty && k !== panel && k !== "soon")
+    .map((k) => ({ key: k, ...PANELS[k] }));
 
   // One signed-URL round trip for the cover and everything hanging off the
   // visits - they all live in the same private bucket.
@@ -495,60 +578,36 @@ export default async function ProjectPage({
           </>
         ) : (
           <>
-        {/* THE NINE. Each says in words what its number counts, and tapping
-            one puts its content in the single area below. */}
+        {/* THE PANELS THAT HAVE SOMETHING TO SAY.
+            Shahar (2026-09-13): "where there is 0 tasks open, you can hide
+            the panels."
+
+            A panel reading zero is a tile of screen spent saying nothing -
+            four of the nine on 55 Walnut. They come out of the grid and go
+            into one quiet line beneath it, so the route to them survives:
+            hiding a panel outright would mean the only way to reach the bid
+            book on a site with no open package is to guess the URL. The one
+            you are looking at always stays, whatever it counts. */}
         <div className="pgrid">
-          {offered.map((k) => {
-            const on = k === panel;
-            switch (k) {
-              case "tasks":
-                return <Panel key={k} href={panelHref(k)} on={on} n={openHere.length}
-                  label={hasKids ? "tasks open on this site" : "tasks still open"}
-                  sub={late.length > 0 ? `${late.length} past its date` : "nothing is late"}
-                  tone={late.length > 0 ? "late" : undefined} />;
-              case "bids":
-                return <Panel key={k} href={panelHref(k)} on={on} n={openPkgs.length}
-                  label="packages out to bid"
-                  sub={packages.length > openPkgs.length ? `${packages.length - openPkgs.length} settled` : "waiting on numbers"} />;
-              case "money":
-                return <Panel key={k} href={panelHref(k)} on={on} n={money(owed) ?? "$0"}
-                  label="owed to the trades"
-                  sub={money(roll?.paid) ? `${money(roll?.paid)} paid so far` : "nothing paid yet"} />;
-              case "jobs-open":
-                return <Panel key={k} href={panelHref(k)} on={on} n={kidOpen.length}
-                  label="jobs not started" sub="open, nothing on the board" />;
-              case "jobs-working":
-                return <Panel key={k} href={panelHref(k)} on={on} n={kidWorking.length}
-                  label="jobs being worked" sub="open, with tasks on them" />;
-              case "jobs-done":
-                return <Panel key={k} href={panelHref(k)} on={on} n={kidDone.length}
-                  label="jobs completed"
-                  sub={kidEnded.length > 0 ? `${kidEnded.length} cancelled` : "closed and frozen"} />;
-              case "week":
-                return <Panel key={k} href={panelHref(k)} on={on} n={week?.trades.length ?? 0}
-                  label="trades on site this week"
-                  sub={week ? `${weekDay(week.from)}–${weekDay(week.to)}` : "this week"} />;
-              case "visits": {
-                // Today's count, and what came before it - never "last Sep 11"
-                // on the eleventh of September.
-                const loggedToday = visits.filter((v) => v.on_date === today).length;
-                const before = visits.find((v) => v.on_date !== today);
-                return <Panel key={k} href={panelHref(k)} on={on} n={loggedToday}
-                  label="site visits logged today"
-                  sub={loggedToday > 0
-                    ? before ? `before that ${shortDate(before.on_date)}` : "the first one here"
-                    : before ? `last was ${shortDate(before.on_date)}` : "nobody has logged one"} />;
-              }
-              default:
-                return (
-                  <div className="pnl soon" key={k} aria-hidden>
-                    <div className="n">—</div>
-                    <div className="l">held for what comes next</div>
-                  </div>
-                );
-            }
-          })}
+          {shownPanels.map((p) => (
+            p.key === "soon"
+              ? <div className="pnl soon" key={p.key} aria-hidden><div className="n">—</div><div className="l">held for what comes next</div></div>
+              : <Panel key={p.key} href={panelHref(p.key)} on={p.key === panel}
+                  n={p.n} label={p.label} sub={p.sub} tone={p.tone} />
+          ))}
         </div>
+
+        {emptyPanels.length > 0 && (
+          <p className="tiny text-muted" style={{ margin: "-4px 0 0" }}>
+            Nothing yet:{" "}
+            {emptyPanels.map((p, i) => (
+              <span key={p.key}>
+                {i > 0 ? " · " : ""}
+                <Link href={panelHref(p.key)}>{p.quiet}</Link>
+              </span>
+            ))}
+          </p>
+        )}
 
         {/* ONE ANSWER, belonging to the panel above that is lit. */}
         {panel === "week" && (
@@ -749,7 +808,7 @@ export default async function ProjectPage({
             {/* How they are arranged. */}
             <nav className="chips" aria-label="Group tasks by">
               {GROUPINGS.map((g) => (
-                <Chip key={g.key} href={viewHref({ by: g.key === "timing" ? undefined : g.key })}
+                <Chip key={g.key} href={viewHref({ by: g.key === "trade" ? undefined : g.key })}
                   on={by === g.key} label={g.label} />
               ))}
             </nav>
@@ -840,6 +899,10 @@ function GroupBlock({ g, depth, row, payHref, canLog }: {
 }) {
   const open = g.owed > 0 || g.late > 0;
   const line = [
+    // An owner group is what no trade claimed, so it says so - otherwise a
+    // person's name sitting among the trades reads as a trade. An assistant
+    // holding it is worth saying too: it is held, but not by a person.
+    g.owner ? (g.rows[0]?.assignee_kind === "assistant" ? "assistant · no trade recorded" : "no trade recorded") : null,
     `${g.n} ${g.n === 1 ? "task" : "tasks"}`,
     g.late > 0 ? `${g.late} late` : null,
     g.owed > 0 ? `${money(g.owed)} to pay` : null,
@@ -992,40 +1055,33 @@ function Lifecycle({ projectId, status, closed, open, liveKids, owed, paid, supe
         </div>
       </details>
 
-      {/* THE OTHER ENDING (migration 070). Complete means the work is done and
-          demands nothing be open; cancelled means it will not happen, needs a
-          reason, and takes the open work down with it. It is offered whatever
-          is open, because open work is the usual reason to cancel. */}
-      <details className="home-panel">
-        <summary className="home-row">
-          <span className="grow" style={{ minWidth: 0 }}>
-            <span className="t">Cancel this job</span>
-            <span className="m" style={{ display: "block" }}>
-              The work will not happen{open > 0
-                ? ` — ${open} open ${open === 1 ? "task goes" : "tasks go"} with it`
-                : ""}
-            </span>
+      {/* THE OTHER ENDING (migration 070), AND IT IS SWITCHED OFF.
+          Shahar (2026-09-13): "inside the project, clicking on the gear
+          button, there is an option to cancel the job - this is too risky;
+          for now, gray this out as an option."
+
+          Cancelling a job takes every open task down with it and freezes the
+          record - on 55 Walnut that is 136 tasks behind one button in a
+          settings panel. So the row stays, greyed, saying what it would do
+          and that it is not available: hiding it entirely would only mean
+          somebody hunts for it and finds the database function instead.
+          cancelProject and migration 070 are untouched - this is the SCREEN
+          declining to offer it, and one line turns it back on. */}
+      <div className="home-row" aria-disabled="true"
+        style={{ cursor: "not-allowed", opacity: 0.45, alignItems: "flex-start" }}>
+        <span className="grow" style={{ minWidth: 0 }}>
+          <span className="t">Cancel this job</span>
+          <span className="m" style={{ display: "block" }}>
+            Switched off for now — it would end the work and take
+            {open > 0 ? ` ${open} open ${open === 1 ? "task" : "tasks"}` : " anything open"} with it
           </span>
-          <span className="chev"><ChevronIcon /></span>
-        </summary>
-        <form action={cancelProject.bind(null, projectId)} className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
-          <p className="tiny text-muted" style={{ margin: 0 }}>
-            Anything still open is cancelled with it and carries your reason, so a task read a year
-            from now says why it stopped. The record freezes either way.
-          </p>
-          {paid > 0 && (
-            <p className="tiny" style={{ color: "var(--color-status)", margin: 0 }}>
-              {money(paid)} has already been paid on this job. Cancelling does not unpay it.
-            </p>
-          )}
-          <label className="field" style={{ marginBottom: 0 }}>
-            <span className="field-label">Why it is being cancelled <span className="text-muted">(required)</span></span>
-            <input className="input" name="reason" required minLength={4}
-              placeholder="Homeowner changed their mind · replaced under warranty" />
-          </label>
-          <button className="btn btn-secondary btn-block btn-danger">Cancel this job</button>
-        </form>
-      </details>
+        </span>
+      </div>
+      <p className="tiny text-muted" style={{ margin: 0 }}>
+        A job that will not happen: finish it as complete if the work is done, or leave it open and
+        cancel its tasks one at a time, which keeps each reason on its own record.
+        {paid > 0 ? ` ${money(paid)} has already been paid on this one.` : ""}
+      </p>
     </div>
   );
 }

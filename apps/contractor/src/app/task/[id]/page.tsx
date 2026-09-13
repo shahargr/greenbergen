@@ -25,7 +25,12 @@ type Detail = {
   can_edit: boolean;
   created_at: string | null; created_by: string | null; last_updated: string | null;
   project_id: string | null; project: string | null;
+  // The CONTACT the "Assigned to" select is bound to, and - display only -
+  // whoever actually holds it, which may be an assistant (migration 080).
+  // Reading only the contact is why a task Bobby holds read "unassigned"
+  // here while the list beside it said Bobby.
   assignee: { id: string; name: string | null } | null;
+  holder: { name: string | null; kind: "person" | "assistant" } | null;
   evidence: { id: string; file_name: string | null; kind: string | null; role: string | null }[];
   comments: { author: string | null; body: string | null; created_at: string | null }[];
   open_children: number;
@@ -196,7 +201,9 @@ export default async function TaskPage({
           <h1 style={{ fontSize: 24 }}>{t.action}</h1>
           <p className="lead">
             {[
-              t.assignee?.name ?? "unassigned",
+              t.holder?.name
+                ? (t.holder.kind === "assistant" ? `${t.holder.name} · assistant` : t.holder.name)
+                : "nobody holds this",
               t.priority && t.priority !== "Missing" ? `${t.priority} priority` : null,
               t.target_date ? `${late ? "was due" : "due"} ${shortDate(t.target_date)}` : "no date",
               closed ? t.status : null,

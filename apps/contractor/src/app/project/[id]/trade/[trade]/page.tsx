@@ -150,7 +150,9 @@ export default async function TradePage({
                         {[
                           t.project_id && t.project_id !== id ? (nameOf.get(t.project_id) ?? t.project) : null,
                           t.contract,
-                          t.assignee ?? (manages ? "unassigned" : null),
+                          t.assignee
+                            ? (t.assignee_kind === "assistant" ? `${t.assignee} · assistant` : t.assignee)
+                            : (manages ? "nobody holds this" : null),
                           t.status !== "Not Started" ? t.status : null,
                         ].filter(Boolean).join(" · ") || "—"}
                       </span>
