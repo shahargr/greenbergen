@@ -21,10 +21,15 @@ export type TaskType = {
 // the money questions exist at all, and the attachments upload as you go so
 // nothing is waiting on Save. Everything else is a plain form posting to a
 // server action, and every rule is portal_task_create's.
-export function NewTaskForm({ projectId, types, people }: {
+export function NewTaskForm({ projectId, types, people, payees, trades, contracts }: {
   projectId: string | null;
   types: TaskType[];
   people: { contact_id: string; name: string }[];
+  // Who can be paid on this job: the people on it PLUS everyone already paid
+  // here, because a supplier is almost never a member (migration 099).
+  payees: { contact_id: string; name: string }[];
+  trades: string[];
+  contracts: { id: string; label: string }[];
 }) {
   const [type, setType] = useState("");
   const [delivers, setDelivers] = useState<"work" | "product">("work");
@@ -93,21 +98,64 @@ export function NewTaskForm({ projectId, types, people }: {
           does not take one, so a stale number cannot survive a change of
           mind here. */}
       {money && (
-        <div className="row" style={{ gap: 8 }}>
-          <label className="field grow">
-            <span className="field-label">Target cost ($)</span>
-            <input className="input" name="target_cost" inputMode="decimal" placeholder="4200" />
+        <>
+          {/* STACKED, not side by side. Shahar (2026-09-14): "list target cost
+              and pay to one above the other with a place to add $ and select
+              pay to from drop down list." Side by side, a payee's name had
+              half a phone to sit in and every one of them was truncated. */}
+          <label className="field">
+            <span className="field-label">Target cost</span>
+            <span className="input-money">
+              <span className="input-money-mark" aria-hidden>$</span>
+              <input className="input" name="target_cost" inputMode="decimal" placeholder="4,200" />
+            </span>
             <span className="hint">What you expect it to cost — not what has been paid.</span>
           </label>
-          <label className="field grow">
+          <label className="field">
             <span className="field-label">Pay to</span>
-            <input className="input" name="pay_to" list="new-task-payees" autoComplete="off"
-              placeholder="Kuiken Brothers" />
-            <datalist id="new-task-payees">
-              {people.map((p) => <option key={p.contact_id} value={p.name} />)}
-            </datalist>
+            <select className="input" name="pay_to_contact" defaultValue="">
+              <option value="">— not set —</option>
+              {payees.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
+            </select>
+            <span className="hint">
+              Everyone on this job, plus everyone already paid on it. Somebody new goes in the
+              first time you pay them.
+            </span>
           </label>
-        </div>
+          {/* The trade belongs to the money kind because that is where it
+              earns its keep: it is how the spend lands under Framing on the
+              project screen rather than under the owner. */}
+          <label className="field">
+            <span className="field-label">Trade</span>
+            <select className="input" name="trade" defaultValue="">
+              <option value="">— not set —</option>
+              {trades.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <span className="hint">
+              Which trade this sits under on the board. Left unset, it is taken from the contract,
+              the scope line, or whoever holds it.
+            </span>
+          </label>
+        </>
+      )}
+
+      <label className="field">
+        <span className="field-label">Assigned to <span className="text-muted">(optional)</span></span>
+        <select className="input" name="assignee" defaultValue="">
+          <option value="">Nobody yet</option>
+          {people.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
+        </select>
+      </label>
+
+      {contracts.length > 0 && (
+        <label className="field">
+          <span className="field-label">Part of a contract <span className="text-muted">(optional)</span></span>
+          <select className="input" name="contract" defaultValue="">
+            <option value="">Not under a contract</option>
+            {contracts.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          <span className="hint">Ties the task to what was agreed, so it counts against that contract.</span>
+        </label>
       )}
 
       {/* A div, not a label: Evidence carries buttons, and a click on a

@@ -35,17 +35,32 @@ export default async function NewTaskPage({
   const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/task/new`)}`);
 
-  const [{ data: typeData }, { data: peopleData }, { data: projectRow }] = await Promise.all([
+  const [{ data: typeData }, { data: peopleData }, { data: payeeData }, { data: projectRow },
+         { data: tradeRows }, { data: contractRows }] = await Promise.all([
     w.step("types", () => rpc<TaskType[]>(supabase, "portal_task_types")),
-    // The same people the compose box offers, so "pay to" suggests somebody
-    // already on the job before it invents a contact from a typed name.
+    // The people on this project - who a task can be ASSIGNED to.
     w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
+    // Who can be PAID here, which is a wider list: a supplier is hardly ever
+    // a member of the project (migration 099).
+    w.step("payees", () => rpc<{ contact_id: string; name: string }[]>(supabase, "portal_task_payees", { p_project: id })),
     w.step("project", async () => await supabase.from("projects")
       .select("project_name").eq("id", id).maybeSingle()),
+    w.step("trades", async () => await supabase.from("trades")
+      .select("trade, sort_order, is_construction, is_worker_trade, is_supply, is_professional")
+      .order("sort_order", { ascending: true, nullsFirst: false })),
+    w.step("contracts", async () => await supabase.from("contracts")
+      .select("id, title, trade, status")
+      .eq("project_id", id)
+      .order("title", { ascending: true })),
   ]);
   w.done();
 
   const types = typeData ?? [];
+  const trades = (tradeRows ?? []).map((t) => t.trade);
+  const contracts = (contractRows ?? []).map((c) => ({
+    id: c.id,
+    label: [c.title, c.trade].filter(Boolean).join(" · ") || "Contract",
+  }));
   // portal_compose_targets groups people BY project, so the ones for this
   // site are one hop in - the same read and the same shape the task screen
   // uses for its assignee list.
@@ -69,7 +84,8 @@ export default async function NewTaskPage({
 
         <form action={createTask.bind(null, id)} className="stack" style={{ gap: 14 }}>
           <input type="hidden" name="back" value={to} />
-          <NewTaskForm projectId={id} types={types} people={people} />
+          <NewTaskForm projectId={id} types={types} people={people}
+            payees={payeeData ?? []} trades={trades} contracts={contracts} />
         </form>
       </div>
     </Screen>

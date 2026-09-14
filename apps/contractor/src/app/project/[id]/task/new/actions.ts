@@ -39,7 +39,10 @@ export async function createTask(projectId: string, formData: FormData) {
     p_delivers: txt(formData.get("delivers")),
     p_description: txt(formData.get("description")),
     p_target_cost: cost,
-    p_pay_to: txt(formData.get("pay_to")),
+    p_pay_to_contact: txt(formData.get("pay_to_contact")),
+    p_trade: txt(formData.get("trade")),
+    p_contract: txt(formData.get("contract")),
+    p_assignee: txt(formData.get("assignee")),
     p_file_ids: files.length > 0 ? files : null,
   });
   if (error) redirect(here({ error: error.message }));

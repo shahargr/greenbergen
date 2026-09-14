@@ -68,3 +68,18 @@
   .task-row { grid-template-columns: 1fr; gap: var(--space-1); }
   .task-row-label { padding-top: 0; }
 }
+
+/* A PRICE HAS A DOLLAR SIGN ON IT. Shahar (2026-09-14): "a place to add $".
+   The mark is part of the box rather than a word in the label, so the number
+   you type sits where a number sits on a receipt. */
+.input-money { position: relative; display: block; }
+.input-money-mark {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-weight: 600;
+  pointer-events: none;
+}
+.input-money .input { padding-left: 28px; }
