@@ -57,7 +57,11 @@ export function InviteToProject({
         </p>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor={`${idPrefix}-inv-note`}>Note (optional)</label>
-          <input id={`${idPrefix}-inv-note`} name="note" className="input" defaultValue={`Please join ${projectName} to assist with `} />
+          {/* A placeholder, not a value: the old default was sent as typed
+              and arrived in the invitee's inbox as "Please join X to assist
+              with" — a sentence stopping mid-air (Shahar, 2026-09-14). */}
+          <input id={`${idPrefix}-inv-note`} name="note" className="input"
+            placeholder={`Please join ${projectName} to help with…`} />
         </div>
         <div className="radio-row" style={{ minHeight: 0 }}>
           <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>

@@ -123,3 +123,28 @@ export async function messageSend(formData: FormData) {
   revalidatePath(b);
   redirect(error ? back(b, error.message, true) : back(b, "Sent. It is in their inbox now."));
 }
+
+// ANSWERING AN INVITATION. Shahar (2026-09-14): "Acted as Ran and invited
+// myself to his project - to co manage it. I can see the invitation in my
+// inbox but not the project."
+//
+// Because an invitation seats nobody - portal_invite_respond is what writes
+// the project_members row - and this door had no button to call it. The
+// portal and the homeowner app each grew their own accept/decline; the shared
+// inbox, which is what the Professionals door draws, showed the card and
+// stopped there. So the card can answer now, in every door at once.
+export async function inviteRespond(formData: FormData) {
+  const b = base(formData);
+  const accept = String(formData.get("accept") ?? "") === "1";
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_invite_respond", {
+    p_id: String(formData.get("id") ?? ""), p_accept: accept,
+  });
+  revalidatePath(b);
+  revalidatePath("/");
+  if (error) redirect(back(b, error.message, true));
+  if (data?.ok === false) redirect(back(b, data.reason ?? "That invitation could not be answered.", true));
+  redirect(back(b, accept
+    ? `You're on ${String(formData.get("name") ?? "the project")}.`
+    : "Declined. Nothing was shared."));
+}

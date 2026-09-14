@@ -4,7 +4,7 @@ import { DOORS } from "../doors";
 import { shortDate } from "../format";
 import { TaskThread } from "./TaskThread";
 import { Compose } from "./Compose";
-import { messageSeen, messageSend, messageSet, messageToTask } from "./actions";
+import { inviteRespond, messageSeen, messageSend, messageSet, messageToTask } from "./actions";
 import type { InboxData, InboxTask, Msg, MsgKind } from "./data";
 
 // ONE INBOX, EVERY DOOR.
@@ -115,6 +115,27 @@ export function InboxScreen({
                 {i.by ?? "Someone"} invited you as {i.seat ?? "a member"}.
               </div>
               {i.message && <p className="small" style={{ margin: "6px 0 0" }}>{i.message}</p>}
+              {/* An invitation seats nobody until it is answered. Without
+                  these two buttons the card was a notice about a project you
+                  could not reach (Shahar, 2026-09-14). */}
+              <div className="row" style={{ gap: 8, marginTop: 10 }}>
+                <form action={inviteRespond} className="grow">
+                  <input type="hidden" name="id" value={i.id} />
+                  <input type="hidden" name="base" value={base} />
+                  <input type="hidden" name="accept" value="1" />
+                  <input type="hidden" name="name" value={i.project_name ?? ""} />
+                  <button className="btn btn-primary btn-block small">Accept</button>
+                </form>
+                <form action={inviteRespond}>
+                  <input type="hidden" name="id" value={i.id} />
+                  <input type="hidden" name="base" value={base} />
+                  <input type="hidden" name="accept" value="0" />
+                  <button className="btn btn-ghost small">Decline</button>
+                </form>
+              </div>
+              <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>
+                Nothing is shared with you until you accept.
+              </p>
             </Card>
           ))}
           {invites.outcomes.map((o) => (
