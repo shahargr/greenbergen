@@ -16,7 +16,7 @@ import { VisitTasks } from "./VisitTasks";
 import { projectPerms, updateContact, setSiteRoster, logSiteVisit } from "./actions";
 import { FileDrop } from "@/components/FileDrop";
 import { getCaps, acceptFor, capsHint } from "@/lib/caps";
-import { inviteToProject } from "../../invite/actions";
+import { InviteToProject } from "./InviteToProject";
 import { TasksTable, type TableTask, type TaskView } from "../../TasksTable";
 import { ConfiguratorForm, GENERATOR_FIELDS } from "./ConfiguratorForm";
 import { ConfigChecklist, type ConfigItem } from "./ConfigChecklist";
@@ -28,6 +28,11 @@ import { HomeWorkstreams, type Workstream } from "./HomeWorkstreams";
 import { BecomePicker, type BecomeGroup } from "@/components/BecomePicker";
 
 export const dynamic = "force-dynamic";
+
+// Where a join link points. The portal does not import from apps/shared -
+// its tsconfig excludes it - so the origin is read here the same way
+// shared/site.ts reads it.
+const SITE_ORIGIN = (process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim() || "https://greenbergen.vercel.app").replace(/\/$/, "");
 
 type MemberRow = {
   role: string;
@@ -43,10 +48,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; add?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string; date?: string; step?: string }>;
+  searchParams: Promise<{ saved?: string; ok?: string; error?: string; tasks?: string; add?: string; assign?: string; parent?: string; people?: string; day?: string; tab?: string; item?: string; date?: string; step?: string; token?: string; who?: string }>;
 }) {
   const { id } = await params;
-  const { saved, ok: flashOk, error, tasks: tasksBucket, add: addParam, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam, date: dateParam, step: stepParam } = await searchParams;
+  const { saved, ok: flashOk, error, tasks: tasksBucket, add: addParam, assign: assignContact, parent: parentTask, people: peopleMode, day: dayParam, tab: tabParam, item: itemParam, date: dateParam, step: stepParam, token: joinToken, who: joinWho } = await searchParams;
   // A schedule item clicked open (?item=<task id>) unfolds under the calendar.
   const selectedItem = itemParam && /^[0-9a-f-]{36}$/i.test(itemParam) ? itemParam : null;
   // Four tabs, one job each:
@@ -701,6 +706,18 @@ export default async function ProjectPage({
       {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
       {flashOk && <p className="banner" style={{ background: "#2f6b4f" }}>{flashOk}</p>}
       {error && <p className="error small">{error}</p>}
+      {/* Somebody invited who has no account here yet: the invitation only
+          becomes real when this link reaches them, so it is shown once,
+          here, rather than left sitting in a row nobody opens. */}
+      {joinToken && /^[0-9a-f-]{36}$/i.test(joinToken) && (
+        <div className="card" style={{ display: "grid", gap: 4, marginBottom: 10 }}>
+          <strong>A join link for {joinWho ?? "them"}</strong>
+          <p className="muted small" style={{ margin: 0 }}>
+            Text or email it. It signs them up and puts this invitation in front of them; it expires in 14 days.
+          </p>
+          <code style={{ fontSize: 12, wordBreak: "break-all" }}>{`${SITE_ORIGIN}/join?invite=${joinToken}`}</code>
+        </div>
+      )}
       {!isHome && (childProjects.length > 0 || perms.rank >= 50) && !isCrew && !isContractorSide && (
         <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
           {childProjects.length > 0 && <span className="muted">Under this project:</span>}
@@ -1324,12 +1341,14 @@ export default async function ProjectPage({
         )}
 
 
-        {/* Inviting lives on the top bar (＋ Invite by Setup), not here. */}
+        {/* People, and inviting one. The invite used to live on Setup alone,
+            which is not where anybody looks for it - so it stands here too,
+            and the panel opens itself when there is nobody on the job yet. */}
 
-        {tab === "site" && peopleRows.length > 0 && (
+        {tab === "site" && (peopleRows.length > 0 || perms.rank >= 50) && (
           // minWidth 0 + overflow hidden at every level so a long task title
           // truncates instead of widening the page.
-          <details id="people" className="card tradefold" open={showAllPeople} style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
+          <details id="people" className="card tradefold" open={showAllPeople || peopleRows.length === 0} style={{ display: "grid", gap: 6, minWidth: 0, overflow: "hidden" }}>
             <summary style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", listStyle: "none" }}>
               <span className="tile-icon" style={{ width: 34, height: 34, flex: "none" }} aria-hidden>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -1339,7 +1358,11 @@ export default async function ProjectPage({
               </span>
               <span style={{ display: "grid", gap: 1, minWidth: 0 }}>
                 <strong>People · {visiblePeople.length}{!showAllPeople && visiblePeople.length < peopleRows.length ? ` of ${peopleRows.length}` : ""}</strong>
-                <span className="muted small">Who is on this project, what they hold, what they are owed. Open to see the book.</span>
+                <span className="muted small">
+                  {peopleRows.length === 0
+                    ? "Nobody is on this project yet. Invite the first one."
+                    : "Who is on this project, what they hold, what they are owed. Open to see the book."}
+                </span>
               </span>
             </summary>
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
@@ -1349,9 +1372,11 @@ export default async function ProjectPage({
                   : <Link href={`/my/project/${project.id}?people=all`} className="small">Show all {peopleRows.length}</Link>
               )}
             </div>
-            <div className="muted" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 0.55fr 0.9fr 0.9fr 0.45fr 0.45fr", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
-              <span>Trade</span><span>Name</span><span>Open</span><span>Owed</span><span>Paid</span><span>Call</span><span>Task</span>
-            </div>
+            {peopleRows.length > 0 && (
+              <div className="muted" style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr 0.55fr 0.9fr 0.9fr 0.45fr 0.45fr", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
+                <span>Trade</span><span>Name</span><span>Open</span><span>Owed</span><span>Paid</span><span>Call</span><span>Task</span>
+              </div>
+            )}
             {/* Click a row to open the person's card: every task they're connected to. */}
             {visiblePeople.map((p) => (
               <details key={p.contactId} style={{ borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0, overflow: "hidden" }}>
@@ -1419,6 +1444,18 @@ export default async function ProjectPage({
                 </div>
               </details>
             ))}
+            {perms.rank >= 50 && (
+              <div style={{ borderTop: "1px solid #eef0ec", paddingTop: 8, minWidth: 0 }}>
+                <InviteToProject
+                  projectId={project.id}
+                  projectName={project.project_name}
+                  isHome={!project.parent_project_id}
+                  back={`/my/project/${project.id}`}
+                  idPrefix="site"
+                  open={peopleRows.length === 0}
+                />
+              </div>
+            )}
           </details>
         )}
 
@@ -1444,36 +1481,13 @@ export default async function ProjectPage({
           </div>
         )}
         {tab === "setup" && perms.rank >= 50 && (
-          <>
-          {/* Invite someone into this project. They accept or decline on
-              their next login; the answer shows on the inviter's home page. */}
-          <details className="card" style={{ display: "grid", gap: 8 }}>
-            <summary style={{ cursor: "pointer", fontWeight: 700 }}>➕ Invite someone to this {project.parent_project_id ? "project" : "home"}</summary>
-            <form action={inviteToProject} style={{ display: "grid", gap: 8, marginTop: 8 }}>
-              <input type="hidden" name="project" value={project.id} />
-              <input type="hidden" name="back" value={`/my/project/${project.id}?tab=admin`} />
-              <div className="form-2col">
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="inv-contact">Their email or phone</label>
-                  <input id="inv-contact" name="contact" className="input" required autoComplete="off" placeholder="name@example.com or 201-555-0100" />
-                </div>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="inv-note">Note (optional)</label>
-                  <input id="inv-note" name="note" className="input" defaultValue={`Please join ${project.project_name} to assist with `} />
-                </div>
-              </div>
-              <div className="radio-row" style={{ minHeight: 0 }}>
-                <label className="radio-opt"><input type="radio" name="seat" value="contractor" defaultChecked /> Contractor</label>
-                <label className="radio-opt"><input type="radio" name="seat" value="viewer" /> Viewer</label>
-                <label className="radio-opt"><input type="radio" name="seat" value="resident" /> Co-owner</label>
-              </div>
-              <div className="btn-row" style={{ alignItems: "center" }}>
-                <button className="btn small">Invite user</button>
-                <Link href={`/my/invite?project=${project.id}`} className="small muted">Not on the platform yet? Send a signup link →</Link>
-              </div>
-            </form>
-          </details>
-          </>
+          <InviteToProject
+            projectId={project.id}
+            projectName={project.project_name}
+            isHome={!project.parent_project_id}
+            back={`/my/project/${project.id}?tab=setup`}
+            idPrefix="setup"
+          />
         )}
 
         {tab === "setup" && (

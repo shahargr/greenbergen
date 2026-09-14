@@ -5,7 +5,7 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { awardTrade } from "./actions";
+import { awardTrade, removeSeat } from "./actions";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Award work" };
@@ -29,13 +29,37 @@ export const metadata = { title: "Award work" };
 type Person = { contact_id: string; name: string; company: string | null; trades: string[]; here: boolean };
 type Awarded = {
   member_id: string; contact_id: string | null; name: string; company: string | null;
-  seat: string | null; since: string | null;
+  seat: string | null; since: string | null; may_remove: boolean;
   contract_id: string | null; contract: string | null; contract_status: string | null; trade: string | null;
 };
 type Board = {
   project_name: string | null; may_award: boolean; takes_work: boolean;
-  awarded: Awarded[]; people: Person[];
+  needs: string[]; awarded: Awarded[]; people: Person[];
 };
+
+// Running the job is not a thing you put out to bid, so it is never in the
+// job's needs - and it is the first thing a GC awards. The two seats live
+// here rather than in the database pretending to be needs.
+const RUNNING = ["General Contractor", "Project manager"];
+
+// How a person reads in the list. Shahar, awarding a project manager: "why
+// it shows framing?" - because the label took the first two trades on file
+// alphabetically, and sg.other+2 put Plumbing, Electrical, Framing and
+// Handyman on their own profile back in September. So the trade being
+// awarded leads, and the rest follow it instead of pushing it out.
+function personLabel(p: Person, picked: string) {
+  const ts = picked && p.trades.includes(picked)
+    ? [picked, ...p.trades.filter((t) => t !== picked)]
+    : p.trades;
+  const shown = ts.slice(0, 3);
+  const more = ts.length - shown.length;
+  return [
+    p.name,
+    p.company && p.company !== p.name ? p.company : null,
+    shown.length > 0 ? shown.join(", ") + (more > 0 ? ` +${more}` : "") : null,
+    p.here ? "on this job" : null,
+  ].filter(Boolean).join(" · ");
+}
 
 export default async function AwardPage({
   params, searchParams,
@@ -60,9 +84,22 @@ export default async function AwardPage({
   ]);
   w.done();
 
-  const b: Board = boardData ?? { project_name: null, may_award: false, takes_work: true, awarded: [], people: [] };
+  const b: Board = boardData ?? { project_name: null, may_award: false, takes_work: true, needs: [], awarded: [], people: [] };
   const trades = (tradeRows ?? []).map((t) => t.trade).filter((t) => t !== "ALL" && t !== "Meta");
   const picked = pickedRaw && trades.includes(pickedRaw) ? pickedRaw : "";
+
+  // WHICH TRADES THIS JOB COULD USE. Shahar: "every job needs to have a clear
+  // list of possible trade people to award... generator should have
+  // electrician, plumber, landscape, GC and project manager." Eighty trades in
+  // one row is not a list, it is a haystack - so the job's own answer goes
+  // first and everything else stays reachable underneath.
+  const inOrder = (names: string[]) => trades.filter((t) => names.includes(t));
+  const needs = inOrder(b.needs ?? []);
+  const running = inOrder(RUNNING);
+  const held = inOrder([...new Set(b.awarded.map((a) => a.trade).filter((t): t is string => !!t))])
+    .filter((t) => !needs.includes(t) && !running.includes(t));
+  const led = [...needs, ...running, ...held];
+  const rest = trades.filter((t) => !led.includes(t));
 
   // Whoever works the chosen trade first, then everybody else. Never a
   // filtered list: the man who has only ever framed for you may still be the
@@ -119,14 +156,33 @@ export default async function AwardPage({
                     it re-sorts the people below without JavaScript. */}
                 <select name="trade" className="input" defaultValue={picked}>
                   <option value="">Not one of these</option>
-                  {trades.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {needs.length > 0 && (
+                    <optgroup label="This job needs">
+                      {needs.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </optgroup>
+                  )}
+                  {running.length > 0 && (
+                    <optgroup label="Running the job">
+                      {running.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </optgroup>
+                  )}
+                  {held.length > 0 && (
+                    <optgroup label="Already on this job">
+                      {held.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </optgroup>
+                  )}
+                  <optgroup label="Every other trade">
+                    {rest.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </optgroup>
                 </select>
                 <p className="hint" style={{ margin: 0 }}>
                   {picked
                     ? matches > 0
                       ? `${matches} ${matches === 1 ? "person you know does" : "people you know do"} ${picked.toLowerCase()} — they are at the top of the list.`
                       : `Nobody on your list works ${picked.toLowerCase()} yet. Add them below.`
-                    : "Pick it and the people who work it come to the top."}
+                    : needs.length > 0
+                      ? `This job needs ${needs.length === 1 ? needs[0].toLowerCase() : `${needs.slice(0, -1).join(", ").toLowerCase()} and ${needs[needs.length - 1].toLowerCase()}`}. Every other trade is in the list too.`
+                      : "Pick it and the people who work it come to the top."}
                 </p>
                 {/* Choosing without submitting: a link per trade would be
                     eighty links, so this is the one place the list is asked
@@ -158,11 +214,7 @@ export default async function AwardPage({
                 <select name="contact" className="input" defaultValue="">
                   <option value="">Choose someone…</option>
                   {people.map((p) => (
-                    <option key={p.contact_id} value={p.contact_id}>
-                      {[p.name, p.company && p.company !== p.name ? p.company : null,
-                        p.trades.length > 0 ? p.trades.slice(0, 2).join(", ") : null,
-                        p.here ? "on this job" : null].filter(Boolean).join(" · ")}
-                    </option>
+                    <option key={p.contact_id} value={p.contact_id}>{personLabel(p, picked)}</option>
                   ))}
                 </select>
 
@@ -216,7 +268,12 @@ export default async function AwardPage({
               <span className="m" style={{ display: "block" }}>
                 {b.awarded.length === 0
                   ? "Nobody holds a contract here yet."
-                  : `${b.awarded.filter((a) => a.contract_status === "placeholder").length} still on a placeholder contract`}
+                  : [
+                      `${b.awarded.filter((a) => a.contract_status === "placeholder").length} still on a placeholder contract`,
+                      b.awarded.some((a) => a.contract_id === null)
+                        ? `${b.awarded.filter((a) => a.contract_id === null).length} with no contract at all`
+                        : null,
+                    ].filter(Boolean).join(" · ")}
               </span>
             </span>
             <span className="chev"><ChevronIcon /></span>
@@ -228,10 +285,19 @@ export default async function AwardPage({
                   <span className="t">{a.trade ?? a.seat ?? "Work"} — {a.name}</span>
                   <span className="m" style={{ display: "block" }}>
                     {[a.company && a.company !== a.name ? a.company : null,
-                      a.contract_status === "placeholder" ? "terms not agreed yet" : a.contract_status,
+                      // No contract behind a seat is worth saying plainly, not
+                      // leaving blank — it is the thing that needs fixing.
+                      a.contract_id === null ? "no contract behind this seat"
+                        : a.contract_status === "placeholder" ? "terms not agreed yet"
+                        : a.contract_status,
                       a.since ? `since ${shortDate(a.since)}` : null].filter(Boolean).join(" · ")}
                   </span>
                 </span>
+                {a.may_remove && (
+                  <form action={removeSeat.bind(null, id, a.member_id)}>
+                    <button className="btn btn-ghost small" title={`Take ${a.name} off this job`}>Take off</button>
+                  </form>
+                )}
               </div>
             ))}
           </div>

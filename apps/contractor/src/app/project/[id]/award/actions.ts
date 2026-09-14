@@ -47,13 +47,37 @@ export async function awardTrade(projectId: string, formData: FormData) {
 
   const who = data?.who ?? "They";
   const what = data?.trade ? ` the ${String(data.trade).toLowerCase()}` : "";
-  // A phone number is a person (migration 108): when the number typed in
-  // already belonged to somebody, the award went to THEM, and saying so is
-  // the difference between a helpful match and a silent one.
+  // When the identifier typed in already belonged to somebody, the award went
+  // to THEM, and saying so is the difference between a helpful match and a
+  // silent one (migration 111: it now refuses outright when an email and a
+  // phone name two different people).
   const matched = data?.matched_note ? `${data.matched_note} ` : "";
+  // Only claim a contract when one exists. It did not always, and the screen
+  // said it did — migration 111.
+  const terms = data?.bounded
+    ? " The contract is a placeholder until you agree the terms."
+    : "";
   redirect(here({
     ok: matched + (data?.seated === false
-      ? `${who} already held a seat here — the${what || " work"} is theirs.`
-      : `${who} has${what || " the work"}. The contract is a placeholder until you agree the terms.`),
+      ? `${who} already held a seat here — the${what || " work"} is theirs.${terms}`
+      : `${who} has${what || " the work"}.${terms}`),
   }));
+}
+
+// TAKING SOMEBODY OFF. Shahar: "we need a way to modify the list of people on
+// the project - remove for example." Nothing is deleted - the seat is marked
+// removed with the date, because who held what and when is worth keeping.
+export async function removeSeat(projectId: string, memberId: string) {
+  const supabase = await createClient();
+  const here = (params: Record<string, string>) =>
+    `/project/${projectId}/award?${new URLSearchParams(params).toString()}`;
+
+  const { data, error } = await supabase.rpc("portal_seat_remove", { p_member: memberId, p_why: null });
+  if (error) redirect(here({ error: friendly(error.message, "That seat could not be taken off.") }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That seat could not be taken off." }));
+
+  revalidatePath(`/project/${projectId}/award`);
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath(`/project/${projectId}/money`);
+  redirect(here({ ok: data?.note ?? "They are off this job." }));
 }

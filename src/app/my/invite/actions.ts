@@ -57,27 +57,41 @@ export async function clearRevokedInvitations(formData: FormData) {
     : `${base}ok=${encodeURIComponent(`Cleared ${data.cleared} revoked invitation${data.cleared === 1 ? "" : "s"} ✓`)}`);
 }
 
-// Invite an existing account to a project by email or phone. The RPC finds
-// the account (or reports "wrong user information provided"), seats nobody
-// yet — the invitee accepts or declines on their next login.
+// Invite an account to a project by email or phone. The RPC finds the
+// account, seats nobody yet — the invitee accepts or declines on their next
+// login. A name may come with it: that is what lets somebody who is not on
+// Green Bergen yet be invited at all (the RPC refuses an unknown email
+// without one), and it comes back with a token for their join link.
 export async function inviteToProject(formData: FormData) {
   const supabase = await createClient();
   const project = String(formData.get("project") ?? "");
   const contact = String(formData.get("contact") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim() || null;
   const seat = String(formData.get("seat") ?? "viewer");
   const note = String(formData.get("note") ?? "").trim() || null;
   // Optional return page (the project page invites inline); only portal
-  // paths are honored.
+  // paths are honored, and a tab may ride along - without that the project
+  // page's own ?tab=setup failed the test and the invite bounced you to the
+  // invitations list instead of back where you were standing.
   const backTo = String(formData.get("back") ?? "");
-  const back = /^\/my\/[a-z0-9/_-]*$/i.test(backTo) ? `${backTo}?` : project ? `/my/invite?project=${project}&` : "/my/invite?";
+  const back = /^\/my\/[a-z0-9/_-]*(\?[a-z0-9=&_-]*)?$/i.test(backTo)
+    ? `${backTo}${backTo.includes("?") ? "&" : "?"}`
+    : project ? `/my/invite?project=${project}&` : "/my/invite?";
   const isEmail = contact.includes("@");
   const { data, error } = await supabase.rpc("portal_invite_to_project", {
     p_project: project || null, p_email: isEmail ? contact : null, p_phone: isEmail ? null : contact,
-    p_seat: seat, p_note: note,
+    p_seat: seat, p_note: note, p_name: name,
   });
   revalidatePath("/my/invite");
-  if (backTo) revalidatePath(backTo);
-  redirect(error || !data?.ok
-    ? `${back}error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not send the invitation.")}`
-    : `${back}ok=${encodeURIComponent(`Invitation sent to ${data.name} ✓`)}`);
+  // revalidatePath takes a path, not a query string.
+  if (backTo) revalidatePath(backTo.split("?")[0]);
+  if (error || !data?.ok) {
+    redirect(`${back}error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not send the invitation.")}`);
+  }
+  // A newcomer has no inbox here yet, so the invitation is only real once
+  // the link reaches them. Carry it back rather than leaving it in the row.
+  const joinLink = data.newcomer && data.token
+    ? `&token=${encodeURIComponent(data.token)}&who=${encodeURIComponent(data.name)}`
+    : "";
+  redirect(`${back}ok=${encodeURIComponent(`Invitation sent to ${data.name} ✓`)}${joinLink}`);
 }
