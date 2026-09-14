@@ -3,6 +3,7 @@ import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Notice, Screen } from "@shared/ui";
+import { getBoard } from "@/lib/board";
 import { NewTaskForm, type TaskType } from "./NewTaskForm";
 import { createTask } from "./actions";
 import type { Target } from "@shared/inbox/data";
@@ -36,7 +37,7 @@ export default async function NewTaskPage({
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/task/new`)}`);
 
   const [{ data: typeData }, { data: peopleData }, { data: payeeData }, { data: projectRow },
-         { data: tradeRows }, { data: contractRows }] = await Promise.all([
+         { data: tradeRows }, { data: contractRows }, board] = await Promise.all([
     w.step("types", () => rpc<TaskType[]>(supabase, "portal_task_types")),
     // The people on this project - who a task can be ASSIGNED to.
     w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
@@ -52,11 +53,17 @@ export default async function NewTaskPage({
       .select("id, title, trade, status")
       .eq("project_id", id)
       .order("title", { ascending: true })),
+    // What "part of" can point at: everything still open on this site. The
+    // same read the project screen uses, so the two lists cannot disagree.
+    w.step("board", () => getBoard()),
   ]);
   w.done();
 
   const types = typeData ?? [];
   const trades = (tradeRows ?? []).map((t) => t.trade);
+  const openTasks = board.tasks
+    .filter((t) => t.project_id === id && t.state === "open")
+    .map((t) => ({ id: t.id, label: t.action }));
   const contracts = (contractRows ?? []).map((c) => ({
     id: c.id,
     label: [c.title, c.trade].filter(Boolean).join(" · ") || "Contract",
@@ -85,7 +92,7 @@ export default async function NewTaskPage({
         <form action={createTask.bind(null, id)} className="stack" style={{ gap: 14 }}>
           <input type="hidden" name="back" value={to} />
           <NewTaskForm projectId={id} types={types} people={people}
-            payees={payeeData ?? []} trades={trades} contracts={contracts} />
+            payees={payeeData ?? []} trades={trades} contracts={contracts} openTasks={openTasks} />
         </form>
       </div>
     </Screen>

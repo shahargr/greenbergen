@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Evidence, type Attached } from "@shared/Evidence";
+import { ParentPicker } from "./ParentPicker";
+
+// The database's vocabulary, not this screen's (rulebook 15).
+const PRIORITIES = ["Missing", "No Priority", "Low", "Medium", "High"] as const;
 
 export type TaskType = {
   action_type: string;
@@ -21,7 +25,7 @@ export type TaskType = {
 // the money questions exist at all, and the attachments upload as you go so
 // nothing is waiting on Save. Everything else is a plain form posting to a
 // server action, and every rule is portal_task_create's.
-export function NewTaskForm({ projectId, types, people, payees, trades, contracts }: {
+export function NewTaskForm({ projectId, types, people, payees, trades, contracts, openTasks }: {
   projectId: string | null;
   types: TaskType[];
   people: { contact_id: string; name: string }[];
@@ -30,6 +34,9 @@ export function NewTaskForm({ projectId, types, people, payees, trades, contract
   payees: { contact_id: string; name: string }[];
   trades: string[];
   contracts: { id: string; label: string }[];
+  // Everything still open on this site, for "part of". Shipped whole so the
+  // search box can filter without a round trip per keystroke.
+  openTasks: { id: string; label: string }[];
 }) {
   const [type, setType] = useState("");
   const [delivers, setDelivers] = useState<"work" | "product">("work");
@@ -145,6 +152,42 @@ export function NewTaskForm({ projectId, types, people, payees, trades, contract
           <option value="">Nobody yet</option>
           {people.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
         </select>
+      </label>
+
+      <div className="row" style={{ gap: 8 }}>
+        <label className="field grow">
+          <span className="field-label">Completion target</span>
+          <input className="input" name="target_date" type="date" />
+        </label>
+        <label className="field grow">
+          <span className="field-label">Priority</span>
+          <select className="input" name="priority" defaultValue="Missing">
+            {PRIORITIES.map((p) => <option key={p} value={p}>{p === "Missing" ? "Not set" : p}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {/* PART OF, with a search - because on this job the list is 129 long
+          (Shahar, 2026-09-14). Its own component: the filtering is the whole
+          point and it cannot be done on the server. */}
+      <ParentPicker tasks={openTasks} />
+
+      {/* THE TWO GATES. Both already exist and are already enforced - by
+          portal_close_task and by close_action - and until now nothing in
+          either app could set either of them. */}
+      <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
+        <input type="checkbox" name="requires_photo" value="1" style={{ marginTop: 3 }} />
+        <span>
+          Needs photographs to close
+          <span className="text-muted"> — before and after, on the record, or it will not complete.</span>
+        </span>
+      </label>
+      <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
+        <input type="checkbox" name="is_gate" value="1" style={{ marginTop: 3 }} />
+        <span>
+          Blocks whatever it is part of
+          <span className="text-muted"> — the parent task cannot close while this one is open.</span>
+        </span>
       </label>
 
       {contracts.length > 0 && (

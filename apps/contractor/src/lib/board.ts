@@ -52,6 +52,9 @@ export type Task = {
   assignee_id: string | null; assignee: string | null;
   assignee_kind: "person" | "assistant" | null;
   trade: string | null;
+  // The key into the trade's line art (migration 100). Null where the trade
+  // has no drawing yet, which the tile says plainly rather than borrowing one.
+  trade_art: string | null;
   // The three ways a build's work divides up (migration 066). Each is null
   // on most tasks - see groupTasks below, which says so on screen rather
   // than pretending otherwise.
@@ -496,6 +499,10 @@ export type Group = {
   // What a payment logged HERE belongs to, for the "log a payment" row.
   // Null on a category that is not a trade or a phase (timing, contract).
   trade: string | null;
+  // The trade's drawing, and the earliest open date at or beneath this
+  // category - what Shahar asked the panels to be sorted on (2026-09-14).
+  art: string | null;
+  soonest: string | null;
   phase: string | null;
   // WHO HOLDS IT, when no trade does. Shahar (2026-09-13): "club them by
   // trade. anything you don't know club under the owner." A task with no
@@ -519,8 +526,15 @@ const ownerOf = (t: Task) => t.assignee ?? "Nobody yet";
 const roll = (g: Omit<Group, "n" | "late" | "spent" | "owed">, m: TaskMoney, today: string): Group => {
   const own = sumMoney(g.rows, m);
   const late = g.rows.filter((t) => t.state === "open" && !!t.target_date && t.target_date < today).length;
+  // The first date anything here is due. Undated work does not make a
+  // category urgent - it makes it unscheduled, which sorts last.
+  const dates = [
+    ...g.rows.filter((t) => t.state === "open" && !!t.target_date).map((t) => t.target_date!),
+    ...g.sub.map((s) => s.soonest).filter((d): d is string => !!d),
+  ].sort();
   return {
     ...g,
+    soonest: dates[0] ?? null,
     n: g.rows.length + g.sub.reduce((a, s) => a + s.n, 0),
     late: late + g.sub.reduce((a, s) => a + s.late, 0),
     spent: own.spent + g.sub.reduce((a, s) => a + s.spent, 0),
@@ -541,13 +555,26 @@ const byWeight = (a: Group, b: Group) =>
   (a.owner ? 1 : 0) - (b.owner ? 1 : 0) ||
   (b.owed - a.owed) || (b.late - a.late) || (b.n - a.n) || a.label.localeCompare(b.label);
 
+// WHAT IS DUE FIRST, THEN HOW MUCH OF IT. Shahar (2026-09-14): "sort the
+// panels based on the the time to complete the first task and number of tasks
+// in each."
+//
+// The owner-last rule from byWeight stays on top of it: a named trade still
+// outranks a heap filed under a person, because the heaps are what nobody has
+// classified yet and they are the biggest thing on this data. Inside each
+// half it is his order - soonest first, undated last, then the bigger pile.
+export const byUrgency = (a: Group, b: Group) =>
+  (a.owner ? 1 : 0) - (b.owner ? 1 : 0) ||
+  (a.soonest === b.soonest ? 0 : a.soonest === null ? 1 : b.soonest === null ? -1 : a.soonest < b.soonest ? -1 : 1) ||
+  (b.n - a.n) || a.label.localeCompare(b.label);
+
 export function groupWork(
   tasks: Task[], by: GroupKey, m: TaskMoney = EMPTY_MONEY, now = new Date(),
 ): Group[] {
   const today = now.toISOString().slice(0, 10);
   const leaf = (key: string, label: string, rows: Task[], extra: Partial<Group> = {}): Group =>
     roll({ key, label, tone: null, rows: [...rows].sort(withinSection), sub: [],
-           trade: null, phase: null, owner: null, ...extra }, m, today);
+           trade: null, art: null, soonest: null, phase: null, owner: null, ...extra }, m, today);
 
   // Tasks that no trade will claim, split by who holds them rather than
   // heaped under one heading (Shahar, 2026-09-13).
@@ -564,7 +591,7 @@ export function groupWork(
   if (by === "timing") {
     return groupTasks(tasks, by, now).map((s) =>
       roll({ key: s.key, label: s.label, tone: s.tone, rows: s.rows, sub: [],
-             trade: null, phase: null, owner: null }, m, today));
+             trade: null, art: null, soonest: null, phase: null, owner: null }, m, today));
   }
 
   if (by === "contract") {
@@ -580,10 +607,15 @@ export function groupWork(
       if (t.trade) named.set(t.trade, [...(named.get(t.trade) ?? []), t]);
       else loose.push(t);
     }
+    // Nothing to do is nothing to show. Shahar (2026-09-14): "what has 0
+    // tasks do not show." A category only reaches this list because a task
+    // put it there, so an empty one is a filter's leftovers - and a wall of
+    // zeroes is what made the trade view unreadable.
     return [
-      ...[...named.entries()].map(([k, rows]) => leaf(k, k, rows, { trade: k })),
+      ...[...named.entries()].map(([k, rows]) =>
+        leaf(k, k, rows, { trade: k, art: rows[0]?.trade_art ?? null })),
       ...byOwner(loose, "trade"),
-    ].sort(byWeight);
+    ].filter((g) => g.n > 0).sort(byUrgency);
   }
 
   // PHASE nests: the phase, then the trades inside it, then the work. A task
@@ -611,20 +643,22 @@ export function groupWork(
         key: p || "unset",
         label: p ? (tr !== p ? `${p} · ${tr}` : p) : tr,
         tone: null, rows: [...rows].sort(withinSection), sub: [],
-        trade: tr, phase: p || null, owner: null,
+        trade: tr, art: rows[0]?.trade_art ?? null, soonest: null, phase: p || null, owner: null,
       }, m, today);
     }
     // Inside a phase, a trade is a category and the rows no trade claims are
     // split by who holds them, same rule as the trade arrangement.
     const sub = [
       ...trades.filter(([tr]) => tr).map(([tr, rows]) =>
-        leaf(`${p}|${tr}`, tr, rows, { trade: tr, phase: p || null })),
+        leaf(`${p}|${tr}`, tr, rows, { trade: tr, art: rows[0]?.trade_art ?? null, phase: p || null })),
       ...byOwner(inner.get("") ?? [], p || "nophase"),
     ].sort(byWeight);
     return roll({
       key: p || "unset",
       label: p || "No phase recorded",
       tone: null,
+      art: null,
+      soonest: null,
       rows: [],
       sub,
       trade: null, phase: p || null, owner: null,

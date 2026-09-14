@@ -2,6 +2,8 @@
 // fills that carry meaning. Illustrations, never photos - the spec's rule.
 // Keyed by blueprint_packages.illustration.
 
+import { TRADE_ART } from "./TradeArt";
+
 type P = { className?: string };
 const base = {
   fill: "none",
@@ -292,5 +294,17 @@ const MAP: Record<string, (p: P) => React.JSX.Element> = {
 
 export function Illustration({ name, className }: { name: string | null | undefined; className?: string }) {
   const C = (name && MAP[name]) || SomethingElse;
+  return <C className={className} />;
+}
+
+// THE TRADES. Their own drawings (TradeArt.tsx) plus the package ones, because
+// six of those genuinely are the trade: Painting is painting, Windows is
+// windows. One lookup over both, so trades.illustration can name either
+// without the caller knowing which set it came from.
+//
+// The fallback is the plain trade mark, never SomethingElse - a trade with no
+// art should look undrawn, not like a mystery purchase.
+export function TradeIllustration({ name, className }: { name: string | null | undefined; className?: string }) {
+  const C = (name && (TRADE_ART[name] || MAP[name])) || TRADE_ART.trade!;
   return <C className={className} />;
 }

@@ -1,0 +1,26 @@
+-- 099 - A task can name its own trade, its contract and its holder.
+--
+-- Shahar (2026-09-14): "which additional fields i can add to a task. assigned
+-- to, part of a contract... also on financial add trade."
+--
+-- THE TRADE was never a column. portal_tasks worked it out through a chain -
+-- the contract's trade, else the scope item's, else whatever trade the
+-- assignee happens to hold - a good guess and nothing more. A task that says
+-- "this is framing" should not have to be assigned to a framer before the
+-- board believes it. The column goes FIRST in that chain; the inferences stay
+-- for every task that never gives one.
+--
+-- Applied as three statements against the live database; see the migration
+-- log entries a_task_can_name_its_own_trade,
+-- portal_task_create_takes_the_new_fields and
+-- the_new_task_screen_can_set_the_two_gates for the exact text.
+--
+-- Also here: portal_task_payees(project) - who can be PAID on a job, which is
+-- a wider list than who is ON it. A supplier is hardly ever a member; 34
+-- names on 55 Walnut against a handful of members.
+--
+-- And portal_task_create grew p_trade, p_contract, p_pay_to_contact,
+-- p_requires_photo and p_is_gate. The last two were enforced by
+-- portal_close_task and close_action and settable from nowhere in either app
+-- - a rule nothing can turn on is a rule that never fires. A gate with no
+-- parent is refused rather than silently ignored.

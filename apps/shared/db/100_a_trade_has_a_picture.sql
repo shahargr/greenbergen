@@ -1,0 +1,18 @@
+-- 100 - A trade has a picture.
+--
+-- Shahar (2026-09-14): "Each trade should be presented in a panel with the
+-- image of the trade and # of tasks not completed. aim for 3 in a row."
+--
+-- trades.illustration keys into the app's line art. Six of the package
+-- drawings genuinely ARE the trade - Painting is painting, Windows is windows
+-- - so those are pointed at rather than drawn twice; the rest are new line
+-- art in the same hand (apps/shared/src/TradeArt.tsx). A trade with no match
+-- gets null and the screen shows a plain mark, which reads as "not drawn yet"
+-- rather than borrowing somebody else's picture.
+--
+-- Every trade carrying open work today has one: Project manager, Plumbing,
+-- Framing, Masonry, Site Engineering, Architecture, Stairs, Electrical,
+-- Landscaping.
+--
+-- portal_tasks carries it out as trade_art so the board can render the tile
+-- without a second read.

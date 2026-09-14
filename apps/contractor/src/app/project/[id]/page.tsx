@@ -5,6 +5,7 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
+import { TradeIllustration } from "@shared/Illustrations";
 import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, groupWork, money, openBeneath, readMoney, runs, type Group, type GroupKey, type Node, type Seat, type TaskMoney } from "@/lib/board";
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
@@ -324,6 +325,11 @@ export default async function ProjectPage({
     else p.set("untagged", "1");
     return `/project/${id}/pay?${p.toString()}`;
   };
+
+  // A TRADE TILE IS A DOOR. The trade's own screen already exists and already
+  // carries its work, its contracts and its money, so the tile goes there
+  // rather than unfolding a tenth accordion in place.
+  const tradeHref = (g: Group) => `/project/${id}/trade/${encodeURIComponent(g.trade!)}`;
 
   // ONE TASK, one row - written once and used by both arrangements, so the
   // flat buckets and the nested categories cannot drift apart.
@@ -783,8 +789,12 @@ export default async function ProjectPage({
              lib/board.ts so this screen and /tasks cannot drift apart. */
           <section className="stack" style={{ gap: 14 }}>
             <div className="between" style={{ alignItems: "baseline", gap: 10 }}>
+              {/* "Open work" said what the list WAS. Shahar (2026-09-14):
+                  "change the open work to tasks to complete" - which says
+                  what it is FOR, and is the only reading of the number that
+                  makes somebody do something about it. */}
               <div className="divider-label" style={{ padding: 0 }}>
-                {show === "done" ? "Done" : show === "all" ? "All work" : "Open work"} · {shown.length}
+                {show === "done" ? "Done" : show === "all" ? "All work" : "Tasks to complete"} · {shown.length}
               </div>
               {/* WRITING SOMETHING DOWN ON SITE HAS TO COST NOTHING, so the
                   way in sits on the heading of the list it joins rather than
@@ -798,30 +808,66 @@ export default async function ProjectPage({
 
             {here.length > 3 && <SearchBox placeholder="Find a task on this site" count={query ? found.length : null} />}
 
-            {/* Whose. Only where the answer is not the same either way. */}
-            {canSplit && (
-              <nav className="chips" aria-label="Whose tasks">
-                <Chip href={viewHref({ who: "mine" })} on={onlyMine} label={`Mine · ${myOpen}`} />
-                <Chip href={viewHref({ who: "all" })} on={!onlyMine} label={`Everyone · ${openHere.length}`} />
-              </nav>
-            )}
+            {/* THREE ROWS OF BUTTONS, FOLDED AWAY. Shahar (2026-09-14): "all
+                filters (3 rows of buttons) to be visible under a filter icon
+                and unfold when clicking on it."
 
-            {/* Open / Done / All. Done is a separate read, so it is only paid
-                for when it is asked for. */}
-            <nav className="chips" aria-label="Which tasks">
-              <Chip href={viewHref({ show: undefined })} on={!show} label={`Open · ${openHere.length}`} />
-              <Chip href={viewHref({ show: "done" })} on={show === "done"}
-                label={wantDone ? `Done · ${doneHere.length}` : "Done"} />
-              <Chip href={viewHref({ show: "all" })} on={show === "all"} label="All" />
-            </nav>
+                They were eating the top third of the screen above the work
+                itself, every time, for a set of choices most people make once.
+                Folded, the summary line says what is currently on - so it
+                still answers "why am I only seeing 58?" without being opened.
 
-            {/* How they are arranged. */}
-            <nav className="chips" aria-label="Group tasks by">
-              {GROUPINGS.map((g) => (
-                <Chip key={g.key} href={viewHref({ by: g.key === "trade" ? undefined : g.key })}
-                  on={by === g.key} label={g.label} />
-              ))}
-            </nav>
+                It opens by itself when a filter is doing something, because a
+                hidden filter that is silently changing the list is worse than
+                no filter at all. */}
+            <details className="filters" open={!!show || onlyMine || by !== "trade"}>
+              <summary className="filters-head">
+                <span className="ic" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 5h18M6 12h12M10 19h4" />
+                  </svg>
+                </span>
+                <span className="grow">
+                  Filters
+                  <span className="m">
+                    {[
+                      onlyMine ? "mine" : null,
+                      show === "done" ? "done" : show === "all" ? "all" : "open",
+                      `by ${GROUPINGS.find((g) => g.key === by)?.label.toLowerCase() ?? "trade"}`,
+                    ].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                <span className="chev"><ChevronIcon /></span>
+              </summary>
+
+              <div className="filters-body">
+                {/* Whose. Only where the answer is not the same either way. */}
+                {canSplit && (
+                  <nav className="chips" aria-label="Whose tasks">
+                    <Chip href={viewHref({ who: "mine" })} on={onlyMine} label={`Mine · ${myOpen}`} />
+                    <Chip href={viewHref({ who: "all" })} on={!onlyMine} label={`Everyone · ${openHere.length}`} />
+                  </nav>
+                )}
+
+                {/* Open / Done / All. Done is a separate read, so it is only
+                    paid for when it is asked for. */}
+                <nav className="chips" aria-label="Which tasks">
+                  <Chip href={viewHref({ show: undefined })} on={!show} label={`Open · ${openHere.length}`} />
+                  <Chip href={viewHref({ show: "done" })} on={show === "done"}
+                    label={wantDone ? `Done · ${doneHere.length}` : "Done"} />
+                  <Chip href={viewHref({ show: "all" })} on={show === "all"} label="All" />
+                </nav>
+
+                {/* How they are arranged. */}
+                <nav className="chips" aria-label="Group tasks by">
+                  {GROUPINGS.map((g) => (
+                    <Chip key={g.key} href={viewHref({ by: g.key === "trade" ? undefined : g.key })}
+                      on={by === g.key} label={g.label} />
+                  ))}
+                </nav>
+              </div>
+            </details>
 
             {shown.length === 0 && (
               <Card soft pad>
@@ -849,10 +895,39 @@ export default async function ProjectPage({
               </div>
             ))}
 
-            {/* TRADE · CONTRACT · PHASE: the hierarchy, each category
-                carrying its count, what is late, what it has cost and what
-                is still to pay, and a way to log a payment against it. */}
-            {groups.map((g) => (
+            {/* TRADE: TILES, THREE ACROSS. Shahar (2026-09-14): "Each trade
+                should be presented in a panel with the image of the trade and
+                # of tasks not completed. aim for 3 in a row."
+
+                A trade is a place you GO, not a drawer you open in place -
+                nine stacked accordions is a list of headings you scroll past.
+                Three across, each with its drawing and its count, is a set of
+                doors you can see all of at once. The tile opens the trade's
+                own screen, which already exists and already carries the work,
+                the money and the way to log a payment.
+
+                Every other arrangement - contract, phase, timing - keeps the
+                panels: they nest, they have no picture, and their labels are
+                sentences rather than names. */}
+            {by === "trade" && groups.some((g) => g.trade) && (
+              <div className="trade-grid">
+                {groups.filter((g) => g.trade).map((g) => (
+                  <Link key={g.key} href={tradeHref(g)} className="trade-tile">
+                    <span className="art" aria-hidden><TradeIllustration name={g.art} /></span>
+                    <span className="t">{g.label}</span>
+                    <span className="n">{g.n} {g.n === 1 ? "task" : "tasks"}</span>
+                    {g.late > 0 && <span className="late">{g.late} late</span>}
+                    {g.owed > 0 && <span className="owed">{money(g.owed)} to pay</span>}
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* The leftovers keep their panel. A group filed under a person is
+                "no trade recorded, held by them" - it has no trade screen to
+                open and no picture to show, and turning it into a tile would
+                dress up the very thing that needs classifying. */}
+            {(by !== "trade" ? groups : groups.filter((g) => !g.trade)).map((g) => (
               <GroupBlock key={g.key} g={g} depth={0} row={taskRow} payHref={payHref}
                 canLog={taskMoney.can_log} />
             ))}
