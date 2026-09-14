@@ -5,7 +5,7 @@ import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import {
-  BUCKETS, anyRuns, buildTree, getBoard, live, money, prune, runs,
+  BUCKETS, anyRuns, buildTree, getBoard, live, money, prune, runs, topOf,
   type BucketKey, type Node,
 } from "@/lib/board";
 
@@ -49,8 +49,10 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   // A single root is not a board, it IS the board - every seat hangs off it,
   // so a row for it would be the only row. Promote its children to the top
   // level and let the development become the heading over them.
-  const roof = built.length === 1 && built[0]!.children.length > 0 ? built[0]! : null;
-  const full = roof ? roof.children : built;
+  const { top: full, folders } = topOf(built);
+  // One development still names the section it holds; several cannot, so the
+  // heading goes generic and each folder keeps its own row below the list.
+  const roof = folders.length === 1 ? folders[0]! : null;
 
   // A filter hides rows, never the row that leads to them - so a development
   // survives on the strength of a job three levels down, and opens itself.
@@ -104,6 +106,26 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
                 : "Projects you run"} · {mine.length}
             </div>
             {mine.map((n) => <Branch key={n.seat.project_id} n={n} open={filter !== "all"} />)}
+          </section>
+        )}
+
+        {/* The developments themselves, once their properties have come up to
+            the top level - a line each, because a folder is not a property. */}
+        {folders.length > 1 && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">Developments · {folders.length}</div>
+            {folders.map((f) => (
+              <Link key={f.seat.project_id} href={`/project/${f.seat.project_id}`} className="home-row nav-row">
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="t">{f.seat.project_name}</span>
+                  <span className="m" style={{ display: "block" }}>
+                    {[`${f.count} ${f.count === 1 ? "project" : "projects"} beneath it`,
+                      f.open ? `${f.open} open` : null].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                <ChevronIcon />
+              </Link>
+            ))}
           </section>
         )}
 

@@ -237,6 +237,30 @@ export function prune(nodes: Node[], keep: (s: Seat) => boolean): Node[] {
 
 export const anyRuns = (n: Node): boolean => runs(n.seat) || n.children.some(anyRuns);
 
+// A DEVELOPMENT IS A FOLDER, NOT A PROPERTY.
+//
+// Shahar (2026-09-14): "it shows Green Bergen Development - instead, just
+// show the projects under it... why is the split between and not everything
+// falls in the same level?"
+//
+// Both screens used to promote the single root's children when there was
+// EXACTLY ONE root. That held for as long as everything he ran hung off Green
+// Bergen Development - and stopped the moment he took a seat on a job under
+// somebody else's home. Two roots, so no promotion, so the development came
+// back as a card sitting next to a generator: two things at one level that
+// are not the same kind of thing.
+//
+// The rule belongs to the node, not to the count. Anything with projects
+// under it is a folder, and what is under it comes up to the top. A root with
+// nothing under it is already a property and stays where it is. Both screens
+// call this, so they cannot disagree about what a property is.
+export function topOf(nodes: Node[]): { top: Node[]; folders: Node[] } {
+  return {
+    top: nodes.flatMap((n) => (n.children.length > 0 ? n.children : [n])),
+    folders: nodes.filter((n) => n.children.length > 0),
+  };
+}
+
 // Which property a job belongs to. The task list groups by this, so it has
 // to agree with the board: when every seat hangs off one root, that root is
 // the board rather than a row on it, and the top level is one step down.

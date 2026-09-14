@@ -8,7 +8,7 @@ import { DOORS } from "@shared/doors";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
-import { anyRuns, buildTree, coverUrls, faceUrl, getBoard, live as onBoard } from "@/lib/board";
+import { anyRuns, buildTree, coverUrls, faceUrl, getBoard, live as onBoard, topOf } from "@/lib/board";
 import { PropertyCard } from "@/components/PropertyCard";
 
 export const dynamic = "force-dynamic";
@@ -49,11 +49,10 @@ export default async function WorkPage() {
 
   // A job the owner put away is off this screen too (migration 115).
   const built = buildTree(onBoard(board.seats), board.tasks, board.me?.contact_id ?? null);
-  // A single root is not a board, it IS the board - every seat hangs off it,
-  // so promote its children and let the development be the heading. Same
-  // rule /projects uses; they must not disagree about what a property is.
-  const roof = built.length === 1 && built[0]!.children.length > 0 ? built[0]! : null;
-  const top = roof ? roof.children : built;
+  // A development is a folder: what is under it comes up to the top level,
+  // however many folders there are. Same rule /projects uses - they must not
+  // disagree about what a property is (topOf, 2026-09-14).
+  const { top, folders } = topOf(built);
 
   // Live properties only. "Done" is a filing cabinet, and the landing is
   // not a filing cabinet - the board has the full list behind one tap.
@@ -98,6 +97,22 @@ export default async function WorkPage() {
                 <ChevronIcon />
               </Link>
             )}
+            {/* The development is still worth reaching - it carries the
+                roll-up across every property under it - but as a line, not a
+                card competing with the houses it holds. */}
+            {folders.map((f) => (
+              <Link key={f.seat.project_id} href={`/project/${f.seat.project_id}`} className="home-row nav-row">
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="t">{f.seat.project_name}</span>
+                  <span className="m" style={{ display: "block" }}>
+                    {[`${f.count} ${f.count === 1 ? "project" : "projects"} beneath it`,
+                      f.open ? `${f.open} open` : null,
+                      f.mine ? `${f.mine} yours` : null].filter(Boolean).join(" · ")}
+                  </span>
+                </span>
+                <ChevronIcon />
+              </Link>
+            ))}
           </section>
         )}
 
