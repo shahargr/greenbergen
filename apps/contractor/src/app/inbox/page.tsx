@@ -4,7 +4,7 @@ import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { DOORS } from "@shared/doors";
 import { InboxScreen } from "@shared/inbox/Inbox";
 import { loadInbox, unreadCount } from "@shared/inbox/data";
-import { getMe } from "@/lib/me";
+import { getMe, syncPaperwork } from "@/lib/me";
 import { getBoard } from "@/lib/board";
 import { loadDoors } from "@shared/doors.server";
 import type { InboxTask } from "@shared/inbox/data";
@@ -27,6 +27,10 @@ export default async function InboxPage({
   searchParams: Promise<{ ok?: string; error?: string; door?: string }>;
 }) {
   const { ok, error, door } = await searchParams;
+  // The paperwork messages are opened and closed BEFORE the inbox is read
+  // here, because this is the screen they live on - a gap that closed an hour
+  // ago must not still be sitting in Waiting on you (migration 104).
+  await syncPaperwork();
   const [me, data, doors, board] = await Promise.all([getMe(), loadInbox(), loadDoors(), getBoard()]);
   // Already loaded: no reason to ask the database for a number we have.
   const unread = unreadCount(data.messages);

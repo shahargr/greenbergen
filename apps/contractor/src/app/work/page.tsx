@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
-import { getMe } from "@/lib/me";
+import { getMe, syncPaperwork } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { stopwatch } from "@shared/perf";
@@ -9,7 +9,6 @@ import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
 import { anyRuns, buildTree, coverUrls, faceUrl, getBoard } from "@/lib/board";
 import { PropertyCard } from "@/components/PropertyCard";
-import { ReadyCard } from "@/components/ReadyCard";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Work" };
@@ -19,16 +18,27 @@ export const metadata = { title: "Work" };
 //
 // It used to open with four rows of paperwork and a Next card explaining
 // what did not exist yet, so the properties a person actually runs were
-// below the fold or absent. The order now is: what is live, then what is
-// missing, then what is coming - and the first of those is the only one
-// that gets room.
+// below the fold or absent.
+//
+// The paperwork is gone from here entirely now. Shahar (2026-09-14): "remove
+// the 4 things left from my professional login page into messages i cannot
+// dismiss without uploading these papers. this way the messages stays
+// un-opened all the time until they are resolved." A shut drawer saying "4
+// things left" is something you stop seeing on the second day; four messages
+// that refuse to be read or archived are not. The unread badge on the shell
+// carries them, contractor_paperwork_sync keeps them honest (migration 104),
+// and this screen is about the work.
 export default async function WorkPage() {
   const w = stopwatch("/work");
   // Four independent reads, sent together. The board is the same
   // portal_my_work every board screen runs on, so this costs no new query
   // shape - it is the read /projects already makes.
-  const [me, doors, board, unread] = await Promise.all([
+  const [me, , doors, board, unread] = await Promise.all([
     w.step("me", () => getMe()),
+    // A safety net, not the main path: contractor_document_upload closes its
+    // own message the moment a paper lands, so this only ever catches a gap
+    // that opened somewhere else - a certificate that ran out overnight.
+    w.step("paperwork", () => syncPaperwork()),
     w.step("doors", () => loadDoors()),
     w.step("board", () => getBoard()),
     // One integer for the badge on the shell - never the whole inbox.
@@ -73,9 +83,6 @@ export default async function WorkPage() {
                 : "Work in your trades will show up here. You can look now; accepting needs your paperwork."}
           </p>
         </div>
-
-        {/* Shut by default: paperwork is never why someone opened the app. */}
-        <ReadyCard me={me} />
 
         {/* THE WORK. Properties first, with their faces on them. */}
         {live.length > 0 && (

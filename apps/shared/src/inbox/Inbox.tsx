@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card, ChevronIcon, Notice } from "../ui";
+import { DOORS } from "../doors";
 import { shortDate } from "../format";
 import { TaskThread } from "./TaskThread";
 import { Compose } from "./Compose";
@@ -40,6 +41,29 @@ import type { InboxData, InboxTask, Msg, MsgKind } from "./data";
 // subject fills the middle and clips; the date sits right. Everything else -
 // the project, the assignee, the status, the body, the buttons - is behind
 // the tap.
+//
+// ONE ROW THAT WILL NOT GO AWAY. Shahar (2026-09-14): "remove the 4 things
+// left from my professional login page into messages i cannot dismiss without
+// uploading these papers." A message carrying `requires` names a gap in
+// someone's file, and the database refuses to let it be read, archived,
+// completed or deleted while the gap is open (migration 104). So the row does
+// not offer those verbs at all - it offers the one that works. It is an
+// absolute link because the same inbox is read through four doors and the
+// paperwork lives behind one of them.
+const paperHref = (k: string) =>
+  k === "business" ? `${DOORS.expert.url}/business`
+  : k === "trades" ? `${DOORS.expert.url}/business/trades`
+  : `${DOORS.expert.url}/business/documents`;
+
+const PAPER_CTA: Record<string, string> = {
+  business: "Fill it in",
+  trades: "Pick your trades",
+  licence: "Upload the licence",
+  liability: "Upload the certificate",
+  workers_comp: "Upload the certificate",
+  w9: "Upload the W-9",
+};
+
 const when = (t: string) => {
   const d = new Date(t);
   const sameYear = d.getFullYear() === new Date().getFullYear();
@@ -295,7 +319,11 @@ function Row({
 }) {
   const tag = KIND_TAG[m.kind];
   const rest = m.body.slice(m.subject.length).trim();
-  const canReply = !m.mine && !!m.with_contact_id && !!m.project_id && (m.kind === "note" || m.kind === "task");
+  // A gap in your file, standing in the inbox until you close it. No Mark
+  // read, no Archive, no Turn this into a task: the database refuses all
+  // three while it is open, so offering them would be a button that lies.
+  const paper = m.requires ?? null;
+  const canReply = !paper && !m.mine && !!m.with_contact_id && !!m.project_id && (m.kind === "note" || m.kind === "task");
   // A message ABOUT a task gets the task's verbs too: Update and Complete
   // open the same sheet a task row does, on the task it names.
   const aboutTask = !!m.action_id && !!m.project_id;
@@ -344,8 +372,18 @@ function Row({
             </p>
           )}
 
+          {paper && !archivedRow && (
+            <p className="tiny text-muted" style={{ margin: "10px 0 0" }}>
+              This one stays in your inbox, unread, until it is on file. It closes itself the moment it is.
+            </p>
+          )}
+
           <div className="row" style={{ gap: 6, marginTop: 12, flexWrap: "wrap" }}>
-            {archivedRow ? restore : m.mine ? (
+            {paper && !archivedRow ? (
+              <Link href={paperHref(paper)} className="btn btn-primary small">
+                {PAPER_CTA[paper] ?? "Sort it out"}
+              </Link>
+            ) : archivedRow ? restore : m.mine ? (
               // Yours: you sent it. Filing it is the only thing left.
               <form action={messageSet}>
                 <input type="hidden" name="base" value={base} />
@@ -399,7 +437,7 @@ function Row({
             </form>
           )}
 
-          {!offer && m.kind !== "bid" && !m.action_id && (
+          {!offer && !paper && m.kind !== "bid" && !m.action_id && (
             <details style={{ marginTop: 10 }}>
               <summary className="tiny text-muted" style={{ cursor: "pointer" }}>Turn this into a task</summary>
               <form action={messageToTask} className="stack" style={{ gap: 8, marginTop: 8 }}>

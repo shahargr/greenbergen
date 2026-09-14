@@ -70,6 +70,19 @@ export async function getMe(): Promise<Me> {
   };
 }
 
+// THE PAPERWORK, AS MESSAGES. Shahar (2026-09-14): "remove the 4 things left
+// from my professional login page into messages i cannot dismiss without
+// uploading these papers." contractor_paperwork_sync opens one inbox message
+// per gap and closes it the instant the gap closes (migration 104). It is
+// idempotent and writes only when something changed, so the landing and the
+// inbox both call it and neither has to be the one that remembers.
+export async function syncPaperwork(): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await timed("me.paperwork", async () => await supabase.rpc("contractor_paperwork_sync"));
+  // A database that has not had the migration yet is not a broken screen.
+  if (error) console.error("contractor_paperwork_sync:", error.message);
+}
+
 // What is still missing before this contractor may take work. The order is
 // the order the screens ask for them.
 export function outstanding(me: Extract<Me, { signed_in: true }>) {

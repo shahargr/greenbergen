@@ -17,6 +17,11 @@ export type Msg = {
   subject: string;
   // What it IS, so the row can offer the right verbs (migration 035).
   kind: MsgKind;
+  // A READINESS GAP THIS MESSAGE STANDS IN FOR (migration 104). Set, and the
+  // row has exactly one verb - go and fix it. The database refuses to let it
+  // be read, archived, completed or deleted until the gap closes, so hiding
+  // those buttons here is courtesy, not the rule.
+  requires?: "business" | "trades" | "licence" | "liability" | "workers_comp" | "w9" | null;
   // Who it is with, for a reply. Null on a system message.
   with_contact_id: string | null;
   file: { id: string; path: string; kind: string | null; mime: string | null; name: string | null } | null;
