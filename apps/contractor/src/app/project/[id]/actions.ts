@@ -114,3 +114,24 @@ export async function cancelProject(projectId: string, formData: FormData) {
   if (!data?.ok) redirect(here(projectId, { error: data?.reason ?? "That job was not cancelled." }));
   redirect(here(projectId, { ok: data.already_paid > 0 ? "cancelled-paid" : "cancelled" }));
 }
+
+// PUTTING IT AWAY (migration 115). Shahar (2026-09-14): "as the owner of a
+// project, I need to be able to cancel and archive it."
+//
+// Archiving is not a fourth ending - it is what you do after one. The job has
+// to be finished or cancelled first, which is the database's rule and the
+// reason it can be this plain: nothing is deleted, nothing is frozen that the
+// close did not already freeze, and it comes back on one press.
+export async function archiveProject(projectId: string, archive: boolean) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_project_archive", {
+    p_project: projectId, p_archive: archive,
+  });
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath("/");
+  revalidatePath("/work");
+  revalidatePath("/projects");
+  if (error) redirect(here(projectId, { error: friendly(error.message, "That job was not put away.") }));
+  if (!data?.ok) redirect(here(projectId, { error: data?.reason ?? "That job was not put away." }));
+  redirect(here(projectId, { ok: archive ? "archived" : "unarchived" }));
+}

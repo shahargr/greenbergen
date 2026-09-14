@@ -8,7 +8,7 @@ import { DOORS } from "@shared/doors";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
-import { anyRuns, buildTree, coverUrls, faceUrl, getBoard } from "@/lib/board";
+import { anyRuns, buildTree, coverUrls, faceUrl, getBoard, live as onBoard } from "@/lib/board";
 import { PropertyCard } from "@/components/PropertyCard";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,8 @@ export default async function WorkPage() {
   ]);
   if (!me.signed_in) redirect("/login?next=/work");
 
-  const built = buildTree(board.seats, board.tasks, board.me?.contact_id ?? null);
+  // A job the owner put away is off this screen too (migration 115).
+  const built = buildTree(onBoard(board.seats), board.tasks, board.me?.contact_id ?? null);
   // A single root is not a board, it IS the board - every seat hangs off it,
   // so promote its children and let the development be the heading. Same
   // rule /projects uses; they must not disagree about what a property is.

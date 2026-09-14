@@ -5,7 +5,7 @@ import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import {
-  BUCKETS, anyRuns, buildTree, getBoard, money, prune, runs,
+  BUCKETS, anyRuns, buildTree, getBoard, live, money, prune, runs,
   type BucketKey, type Node,
 } from "@/lib/board";
 
@@ -38,10 +38,14 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   // finished house is a record, and it has its own chip. So "All" counts and
   // shows everything that is not done, and Completed is the only way in.
   const isDone = (s: { buckets?: string[] | null }) => (s.buckets ?? []).includes("done");
-  const counts: Record<string, number> = { all: board.seats.filter((s) => !isDone(s)).length };
-  for (const s of board.seats) for (const b of s.buckets ?? []) counts[b] = (counts[b] ?? 0) + 1;
+  // What the owner has put away is off the board entirely - not a chip, not a
+  // count, not a row (migration 115). It has its own line at the bottom.
+  const seats = live(board.seats);
+  const archived = board.seats.filter((s) => s.archived);
+  const counts: Record<string, number> = { all: seats.filter((s) => !isDone(s)).length };
+  for (const s of seats) for (const b of s.buckets ?? []) counts[b] = (counts[b] ?? 0) + 1;
 
-  const built = buildTree(board.seats, board.tasks, board.me?.contact_id ?? null);
+  const built = buildTree(seats, board.tasks, board.me?.contact_id ?? null);
   // A single root is not a board, it IS the board - every seat hangs off it,
   // so a row for it would be the only row. Promote its children to the top
   // level and let the development become the heading over them.
@@ -57,7 +61,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   const theirs = tree.filter((n) => !anyRuns(n));
 
   const openTasks = board.tasks.filter((t) => t.state === "open").length;
-  const owed = board.seats.reduce((a, s) => a + (s.owed ?? 0), 0);
+  const owed = seats.reduce((a, s) => a + (s.owed ?? 0), 0);
   const first = board.me?.full_name?.trim().split(" ")[0] ?? null;
   const beneath = tree.reduce((a, n) => a + n.count, 0);
 
@@ -74,13 +78,13 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
         <div className="hero">
           <h1>{first ? `${first}'s board.` : "Your board."}</h1>
           <p className="lead">
-            {board.seats.length === 0
+            {seats.length === 0
               ? "No project seats yet. When a project hands you the PM or GC seat, it lands here."
               : `${tree.length} ${tree.length === 1 ? "property" : "properties"}${beneath ? `, ${beneath} ${beneath === 1 ? "job" : "jobs"} beneath` : ""}${openTasks ? ` · ${openTasks} open ${openTasks === 1 ? "task" : "tasks"}` : ""}${money(owed) ? ` · ${money(owed)} owed` : ""}.`}
           </p>
         </div>
 
-        {board.seats.length > 0 && (
+        {seats.length > 0 && (
           <nav className="chips" aria-label="Filter projects">
             <Chip k="all" label="All" n={counts.all} on={filter === "all"} />
             {BUCKETS.filter((b) => (counts[b.key] ?? 0) > 0).map((b) => (
@@ -110,11 +114,39 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
           </section>
         )}
 
-        {tree.length === 0 && board.seats.length > 0 && (
+        {/* PUT AWAY. Shahar owns them and decided he was done looking at
+            them; the list says how many and opens on request, so nothing
+            becomes unreachable by being tidied. */}
+        {archived.length > 0 && (
+          <details className="home-panel">
+            <summary className="home-row">
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">Put away · {archived.length}</span>
+                <span className="m" style={{ display: "block" }}>Finished or cancelled, and off the board</span>
+              </span>
+              <span className="chev"><ChevronIcon /></span>
+            </summary>
+            <div className="drawer stack" style={{ gap: 0, paddingTop: 6 }}>
+              {archived.map((s) => (
+                <Link key={s.project_id} href={`/project/${s.project_id}`} className="home-row">
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">{s.project_name}</span>
+                    <span className="m" style={{ display: "block" }}>
+                      {[s.parent_name, s.status.replace("Closed - ", "").toLowerCase()].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                  <ChevronIcon />
+                </Link>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {tree.length === 0 && seats.length > 0 && (
           <Card soft pad><div className="small">Nothing in that filter. <Link href="/projects">Show everything</Link>.</div></Card>
         )}
 
-        {board.seats.length === 0 && (
+        {seats.length === 0 && board.seats.length === 0 && (
           <Card soft pad>
             <div className="small">
               A seat arrives one of three ways: a project invites you as PM or GC, a homeowner&apos;s

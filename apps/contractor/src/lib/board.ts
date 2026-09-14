@@ -26,12 +26,21 @@ export type Seat = {
   // choice rather than one borrowed from the house above it.
   cover: string | null;
   cover_own: boolean;
+  // Put away by its owner once it ended (migration 115). The seat still comes
+  // back from portal_my_work - the project screen finds itself in this read,
+  // so dropping it here would make an archived job unreachable and therefore
+  // unarchivable. The LISTS leave it out; see live() below.
+  archived: boolean;
   // The JOB TYPE's picture (migration 071): a public url, already usable,
   // set when this project is one of the catalogue's packages and nobody has
   // chosen a photo of its own. A generator job looks like a generator.
   cover_url: string | null;
   package_code: string | null;
 };
+
+// What a list shows: everything the owner has not put away. One helper so
+// the board, the project list and the counts cannot disagree about it.
+export const live = (seats: Seat[]) => seats.filter((s) => !s.archived);
 
 // The one place that decides which of a seat's two faces to show. The job
 // type's picture is already a url; the other is a private path that has to
