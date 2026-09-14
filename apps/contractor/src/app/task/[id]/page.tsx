@@ -427,8 +427,21 @@ export default async function TaskPage({
                 right. Status is where it stands and stays on the task; Log
                 progress is what happened today and posts to the record. */}
             <section className="stack" style={{ gap: 0 }}>
-              {t.can_edit && (
+              {/* SET-UP IS SET-UP, not the day's work. Shahar (2026-09-14):
+                  "update task settings, remove Log a payment section, Status
+                  & Log process." The gear is for what the task IS - its name,
+                  what done looks like, how it ends - and the three things
+                  you do to it every day would only be noise in there. They
+                  come back the moment the gear closes; what stays on both
+                  views is what you SET on a task: its stage, priority, who
+                  holds it and when it is due. */}
+              {t.can_edit && !setup && (
                 <Row label="Status" hint="where it stands">
+                  {/* Says the Status box is actually on the page. Without it
+                      the set-up view would post an empty status_note and wipe
+                      whatever was there - the same trap as the name and the
+                      outcome above. */}
+                  <input type="hidden" name="has_status" value="1" />
                   <input className="input" name="status_note" defaultValue={t.status_note ?? ""}
                     placeholder="Waiting on Steve at Andersen for the revised quote" />
                 </Row>
@@ -436,9 +449,11 @@ export default async function TaskPage({
 
               {/* A div, not a label: Evidence carries buttons, and a click on
                   a button inside a label goes to the label's control. */}
-              <Row label="Log progress" hint="posts to the record">
-                <NoteBox projectId={t.project_id} />
-              </Row>
+              {!setup && (
+                <Row label="Log progress" hint="posts to the record">
+                  <NoteBox projectId={t.project_id} />
+                </Row>
+              )}
 
               {t.can_edit && (
                 <>
@@ -498,7 +513,7 @@ export default async function TaskPage({
             {/* WHAT IT COST (migration 065). Inside the same form, so logging
                 a purchase saves the lines above with it, and an amount in the
                 box goes in whichever button gets pressed. */}
-            {t.can_log_payment && (
+            {t.can_log_payment && !setup && (
               <details className="home-panel" open={money === "1"}>
                 <summary className="home-row">
                   <span className="grow" style={{ minWidth: 0 }}>

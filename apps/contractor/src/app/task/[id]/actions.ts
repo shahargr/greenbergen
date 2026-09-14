@@ -90,12 +90,18 @@ export async function saveTask(formData: FormData) {
     // open; sending them blank from a closed drawer would wipe both. The rest
     // are on the page always, so they go every time.
     const patch: Record<string, string> = {
-      status_note: s("status_note"), priority: s("priority"),
-      target_date: s("target_date"), assignee: s("assignee"),
+      priority: s("priority"), target_date: s("target_date"), assignee: s("assignee"),
     };
+    // A key that is present is a key portal_task_edit WRITES, blank or not. So
+    // a field only goes in the patch when the screen actually showed it: the
+    // name and the outcome live behind the gear, the status lives in front of
+    // it, and neither view may blank the other's fields on save.
     if (String(formData.get("has_setup") ?? "") === "1") {
       patch.action = s("action");
       patch.desired_outcome = s("desired_outcome");
+    }
+    if (String(formData.get("has_status") ?? "") === "1") {
+      patch.status_note = s("status_note");
     }
     // The stage goes in the patch UNLESS it is Completed: portal_task_edit
     // refuses that word (closing has a gate) and `complete` below takes it
