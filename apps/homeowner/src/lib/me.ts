@@ -23,6 +23,11 @@ export type Home = {
 };
 export type HomeQuota = { allowed: number | null; have: number; can_add: boolean } | null;
 
+// WHERE A JOB HONESTLY STANDS (migration 119). Computed in the database from
+// the stage AND the evidence for it, so every door tells the same story.
+// projects.status is not this: it is "In Progress" on everything not closed.
+export type ProgressLabel = { key: string; label: string; detail: string; order: number };
+
 export type BookingSummary = {
   project_id: string; package_code: string; name: string; tile_title: string; illustration: string;
   requires_permit: boolean; instant_book: boolean; address: string | null; home_project_id: string; price_cents: number; config_label: string | null;
@@ -40,6 +45,7 @@ export type BookingSummary = {
   // the work may well have carried on, and reading the booking's state as the
   // job's was hiding live jobs as "cancelled".
   project_status: string | null;
+  progress_label: ProgressLabel | null;
 };
 
 // EVERY JOB UNDER THE MEMBER'S HOMES, booked or not (migration 116). The
@@ -53,6 +59,7 @@ export type ProjectSummary = {
   has_booking: boolean;
   open_tasks: number; people: number; unread: number;
   cover: string | null; cover_url: string | null; created_at: string;
+  progress_label: ProgressLabel | null;
 };
 
 export type Me =

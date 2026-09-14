@@ -26,9 +26,14 @@ export const metadata = { title: "Green Bergen" };
 // list of things that did not happen is an odd thing to greet somebody with,
 // and the record is not lost: a cancelled booking is still on its own project
 // page, and the ledger and the timeline still have all of it.
-type Bucket = "all" | "planned" | "live" | "done";
+type Bucket = "all" | "lining" | "under" | "done";
+// Three honest groups, from project_progress's own ordering (migration 119):
+// everything before a contractor is actually on it, everything while they
+// are, and everything finished. "In progress" as a heading was the problem -
+// it meant nothing more than "not closed".
 const BUCKETS: { key: Bucket; label: string }[] = [
-  { key: "all", label: "All" }, { key: "planned", label: "DIY" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" },
+  { key: "all", label: "All" }, { key: "lining", label: "Lining up" },
+  { key: "under", label: "Under way" }, { key: "done", label: "Done" },
 ];
 
 // ONE ROW PER JOB, booked or not (migration 116). Shahar, with two
@@ -43,16 +48,27 @@ type Row =
   | { kind: "booking"; project_id: string; b: BookingSummary; p: ProjectSummary }
   | { kind: "project"; project_id: string; p: ProjectSummary };
 
-// The PROJECT decides which bucket a row is in. A booking that closed means
-// the request stopped going out to the community; it says nothing about
-// whether the work is happening.
+// WHERE IT STANDS, decided once in the database and only read here. Shahar
+// (2026-09-14): "tells me the generator is in progress while in fact it
+// isn't." It was: this screen bucketed by projects.status, which is the value
+// a project is BORN with. project_progress reads the stage AND checks it
+// against the record - people, contracts, money, bids, finished work - and
+// says the smaller true thing when the claim is not supported.
 const bucketOf = (r: Row): Exclude<Bucket, "all"> | "cancelled" => {
-  const status = r.p.status ?? "";
-  if (status === "Closed - Cancelled") return "cancelled";
-  if (status.startsWith("Closed")) return "done";
-  // Still running. DIY only while it is a plan nobody has taken on.
-  return r.kind === "booking" && r.b.state === "planned" ? "planned" : "live";
+  const s = r.p.progress_label;
+  if (s?.key === "cancelled") return "cancelled";
+  const o = s?.order ?? 0;
+  return o >= 9 ? "done" : o >= 6 ? "under" : "lining";
 };
+
+// Semantic colour, not decoration: finished is good, somebody working is
+// live, waiting on you is a flag, and everything else is quiet.
+const tagFor = (key?: string) =>
+  key === "done" ? "tag tag-ok"
+  : key === "active" ? "tag tag-status"
+  : key === "delivered" || key === "verification" ? "tag tag-status"
+  : key === "cancelled" ? "tag tag-neutral"
+  : "tag tag-outline";
 
 
 export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string; home?: string }> }) {
@@ -101,11 +117,11 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
     return b ? { kind: "booking" as const, project_id: p.project_id, b, p } : { kind: "project" as const, project_id: p.project_id, p };
   });
   const mine = onlyHome ? all.filter((r) => r.p.home_project_id === onlyHome.project_id) : all;
-  const counts = { all: 0, planned: 0, live: 0, done: 0 } as Record<Bucket, number>;
+  const counts = { all: 0, lining: 0, under: 0, done: 0 } as Record<Bucket, number>;
   for (const r of mine) { const k = bucketOf(r); if (k !== "cancelled") { counts[k]++; counts.all++; } }
   const shown = mine.filter((r) => { const k = bucketOf(r); return k !== "cancelled" && (filter === "all" || k === filter); });
   const manyHomes = me.homes.length > 1;
-  const order: Exclude<Bucket, "all">[] = ["live", "planned", "done"];
+  const order: Exclude<Bucket, "all">[] = ["under", "lining", "done"];
   const href = (b: Bucket) => {
     const q = new URLSearchParams();
     if (onlyHome) q.set("home", onlyHome.project_id);
@@ -234,19 +250,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 // from a booking, and inventing any of it here would be a lie with a number
 // in it.
 function ProjectRow({ p, showHome }: { p: ProjectSummary; showHome: boolean }) {
-  const closed = (p.status ?? "").startsWith("Closed");
-  const pill = closed
-    ? <span className={`tag ${p.status === "Closed - Completed" ? "tag-ok" : "tag-neutral"}`}>
-        {p.status?.replace("Closed - ", "")}
-      </span>
-    : p.open_tasks > 0
-      ? <span className="tag tag-status">{p.open_tasks} open</span>
-      : <span className="tag tag-outline">Under way</span>;
-  const line = [
-    showHome && p.home_name ? p.home_name : null,
-    closed ? null : p.people > 0 ? `${p.people} ${p.people === 1 ? "person" : "people"} on it` : "nobody on it yet",
-    p.open_tasks === 0 && !closed ? "nothing open" : null,
-  ].filter(Boolean).join(" · ");
+  const st = p.progress_label;
   return (
     <Link href={`/project/${p.project_id}`} className="home-row">
       <span className="ic" aria-hidden>
@@ -257,38 +261,40 @@ function ProjectRow({ p, showHome }: { p: ProjectSummary; showHome: boolean }) {
       </span>
       <span className="grow">
         <span className="t">{p.name}{p.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{p.unread}</span>}</span>
-        <span className="m" style={{ display: "block" }}>{line}</span>
+        <span className="m" style={{ display: "block" }}>
+          {[showHome && p.home_name ? p.home_name : null, st?.detail].filter(Boolean).join(" · ")}
+        </span>
       </span>
-      {pill}
+      {st && <span className={tagFor(st.key)}>{st.label}</span>}
     </Link>
   );
 }
 
 function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boolean }) {
-  // The request closed and the work carried on - two of Shahar's four
-  // bookings are exactly this. Read the project, not the booking.
-  const liveDespite = b.state === "closed" && !!b.project_status && !b.project_status.startsWith("Closed");
-  const pill = liveDespite ? <span className="tag tag-status">In progress</span> :
-    b.state === "planned" ? <span className="tag tag-neutral">{targetWindowLabel(b.target_window)}</span>
-    : b.state === "posted" && b.no_taker ? <span className="tag tag-status">Needs you</span>
-    : b.state === "posted" ? <span className="tag tag-outline">Matching</span>
-    : b.state === "accepted" ? <span className="tag tag-status">{b.progress ? `${b.progress.done_count}/${b.progress.total}` : "In progress"}</span>
-    : b.state === "done" ? <span className="tag tag-ok">Done</span>
-    : <span className="tag tag-neutral">Cancelled</span>;
-  const line = liveDespite ? `${b.contractor?.name ?? "Under way"} · the community request was closed` :
-    b.state === "planned" ? `${dollars(b.price_cents)} reference · ${b.config_label ?? ""}`
-    : b.state === "accepted" ? `${b.contractor?.name ?? "Contractor"} · ${b.progress?.current?.name ?? "in progress"}`
-    : b.state === "posted" ? `${dollars(b.price_cents)} · posted ${shortDate(b.posted_at)}`
-    : b.state === "done" ? `${dollars(b.price_cents)} · ${shortDate(b.done_at)}`
-    : `cancelled ${shortDate(b.closed_at)}`;
+  // The same rule as every other row (migration 119). What a booking adds is
+  // the money: a reference price while it is a plan, what it went out at
+  // while it is looking, what it came to when it is finished.
+  const st = b.progress_label;
+  const money =
+    st?.key === "planned" ? `${dollars(b.price_cents)} reference${b.config_label ? ` · ${b.config_label}` : ""}`
+    : st?.key === "finding" ? `${dollars(b.price_cents)} · posted ${shortDate(b.posted_at)}`
+    : st?.key === "done" && b.price_cents > 0 ? `${dollars(b.price_cents)} · ${shortDate(b.done_at)}`
+    : null;
+  const line = [
+    showHome && b.address ? b.address.split(",")[0] : null,
+    b.contractor?.name ?? null,
+    money ?? st?.detail ?? null,
+  ].filter(Boolean).join(" · ");
   return (
     <Link href={`/project/${b.project_id}`} className="home-row">
       <span className="ic"><Illustration name={b.illustration} /></span>
       <span className="grow">
         <span className="t">{b.name}{b.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{b.unread}</span>}</span>
-        <span className="m" style={{ display: "block" }}>{showHome && b.address ? `${b.address.split(",")[0]} · ` : ""}{line}</span>
+        <span className="m" style={{ display: "block" }}>{line}</span>
       </span>
-      {pill}
+      {st
+        ? <span className={tagFor(st.key)}>{st.key === "planned" ? targetWindowLabel(b.target_window) : st.label}</span>
+        : null}
     </Link>
   );
 }
