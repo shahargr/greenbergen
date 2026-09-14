@@ -484,14 +484,22 @@ export default async function TaskPage({
               const back = SPENT_NOT.includes(p.status);
               const line = [
                 p.paid_on ? shortDate(p.paid_on) : null, p.method,
-                p.reference ? `ref ${p.reference}` : null, p.from_account,
+                p.reference ? `ref ${p.reference}` : null,
               ].filter(Boolean).join(" · ");
               const row = (
                 <>
                   <span className="grow" style={{ minWidth: 0 }}>
                     <span className="t" style={back ? { textDecoration: "line-through", color: "var(--muted)" } : undefined}>
                       {p.direction === "in" ? "− " : ""}{usd(p.amount)}
-                      {p.paid_to ? `${p.direction === "in" ? " from " : " to "}${p.paid_to}` : ""}
+                      {/* Where it came from and where it landed, in the order
+                          it travelled - the same shape it was entered in
+                          (Shahar, 2026-09-14: "just from & to"). */}
+                      <span className="text-muted" style={{ fontWeight: 400 }}>
+                        {"  "}
+                        {p.direction === "in"
+                          ? `${p.paid_to ?? "them"} → ${p.from_account ?? "you"}`
+                          : `${p.from_account ?? "you"} → ${p.paid_to ?? "them"}`}
+                      </span>
                     </span>
                     <span className="m" style={{ display: "block" }}>{line || p.description || "—"}</span>
                   </span>
@@ -534,10 +542,30 @@ export default async function TaskPage({
                         <input className="input" name="paid_on" type="date" defaultValue={p.paid_on ?? ""} />
                       </label>
                     </div>
-                    <label className="field">
-                      <span className="field-label">{p.direction === "in" ? "Who it came from" : "Who was paid"}</span>
-                      <input className="input" name="payee" defaultValue={p.paid_to ?? ""} list="task-payee-list" autoComplete="off" />
-                    </label>
+                    {/* FROM → TO, the order this row's money travelled.
+                        No swap here: turning a payment into a credit would
+                        also have to move its status to the other direction's
+                        vocabulary, which is a different act from correcting a
+                        field. Log the other one and cancel this. */}
+                    <div className="stack" style={{ gap: 8 }}>
+                      <label className="field" style={{ marginBottom: 0 }}>
+                        <span className="field-label">
+                          {p.direction === "in" ? "From — the other side" : "From — your account"}
+                        </span>
+                        {p.direction === "in"
+                          ? <input className="input" name="payee" defaultValue={p.paid_to ?? ""} list="task-payee-list" autoComplete="off" />
+                          : <input className="input" name="from_account" defaultValue={p.from_account ?? ""} list="task-account-list" autoComplete="off" />}
+                      </label>
+                      <div className="tiny text-muted" style={{ textAlign: "center", margin: "-2px 0" }}>↓</div>
+                      <label className="field" style={{ marginBottom: 0 }}>
+                        <span className="field-label">
+                          {p.direction === "in" ? "To — your account" : "To — the other side"}
+                        </span>
+                        {p.direction === "in"
+                          ? <input className="input" name="from_account" defaultValue={p.from_account ?? ""} list="task-account-list" autoComplete="off" />
+                          : <input className="input" name="payee" defaultValue={p.paid_to ?? ""} list="task-payee-list" autoComplete="off" />}
+                      </label>
+                    </div>
                     <div className="row" style={{ gap: 8 }}>
                       <label className="field grow">
                         <span className="field-label">How</span>
@@ -551,11 +579,6 @@ export default async function TaskPage({
                         <input className="input" name="reference" defaultValue={p.reference ?? ""} />
                       </label>
                     </div>
-                    <label className="field">
-                      <span className="field-label">From which account <span className="text-muted">(optional)</span></span>
-                      <input className="input" name="from_account" defaultValue={p.from_account ?? ""}
-                        list="task-account-list" autoComplete="off" />
-                    </label>
                     <label className="field">
                       <span className="field-label">Where it stands</span>
                       <select className="input" name="status"

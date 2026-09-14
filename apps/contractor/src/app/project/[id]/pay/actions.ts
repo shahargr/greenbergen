@@ -37,7 +37,18 @@ export async function logCategoryPayment(formData: FormData) {
 
   const raw = String(formData.get("amount") ?? "").replace(/[$,\s]/g, "");
   const amount = raw ? Number(raw) : NaN;
-  if (!Number.isFinite(amount) || amount <= 0) redirect(at({ error: "Enter what it cost." }));
+  // PaymentBox is shared with the task screen, so it can send a credit from
+  // here too - money coming back, positive, with the sign in the direction
+  // (migration 086). Without this the swap would be silently ignored and a
+  // credit would be filed as a payment.
+  const direction = String(formData.get("direction") ?? "out") === "in" ? "in" : "out";
+  if (!Number.isFinite(amount) || amount <= 0) {
+    redirect(at({
+      error: direction === "in"
+        ? "Enter how much came back, as a positive number."
+        : "Enter what it cost.",
+    }));
+  }
 
   const files = String(formData.get("payment_file_ids") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   const supabase = await createClient();
@@ -52,6 +63,7 @@ export async function logCategoryPayment(formData: FormData) {
     p_notes: txt(formData.get("notes")),
     p_awaiting: String(formData.get("awaiting") ?? "") === "1",
     p_file_ids: files.length > 0 ? files : null,
+    p_direction: direction,
   });
   if (error) redirect(at({ error: error.message }));
   if (data?.ok === false) redirect(at({ error: data.reason ?? "That payment did not save." }));
@@ -63,8 +75,10 @@ export async function logCategoryPayment(formData: FormData) {
   // of logging it from there rather than from inside the task.
   const [path, qs] = back.split("?");
   const p = new URLSearchParams(qs ?? "");
-  p.set("ok", data?.awaiting
-    ? `Logged — ${data?.paid_to ?? "they"} have a confirmation task open until it lands`
-    : `Logged against the task, paid to ${data?.paid_to ?? "them"}`);
+  p.set("ok", data?.credit
+    ? `Credit logged from ${data?.paid_to ?? "them"} — it comes off what that task has cost`
+    : data?.awaiting
+      ? `Logged — ${data?.paid_to ?? "they"} have a confirmation task open until it lands`
+      : `Logged against the task, paid to ${data?.paid_to ?? "them"}`);
   redirect(`${path}?${p.toString()}`);
 }

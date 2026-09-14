@@ -26,6 +26,9 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
   const [payee, setPayee] = useState("");
   const [files, setFiles] = useState<Attached[]>([]);
   const [reference, setReference] = useState("");
+  // Your account is a slot in the From/To row now, so it is controlled state
+  // like the other side - the sentence under the row reads them both.
+  const [account, setAccount] = useState("");
   // WHICH WAY THE MONEY WENT. Shahar (2026-09-13), on a lumber credit:
   // "tried to log in negative value as credit -1646.14 and got this error".
   // A credit is not a negative payment - it is a POSITIVE amount coming the
@@ -47,7 +50,56 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
   // This is that, without freezing the screen: finish it, or Clear it.
   const started = amount.trim().length > 0;
   const ready = started && payee.trim().length > 0 && (!needsRef || reference.trim().length > 0);
-  const clear = () => { setAmount(""); setPayee(""); setReference(""); };
+  const clear = () => { setAmount(""); setPayee(""); setReference(""); setAccount(""); };
+
+  // FROM → TO, and the ORDER is the direction.
+  //
+  // Shahar (2026-09-14), on the direction select this replaced: "so do you add
+  // to the transaction log the ability to choose direction? or just from & to?
+  // where from can be the other side?"
+  //
+  // He is right. Nobody thinks "direction" - they think "Kuiken credited the
+  // 55 Walnut card". And a direction picker can CONTRADICT the fields under
+  // it: you could choose Money out and then name the person who paid you, and
+  // nothing noticed. Here the two slots never change meaning, only position,
+  // so there is no second field left to disagree with.
+  //
+  // The slots are TYPED, which is what makes the direction derivable without a
+  // registry of your own accounts - there isn't one, and paid_from_account is
+  // free text that has already drifted to "55 Walnut", "55 Walnut Dr" and "C".
+  // One slot is always your account, the other always the other side; which
+  // one sits on top says which way the money went.
+  const mine = (
+    <label className="field" style={{ marginBottom: 0 }}>
+      <span className="field-label">
+        {credit ? "To — your account" : "From — your account"} <span className="text-muted">(optional)</span>
+      </span>
+      <input className="input" name="from_account" list="task-account-list" autoComplete="off"
+        value={account} onChange={(e) => setAccount(e.target.value)}
+        placeholder={accounts[0] ? `${accounts[0]}, or a new one` : "Business card ·4821, checking, cash"} />
+      {accounts.length > 0 && (
+        <span className="hint">
+          {accounts.length} {accounts.length === 1 ? "account" : "accounts"} used on this job so far —
+          pick one, or type a new one and it joins the list.
+        </span>
+      )}
+    </label>
+  );
+  const theirs = (
+    <label className="field" style={{ marginBottom: 0 }}>
+      <span className="field-label">{credit ? "From — the other side" : "To — the other side"}</span>
+      <input className="input" name="payee" value={payee} onChange={(e) => setPayee(e.target.value)}
+        required={started}
+        list="task-payee-list" placeholder="The supplier, the shop, the person" autoComplete="off" />
+      <datalist id="task-payee-list">
+        {people.map((p) => <option key={p.contact_id} value={p.name} />)}
+      </datalist>
+    </label>
+  );
+  // What it will read as, in words, before it is saved.
+  const sentence = credit
+    ? `${payee.trim() || "They"} sent ${amount.trim() ? `$${amount.trim()}` : "money"} back${account.trim() ? ` into ${account.trim()}` : ""} — it comes off what this task has cost.`
+    : `You paid ${payee.trim() || "them"} ${amount.trim() ? `$${amount.trim()}` : ""}${account.trim() ? ` from ${account.trim()}` : ""}.`;
 
   return (
     <>
@@ -57,19 +109,23 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
       <input type="hidden" name="payment_file_ids" value={files.map((f) => f.id).join(",")} />
       <input type="hidden" name="direction" value={dir} />
 
-      <label className="field">
-        <span className="field-label">Which way</span>
-        <select className="input" value={dir} onChange={(e) => setDir(e.target.value as "out" | "in")}>
-          <option value="out">Money out — you paid for something</option>
-          <option value="in">Money in — a credit, a refund, a rebate</option>
-        </select>
-        {credit && (
-          <span className="hint">
-            Enter it as a positive number. It counts <strong>against</strong> what this task has cost —
-            the direction does the subtracting, not a minus sign.
-          </span>
-        )}
-      </label>
+      {/* WHICH WAY THE MONEY WENT, said as where it came from and where it
+          landed. Swap turns a payment into a credit and back; nothing else on
+          the form has to change, because the slots keep their meanings. */}
+      <div className="stack" style={{ gap: 8 }}>
+        <div className="between" style={{ alignItems: "baseline" }}>
+          <span className="divider-label" style={{ padding: 0 }}>Money moves</span>
+          <button type="button" className="btn btn-ghost small" onClick={() => setDir(credit ? "out" : "in")}>
+            ⇄ {credit ? "No — I paid them" : "No — they paid me"}
+          </button>
+        </div>
+        {credit ? theirs : mine}
+        <div className="tiny text-muted" style={{ textAlign: "center", margin: "-2px 0" }}>↓</div>
+        {credit ? mine : theirs}
+        <p className="tiny text-muted" style={{ margin: 0 }}>
+          {sentence} A name that is not on file becomes a contact, so the next one finds it.
+        </p>
+      </div>
 
       <div className="row" style={{ gap: 8 }}>
         <label className="field grow">
@@ -82,17 +138,6 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
           <input className="input" name="paid_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
         </label>
       </div>
-
-      <label className="field">
-        <span className="field-label">{credit ? "Who it came from" : "Who you paid"}</span>
-        <input className="input" name="payee" value={payee} onChange={(e) => setPayee(e.target.value)}
-          required={started}
-          list="task-payee-list" placeholder="The sign shop, the supplier, the person" autoComplete="off" />
-        <datalist id="task-payee-list">
-          {people.map((p) => <option key={p.contact_id} value={p.name} />)}
-        </datalist>
-        <span className="hint">A name that is not on file becomes a contact, so the next one finds it.</span>
-      </label>
 
       <div className="row" style={{ gap: 8 }}>
         <label className="field grow">
@@ -110,17 +155,6 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
             placeholder={m?.name === "Check" ? "Check number" : "Order or confirmation number"} />
         </label>
       </div>
-
-      <label className="field">
-        <span className="field-label">{credit ? "Into which account" : "From which account"} <span className="text-muted">(optional)</span></span>
-        <input className="input" name="from_account" list="task-account-list" autoComplete="off"
-          placeholder={accounts[0] ? `${accounts[0]}, or a new one` : "Business card ·4821, checking, cash"} />
-        <span className="hint">
-          {accounts.length > 0
-            ? `${accounts.length} ${accounts.length === 1 ? "account" : "accounts"} used on this job so far — pick one, or type a new one and it joins the list.`
-            : "Type it once and it is offered on every payment on this job from then on."}
-        </span>
-      </label>
 
       <label className="field">
         <span className="field-label">Note <span className="text-muted">(optional)</span></span>
