@@ -79,15 +79,35 @@ export type Financials =
       methods: FinMethod[];
     };
 
-// Dollars, as the money tables hold them. Whole dollars unless there are
-// cents to show.
-export const usd = (n: number | null | undefined) => {
+// MONEY, IN THE CURRENCY IT IS ACTUALLY IN.
+//
+// Shahar (2026-09-14), looking at a family loan reading $422,598.94: "wrong
+// currency sign. this one is in shekels."
+//
+// The data was right all along - contracts.currency has said ILS on those two
+// rows since they were written, transactions carry their own, and
+// project_financials hands both to the screen. This function threw it away
+// and stamped a dollar sign on everything. Two ILS contracts and a repayment
+// of 540,899.88 ILS were being read as dollars, which at 3.05 is a three-fold
+// lie about what is owed.
+//
+// Whole units unless there are minor units to show, the same as before.
+const SIGN: Record<string, string> = { USD: "$", ILS: "₪", EUR: "€", GBP: "£" };
+
+export const inCurrency = (n: number | null | undefined, currency?: string | null) => {
   if (n == null) return "—";
   const v = Number(n);
+  const code = (currency ?? "USD").toUpperCase();
+  const mark = SIGN[code] ?? `${code} `;
   const whole = Math.abs(v - Math.round(v)) < 0.005;
   const s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: 2 });
-  return v < 0 ? `−$${s}` : `$${s}`;
+  return v < 0 ? `−${mark}${s}` : `${mark}${s}`;
 };
+
+// The old name, still meaning what it always did for the many places where
+// the money genuinely is dollars - a project total across mixed currencies
+// has no single sign to wear, and those callers say so in words instead.
+export const usd = (n: number | null | undefined) => inCurrency(n, "USD");
 
 // A milestone reads as one word.
 export const stageTone = (s: FinStage): { label: string; cls: string } => {

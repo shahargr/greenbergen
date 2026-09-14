@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
-import { AppBar, Notice, Screen } from "@shared/ui";
+import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { getBoard } from "@/lib/board";
 import { NewTaskForm, type TaskType } from "./NewTaskForm";
 import { createTask } from "./actions";
@@ -21,6 +22,20 @@ export const dynamic = "force-dynamic";
 // it lands on afterwards. Asking for all of that up front is how a two-line
 // note becomes a form nobody fills in, and the point of this screen is that
 // writing something down on site costs nothing.
+//
+// ONE THING HAS TO BE SETTLED BEFORE THE TYPING: which project. Press Add task
+// standing on "55 Walnut Drive" and there is nowhere to put it - the house is
+// the folder that holds New build, Standby generator, Mortgage. The database
+// has always refused this (fn_actions_not_on_property) but only at the moment
+// you pressed the button, after you had written the thing out. Migration 103
+// asks the same question first, and this screen turns the refusal into the
+// list of projects under that roof.
+type Targets = {
+  project_name: string | null;
+  takes_tasks: boolean;
+  options: { id: string; name: string; standing: boolean; open_tasks: number }[];
+};
+
 export default async function NewTaskPage({
   params, searchParams,
 }: {
@@ -36,8 +51,10 @@ export default async function NewTaskPage({
   const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/task/new`)}`);
 
-  const [{ data: typeData }, { data: peopleData }, { data: payeeData }, { data: projectRow },
+  const [{ data: targetData }, { data: typeData }, { data: peopleData }, { data: payeeData }, { data: projectRow },
          { data: tradeRows }, { data: contractRows }, board] = await Promise.all([
+    // May a task live here at all, and if not, where could it? (migration 103)
+    w.step("targets", () => rpc<Targets>(supabase, "portal_task_targets", { p_project: id })),
     w.step("types", () => rpc<TaskType[]>(supabase, "portal_task_types")),
     // The people on this project - who a task can be ASSIGNED to.
     w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
@@ -59,6 +76,68 @@ export default async function NewTaskPage({
   ]);
   w.done();
 
+  const targets = targetData ?? null;
+  const here = projectRow?.project_name ?? targets?.project_name ?? undefined;
+
+  // THE PROPERTY ITSELF TAKES NO TASKS. Rather than let the form be filled in
+  // and then refused, offer the projects under this roof: one tap, and the
+  // same screen opens on a project that can hold the work.
+  if (targets && targets.takes_tasks === false) {
+    const options = targets.options ?? [];
+    const work = options.filter((o) => !o.standing);
+    const standing = options.filter((o) => o.standing);
+    const row = (o: Targets["options"][number]) => (
+      <Link key={o.id} href={`/project/${o.id}/task/new?back=${encodeURIComponent(to)}`} className="home-row">
+        <span className="grow" style={{ minWidth: 0 }}>
+          <span className="t">{o.name}</span>
+          <span className="m" style={{ display: "block" }}>
+            {o.open_tasks === 0 ? "nothing open yet" : `${o.open_tasks} open ${o.open_tasks === 1 ? "task" : "tasks"}`}
+          </span>
+        </span>
+        <ChevronIcon />
+      </Link>
+    );
+
+    return (
+      <Screen>
+        <AppBar back={to} title="New task" sub={here} />
+        <div className="body">
+          <div className="hero">
+            <h1 style={{ fontSize: 22 }}>Which project?</h1>
+            <p className="lead">
+              {here ? `“${here}” is the property` : "This is the property"} — the folder that holds the work.
+              A task lives on one of the projects under it.
+            </p>
+          </div>
+
+          {work.length > 0 && <div className="stack" style={{ gap: 0 }}>{work.map(row)}</div>}
+
+          {standing.length > 0 && (
+            <details className="home-panel">
+              <summary className="home-row">
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="t">The standing ones</span>
+                  <span className="m" style={{ display: "block" }}>Mortgage, insurance, taxes and the rest of what runs all year</span>
+                </span>
+                <span className="chev"><ChevronIcon /></span>
+              </summary>
+              <div className="drawer stack" style={{ gap: 0, paddingTop: 6 }}>{standing.map(row)}</div>
+            </details>
+          )}
+
+          {options.length === 0 && (
+            <Card soft pad>
+              <div className="small">
+                There is no open project under {here ? `“${here}”` : "this property"} yet. Start one first — a task
+                needs a job to belong to.
+              </div>
+            </Card>
+          )}
+        </div>
+      </Screen>
+    );
+  }
+
   const types = typeData ?? [];
   const trades = (tradeRows ?? []).map((t) => t.trade);
   const openTasks = board.tasks
@@ -77,7 +156,7 @@ export default async function NewTaskPage({
 
   return (
     <Screen>
-      <AppBar back={to} title="New task" sub={projectRow?.project_name ?? undefined} />
+      <AppBar back={to} title="New task" sub={here} />
       <div className="body">
         {error && <Notice kind="error" title="Not added.">{error}</Notice>}
 

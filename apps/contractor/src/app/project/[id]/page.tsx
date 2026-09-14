@@ -127,7 +127,6 @@ export default async function ProjectPage({
   // eight in the evening in Bergen County is still today's visit.
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const packages = pkgData ?? [];
-  const openPkgs = packages.filter((p) => p.status === "open");
   const roll = rollupData ?? null;
   const owed = roll?.owed ?? seat.owed ?? 0;
   const scopeLines = (scopeData ?? []).reduce((n, t) => n + t.scope_lines, 0);
@@ -218,6 +217,26 @@ export default async function ProjectPage({
   // list under it cannot disagree about where the week starts.
   const weekTo = week?.to ?? dayAfter(todayISO, 6);
   const dueThisWeek = openHere.filter((t) => !!t.target_date && t.target_date <= weekTo);
+
+  // WHO IS ACTUALLY ON SITE. Shahar (2026-09-14): "under today / tomorrow,
+  // list all trades currently working on site. clicking on each will show all
+  // the pending items for them."
+  //
+  // "Currently working" is whoever has been ON here this week - days_on_site
+  // is counted from their check-ins, so it is attendance, not intention. When
+  // nobody has checked in at all the section would be empty and useless, so it
+  // falls back to the trades that owe work this week: still an answer to "who
+  // is on this job", just a planned one rather than an observed one.
+  const artOf = new Map<string, string | null>();
+  for (const t of here) if (t.trade && !artOf.has(t.trade)) artOf.set(t.trade, t.trade_art);
+  const attended = (week?.trades ?? []).filter((t) => t.days_on_site > 0);
+  const siteTrades = (attended.length > 0
+    ? attended
+    : (week?.trades ?? []).filter((t) => t.due_this_week > 0 || t.late > 0))
+    .slice()
+    .sort((a, b) => (b.late - a.late) || (b.days_on_site - a.days_on_site)
+      || (b.due_this_week - a.due_this_week) || a.trade.localeCompare(b.trade));
+  const observed = attended.length > 0;
   // What is YOURS on this site - the number a trade means by "my work".
   const myOpen = board.me?.contact_id
     ? openHere.filter((t) => t.assignee_id === board.me!.contact_id).length : 0;
@@ -411,78 +430,16 @@ export default async function ProjectPage({
   // `quiet` is what the line calls it - a noun, not a count, because the
   // count is the thing that is missing.
   const visitsToday = visits.filter((v) => v.on_date === today).length;
-  const beforeToday = visits.find((v) => v.on_date !== today);
-  const PANELS: Record<PanelKey, {
-    n: number | string; empty: boolean; label: string; sub?: string; tone?: "late"; quiet: string;
-  }> = {
-    // TASKS OPEN FOR THIS WEEK, not on this site. Shahar (2026-09-14):
-    // "panels: trades in this week. tasks open for this week. log task."
-    //
-    // 129 was a true number that nobody could act on. What is due by Sunday
-    // is a day's work you can actually look at, and the count of everything
-    // still says so underneath rather than disappearing.
-    tasks: {
-      n: dueThisWeek.length, empty: openHere.length === 0, quiet: "this week's work",
-      label: "tasks open for this week",
-      sub: late.length > 0
-        ? `${late.length} past its date · ${openHere.length} open in all`
-        : `${openHere.length} open in all`,
-      tone: late.length > 0 ? "late" : undefined,
-    },
-    bids: {
-      n: openPkgs.length, empty: openPkgs.length === 0, quiet: "bids",
-      label: "packages out to bid",
-      sub: packages.length > openPkgs.length ? `${packages.length - openPkgs.length} settled` : "waiting on numbers",
-    },
-    money: {
-      // Money is never empty in the way a count is: "nothing owed" is an
-      // answer somebody came here for, and $0 paid on a live job is news.
-      n: money(owed) ?? "$0", empty: owed === 0 && (roll?.paid ?? 0) === 0 && (roll?.contracted ?? 0) === 0,
-      quiet: "money", label: "owed to the trades",
-      sub: money(roll?.paid) ? `${money(roll?.paid)} paid so far` : "nothing paid yet",
-    },
-    "jobs-open": {
-      n: kidOpen.length, empty: kidOpen.length === 0, quiet: "jobs not started",
-      label: "jobs not started", sub: "open, nothing on the board",
-    },
-    "jobs-working": {
-      n: kidWorking.length, empty: kidWorking.length === 0, quiet: "jobs being worked",
-      label: "jobs being worked", sub: "open, with tasks on them",
-    },
-    "jobs-done": {
-      n: kidDone.length, empty: kidDone.length === 0 && kidEnded.length === 0, quiet: "jobs completed",
-      label: "jobs completed",
-      sub: kidEnded.length > 0 ? `${kidEnded.length} cancelled` : "closed and frozen",
-    },
-    week: {
-      n: week?.trades.length ?? 0, empty: (week?.trades.length ?? 0) === 0, quiet: "who is on site",
-      label: "trades on site this week",
-      sub: week ? `${weekDay(week.from)}–${weekDay(week.to)}` : "this week",
-    },
-    visits: {
-      // Today's count, and what came before it - never "last Sep 11" on the
-      // eleventh of September.
-      n: visitsToday, empty: visitsToday === 0, quiet: "today's site visit",
-      label: "site visits logged today",
-      sub: visitsToday > 0
-        ? beforeToday ? `before that ${shortDate(beforeToday.on_date)}` : "the first one here"
-        : beforeToday ? `last was ${shortDate(beforeToday.on_date)}` : "nobody has logged one",
-    },
-    soon: { n: "—", empty: false, quiet: "", label: "held for what comes next" },
-  };
-  // The one you are looking at stays whatever it counts - a panel that
-  // vanished when you opened it would be a screen arguing with you.
-  // THE TWO YOU ACT ON, in his order: who is here this week, what it owes
-  // this week. Kept only where this lens is offered them at all, so a viewer
-  // is not handed a panel its own lens withholds.
-  const ACT: PanelKey[] = ["week", "tasks"];
-  const actPanels = ACT.filter((k) => offered.includes(k))
-    .map((k) => ({ key: k, ...PANELS[k] }));
-  // Everything else - money, bids, the job stages, today's visit - keeps its
-  // route in the quiet line, whether it has something to say or not.
-  const restPanels = offered
-    .filter((k) => !ACT.includes(k) && k !== "soon" && k !== panel)
-    .map((k) => ({ key: k, ...PANELS[k] }));
+  // THE PANEL DEFINITIONS ARE GONE with the grid that drew them. `panel`
+  // still decides which single answer the content area below shows - the
+  // week, the work, the money, the bids, the jobs, the visits - it is just
+  // reached from the sections above now rather than from a wall of counts.
+  // NO PANEL GRID. Shahar (2026-09-14) replaced it piece by piece: the week's
+  // trades became the tile row above, "log task" became the Add task button,
+  // and then "remove the also from here" took the quiet line that carried the
+  // rest. What is left of PANELS is what the CONTENT AREA below still keys
+  // off - `panel` decides which one answer this screen is showing - so the
+  // record stays even though nothing draws a grid of it any more.
 
   // One signed-URL round trip for the cover and everything hanging off the
   // visits - they all live in the same private bucket.
@@ -688,43 +645,60 @@ export default async function ProjectPage({
             hiding a panel outright would mean the only way to reach the bid
             book on a site with no open package is to guess the URL. The one
             you are looking at always stays, whatever it counts. */}
-        {/* THREE PANELS. Shahar (2026-09-14): "panels: trades in this week.
-            tasks open for this week. log task."
+        {/* ON SITE NOW, and what each of them still owes. Tapping a trade
+            opens its own screen - every pending item it holds, its contracts
+            and its money - which is what "show all the pending items for
+            them" already means here. */}
+        {siteTrades.length > 0 && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label" style={{ padding: 0 }}>
+              {observed ? "On site this week" : "Working this week"} · {siteTrades.length}
+            </div>
+            <div className="trade-grid">
+              {siteTrades.map((t) => (
+                <Link key={t.trade} href={`/project/${id}/trade/${encodeURIComponent(t.trade)}`}
+                  className="trade-tile">
+                  <span className="art" aria-hidden><TradeIllustration name={artOf.get(t.trade) ?? null} /></span>
+                  <span className="t">{t.trade}</span>
+                  <span className="n">
+                    {observed && t.days_on_site > 0
+                      ? `${t.days_on_site} ${t.days_on_site === 1 ? "day" : "days"} on site`
+                      : `${t.open} open`}
+                  </span>
+                  {t.late > 0 && <span className="late">{t.late} late</span>}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
-            The grid used to be six or nine, and they were of two kinds: the
-            ones you ACT on standing on site, and the ones you READ at a desk
-            - money, bids, how many jobs are at which stage. He named the
-            three you act on, so those are the grid. Nothing is lost: every
-            other panel keeps its route, one line below, alongside the ones
-            that are simply empty. */}
-        <div className="pgrid">
-          {actPanels.map((p) => (
-            <Panel key={p.key} href={panelHref(p.key)} on={p.key === panel}
-              n={p.n} label={p.label} sub={p.sub} tone={p.tone} />
-          ))}
-          {/* Not a count, a door: the way to put something on this list. It
-              sits with the two panels it belongs beside rather than at the
-              foot of a screen you have to scroll to. */}
+        {/* THE TWO THINGS YOU DO STANDING HERE, and the one thing you look
+            for. Shahar (2026-09-14): "next, add Add task and Search window" /
+            "need quick access to site visit." */}
+        <section className="do-row">
           {lens.rank >= 30 && (
             <Link href={`/project/${id}/task/new?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}
-              className="pnl act">
-              <div className="n" aria-hidden>+</div>
-              <div className="l">log a task</div>
-              <div className="s">something that has to happen here</div>
+              className="do-btn primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>
+              <span>Add task</span>
             </Link>
           )}
-        </div>
+          {offered.includes("visits") && (
+            <Link href={panelHref("visits")} className={`do-btn${panel === "visits" ? " on" : ""}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" />
+              </svg>
+              <span>Site visit{visitsToday > 0 ? ` · ${visitsToday} today` : ""}</span>
+            </Link>
+          )}
+        </section>
 
-        {restPanels.length > 0 && (
-          <p className="tiny text-muted" style={{ margin: "-4px 0 0" }}>
-            Also:{" "}
-            {restPanels.map((p, i) => (
-              <span key={p.key}>
-                {i > 0 ? " · " : ""}
-                <Link href={panelHref(p.key)}>{p.quiet}</Link>
-              </span>
-            ))}
-          </p>
+        {/* The search lives up here now, not buried above the list, because
+            with 129 open tasks it is how most people find one. */}
+        {here.length > 3 && (
+          <SearchBox placeholder="Search tasks on this site" count={query ? found.length : null} />
         )}
 
         {/* ONE ANSWER, belonging to the panel above that is lit. */}
@@ -907,6 +881,9 @@ export default async function ProjectPage({
                   makes somebody do something about it. */}
               <div className="divider-label" style={{ padding: 0 }}>
                 {show === "done" ? "Done" : show === "all" ? "All work" : "Tasks to complete"} · {shown.length}
+                {!show && dueThisWeek.length > 0 && (
+                  <span className="text-muted" style={{ fontWeight: 400 }}> · {dueThisWeek.length} this week</span>
+                )}
               </div>
               {/* WRITING SOMETHING DOWN ON SITE HAS TO COST NOTHING, so the
                   way in sits on the heading of the list it joins rather than

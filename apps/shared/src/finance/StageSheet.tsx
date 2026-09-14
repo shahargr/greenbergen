@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sheet } from "./Sheet";
 import { callFin } from "./call";
-import { usd, type FinStage } from "./types";
+import { inCurrency, type FinStage } from "./types";
 
 // The payment schedule, written by the owner side: a milestone is a name,
 // an amount (or a share of the contract), what triggers it, when it is due.
-export function StageSheetButton({ contractId, contractAmount, stage, label, className = "btn btn-ghost small" }: {
-  contractId: string; contractAmount: number | null; stage?: FinStage; label: string; className?: string;
+export function StageSheetButton({ contractId, contractAmount, stage, label, currency, className = "btn btn-ghost small" }: {
+  contractId: string; contractAmount: number | null; stage?: FinStage; label: string;
+  // The contract's currency - a milestone is a slice of it, in the same money.
+  currency?: string | null; className?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -21,7 +23,8 @@ export function StageSheetButton({ contractId, contractAmount, stage, label, cla
   const [due, setDue] = useState(stage?.due_on ?? "");
   const [trigger, setTrigger] = useState(stage?.trigger ?? "");
   const pct = percent ? Number(percent) : null;
-  const preview = pct != null && contractAmount != null ? usd(Math.round(contractAmount * pct) / 100) : null;
+  const cur = (n: number | null | undefined) => inCurrency(n, currency);
+  const preview = pct != null && contractAmount != null ? cur(Math.round(contractAmount * pct) / 100) : null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -67,7 +70,7 @@ export function StageSheetButton({ contractId, contractAmount, stage, label, cla
                 <input id="st-pct" className="input" inputMode="decimal" value={percent} onChange={(e) => setPercent(e.target.value)} placeholder="20" />
               </div>
             </div>
-            {preview && !amount && <p className="hint">{percent}% of {usd(contractAmount)} is {preview}.</p>}
+            {preview && !amount && <p className="hint">{percent}% of {cur(contractAmount)} is {preview}.</p>}
             <div className="field">
               <label htmlFor="st-trigger">What has to be true</label>
               <input id="st-trigger" className="input" value={trigger} onChange={(e) => setTrigger(e.target.value)} placeholder="Town inspection passed, before sheetrock" />

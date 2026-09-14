@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Evidence, type Attached } from "../Evidence";
 import { Sheet } from "./Sheet";
 import { callFin } from "./call";
-import { usd, type FinMethod, type FinStage } from "./types";
+import { inCurrency, type FinMethod, type FinStage } from "./types";
 
 // What a person can DO to a milestone, by who they are to the contract.
 //
@@ -19,11 +19,15 @@ import { usd, type FinMethod, type FinStage } from "./types";
 // Every write goes to the database function that owns the rule; the screen
 // only relays its answer.
 export function StageActions({
-  stage, contractId, contractorName, projectId, mayRecord, payee, isSuperadmin, methods,
+  stage, contractId, contractorName, projectId, mayRecord, payee, isSuperadmin, methods, currency,
 }: {
   stage: FinStage; contractId: string; contractorName: string | null; projectId: string;
   mayRecord: boolean; payee: boolean; isSuperadmin: boolean; methods: FinMethod[];
+  // The CONTRACT's currency. A milestone on an ILS loan is ILS, and saying
+  // "$150,746" of a shekel amount is a three-fold lie at 3.05.
+  currency?: string | null;
 }) {
+  const usd = (n: number | null | undefined) => inCurrency(n, currency);
   const router = useRouter();
   const [open, setOpen] = useState<"record" | "evidence" | "clear" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,6 +82,7 @@ export function StageActions({
 
       {open === "record" && (
         <RecordSheet stage={stage} methods={methods} projectId={projectId} first={first} busy={busy} err={err}
+          currency={currency}
           onClose={() => { setOpen(null); setErr(""); }}
           onSubmit={(args) => run("fin_payment_record", { p_stage: stage.id, ...args })} />
       )}
@@ -117,10 +122,12 @@ export function StageActions({
   );
 }
 
-function RecordSheet({ stage, methods, projectId, first, busy, err, onClose, onSubmit }: {
+function RecordSheet({ stage, methods, projectId, first, busy, err, onClose, onSubmit, currency }: {
   stage: FinStage; methods: FinMethod[]; projectId: string; first: string; busy: boolean; err: string;
   onClose: () => void; onSubmit: (args: Record<string, unknown>) => Promise<boolean>;
+  currency?: string | null;
 }) {
+  const usd = (n: number | null | undefined) => inCurrency(n, currency);
   const [method, setMethod] = useState(methods.find((m) => m.name === stage.method)?.id ?? methods[0]?.id ?? "");
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState(stage.amount != null ? String(stage.amount) : "");

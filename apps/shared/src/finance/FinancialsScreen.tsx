@@ -6,7 +6,7 @@ import { StageSheetButton } from "./StageSheet";
 import { LogPaymentButton } from "./LogPayment";
 import { TxEvidenceButton } from "./TxEvidence";
 import { TxEditButton } from "./TxEdit";
-import { changeTone, stageTone, usd, type FinContract, type FinEvidence, type Financials, type FinStage } from "./types";
+import { changeTone, inCurrency, stageTone, usd, type FinContract, type FinEvidence, type Financials, type FinStage } from "./types";
 
 // PROJECT MONEY - one screen for the payor, the payee, the investor and the
 // owner, each seeing what rulebook 70 lets them see (project_financials
@@ -128,6 +128,11 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
   const planned = c.transactions.filter((t) => !t.moved);
   const stagesScheduled = c.stages.reduce((a, s) => a + (s.status === "Cancelled" ? 0 : (s.amount ?? 0)), 0);
 
+  // The contract's OWN currency, not the app's assumption. c.currency has
+  // said ILS on the family loans since they were written (migration-era
+  // contracts.currency); only this screen was stamping a dollar on it.
+  const cur = (n: number | null | undefined) => inCurrency(n, c.currency);
+
   return (
     <Card pad>
       <div className="between" style={{ alignItems: "flex-start", gap: 8 }}>
@@ -137,13 +142,13 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
             {[who, c.trade, showProject ? c.project.name : null, c.status].filter(Boolean).join(" · ")}
           </div>
         </div>
-        <div className="mono" style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 17, whiteSpace: "nowrap" }}>{usd(agreed)}</div>
+        <div className="mono" style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 17, whiteSpace: "nowrap" }}>{cur(agreed)}</div>
       </div>
 
       <div className="fin-bar" aria-hidden><span style={{ width: `${pct}%` }} /></div>
       <div className="between tiny text-muted">
-        <span>{usd(paid)} paid{c.totals.retained > 0 ? ` · ${usd(c.totals.retained)} retained` : ""}</span>
-        <span>{agreed - paid > 0 ? `${usd(agreed - paid)} to go` : "settled"}</span>
+        <span>{cur(paid)} paid{c.totals.retained > 0 ? ` · ${cur(c.totals.retained)} retained` : ""}</span>
+        <span>{agreed - paid > 0 ? `${cur(agreed - paid)} to go` : "settled"}</span>
       </div>
       {(c.retainage_pct || c.net_days || c.method) && (
         <p className="tiny text-muted" style={{ margin: 0 }}>
@@ -165,7 +170,7 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
         </div>
       )}
       {c.stages.length > 0 && agreed > 0 && Math.abs(stagesScheduled - agreed) > 0.5 && me.may_record && (
-        <p className="tiny text-muted" style={{ margin: 0 }}>The milestones add up to {usd(stagesScheduled)} against {usd(agreed)} agreed.</p>
+        <p className="tiny text-muted" style={{ margin: 0 }}>The milestones add up to {cur(stagesScheduled)} against {cur(agreed)} agreed.</p>
       )}
       {me.may_record && (
         <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -175,7 +180,7 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
               goes needs none (Shahar, 2026-09-11: "keep only log a
               payment"). */}
           <LogPaymentButton contractId={c.id} contractTitle={c.title} payeeName={who === "—" ? null : who} projectId={projectId} methods={methods} />
-          {c.stages.length > 0 && <StageSheetButton contractId={c.id} contractAmount={c.amount} label="Add a milestone" className="btn btn-ghost small" />}
+          {c.stages.length > 0 && <StageSheetButton contractId={c.id} contractAmount={c.amount} currency={c.currency} label="Add a milestone" className="btn btn-ghost small" />}
         </div>
       )}
 
@@ -195,7 +200,7 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
                 <div className="tiny text-muted">{shortDay(co.created_at)}{co.notes ? ` · ${firstLine(co.notes)}` : ""}</div>
               </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                <div className="mono" style={{ fontWeight: 800 }}>+{usd(co.amount)}</div>
+                <div className="mono" style={{ fontWeight: 800 }}>+{cur(co.amount)}</div>
                 <span className={`tag ${tone.cls}`}>{tone.label}</span>
               </div>
             </div>
@@ -226,14 +231,14 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
                   <Thumbs items={t.attachments} urls={urls} />
                   {(me.may_record || c.payee) && (
                     <span className="row" style={{ display: "flex", gap: 4, marginTop: 2 }}>
-                      <TxEvidenceButton txId={t.id} contractId={c.id} projectId={projectId} label={`${usd(t.moved ? t.amount : t.target_amount ?? t.amount)}${t.paid_on ? ` on ${shortDay(t.paid_on)}` : ""}`} />
+                      <TxEvidenceButton txId={t.id} contractId={c.id} projectId={projectId} label={`${cur(t.moved ? t.amount : t.target_amount ?? t.amount)}${t.paid_on ? ` on ${shortDay(t.paid_on)}` : ""}`} />
                       {/* A payment that was wrong, or came back (073). Only
                           whoever may record one may correct one. */}
                       {me.may_record && t.moved && <TxEditButton tx={t} methods={methods} />}
                     </span>
                   )}
                 </span>
-                <span className="mono" style={{ whiteSpace: "nowrap", color: t.moved ? undefined : "var(--muted)" }}>{usd(t.moved ? t.amount : t.target_amount ?? t.amount)}</span>
+                <span className="mono" style={{ whiteSpace: "nowrap", color: t.moved ? undefined : "var(--muted)" }}>{cur(t.moved ? t.amount : t.target_amount ?? t.amount)}</span>
               </div>
             ))}
           </div>
@@ -247,6 +252,7 @@ function StageRow({ s, c, me, methods, urls, projectId }: {
   s: FinStage; c: FinContract; me: Extract<Financials, { ok: true }>["me"]; methods: Extract<Financials, { ok: true }>["methods"];
   urls: Record<string, string>; projectId: string;
 }) {
+  const cur = (n: number | null | undefined) => inCurrency(n, c.currency);
   const tone = stageTone(s);
   const paid = s.settlement_status === "paid" || s.status === "Paid";
   const tx = s.transaction;
@@ -265,21 +271,22 @@ function StageRow({ s, c, me, methods, urls, projectId }: {
                 paid && s.settlement ? `${s.settlement.method ?? "paid"}${s.settlement.reference ? ` #${s.settlement.reference}` : ""} · ${shortDay(s.settlement.paid_on ?? s.paid_at)}` : null,
                 waiting ? `awaiting ${(c.contractor?.name ?? "the contractor").split(/\s+/)[0]}'s confirmation` : null,
                 paid && tx?.status === "paid - receipt filed" ? "receipt confirmed" : null,
-                s.retainage_withheld ? `${usd(s.retainage_withheld)} retained` : null,
+                s.retainage_withheld ? `${cur(s.retainage_withheld)} retained` : null,
               ].filter(Boolean).join(" · ")}
             </div>
           </div>
           <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-            <div className="mono" style={{ fontWeight: 800 }}>{usd(s.amount)}</div>
+            <div className="mono" style={{ fontWeight: 800 }}>{cur(s.amount)}</div>
             <span className={`tag ${tone.cls}`}>{tone.label}</span>
           </div>
         </div>
         <Thumbs items={s.evidence} urls={urls} />
         <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <StageActions stage={s} contractId={c.id} contractorName={c.contractor?.name ?? null} projectId={projectId}
-            mayRecord={me.may_record} payee={c.payee} isSuperadmin={me.is_superadmin} methods={methods} />
+            mayRecord={me.may_record} payee={c.payee} isSuperadmin={me.is_superadmin} methods={methods}
+            currency={c.currency} />
           {me.may_record && !paid && s.status !== "Cancelled" && (
-            <StageSheetButton contractId={c.id} contractAmount={c.amount} stage={s} label="Edit" className="btn btn-ghost small" />
+            <StageSheetButton contractId={c.id} contractAmount={c.amount} stage={s} currency={c.currency} label="Edit" className="btn btn-ghost small" />
           )}
         </div>
       </div>

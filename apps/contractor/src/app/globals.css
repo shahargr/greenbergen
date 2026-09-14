@@ -231,3 +231,31 @@
 /* LOG A TASK sits in the panel grid: not a count, a door. */
 .pnl.act { display: flex; flex-direction: column; justify-content: center; text-decoration: none; }
 .pnl.act .n { color: var(--muted); }
+
+/* THE TWO THINGS YOU DO STANDING ON SITE, and the one you look for.
+   Shahar (2026-09-14): "add Add task and Search window" / "need quick access
+   to site visit." Full-width targets, because this is a phone in a gloved
+   hand, not a toolbar. */
+.do-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-2); }
+.do-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-input);
+  border: 1.5px solid var(--color-divider-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+}
+.do-btn svg { flex: none; width: 19px; height: 19px; color: var(--muted); }
+.do-btn:hover { border-color: var(--color-text); }
+.do-btn:hover svg { color: var(--color-text); }
+.do-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.do-btn.primary { background: var(--color-text); border-color: var(--color-text); color: var(--color-bg); }
+.do-btn.primary svg { color: var(--color-bg); }
+.do-btn.on { border-color: var(--color-text); }
