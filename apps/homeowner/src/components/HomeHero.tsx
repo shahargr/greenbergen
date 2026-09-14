@@ -14,23 +14,32 @@ import { Illustration } from "@shared/Illustrations";
 //
 // The photograph is data (config.landing_hero_url, migration 072). With none
 // set it draws the house on the warm ground, so the page is whole either way.
-export function HomeHero({ photo, line }: { photo: string | null; line: string }) {
+export function HomeHero({ photo, line }: { photo: string | null; line?: string | null }) {
+  const words = line?.trim() || null;
   return (
-    <div className={`home-hero ${photo ? "" : "drawn"}`}>
+    // BARE: a photograph with nothing written on it. The dark wash exists so
+    // white type stays legible over a bright sky; with no type it is only
+    // dimming somebody's photograph, so it comes off.
+    <div className={`home-hero ${photo ? "" : "drawn"} ${words ? "" : "bare"}`}>
       {photo
         // eslint-disable-next-line @next/next/no-img-element
         ? <img src={photo} alt="" fetchPriority="high" />
         : <Illustration name="house" />}
-      <h1>{line}</h1>
+      {words && <h1>{words}</h1>}
     </div>
   );
 }
 
-// THE WORDING OF LAST RESORT. Shahar (2026-09-14): "where is this
-// configured... if its hard coded, move it into the console with field i can
-// update." It is config.landing_hero_line now (migration 121); this is what
-// the page says if that is ever empty, so the hero is never wordless.
-export const HOME_LINE = "We get things done around your house";
+// THERE IS NO CONSTANT ANY MORE. It was HOME_LINE here; it is
+// config.landing_hero_line now (migration 121), and an empty field means NO
+// LINE rather than falling back to wording nobody chose.
+//
+// Shahar (2026-09-14) cleared the field and the sentence was still there:
+// "still shows as home owner". Of course it was - I had made empty mean "the
+// app's own words come back", which is the one thing it cannot mean on a
+// photograph that already carries its own headline. His does: the banner says
+// Home Projects Made Easy and has its own button drawn into it, and we were
+// writing a second headline across the middle of it.
 
 // Sentence case for the greeting form, without flattening a name or a place
 // the way toLowerCase() would.

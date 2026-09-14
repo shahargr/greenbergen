@@ -98,8 +98,9 @@ export default async function AdminHome() {
         <h3 className="section-title" style={{ fontSize: 15, marginTop: 6 }}>The line over it</h3>
         <p className="muted small" style={{ margin: 0 }}>
           Set large, over the photo, on both homeowner home screens — the front door and the one a
-          member lands on. Under 100 characters. Leave it empty and the app&apos;s own wording comes
-          back.
+          member lands on. Under 100 characters. <strong>Leave it empty for no line at all</strong> —
+          a photograph that carries its own headline does not want a second one written across it,
+          and the dark wash comes off with it.
         </p>
         <form action={saveLandingLine} className="btn-row">
           <input name="line" className="input" maxLength={100}

@@ -8,7 +8,7 @@ import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { SITE_ORIGIN } from "@shared/site";
 import { loadShowcase, type House } from "@/lib/showcase";
-import { HomeHero, HOME_LINE, uncap } from "@/components/HomeHero";
+import { HomeHero, uncap } from "@/components/HomeHero";
 import { Scene, SceneMore } from "@/components/Scene";
 import { VoiceAsk } from "@/components/VoiceAsk";
 
@@ -108,10 +108,11 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
             the way a home screen opens cannot land on half the app. */}
         <HomeHero photo={settings.hero}
           line={(() => {
-            // Editable in Admin (config.landing_hero_line, migration 121);
-            // the constant is only what shows if it is ever emptied.
-            const l = settings.line?.trim() || HOME_LINE;
-            return inviter && name ? `Welcome, ${name}. ${uncap(l)}` : l;
+            // Admin's, or nothing at all (config.landing_hero_line, 121).
+            // A name still greets a guest even when there is no headline.
+            const l = settings.line?.trim() || null;
+            if (!(inviter && name)) return l;
+            return l ? `Welcome, ${name}. ${uncap(l)}` : `Welcome, ${name}.`;
           })()} />
 
         {/* The community line, editable in Admin (config.public_tagline). One

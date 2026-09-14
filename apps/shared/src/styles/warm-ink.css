@@ -917,6 +917,9 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(180deg, rgba(22, 21, 19, .28) 0%, rgba(22, 21, 19, .52) 100%);
 }
+/* Nothing written over it: the wash was only ever there to keep white type
+   legible, so on a bare photograph it is just dimming somebody's picture. */
+.home-hero.bare::after { background: none; }
 .home-hero.drawn { color: var(--muted); }
 .home-hero.drawn::after { background: linear-gradient(180deg, rgba(22, 21, 19, .06), rgba(22, 21, 19, .16)); }
 .home-hero.drawn svg { width: 34%; max-width: 150px; height: auto; }
