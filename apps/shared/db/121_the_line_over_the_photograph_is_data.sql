@@ -1,3 +1,8 @@
+-- SUPERSEDED BY 123, an hour later: Shahar looked at the two fields in the
+-- console and said what I had talked myself out of - the tagline and this
+-- line are the same thing. landing_hero_line is dropped there. Kept here
+-- because it was applied, and a migration folder that edits its own past is
+-- no longer a record of what happened.
 -- 121. THE LINE OVER THE PHOTOGRAPH IS DATA.
 --
 -- Shahar (2026-09-14): "where is this configured: 'We get things done around

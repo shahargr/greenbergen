@@ -9,7 +9,7 @@ import { ProgressLine } from "@shared/ProgressLine";
 import { stopwatch } from "@shared/perf";
 import { PhotoRequest } from "@/components/PhotoRequest";
 import { WaitingCard } from "./WaitingCard";
-import { bookingAction, updatePlan } from "./actions";
+import { bookingAction, cancelProject, closeProject, reopenProject, updatePlan } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +75,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <AppBar back="/project" title={title} sub={b.address?.split(",")[0] ?? undefined} />
         <div className="body">
           {ok === "plan" && <div className="banner-ok">Plan updated.</div>}
+          {ok === "finished" && <div className="banner-ok">Closed as finished. The record is frozen.</div>}
+          {ok === "cancelled" && <div className="banner-ok">Cancelled. Anything open on it went with it.</div>}
+          {ok === "reopened" && <div className="banner-ok">Open again, and back on your list.</div>}
           {error && <Notice kind="error">{error}</Notice>}
           <StatusHero variant="neutral" kicker={`DIY · ${targetWindowLabel(b.target_window)}`} title={`Yours since ${shortDate(b.created_at)}. Nobody has been asked yet.`}>
             Do it at your pace — the scope and the price below are your reference. Changed your mind? One tap makes it turn-key: it goes to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price, and photos and a budget come at that point.
@@ -309,6 +312,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <ChevronIcon />
           </Link>
         </section>
+
+        {/* HOW IT ENDS, AND HOW TO UNDO THAT. Shahar (2026-09-14): "project
+            owners should be able to re-open the project / saved by mistake"
+            and "close projects". This door could close a booking REQUEST and
+            never the job itself, so a project stayed In Progress for ever
+            once the request was withdrawn. The rules are the database's. */}
+        {b.is_owner && <Ending b={b} />}
       </div>
     </Screen>
   );
@@ -346,3 +356,98 @@ const paidSummary = (b: Booking) => {
   const paid = b.stages.filter((s) => s.status === "Paid" || s.settlement_status === "paid").reduce((a, s) => a + s.amount_cents, 0);
   return paid > 0 ? ` · paid ${dollars(paid)}` : "";
 };
+
+function Ending({ b }: { b: Booking }) {
+  const closed = (b.project_status ?? "").startsWith("Closed");
+  if (closed) {
+    return (
+      <section className="stack" style={{ gap: 8 }}>
+        <div className="divider-label">This job is {b.project_status?.replace("Closed - ", "").toLowerCase()}</div>
+        <details className="home-panel">
+          <summary className="home-row">
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">Open it again</span>
+              <span className="m" style={{ display: "block" }}>Closed by mistake, or the work came back</span>
+            </span>
+            <ChevronIcon />
+          </summary>
+          <form action={reopenProject} className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+            <input type="hidden" name="project" value={b.project_id} />
+            <p className="small text-muted" style={{ margin: 0 }}>
+              It goes back on your list and anything written against the close stays where it is.
+            </p>
+            <label className="field" style={{ marginBottom: 0 }}>
+              <span className="field-label">Why it is opening again <span className="text-muted">(optional)</span></span>
+              <input className="input" name="reason" placeholder="Closed it by mistake · the shade stuck again" />
+            </label>
+            <button className="btn btn-secondary btn-block">Open this job again</button>
+          </form>
+        </details>
+      </section>
+    );
+  }
+  return (
+    <section className="stack" style={{ gap: 8 }}>
+      <div className="divider-label">Ending it</div>
+      <details className="home-panel">
+        <summary className="home-row">
+          <span className="grow" style={{ minWidth: 0 }}>
+            <span className="t">It is finished</span>
+            <span className="m" style={{ display: "block" }}>
+              {b.open_tasks.length > 0
+                ? `${b.open_tasks.length} ${b.open_tasks.length === 1 ? "thing is" : "things are"} still open`
+                : "Nothing is open — it can close as finished"}
+            </span>
+          </span>
+          <ChevronIcon />
+        </summary>
+        <div className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+          {b.open_tasks.length > 0 ? (
+            <p className="small text-muted" style={{ margin: 0 }}>
+              A job closes as finished only when there is nothing left on it. Tick those off, or
+              cancel it below instead.
+            </p>
+          ) : (
+            <form action={closeProject} className="stack" style={{ gap: 8 }}>
+              <input type="hidden" name="project" value={b.project_id} />
+              <p className="small text-muted" style={{ margin: 0 }}>
+                The record freezes — the timeline, the folder and the money stay readable and stop
+                taking new entries.
+              </p>
+              <label className="field" style={{ marginBottom: 0 }}>
+                <span className="field-label">How it went <span className="text-muted">(optional)</span></span>
+                <input className="input" name="note" placeholder="Shade fixed and tested, all good" />
+              </label>
+              <button className="btn btn-primary btn-block">Close it as finished</button>
+            </form>
+          )}
+        </div>
+      </details>
+
+      <details className="home-panel">
+        <summary className="home-row">
+          <span className="grow" style={{ minWidth: 0 }}>
+            <span className="t">It is not happening</span>
+            <span className="m" style={{ display: "block" }}>
+              Cancels the job and{b.open_tasks.length > 0 ? ` the ${b.open_tasks.length} open on it` : " anything open"}
+            </span>
+          </span>
+          <ChevronIcon />
+        </summary>
+        <form action={cancelProject} className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
+          <input type="hidden" name="project" value={b.project_id} />
+          <p className="small text-muted" style={{ margin: 0 }}>
+            Your reason is written onto the job and onto everything cancelled with it. You can open
+            it again afterwards.
+          </p>
+          <label className="field" style={{ marginBottom: 0 }}>
+            <span className="field-label">Why it is not happening</span>
+            <input className="input" name="reason" required minLength={4}
+              placeholder="Changed our mind · doing it ourselves · duplicate" />
+          </label>
+          <button className="btn btn-secondary btn-block">Cancel this job</button>
+        </form>
+      </details>
+    </section>
+  );
+}

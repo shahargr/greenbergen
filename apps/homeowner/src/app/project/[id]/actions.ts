@@ -115,3 +115,44 @@ export async function inviteContractor(formData: FormData) {
   if (error || !data?.ok || !data?.token) redirect(`/project/${projectId}/people?error=${encodeURIComponent(friendly(data?.reason ?? error?.message ?? "Could not make the link."))}`);
   redirect(`/project/${projectId}/people?token=${encodeURIComponent(data.token)}&who=${encodeURIComponent(name ?? email ?? "your contractor")}`);
 }
+
+// ENDING A JOB, AND UNDOING THAT. Shahar (2026-09-14): "project owners should
+// be able to re-open the project / saved by mistake" and "close projects".
+//
+// The homeowner door could close a booking REQUEST and never the job itself,
+// so a project stayed In Progress for ever once the request was withdrawn.
+// All three rules are the database's and are old: finishing needs nothing
+// left open, cancelling needs a reason and takes the open work with it, and
+// reopening is the owner's (migration 122).
+export async function closeProject(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_project_close", {
+    p_project: projectId, p_note: String(formData.get("note") ?? "").trim() || null,
+  });
+  revalidatePath(`/project/${projectId}`); revalidatePath("/project");
+  if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  redirect(`/project/${projectId}?ok=finished`);
+}
+
+export async function cancelProject(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_project_cancel", {
+    p_project: projectId, p_reason: String(formData.get("reason") ?? "").trim() || null,
+  });
+  revalidatePath(`/project/${projectId}`); revalidatePath("/project");
+  if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  redirect(`/project/${projectId}?ok=cancelled`);
+}
+
+export async function reopenProject(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_project_reopen", {
+    p_project: projectId, p_reason: String(formData.get("reason") ?? "").trim() || null,
+  });
+  revalidatePath(`/project/${projectId}`); revalidatePath("/project");
+  if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  redirect(`/project/${projectId}?ok=reopened`);
+}

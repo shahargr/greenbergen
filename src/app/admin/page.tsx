@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
-import { saveBanner, saveLandingLine, savePublicTagline, saveTips, saveTrashRetention, saveWelcomeVideo, setGodMode } from "./actions";
+import { saveBanner, savePublicTagline, saveTips, saveTrashRetention, saveWelcomeVideo, setGodMode } from "./actions";
 import { LandingPhoto } from "./LandingPhoto";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -21,7 +21,7 @@ export default async function AdminHome() {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
   const godOn = (await cookies()).get("gb_god")?.value === "1";
-  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url, public_tagline, landing_hero_url, landing_hero_line").maybeSingle();
+  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url, public_tagline, public_tagline_shown, landing_hero_url").maybeSingle();
   const trashDays = cfgRow?.trash_retention_days ?? 14;
   const { data: bannerRows } = await supabase
     .from("community_banners")
@@ -79,6 +79,13 @@ export default async function AdminHome() {
           <input name="tagline" className="input" maxLength={120}
             defaultValue={cfgRow?.public_tagline ?? ""}
             placeholder="A real community, not just a marketplace." style={{ maxWidth: 420 }} />
+          {/* Shahar (2026-09-14): "next to it, set a checkbox - click to
+              display and remove to hide." The words and whether they are shown
+              are one decision, so they save together. */}
+          <label className="small" style={{ display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+            <input type="checkbox" name="shown" value="1" defaultChecked={!!cfgRow?.public_tagline_shown} />
+            Show over the landing photo
+          </label>
           <button className="btn">Save</button>
         </form>
       </div>
@@ -91,23 +98,6 @@ export default async function AdminHome() {
         </p>
         <LandingPhoto url={(cfgRow?.landing_hero_url as string | null) ?? null} />
 
-        {/* The words set over it. Same card as the photograph, because they
-            are one piece of design and are read as one (Shahar, 2026-09-14:
-            "if its hard coded, move it into the console with field i can
-            update"). */}
-        <h3 className="section-title" style={{ fontSize: 15, marginTop: 6 }}>The line over it</h3>
-        <p className="muted small" style={{ margin: 0 }}>
-          Set large, over the photo, on both homeowner home screens — the front door and the one a
-          member lands on. Under 100 characters. <strong>Leave it empty for no line at all</strong> —
-          a photograph that carries its own headline does not want a second one written across it,
-          and the dark wash comes off with it.
-        </p>
-        <form action={saveLandingLine} className="btn-row">
-          <input name="line" className="input" maxLength={100}
-            defaultValue={(cfgRow?.landing_hero_line as string | null) ?? ""}
-            placeholder="We get things done around your house" style={{ maxWidth: 420 }} />
-          <button className="btn">Save</button>
-        </form>
       </div>
 
       <div className="card" style={{ display: "grid", gap: 8 }}>

@@ -93,6 +93,9 @@ export async function savePublicTagline(formData: FormData) {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("public_tagline_set", {
     p_tagline: String(formData.get("tagline") ?? "").trim(),
+    // An unticked checkbox sends nothing, so absence IS the answer here -
+    // never null, which the RPC reads as "leave it as it was".
+    p_shown: formData.get("shown") === "1",
   });
   redirect(error || !data?.ok
     ? `/admin?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save.")}`
@@ -109,18 +112,6 @@ export async function setLandingHero(url: string): Promise<{ ok?: true; error?: 
   if (error || data?.ok === false) return { error: data?.reason ?? error?.message ?? "Not saved." };
   revalidatePath("/admin");
   return { ok: true };
-}
-
-// The headline set over that photograph (121). Blank restores the app's own
-// wording rather than leaving the hero wordless.
-export async function saveLandingLine(formData: FormData) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("landing_line_set", {
-    p_line: String(formData.get("line") ?? "").trim(),
-  });
-  redirect(error || !data?.ok
-    ? `/admin?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save.")}`
-    : `/admin?saved=1`);
 }
 
 // The welcome video shown to first-run users (YouTube link or MP4 URL).

@@ -108,9 +108,9 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
             the way a home screen opens cannot land on half the app. */}
         <HomeHero photo={settings.hero}
           line={(() => {
-            // Admin's, or nothing at all (config.landing_hero_line, 121).
-            // A name still greets a guest even when there is no headline.
-            const l = settings.line?.trim() || null;
+            // The tagline, if Admin has it switched on (123). A name still
+            // greets a guest even when there is no headline to append it to.
+            const l = settings.taglineShown ? settings.tagline?.trim() || null : null;
             if (!(inviter && name)) return l;
             return l ? `Welcome, ${name}. ${uncap(l)}` : `Welcome, ${name}.`;
           })()} />

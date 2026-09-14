@@ -30,16 +30,13 @@ export function HomeHero({ photo, line }: { photo: string | null; line?: string 
   );
 }
 
-// THERE IS NO CONSTANT ANY MORE. It was HOME_LINE here; it is
-// config.landing_hero_line now (migration 121), and an empty field means NO
-// LINE rather than falling back to wording nobody chose.
-//
-// Shahar (2026-09-14) cleared the field and the sentence was still there:
-// "still shows as home owner". Of course it was - I had made empty mean "the
-// app's own words come back", which is the one thing it cannot mean on a
-// photograph that already carries its own headline. His does: the banner says
-// Home Projects Made Easy and has its own button drawn into it, and we were
-// writing a second headline across the middle of it.
+// THERE IS NO CONSTANT ANY MORE, and there is only one line in the whole
+// system. It was HOME_LINE here, then config.landing_hero_line for an hour
+// (121), and Shahar looked at that field sitting under the tagline in the
+// console and said the obvious thing: they are the same. So the line drawn
+// here is config.public_tagline, and whether it is drawn at all is
+// config.public_tagline_shown (123) - which is the question that mattered,
+// because his photograph is a banner that already carries its own headline.
 
 // Sentence case for the greeting form, without flattening a name or a place
 // the way toLowerCase() would.
