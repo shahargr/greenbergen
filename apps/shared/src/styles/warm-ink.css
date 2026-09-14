@@ -685,20 +685,31 @@ blockquote { margin: 0; padding: 0 0 0 var(--space-3); border-left: 2px solid va
 /* THE FRONT DOOR (052). Scenes: the promoted packages as photographs of the
    work in a horizontal rail - about one and three quarters visible (Shahar:
    1.78, not 1.3; the pictures were a third too large). Houses: the projects, live one wide, built ones two-up. */
-/* FOUR ACROSS, THE FIFTH CUT AT THE EDGE. A card at 23.5% of the column is
-   about four across a 430px screen with the next one showing; the clamp keeps
-   it readable on a narrow phone, where it becomes three and a half - which is
-   what Shahar asked for when four will not fit. */
-.scenes.four .scene { flex: 0 0 clamp(88px, 23.5%, 112px); border-radius: var(--radius-tile); }
+/* TWICE AS WIDE. Shahar (2026-09-14): "make the panels with the offering
+   twice their current width."
+
+   They were 23.5% of the column - four across a 430px phone with the fifth
+   cut at the edge, which fit the most packages on screen and made every one
+   of them unreadable: "Water heater replacement" over three clipped lines at
+   11.5px beside a thumbnail the size of a stamp. At 47% it is two across with
+   the third cut, the photograph is big enough to be a photograph of
+   something, and the name and the price read at a glance. The class is still
+   .four because that is what the markup says; what it means now is "the rail
+   of small tiles", as against the 58% full scene.
+
+   The type goes back up with the box - it was shrunk to fit 100px, and
+   leaving it small in a 200px tile just looks like a mistake. */
+.scenes.four .scene { flex: 0 0 clamp(176px, 47%, 224px); border-radius: var(--radius-tile); }
 .scenes.four .scene-pic { aspect-ratio: 1 / 1; }
-.scenes.four .scene-cap { padding: 8px 9px 10px; gap: 1px; }
-.scenes.four .scene-cap strong { font-size: 11.5px; line-height: 1.15; }
-.scenes.four .scene-cap strong small { display: block; font-size: 10.5px; }
-.scenes.four .scene-cap .small { font-size: 10.5px; }
-.scenes.four .scene.more { flex-basis: clamp(88px, 23.5%, 112px); }
-.scenes.four .scene-more { padding: 10px 9px; gap: 4px; }
-.scenes.four .scene-more strong { font-size: 12px; line-height: 1.2; }
-.scenes.four .scene-more .small { display: none; }
+.scenes.four .scene-cap { padding: 10px 12px 12px; gap: 2px; }
+.scenes.four .scene-cap strong { font-size: 14px; line-height: 1.15; }
+.scenes.four .scene-cap strong small { display: block; font-size: 12px; }
+.scenes.four .scene-cap .small { font-size: 12px; }
+.scenes.four .scene.more { flex-basis: clamp(176px, 47%, 224px); }
+.scenes.four .scene-more { padding: 12px 14px; gap: 5px; }
+.scenes.four .scene-more strong { font-size: 14px; line-height: 1.2; }
+/* There is room for the line under "More packages" again. */
+.scenes.four .scene-more .small { font-size: 12px; }
 
 .scenes { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 calc(-1 * var(--space-6)); padding: 4px var(--space-6) 10px; scrollbar-width: none; }
 .scenes::-webkit-scrollbar { display: none; }

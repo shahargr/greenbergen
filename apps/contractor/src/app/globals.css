@@ -202,31 +202,65 @@
 .seat-menu-row .m { display: block; font-size: 12px; color: var(--muted); }
 .seat-menu-foot { margin: 6px 10px 8px; font-size: 11.5px; color: var(--muted); }
 
-/* TODAY AND TOMORROW, under the picture. Built from what is DUE, because that
-   is the only schedule this database holds - migration 081 laid the spine for
-   a real one and nothing writes to it yet. */
-.two-days { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
-.two-days .day {
+/* TODAY AND TOMORROW, under the picture, in ONE panel.
+   Shahar (2026-09-14): "change to one panel with the first 6 tasks, and
+   option to click show all tasks." It was two narrow columns, four rows each,
+   and a "+17 more" that went nowhere - at phone width every task name clipped
+   at three words and the whole list was unreachable from here. Full width,
+   six rows, and a door at the bottom.
+
+   Built from what is DUE, because that is the only schedule this database
+   holds - migration 081 laid the spine for a real one and nothing writes to
+   it yet. */
+.next-up {
   background: var(--color-surface);
   border-radius: var(--radius-tile);
   box-shadow: var(--shadow-card);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   min-width: 0;
 }
-.two-days .day.now { border: 1.5px solid var(--color-text); }
-.two-days .head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
-.two-days .when { font-weight: 800; font-size: 13px; }
-.two-days .date { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-.two-days .none { margin: 0; font-size: 12.5px; color: var(--muted); }
-.two-days .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.two-days .rows a { text-decoration: none; color: inherit; display: block; min-width: 0; }
-.two-days .rows .t {
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  font-size: 12.5px; font-weight: 600; line-height: 1.3;
+.next-up .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.next-up .when { font-weight: 800; font-size: 13px; }
+.next-up .date { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.next-up .none { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.next-up .rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.next-up .rows li { border-top: 1px solid var(--color-divider); }
+.next-up .rows a {
+  text-decoration: none; color: inherit; display: block; min-width: 0;
+  padding: var(--space-2) 0;
 }
-.two-days .rows .m { display: block; font-size: 11.5px; color: var(--muted); }
-.two-days .rows a:hover .t { text-decoration: underline; }
-.two-days .more { font-size: 11.5px; color: var(--muted); }
+.next-up .rows .t {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 13.5px; font-weight: 600; line-height: 1.3;
+}
+.next-up .rows .m { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.next-up .rows .m .late { color: var(--color-status); font-weight: 700; }
+.next-up .rows a:hover .t { text-decoration: underline; }
+
+/* The door to the whole list. Full width and on the panel's own floor, so it
+   reads as "there is more through here" rather than as another task. */
+.next-up .all-tasks {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-divider);
+  font-size: 13px;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: none;
+}
+.next-up .all-tasks:hover { text-decoration: underline; }
+.next-up .all-tasks .n {
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--color-soft-2);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
+}
 
 /* LOG A TASK sits in the panel grid: not a count, a door. */
 .pnl.act { display: flex; flex-direction: column; justify-content: center; text-decoration: none; }

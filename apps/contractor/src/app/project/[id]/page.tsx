@@ -6,7 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { TradeIllustration } from "@shared/Illustrations";
-import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, groupWork, money, openBeneath, readMoney, runs, type Group, type GroupKey, type Node, type Seat, type TaskMoney } from "@/lib/board";
+import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, groupWork, money, openBeneath, readMoney, runs, topLevels, type Group, type GroupKey, type Node, type Seat, type TaskMoney } from "@/lib/board";
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
 import { SearchBox } from "@/components/SearchBox";
@@ -204,14 +204,24 @@ export default async function ProjectPage({
     return d.toISOString().slice(0, 10);
   };
   const tomorrowISO = dayAfter(todayISO, 1);
-  const twoDays = [todayISO, tomorrowISO].map((iso) => ({
-    iso,
-    // Today carries everything still open that was due today OR EARLIER -
-    // a task that slipped is on today's plate, not filed under the day it
-    // was missed. Tomorrow is only tomorrow.
-    rows: openHere.filter((t) => !!t.target_date
-      && (iso === todayISO ? t.target_date <= iso : t.target_date === iso)),
-  }));
+  // ONE PANEL, SIX ROWS. Shahar (2026-09-14): "change to one panel with the
+  // first 6 tasks, and option to click show all tasks."
+  //
+  // It was two columns, Today beside Tomorrow, four rows each and a "+17
+  // more" that went nowhere. Two narrow columns on a phone means every task
+  // name clips at three words, and the thing you actually wanted - the whole
+  // list - was not reachable from here at all. One column, full width, the
+  // six soonest, and a way through to all of them.
+  //
+  // Today carries everything still open that was due today OR EARLIER: a task
+  // that slipped is on today's plate, not filed under the day it was missed.
+  const soon = openHere
+    .filter((t) => !!t.target_date && t.target_date <= tomorrowISO)
+    .sort((a, b) => (a.target_date ?? "").localeCompare(b.target_date ?? "")
+      || a.action.localeCompare(b.action));
+  // The PROPERTY this project sits under - the same key /tasks groups by, so
+  // "Show all tasks" lands on the right group.
+  const topHere = topLevels(board.seats).map.get(id)?.project_id ?? id;
   // What this week owes, which is what the panel counts. The week runs from
   // portal_site_week's own window when there is one, so the panel and the
   // list under it cannot disagree about where the week starts.
@@ -352,6 +362,11 @@ export default async function ProjectPage({
     return s ? `/project/${id}?${s}` : `/project/${id}`;
   };
   const panelHref = (k: PanelKey) => k === fallback ? keepAs() : keepAs(`panel=${k}`);
+  // Where "Show all tasks" goes: the /tasks screen, which is already the
+  // window Shahar asked for - its own page, a back arrow, and whose / late /
+  // high / search across the top - scoped to this property and told where to
+  // come back to.
+  const allTasksHref = `/tasks?project=${topHere}&back=${encodeURIComponent(keepAs(`/project/${id}`))}`;
   // Switching lens starts the view again from that lens's own first panel -
   // carrying "panel=bids" into the Professional lens, which has no bids,
   // would land on a panel that is not there.
@@ -555,32 +570,38 @@ export default async function ProjectPage({
             nothing writes to it yet. Saying "nothing due" is true; drawing an
             empty Gantt would not be. */}
         {!isFolder && (
-          <section className="two-days">
-            {twoDays.map((d) => (
-              <div key={d.iso} className={`day${d.iso === todayISO ? " now" : ""}`}>
-                <div className="head">
-                  <span className="when">{d.iso === todayISO ? "Today" : "Tomorrow"}</span>
-                  <span className="date">{weekDay(d.iso)}</span>
-                </div>
-                {d.rows.length === 0
-                  ? <p className="none">Nothing due</p>
-                  : (
-                    <ul className="rows">
-                      {d.rows.slice(0, 4).map((t) => (
-                        <li key={t.id}>
-                          <Link href={`/task/${t.id}?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}>
-                            <span className="t">{t.action}</span>
-                            <span className="m">{t.trade ?? t.assignee ?? "nobody yet"}</span>
-                          </Link>
-                        </li>
-                      ))}
-                      {d.rows.length > 4 && (
-                        <li className="more">+{d.rows.length - 4} more</li>
-                      )}
-                    </ul>
-                  )}
-              </div>
-            ))}
+          <section className="next-up">
+            <div className="head">
+              <span className="when">Today and tomorrow</span>
+              <span className="date">{weekDay(todayISO)} · {weekDay(tomorrowISO)}</span>
+            </div>
+            {soon.length === 0
+              ? <p className="none">Nothing due today or tomorrow.</p>
+              : (
+                <ul className="rows">
+                  {soon.slice(0, 6).map((t) => (
+                    <li key={t.id}>
+                      <Link href={`/task/${t.id}?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}>
+                        <span className="t">{t.action}</span>
+                        <span className="m">
+                          <span className={t.target_date! < todayISO ? "late" : ""}>
+                            {t.target_date! < todayISO ? "late" : t.target_date === todayISO ? "today" : "tomorrow"}
+                          </span>
+                          {" · "}{t.trade ?? t.assignee ?? "nobody yet"}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            {/* THE WHOLE LIST, ON ITS OWN SCREEN. "all tasks should be a new
+                window, with a back, or filter" - which /tasks already is: a
+                back to the board, whose / late / high, and a search. Scoped
+                to this property, because that is where you were standing. */}
+            <Link href={allTasksHref} className="all-tasks">
+              <span>Show all tasks</span>
+              <span className="n">{openHere.length}</span>
+            </Link>
           </section>
         )}
 

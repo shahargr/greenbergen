@@ -30,10 +30,14 @@ const CAP = 10; // rows per job before the group sends you to its own page
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ who?: string; show?: string; project?: string; q?: string }>;
+  searchParams: Promise<{ who?: string; show?: string; project?: string; q?: string; back?: string }>;
 }) {
-  const { who, show, project, q: qRaw } = await searchParams;
+  const { who, show, project, q: qRaw, back } = await searchParams;
   const query = (qRaw ?? "").trim();
+  // Where the back arrow goes when somebody arrived from a screen of their
+  // own - the project's "Show all tasks" row. Without it, back drops you on
+  // the whole board, which is not where you were.
+  const cameFrom = back && back.startsWith("/") && !back.startsWith("//") ? back : null;
   const w = stopwatch("/tasks");
   // The board and the badge do not depend on each other, so they leave together.
   const [board, unread] = await Promise.all([
@@ -114,13 +118,13 @@ export default async function TasksPage({
   // this list, filters and all.
   const here = (() => {
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ who, show, project, q: query || undefined })) if (v) p.set(k, v);
+    for (const [k, v] of Object.entries({ who, show, project, q: query || undefined, back: cameFrom || undefined })) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/tasks?${s}` : "/tasks";
   })();
   const q = (over: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged = { who, show, project, q: query || undefined, ...over };
+    const merged = { who, show, project, q: query || undefined, back: cameFrom || undefined, ...over };
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/tasks?${s}` : "/tasks";
@@ -129,7 +133,7 @@ export default async function TasksPage({
   return (
     <Screen>
       {focused
-        ? <AppBar back={q({ project: undefined })} title={heading} sub={`${rows.length} open`} />
+        ? <AppBar back={cameFrom ?? q({ project: undefined, back: undefined })} title={heading} sub={`${rows.length} open`} />
         : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" switcher={<DoorSwitchIcon current="expert" />} />} />}
       <div className="body">
         {board.degraded && <Notice kind="error" title="Some of this may be missing.">Try again in a moment.</Notice>}
