@@ -4,6 +4,7 @@ import { createClient } from "@shared/supabase/server";
 import { getMe, syncPaperwork } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
+import { DOORS } from "@shared/doors";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
@@ -114,6 +115,17 @@ export default async function WorkPage() {
               <span className="m" style={{ display: "block" }}>What they include, the community price, and sign up to serve them</span></span>
             <ChevronIcon />
           </Link>
+          {/* THE WHOLE CATALOGUE, not just the trades you work. Shahar
+              (2026-09-14): "i need access to all packages - menu item. admin
+              is ok profile for it." It lives in the portal, because editing a
+              package is an admin job and the editor is already there. */}
+          {me.profile.is_superadmin && (
+            <Link href={`${DOORS.portal.url}/admin/packages`} className="home-row nav-row">
+              <span className="grow"><span className="t">All packages</span>
+                <span className="m" style={{ display: "block" }}>Every package in the catalogue — what it includes, its price, who serves it, and how to add one</span></span>
+              <ChevronIcon />
+            </Link>
+          )}
           {manages && (
             <>
               <Link href="/projects" className="home-row nav-row">

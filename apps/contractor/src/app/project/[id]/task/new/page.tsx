@@ -30,9 +30,19 @@ export const dynamic = "force-dynamic";
 // you pressed the button, after you had written the thing out. Migration 103
 // asks the same question first, and this screen turns the refusal into the
 // list of projects under that roof.
+//
+// AND IT GOES TO THE OBVIOUS ONE. Shahar, looking at the chooser that fix
+// produced: "i'm in 55 walnut drive; clicking on add task should have been
+// for 55 walnut by default (new build) and not showing me others." Right -
+// thirteen doors, six of them duplicate generators and seven of them
+// mortgage and insurance, is not an improvement on an error. So the screen
+// goes straight to the busiest piece of real work under the roof and says
+// where it landed, with Change one tap away. The full list is still there
+// behind ?pick=1, for when the guess is wrong.
 type Targets = {
   project_name: string | null;
   takes_tasks: boolean;
+  default_id: string | null;
   options: { id: string; name: string; standing: boolean; open_tasks: number }[];
 };
 
@@ -40,10 +50,13 @@ export default async function NewTaskPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; error?: string }>;
+  // `from` is the property we were sent here from, so the form can say so and
+  // offer the way back to the list; `pick` forces the list instead of the
+  // default.
+  searchParams: Promise<{ back?: string; error?: string; from?: string; pick?: string }>;
 }) {
   const { id } = await params;
-  const { back, error } = await searchParams;
+  const { back, error, from, pick } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
 
   const w = stopwatch("/project/[id]/task/new");
@@ -51,7 +64,7 @@ export default async function NewTaskPage({
   const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/task/new`)}`);
 
-  const [{ data: targetData }, { data: typeData }, { data: peopleData }, { data: payeeData }, { data: projectRow },
+  const [{ data: targetData }, { data: typeData }, { data: peopleData }, { data: payeeData }, { data: projectRows },
          { data: tradeRows }, { data: contractRows }, board] = await Promise.all([
     // May a task live here at all, and if not, where could it? (migration 103)
     w.step("targets", () => rpc<Targets>(supabase, "portal_task_targets", { p_project: id })),
@@ -61,8 +74,10 @@ export default async function NewTaskPage({
     // Who can be PAID here, which is a wider list: a supplier is hardly ever
     // a member of the project (migration 099).
     w.step("payees", () => rpc<{ contact_id: string; name: string }[]>(supabase, "portal_task_payees", { p_project: id })),
+    // This project, and - when we were sent here from a property - the
+    // property too, so the form can say which roof it is under. One read.
     w.step("project", async () => await supabase.from("projects")
-      .select("project_name").eq("id", id).maybeSingle()),
+      .select("id, project_name").in("id", from && from !== id ? [id, from] : [id])),
     w.step("trades", async () => await supabase.from("trades")
       .select("trade, sort_order, is_construction, is_worker_trade, is_supply, is_professional")
       .order("sort_order", { ascending: true, nullsFirst: false })),
@@ -77,12 +92,20 @@ export default async function NewTaskPage({
   w.done();
 
   const targets = targetData ?? null;
-  const here = projectRow?.project_name ?? targets?.project_name ?? undefined;
+  const rows = Array.isArray(projectRows) ? projectRows : [];
+  const here = rows.find((r) => r.id === id)?.project_name ?? targets?.project_name ?? undefined;
+  const roof = from && from !== id ? rows.find((r) => r.id === from)?.project_name ?? null : null;
 
   // THE PROPERTY ITSELF TAKES NO TASKS. Rather than let the form be filled in
   // and then refused, offer the projects under this roof: one tap, and the
   // same screen opens on a project that can hold the work.
   if (targets && targets.takes_tasks === false) {
+    // One obvious home, and no question asked. The property id rides along so
+    // the form can name where it came from and offer the list.
+    if (targets.default_id && pick !== "1") {
+      const q = new URLSearchParams({ back: to, from: id });
+      redirect(`/project/${targets.default_id}/task/new?${q.toString()}`);
+    }
     const options = targets.options ?? [];
     const work = options.filter((o) => !o.standing);
     const standing = options.filter((o) => o.standing);
@@ -167,6 +190,17 @@ export default async function NewTaskPage({
             due, what it ends up costing — goes on afterwards.
           </p>
         </div>
+
+        {/* We guessed, so we say so. A guess you cannot see is the one that
+            files a task on the wrong job for a month. */}
+        {roof && (
+          <Card soft pad className="tight">
+            <div className="small">
+              Going on <strong>{here}</strong>, under {roof}.{" "}
+              <Link href={`/project/${from}/task/new?pick=1&back=${encodeURIComponent(to)}`}>Change</Link>
+            </div>
+          </Card>
+        )}
 
         <form action={createTask.bind(null, id)} className="stack" style={{ gap: 14 }}>
           <input type="hidden" name="back" value={to} />

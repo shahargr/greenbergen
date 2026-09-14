@@ -693,6 +693,21 @@ export default async function ProjectPage({
               <span>Site visit{visitsToday > 0 ? ` · ${visitsToday} today` : ""}</span>
             </Link>
           )}
+          {/* AWARDING WORK HAD NO DOOR. Shahar (2026-09-14): "as a GC i'd like
+              to award business. how do i do this?" The bid packages panel has
+              been here the whole time - it just lost its way in when the
+              "Also:" line came off, so the answer to his question was a URL
+              you had to know. It is a button now, beside the other two things
+              you do standing here. */}
+          {offered.includes("bids") && (
+            <Link href={panelHref("bids")} className={`do-btn${panel === "bids" ? " on" : ""}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 3v4M7.5 7l-4.5 7h9zM16.5 7L12 14h9zM3 14a4.5 4.5 0 0 0 9 0M12 14a4.5 4.5 0 0 0 9 0M8 21h8M12 7v14" />
+              </svg>
+              <span>Award work{packages.length > 0 ? ` · ${packages.length}` : ""}</span>
+            </Link>
+          )}
         </section>
 
         {/* The search lives up here now, not buried above the list, because
