@@ -26,6 +26,12 @@ export function HomeHero({ photo, line }: { photo: string | null; line: string }
   );
 }
 
-// One line, both screens. It is what the business does, said the way Shahar
-// says it out loud.
+// THE WORDING OF LAST RESORT. Shahar (2026-09-14): "where is this
+// configured... if its hard coded, move it into the console with field i can
+// update." It is config.landing_hero_line now (migration 121); this is what
+// the page says if that is ever empty, so the hero is never wordless.
 export const HOME_LINE = "We get things done around your house";
+
+// Sentence case for the greeting form, without flattening a name or a place
+// the way toLowerCase() would.
+export const uncap = (s: string) => (s ? s[0]!.toLowerCase() + s.slice(1) : s);

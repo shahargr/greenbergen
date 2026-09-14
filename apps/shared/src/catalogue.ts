@@ -320,17 +320,18 @@ export const decodeSelections = (pkg: Package, raw: string | undefined | null): 
 // ---------------------------------------------------------------------------
 // Public copy, editable in Admin so the things a stranger reads first do not
 // need a deploy: the tagline under the wordmark (config.public_tagline,
-// migration 013) and the photograph across the top of the homeowner landing
-// page (config.landing_hero_url, migration 072).
+// migration 013), the photograph across the top of the homeowner landing
+// page (config.landing_hero_url, migration 072) and the headline set over it
+// (config.landing_hero_line, migration 121).
 //
 // Cached exactly like the catalogue and for the same reason: it is identical
 // for every visitor and changes when someone edits it, not per request. Up to
 // five minutes between an edit and every deployment seeing it.
-export type PublicSettings = { tagline: string | null; hero: string | null };
+export type PublicSettings = { tagline: string | null; hero: string | null; line: string | null };
 
 export async function loadPublicSettings(): Promise<PublicSettings> {
-  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null }>("public_settings");
-  return { tagline: row?.tagline ?? null, hero: row?.hero ?? null };
+  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null; line?: string | null }>("public_settings");
+  return { tagline: row?.tagline ?? null, hero: row?.hero ?? null, line: row?.line ?? null };
 }
 
 export async function loadTagline(): Promise<string | null> {

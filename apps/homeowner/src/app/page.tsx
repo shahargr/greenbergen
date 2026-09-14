@@ -8,7 +8,7 @@ import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { SITE_ORIGIN } from "@shared/site";
 import { loadShowcase, type House } from "@/lib/showcase";
-import { HomeHero, HOME_LINE } from "@/components/HomeHero";
+import { HomeHero, HOME_LINE, uncap } from "@/components/HomeHero";
 import { Scene, SceneMore } from "@/components/Scene";
 import { VoiceAsk } from "@/components/VoiceAsk";
 
@@ -106,7 +106,13 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
             not (Shahar, 2026-09-12: "it seems you are selectively fixing what
             i am asking for"). One component now - HomeHero - so a change to
             the way a home screen opens cannot land on half the app. */}
-        <HomeHero photo={settings.hero} line={inviter && name ? `Welcome, ${name}. ${HOME_LINE.toLowerCase()}` : HOME_LINE} />
+        <HomeHero photo={settings.hero}
+          line={(() => {
+            // Editable in Admin (config.landing_hero_line, migration 121);
+            // the constant is only what shows if it is ever emptied.
+            const l = settings.line?.trim() || HOME_LINE;
+            return inviter && name ? `Welcome, ${name}. ${uncap(l)}` : l;
+          })()} />
 
         {/* The community line, editable in Admin (config.public_tagline). One
             line: this is the shop window and a stranger reads it, but the

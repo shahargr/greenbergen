@@ -111,6 +111,18 @@ export async function setLandingHero(url: string): Promise<{ ok?: true; error?: 
   return { ok: true };
 }
 
+// The headline set over that photograph (121). Blank restores the app's own
+// wording rather than leaving the hero wordless.
+export async function saveLandingLine(formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("landing_line_set", {
+    p_line: String(formData.get("line") ?? "").trim(),
+  });
+  redirect(error || !data?.ok
+    ? `/admin?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Could not save.")}`
+    : `/admin?saved=1`);
+}
+
 // The welcome video shown to first-run users (YouTube link or MP4 URL).
 export async function saveWelcomeVideo(formData: FormData) {
   const supabase = await createClient();

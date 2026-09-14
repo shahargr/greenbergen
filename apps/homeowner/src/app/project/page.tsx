@@ -147,7 +147,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             And the paragraph under the old headline went with it - "not sure
             why this text is necessary". It was three sentences explaining a
             shelf that explains itself. */}
-        <HomeHero photo={settings.hero} line={HOME_LINE} />
+        <HomeHero photo={settings.hero} line={settings.line?.trim() || HOME_LINE} />
         {scenes.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>
             {/* "Chat what we do to community negotiated packages" and
