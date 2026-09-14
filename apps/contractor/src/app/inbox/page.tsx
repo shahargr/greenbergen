@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppBar, Notice, Screen, ShellIcons } from "@shared/ui";
+import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { DOORS } from "@shared/doors";
 import { InboxScreen } from "@shared/inbox/Inbox";
 import { loadInbox, unreadCount } from "@shared/inbox/data";
@@ -49,8 +50,8 @@ export default async function InboxPage({
     <Screen>
       {asAdmin
         ? <AppBar brand door="portal" home={DOORS.portal.url}
-            right={<ShellIcons unread={unread} gearHref={`${DOORS.portal.url}/my/settings`} inboxHref={base} />} />
-        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />}
+            right={<ShellIcons unread={unread} gearHref={`${DOORS.portal.url}/my/settings`} inboxHref={base} switcher={<DoorSwitchIcon current="expert" />} />} />
+        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" switcher={<DoorSwitchIcon current="expert" />} />} />}
       <div className="body">
         {ok && <div className="banner-ok">{ok}</div>}
         {error && <Notice kind="error">{error}</Notice>}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
+import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
@@ -129,7 +130,7 @@ export default async function TasksPage({
     <Screen>
       {focused
         ? <AppBar back={q({ project: undefined })} title={heading} sub={`${rows.length} open`} />
-        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />}
+        : <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" switcher={<DoorSwitchIcon current="expert" />} />} />}
       <div className="body">
         {board.degraded && <Notice kind="error" title="Some of this may be missing.">Try again in a moment.</Notice>}
 

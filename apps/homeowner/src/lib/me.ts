@@ -9,6 +9,9 @@ import type { BookingState, TargetWindow } from "@/lib/plan";
 
 export type Home = {
   project_id: string; address: string | null; name: string | null; town: string | null; created_at: string;
+  // The number for the property itself - the site contact, the one on the
+  // sign. Not the owner's personal number (migration 097).
+  phone: string | null;
   facts: Record<string, unknown> | null; live: number; planned: number; done: number;
   // The face of the house: the newest photo filed against the home itself,
   // not against a job under it. Null until someone adds one.

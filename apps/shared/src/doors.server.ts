@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "./supabase/server";
 import { rpc } from "./rpc";
 import { timed } from "./perf";
@@ -8,9 +9,14 @@ import { NO_DOORS, readDoors, type Doors, type DoorsRow } from "./doors";
 // ~187 ms warm and this is asked on every signed-in screen. Anything that
 // already loads its own shell data should call this alongside it inside the
 // same Promise.all rather than awaiting it separately.
-export async function loadDoors(): Promise<Doors> {
+//
+// CACHED FOR THE REQUEST. The header's door switch asks this on every screen,
+// and the settings screen asks it again for its own switcher. React's cache()
+// makes the second and third caller free: one my_doors() per request however
+// many components want the answer, and no page pays 187 ms twice.
+export const loadDoors = cache(async function loadDoors(): Promise<Doors> {
   const supabase = await createClient();
   const { data, error } = await timed("doors", () => rpc<DoorsRow>(supabase, "my_doors"));
   if (error) return NO_DOORS;
   return readDoors(data ?? null);
-}
+});

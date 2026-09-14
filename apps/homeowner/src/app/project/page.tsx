@@ -4,6 +4,7 @@ import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
 import { featured, isOpen, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
+import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { Scene, SceneMore } from "@/components/Scene";
@@ -86,7 +87,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
   return (
     <Screen>
-      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} />} />
+      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
       <div className="body">
         {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
         {ok === "removed" && <div className="banner-ok">Removed from your DIY projects. Nothing was ever sent.</div>}

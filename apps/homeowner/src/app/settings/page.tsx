@@ -7,6 +7,8 @@ import { loadDoors } from "@shared/doors.server";
 import { DefaultDoor } from "@shared/DefaultDoor";
 import { HomePhoto } from "./HomePhoto";
 import { InviteForm } from "@shared/invite/InviteForm";
+import { CopyLink } from "@shared/invite/CopyLink";
+import { SITE_ORIGIN } from "@shared/site";
 import { inviteToHome, removeHome, saveHome, signOut } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +18,8 @@ export const metadata = { title: "Your account" };
 // they are managed), the way out, and the way to bring someone else in. Signed out it is the way IN - the same screen,
 // so the icon in the header always leads somewhere useful.
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; token?: string; who?: string; kind?: string; invited?: string }> }) {
-  const { error, token, who, kind, invited } = await searchParams;
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; token?: string; who?: string; kind?: string; invited?: string; open?: string; tab?: string; saved?: string; ptoken?: string }> }) {
+  const { error, token, who, kind, invited, open, tab, saved, ptoken } = await searchParams;
   // Neither depends on the other, so they leave together.
   const [me, doors] = await Promise.all([getMe(), loadDoors()]);
 
@@ -50,7 +52,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <AppBar back="/project" title="Your account" />
       <div className="body">
         {error && <Notice kind="error">{error}</Notice>}
-        {invited && <div className="banner-ok">Invitation sent to {invited}. They accept it from their own inbox — nothing changes until they do.</div>}
+        {saved && <div className="banner-ok">Saved.</div>}
+        {invited && !token && (
+          <div className="banner-ok">Invitation sent to {invited}. They accept it from their own inbox — nothing changes until they do.</div>
+        )}
+        {/* A NEWCOMER HAS NO INBOX to find an invitation in, so the link IS
+            the invitation. Its own parameter, not `token`: that one belongs
+            to InviteForm below, and sharing it would pop the wrong drawer
+            open with the wrong link in it. */}
+        {invited && ptoken && (
+          <Notice kind="info" title={`${invited} is new here.`}>
+            <p className="small" style={{ margin: "0 0 10px" }}>
+              Nobody with that email has an account yet, so there is no inbox for an invitation to land in.
+              Send them this instead — it seats them on the home the moment they sign up, and it lasts 14 days.
+            </p>
+            <CopyLink link={`${SITE_ORIGIN}/join?invite=${encodeURIComponent(ptoken)}`} />
+          </Notice>
+        )}
 
         <Card pad>
           <div className="card-title">{name}</div>
@@ -68,8 +86,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">Your homes</div>
           <p className="tiny text-muted" style={{ margin: "-4px 0 2px" }}>
-            Tap a home to rename it, add a photo, or bring someone onto it. Another home is offered
-            when you book a package and pick where it goes.
+            Tap a home to open its projects, the picture to change it, or the person icon to bring
+            somebody onto it. Another home is offered when you book a package and pick where it goes.
           </p>
           {me.homes.length === 0 && <p className="small text-muted" style={{ margin: 0 }}>No home on file yet — the first project you start adds one.</p>}
           {me.homes.map((h) => {
@@ -78,94 +96,129 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             const who = h.people.length === 0 ? null
               : h.people.length === 1 ? h.people[0]!.name
               : `${h.people[0]!.name} +${h.people.length - 1}`;
-            return (
-              <div className="home-panel" key={h.project_id}>
-                <div className="home-row">
-                  <HomePhoto projectId={h.project_id} url={photoUrls[h.photo?.path ?? ""] ?? null} name={h.name || h.address || "your home"} />
-                  <span className="grow" style={{ minWidth: 0 }}>
-                    <span className="t">{h.name || h.address?.split(",")[0] || "Your home"}</span>
-                    <span className="m" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {h.address ?? "No address yet"}
-                    </span>
-                    <span className="m" style={{ display: "block" }}>
-                      {busy}{who ? ` · with ${who}` : ""}{h.invited ? ` · ${h.invited} invited` : ""}
-                    </span>
-                  </span>
-                  <Link href={`/project?home=${h.project_id}`} className="btn btn-ghost" style={{ minHeight: 36 }}>Projects</Link>
-                </div>
-
-                <details>
-                  <summary className="home-row" style={{ paddingTop: 0 }}>
-                    <span className="grow small" style={{ color: "var(--muted)" }}>Edit &amp; people</span>
-                    <span className="chev"><ChevronIcon /></span>
-                  </summary>
-                  <div className="drawer stack" style={{ gap: 12, paddingTop: 12 }}>
-                    <form action={saveHome.bind(null, h.project_id)} className="stack" style={{ gap: 8 }}>
-                      <label className="field">
-                        <span className="field-label">Name</span>
-                        <input className="input" name="name" defaultValue={h.name ?? ""} placeholder="Home, the rental, Mom's place" />
-                      </label>
-                      <label className="field">
-                        <span className="field-label">Address</span>
-                        <input className="input" name="address" defaultValue={h.address ?? ""} autoComplete="street-address" />
-                      </label>
-                      <button className="btn btn-secondary" style={{ minHeight: 40 }}>Save</button>
-                    </form>
-
-                    {/* Who is on the property. A job invitation covers one
-                        job; this one covers the house and everything under
-                        it, which is what a spouse or a property manager
-                        actually needs. */}
-                    <div className="stack" style={{ gap: 8 }}>
-                      <div className="field-label">Who else is on this home</div>
-                      {h.people.length === 0
-                        ? <p className="tiny text-muted" style={{ margin: 0 }}>Just you.</p>
-                        : <p className="tiny text-muted" style={{ margin: 0 }}>{h.people.map((p) => `${p.name} (${p.role})`).join(" · ")}</p>}
-                      <form action={inviteToHome.bind(null, h.project_id)} className="stack" style={{ gap: 8 }}>
-                        <label className="field">
-                          <span className="field-label">Their email</span>
-                          <input className="input" name="email" type="email" inputMode="email" placeholder="them@example.com" />
-                        </label>
-                        <label className="field">
-                          <span className="field-label">or phone</span>
-                          <input className="input" name="phone" type="tel" inputMode="tel" placeholder="(201) 555-0100" />
-                        </label>
-                        <div className="field">
-                          <span className="field-label">As</span>
-                          <div className="seg" role="radiogroup" aria-label="Their seat on this home">
-                            <label className="seg-opt"><input type="radio" name="seat" value="member" /><span>Member</span></label>
-                            <label className="seg-opt"><input type="radio" name="seat" value="manager" /><span>Property m.</span></label>
-                            <label className="seg-opt"><input type="radio" name="seat" value="contractor" /><span>Contractor</span></label>
-                            <label className="seg-opt"><input type="radio" name="seat" value="viewer" defaultChecked /><span>Viewer</span></label>
-                          </div>
-                          <p className="hint">
-                            A member does everything you do, money included. A property manager runs the work and
-                            gets the job board. A contractor works from the pro seat. A viewer sees the home, never the money.
-                          </p>
-                        </div>
-                        <label className="field">
-                          <span className="field-label">A note <span className="text-muted">(optional)</span></span>
-                          <input className="input" name="note" placeholder="Mom, this is the house." />
-                        </label>
-                        <button className="btn btn-secondary" style={{ minHeight: 40 }}>Send the invitation</button>
-                        <p className="tiny text-muted" style={{ margin: 0 }}>
-                          They need a Green Bergen account already — invite a newcomer below first. Nothing changes until they accept.
-                        </p>
-                      </form>
-                    </div>
-
-                    {/* Removal is its own form so a stray Enter in the name
-                        field can never trash a home. It refuses while jobs
-                        are live. */}
-                    {h.live === 0 && (
-                      <form action={removeHome.bind(null, h.project_id)}>
-                        <button className="btn btn-ghost btn-danger" style={{ minHeight: 36, padding: 0 }}>Take this home off my account</button>
-                      </form>
-                    )}
+            // THE WHOLE ROW IS THE DOOR. Shahar (2026-09-14): "i don't need
+            // to see the word projects, arrow to the right. any click on the
+            // panel should take me to the project page." The label and the
+            // chevron were saying what the row already looked like.
+            const isOpen = open === h.project_id;
+              const on = isOpen && tab === "details" ? "details" : "people";
+              const panel = (t: string) => `/settings?open=${h.project_id}&tab=${t}#h${h.project_id}`;
+              return (
+                <div className="home-panel" id={`h${h.project_id}`} key={h.project_id}>
+                  <div className="home-head">
+                    <HomePhoto projectId={h.project_id} url={photoUrls[h.photo?.path ?? ""] ?? null} name={h.name || h.address || "your home"} />
+                    <Link href={`/project?home=${h.project_id}`} className="home-open">
+                      <span className="t">{h.name || h.address?.split(",")[0] || "Your home"}</span>
+                      <span className="m" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {h.address ?? "No address yet"}
+                      </span>
+                      <span className="m" style={{ display: "block" }}>
+                        {busy}{who ? ` · with ${who}` : ""}{h.invited ? ` · ${h.invited} invited` : ""}
+                      </span>
+                    </Link>
+                    {/* Its own target, outside the link - a link inside a link
+                        is not a thing, and this must not open the project. */}
+                    <Link href={isOpen ? "/settings" : panel("people")}
+                      className={`home-invite${isOpen ? " on" : ""}`}
+                      aria-label={`Invite someone to ${h.name || "this home"}`}
+                      title="Invite someone onto this home">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <circle cx="9" cy="8" r="4" /><path d="M2 21c0-3.6 3.1-6 7-6 1.2 0 2.3.2 3.3.6M19 8v8M15 12h8" />
+                      </svg>
+                    </Link>
                   </div>
-                </details>
-              </div>
-            );
+
+                  {isOpen && (
+                    <div className="drawer stack" style={{ gap: 12, paddingTop: 12 }}>
+                      {/* Two tabs: who is on the home, and what the home IS.
+                          Shahar: "the project name / phone / address can be
+                          there, but as a second tab." */}
+                      <div className="seg" role="tablist" aria-label="Home settings">
+                        <Link href={panel("people")} role="tab" aria-selected={on === "people"}
+                          className={`seg-opt${on === "people" ? " on" : ""}`}><span>People</span></Link>
+                        <Link href={panel("details")} role="tab" aria-selected={on === "details"}
+                          className={`seg-opt${on === "details" ? " on" : ""}`}><span>Details</span></Link>
+                      </div>
+
+                      {on === "people" && (
+                        <div className="stack" style={{ gap: 8 }}>
+                          {h.people.length === 0
+                            ? <p className="tiny text-muted" style={{ margin: 0 }}>Just you on this home.</p>
+                            : <p className="tiny text-muted" style={{ margin: 0 }}>{h.people.map((p) => `${p.name} (${p.role})`).join(" · ")}</p>}
+                          <form action={inviteToHome.bind(null, h.project_id)} className="stack" style={{ gap: 8 }}>
+                            <label className="field">
+                              <span className="field-label">Their name</span>
+                              <input className="input" name="invitee_name" placeholder="Ifat Weigel" autoComplete="off" />
+                            </label>
+                            <label className="field">
+                              <span className="field-label">Their email</span>
+                              <input className="input" name="email" type="email" inputMode="email" placeholder="them@example.com" />
+                            </label>
+                            <label className="field">
+                              <span className="field-label">or phone</span>
+                              <input className="input" name="phone" type="tel" inputMode="tel" placeholder="(201) 555-0100" />
+                            </label>
+                            {/* Two seats here, not four. Shahar: "Set the
+                                invitation to be as a viewer, or contractor."
+                                The heavier seats - a co-owner, a property
+                                manager - are a different decision and do not
+                                belong one tap from an icon. */}
+                            <div className="field">
+                              <span className="field-label">As</span>
+                              <div className="seg" role="radiogroup" aria-label="Their seat on this home">
+                                <label className="seg-opt"><input type="radio" name="seat" value="viewer" defaultChecked /><span>Viewer</span></label>
+                                <label className="seg-opt"><input type="radio" name="seat" value="contractor" /><span>Contractor</span></label>
+                              </div>
+                              <p className="hint">
+                                A viewer sees the home and what is happening on it, never the money.
+                                A contractor works from the pro seat on the jobs you give them.
+                              </p>
+                            </div>
+                            <label className="field">
+                              <span className="field-label">A note <span className="text-muted">(optional)</span></span>
+                              <input className="input" name="note" placeholder="Mom, this is the house." />
+                            </label>
+                            <button className="btn btn-secondary" style={{ minHeight: 40 }}>Send the invitation</button>
+                            <p className="tiny text-muted" style={{ margin: 0 }}>
+                              Already here? The invitation waits in their inbox. New to Green Bergen? Give their
+                              name and email and you get a link to send them. Nothing changes until they accept.
+                            </p>
+                          </form>
+                        </div>
+                      )}
+
+                      {on === "details" && (
+                        <div className="stack" style={{ gap: 12 }}>
+                          <form action={saveHome.bind(null, h.project_id)} className="stack" style={{ gap: 8 }}>
+                            <label className="field">
+                              <span className="field-label">Name</span>
+                              <input className="input" name="name" defaultValue={h.name ?? ""} placeholder="Home, the rental, Mom's place" />
+                            </label>
+                            <label className="field">
+                              <span className="field-label">Address</span>
+                              <input className="input" name="address" defaultValue={h.address ?? ""} autoComplete="street-address" />
+                            </label>
+                            <label className="field">
+                              <span className="field-label">Phone <span className="text-muted">(the number for the property)</span></span>
+                              <input className="input" name="phone" type="tel" inputMode="tel" defaultValue={h.phone ?? ""} placeholder="(201) 555-0100" />
+                            </label>
+                            <button className="btn btn-secondary" style={{ minHeight: 40 }}>Save</button>
+                          </form>
+
+                          {/* Removal is its own form so a stray Enter in the
+                              name field can never trash a home. It refuses
+                              while jobs are live. */}
+                          {h.live === 0 && (
+                            <form action={removeHome.bind(null, h.project_id)}>
+                              <button className="btn btn-ghost btn-danger" style={{ minHeight: 36, padding: 0 }}>Take this home off my account</button>
+                            </form>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
           })}
           <Link href="/homes/new" className="home-row add">
             <span className="ic">+</span>

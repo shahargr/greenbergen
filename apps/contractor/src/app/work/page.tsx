@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
+import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { loadDoors } from "@shared/doors.server";
@@ -57,7 +58,7 @@ export default async function WorkPage() {
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" />} />
+      <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" switcher={<DoorSwitchIcon current="expert" />} />} />
       <div className="body">
         {me.missing && <Notice title="Preview mode">The contractor migration has not been applied to this database yet, so your profile cannot be read.</Notice>}
         {me.degraded && <Notice kind="error" title="We couldn&apos;t load your account just now.">Nothing is lost. <Link href="/work">Try again</Link>, and if it keeps happening tell us.</Notice>}

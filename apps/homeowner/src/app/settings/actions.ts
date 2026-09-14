@@ -30,15 +30,25 @@ export async function signOut() {
 export async function inviteToHome(projectId: string, formData: FormData) {
   const email = String(formData.get("email") ?? "").trim() || null;
   const phone = String(formData.get("phone") ?? "").trim() || null;
+  const name = String(formData.get("invitee_name") ?? "").trim() || null;
   const seat = String(formData.get("seat") ?? "viewer");
   const note = String(formData.get("note") ?? "").trim() || null;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_invite_to_project", {
-    p_project: projectId, p_email: email, p_phone: phone, p_seat: seat, p_note: note,
+    p_project: projectId, p_email: email, p_phone: phone, p_seat: seat, p_note: note, p_name: name,
   });
   revalidatePath("/settings");
-  if (error || !data?.ok) redirect(`/settings?error=${encodeURIComponent(friendly(data?.reason ?? error?.message ?? "Could not send that invitation."))}`);
-  redirect(`/settings?invited=${encodeURIComponent(data.name ?? "them")}`);
+  // A refusal keeps the panel open on the home it was refused on, so the fix
+  // is one field away rather than three taps back.
+  const open = `open=${projectId}&tab=people`;
+  if (error || !data?.ok) {
+    redirect(`/settings?${open}&error=${encodeURIComponent(friendly(data?.reason ?? error?.message ?? "Could not send that invitation."))}`);
+  }
+  // Somebody who already has an account finds the invitation in their own
+  // inbox. A newcomer has no inbox yet, so the link IS the invitation - it
+  // comes back to be copied into a text or an email.
+  redirect(`/settings?${open}&invited=${encodeURIComponent(data.name ?? "them")}`
+    + (data.token ? `&token=${encodeURIComponent(data.token)}` : ""));
 }
 
 // The homes list is managed HERE, not on the project page. Rename or fix the
@@ -47,11 +57,18 @@ export async function inviteToHome(projectId: string, formData: FormData) {
 export async function saveHome(projectId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim() || null;
   const address = String(formData.get("address") ?? "").trim() || null;
+  // Always sent, never coalesced away: the phone is the one of the three a
+  // person might want to CLEAR, and homeowner_home_update blanks it on an
+  // empty string while leaving it alone on a null.
+  const phone = String(formData.get("phone") ?? "").trim();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("homeowner_home_update", { p_project: projectId, p_name: name, p_address: address });
-  if (error || !data?.ok) redirect(`/settings?error=${encodeURIComponent(friendly(data?.reason ?? error?.message ?? "Could not save the home."))}`);
+  const { data, error } = await supabase.rpc("homeowner_home_update", {
+    p_project: projectId, p_name: name, p_address: address, p_phone: phone,
+  });
+  const open = `open=${projectId}&tab=details`;
+  if (error || !data?.ok) redirect(`/settings?${open}&error=${encodeURIComponent(friendly(data?.reason ?? error?.message ?? "Could not save the home."))}`);
   revalidatePath("/settings"); revalidatePath("/project");
-  redirect("/settings");
+  redirect(`/settings?${open}&saved=1`);
 }
 
 // Off the account: trash_own_project is the existing, reversible path

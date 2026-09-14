@@ -4,6 +4,7 @@ import { getMe } from "@/lib/me";
 import { areaLine, loadContractors } from "@/lib/contractors";
 import { townForZip } from "@shared/bergen";
 import { AppBar, Avatar, Card, ChevronIcon, Screen, ShellIcons } from "@shared/ui";
+import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { unreadForShell } from "@shared/unread";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export default async function ContractorsPage({ searchParams }: { searchParams: 
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons unread={unread} />} />
+      <AppBar brand right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
       <div className="body">
         <div className="hero">
           <h1>The contractors</h1>
