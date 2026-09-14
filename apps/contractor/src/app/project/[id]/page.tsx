@@ -782,8 +782,18 @@ export default async function ProjectPage({
              what it cannot place rather than hiding it. The sections live in
              lib/board.ts so this screen and /tasks cannot drift apart. */
           <section className="stack" style={{ gap: 14 }}>
-            <div className="divider-label">
-              {show === "done" ? "Done" : show === "all" ? "All work" : "Open work"} · {shown.length}
+            <div className="between" style={{ alignItems: "baseline", gap: 10 }}>
+              <div className="divider-label" style={{ padding: 0 }}>
+                {show === "done" ? "Done" : show === "all" ? "All work" : "Open work"} · {shown.length}
+              </div>
+              {/* WRITING SOMETHING DOWN ON SITE HAS TO COST NOTHING, so the
+                  way in sits on the heading of the list it joins rather than
+                  behind a menu. Only for somebody who may add work; the
+                  database refuses the rest anyway (portal_task_create). */}
+              {lens.rank >= 30 && (
+                <Link href={`/project/${id}/task/new?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}
+                  className="btn btn-secondary small" style={{ minHeight: 32 }}>+ New task</Link>
+              )}
             </div>
 
             {here.length > 3 && <SearchBox placeholder="Find a task on this site" count={query ? found.length : null} />}
