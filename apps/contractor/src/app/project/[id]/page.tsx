@@ -715,18 +715,22 @@ export default async function ProjectPage({
             </Link>
           )}
           {/* AWARDING WORK HAD NO DOOR. Shahar (2026-09-14): "as a GC i'd like
-              to award business. how do i do this?" The bid packages panel has
-              been here the whole time - it just lost its way in when the
-              "Also:" line came off, so the answer to his question was a URL
-              you had to know. It is a button now, beside the other two things
-              you do standing here. */}
-          {offered.includes("bids") && (
-            <Link href={panelHref("bids")} className={`do-btn${panel === "bids" ? " on" : ""}`}>
+              to award business. how do i do this?" - and then, once it had
+              been done for him once, "i need that screen, as i will award a
+              stairs guy soon."
+              It opens on the direct award, because a GC who already knows who
+              is doing the stairs should not have to run a bid round to say so;
+              the bid packages are one link down that screen for when he
+              doesn't know yet. Only for somebody who runs this job - the
+              database refuses the rest anyway (can_edit_project). */}
+          {manages && !isFolder && (
+            <Link href={`/project/${id}/award?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}
+              className="do-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
                 strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 3v4M7.5 7l-4.5 7h9zM16.5 7L12 14h9zM3 14a4.5 4.5 0 0 0 9 0M12 14a4.5 4.5 0 0 0 9 0M8 21h8M12 7v14" />
+                <path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" />
               </svg>
-              <span>Award work{packages.length > 0 ? ` · ${packages.length}` : ""}</span>
+              <span>Award work</span>
             </Link>
           )}
         </section>
