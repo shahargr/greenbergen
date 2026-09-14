@@ -293,6 +293,9 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .home-panel { background: var(--color-surface); border-radius: var(--radius-tile); box-shadow: var(--shadow-card); overflow: hidden; }
 .home-panel .home-row { box-shadow: none; border-radius: 0; background: transparent; width: 100%; }
 .home-panel .drawer { padding: 0 var(--space-4) var(--space-4); border-top: 1px solid var(--color-divider); }
+/* Rows stacked inside one panel need a hairline between them, or a list
+   of five properties reads as one tall block. */
+.home-panel .home-row + .home-row { border-top: 1px solid var(--color-divider); }
 .home-panel summary { list-style: none; cursor: pointer; }
 .home-panel summary::-webkit-details-marker { display: none; }
 .home-panel summary .chev { transition: transform .15s ease; color: var(--muted); }

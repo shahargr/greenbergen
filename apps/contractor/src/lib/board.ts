@@ -254,11 +254,12 @@ export const anyRuns = (n: Node): boolean => runs(n.seat) || n.children.some(any
 // under it is a folder, and what is under it comes up to the top. A root with
 // nothing under it is already a property and stays where it is. Both screens
 // call this, so they cannot disagree about what a property is.
-export function topOf(nodes: Node[]): { top: Node[]; folders: Node[] } {
-  return {
-    top: nodes.flatMap((n) => (n.children.length > 0 ? n.children : [n])),
-    folders: nodes.filter((n) => n.children.length > 0),
-  };
+export function topOf(nodes: Node[]): { top: Node[]; folders: Node[]; loose: Node[] } {
+  const folders = nodes.filter((n) => n.children.length > 0);
+  // Roots with nothing under them: a job on somebody else's home, which is
+  // how almost every seat that is not yours arrives.
+  const loose = nodes.filter((n) => n.children.length === 0);
+  return { top: [...folders.flatMap((f) => f.children), ...loose], folders, loose };
 }
 
 // Which property a job belongs to. The task list groups by this, so it has
