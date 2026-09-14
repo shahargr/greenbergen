@@ -35,6 +35,24 @@ export type BookingSummary = {
   contractor: { contact_id: string; name: string; person: string; phone: string | null } | null;
   progress: Progress | null; unread: number;
   last_message: { body: string; sent_at: string; mine: boolean; who: string } | null;
+  // The PROJECT's status, not the booking's state (migration 116). A booking
+  // that closed only means the request stopped going out to the community;
+  // the work may well have carried on, and reading the booking's state as the
+  // job's was hiding live jobs as "cancelled".
+  project_status: string | null;
+};
+
+// EVERY JOB UNDER THE MEMBER'S HOMES, booked or not (migration 116). The
+// booking list only ever knew about jobs that came through the package
+// wizard, which on Shahar's own account was four out of ten.
+export type ProjectSummary = {
+  project_id: string; name: string; address: string | null; status: string; stage: string | null;
+  package_code: string | null; home_project_id: string | null; home_name: string | null;
+  // False for a job somebody simply started - it has no price, no package
+  // and no wizard answers, and the screen should not pretend otherwise.
+  has_booking: boolean;
+  open_tasks: number; people: number; unread: number;
+  cover: string | null; cover_url: string | null; created_at: string;
 };
 
 export type Me =
@@ -46,6 +64,7 @@ export type Me =
       homes: Home[];
       home_quota: HomeQuota;
       bookings: BookingSummary[];
+      projects: ProjectSummary[];
     };
 
 // The signed-in shell in one call. Signed-in is decided from the session
@@ -66,6 +85,6 @@ export async function getMe(): Promise<Me> {
   return {
     signed_in: true, missing: !!error && isMissingFunction(error), degraded: !error || !isMissingFunction(error),
     profile: { app_user_id: claims.sub, full_name: claims.user_metadata?.full_name ?? null, email: claims.email ?? null, home_zip: null, home_town: null, contact_id: null, is_superadmin: false },
-    home: null, homes: [], home_quota: null, bookings: [],
+    home: null, homes: [], home_quota: null, bookings: [], projects: [],
   };
 }

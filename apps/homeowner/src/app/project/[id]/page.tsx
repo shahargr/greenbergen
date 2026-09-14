@@ -30,6 +30,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (missing) redirect("/project");
   if (!b) notFound();
   const pkg = b.package;
+  // A job somebody simply started has no package to be named after, so it is
+  // named after itself (migration 117).
+  const title = pkg?.name ?? b.project_name ?? "This job";
   const town = b.address?.split(",")[1]?.trim().replace(/\s+NJ.*$/, "") ?? "your town";
 
   // The photos the job is still short of. The work is already out to
@@ -69,7 +72,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const covered = b.scope.filter((s) => s.kind === "assurance");
     return (
       <Screen>
-        <AppBar back="/project" title={pkg?.name} sub={b.address?.split(",")[0] ?? undefined} />
+        <AppBar back="/project" title={title} sub={b.address?.split(",")[0] ?? undefined} />
         <div className="body">
           {ok === "plan" && <div className="banner-ok">Plan updated.</div>}
           {error && <Notice kind="error">{error}</Notice>}
@@ -203,7 +206,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {switcher}
           <div className="kicker">Your project</div>
           <div className="hero">
-            <h1>{pkg?.name}</h1>
+            <h1>{title}</h1>
             <p className="lead">{b.address?.split(",")[0]} · {dollars(b.price_cents)} · {b.config_label}</p>
           </div>
           {ok === "bump" && <div className="banner-ok">Reposted at {dollars(b.price_cents)}. The clock starts again.</div>}
@@ -238,7 +241,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <div className="body">
         {switcher}
         <div className="kicker">Your project · {b.address?.split(",")[0]}</div>
-        <div className="hero"><h1>{pkg?.name}</h1></div>
+        <div className="hero"><h1>{title}</h1></div>
         {error && <Notice kind="error">{error}</Notice>}
         {photosCard}
 

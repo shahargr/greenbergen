@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getMe, targetWindowLabel, type BookingSummary } from "@/lib/me";
+import { getMe, targetWindowLabel, type BookingSummary, type ProjectSummary } from "@/lib/me";
 import { featured, isOpen, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
@@ -30,8 +30,29 @@ type Bucket = "all" | "planned" | "live" | "done";
 const BUCKETS: { key: Bucket; label: string }[] = [
   { key: "all", label: "All" }, { key: "planned", label: "DIY" }, { key: "live", label: "In progress" }, { key: "done", label: "Completed" },
 ];
-const bucketOf = (b: BookingSummary): Exclude<Bucket, "all"> | "cancelled" =>
-  b.state === "planned" ? "planned" : b.state === "closed" ? "cancelled" : b.state === "done" ? "done" : "live";
+
+// ONE ROW PER JOB, booked or not (migration 116). Shahar, with two
+// screenshots: "as professional i see both Ran and My own generator project.
+// as home owner, i see none." He was right and it was worse than it looked -
+// under his two homes there are ten jobs and this screen was showing zero,
+// for two reasons at once. It listed BOOKINGS, and six of the ten never came
+// through the booking wizard. And it read a booking's state as the job's, so
+// the other four - all with closed bookings, two of them live with open tasks
+// and a contractor - were filed as "cancelled" and hidden.
+type Row =
+  | { kind: "booking"; project_id: string; b: BookingSummary; p: ProjectSummary }
+  | { kind: "project"; project_id: string; p: ProjectSummary };
+
+// The PROJECT decides which bucket a row is in. A booking that closed means
+// the request stopped going out to the community; it says nothing about
+// whether the work is happening.
+const bucketOf = (r: Row): Exclude<Bucket, "all"> | "cancelled" => {
+  const status = r.p.status ?? "";
+  if (status === "Closed - Cancelled") return "cancelled";
+  if (status.startsWith("Closed")) return "done";
+  // Still running. DIY only while it is a plan nobody has taken on.
+  return r.kind === "booking" && r.b.state === "planned" ? "planned" : "live";
+};
 
 
 export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string; home?: string }> }) {
@@ -72,10 +93,17 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   const noneLive = !tiles.some(isOpen);
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
-  const mine = onlyHome ? me.bookings.filter((b) => b.home_project_id === onlyHome.project_id) : me.bookings;
+  // The projects are the spine: every job under a home the member owns. A
+  // booking, where there is one, is what dresses the row.
+  const booked = new Map(me.bookings.map((b) => [b.project_id, b]));
+  const all: Row[] = me.projects.map((p) => {
+    const b = booked.get(p.project_id);
+    return b ? { kind: "booking" as const, project_id: p.project_id, b, p } : { kind: "project" as const, project_id: p.project_id, p };
+  });
+  const mine = onlyHome ? all.filter((r) => r.p.home_project_id === onlyHome.project_id) : all;
   const counts = { all: 0, planned: 0, live: 0, done: 0 } as Record<Bucket, number>;
-  for (const b of mine) { const k = bucketOf(b); if (k !== "cancelled") { counts[k]++; counts.all++; } }
-  const shown = mine.filter((b) => { const k = bucketOf(b); return k !== "cancelled" && (filter === "all" || k === filter); });
+  for (const r of mine) { const k = bucketOf(r); if (k !== "cancelled") { counts[k]++; counts.all++; } }
+  const shown = mine.filter((r) => { const k = bucketOf(r); return k !== "cancelled" && (filter === "all" || k === filter); });
   const manyHomes = me.homes.length > 1;
   const order: Exclude<Bucket, "all">[] = ["live", "planned", "done"];
   const href = (b: Bucket) => {
@@ -178,12 +206,14 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             )}
 
             {(filter === "all" ? order : [filter as Exclude<Bucket, "all">]).map((k) => {
-              const rows = shown.filter((b) => bucketOf(b) === k);
+              const rows = shown.filter((r) => bucketOf(r) === k);
               if (rows.length === 0) return null;
               return (
                 <section className="stack" style={{ gap: 10 }} key={k}>
                   {filter === "all" && <div className="divider-label">{BUCKETS.find((x) => x.key === k)?.label}</div>}
-                  {rows.map((b) => <BookingRow key={b.project_id} b={b} showHome={manyHomes && !onlyHome} />)}
+                  {rows.map((r) => r.kind === "booking"
+                    ? <BookingRow key={r.project_id} b={r.b} showHome={manyHomes && !onlyHome} />
+                    : <ProjectRow key={r.project_id} p={r.p} showHome={manyHomes && !onlyHome} />)}
                 </section>
               );
             })}
@@ -199,15 +229,53 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 }
 
 
+// A JOB NOBODY BOOKED. No package, no price, no wizard answers - a name,
+// what is open on it, and the way in. Everything the booking row shows comes
+// from a booking, and inventing any of it here would be a lie with a number
+// in it.
+function ProjectRow({ p, showHome }: { p: ProjectSummary; showHome: boolean }) {
+  const closed = (p.status ?? "").startsWith("Closed");
+  const pill = closed
+    ? <span className={`tag ${p.status === "Closed - Completed" ? "tag-ok" : "tag-neutral"}`}>
+        {p.status?.replace("Closed - ", "")}
+      </span>
+    : p.open_tasks > 0
+      ? <span className="tag tag-status">{p.open_tasks} open</span>
+      : <span className="tag tag-outline">Under way</span>;
+  const line = [
+    showHome && p.home_name ? p.home_name : null,
+    closed ? null : p.people > 0 ? `${p.people} ${p.people === 1 ? "person" : "people"} on it` : "nobody on it yet",
+    p.open_tasks === 0 && !closed ? "nothing open" : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <Link href={`/project/${p.project_id}`} className="home-row">
+      <span className="ic" aria-hidden>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 10.5 12 4l9 6.5" /><path d="M5 9.5V20h14V9.5" /><path d="M10 20v-5h4v5" />
+        </svg>
+      </span>
+      <span className="grow">
+        <span className="t">{p.name}{p.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{p.unread}</span>}</span>
+        <span className="m" style={{ display: "block" }}>{line}</span>
+      </span>
+      {pill}
+    </Link>
+  );
+}
+
 function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boolean }) {
-  const pill =
+  // The request closed and the work carried on - two of Shahar's four
+  // bookings are exactly this. Read the project, not the booking.
+  const liveDespite = b.state === "closed" && !!b.project_status && !b.project_status.startsWith("Closed");
+  const pill = liveDespite ? <span className="tag tag-status">In progress</span> :
     b.state === "planned" ? <span className="tag tag-neutral">{targetWindowLabel(b.target_window)}</span>
     : b.state === "posted" && b.no_taker ? <span className="tag tag-status">Needs you</span>
     : b.state === "posted" ? <span className="tag tag-outline">Matching</span>
     : b.state === "accepted" ? <span className="tag tag-status">{b.progress ? `${b.progress.done_count}/${b.progress.total}` : "In progress"}</span>
     : b.state === "done" ? <span className="tag tag-ok">Done</span>
     : <span className="tag tag-neutral">Cancelled</span>;
-  const line =
+  const line = liveDespite ? `${b.contractor?.name ?? "Under way"} · the community request was closed` :
     b.state === "planned" ? `${dollars(b.price_cents)} reference · ${b.config_label ?? ""}`
     : b.state === "accepted" ? `${b.contractor?.name ?? "Contractor"} · ${b.progress?.current?.name ?? "in progress"}`
     : b.state === "posted" ? `${dollars(b.price_cents)} · posted ${shortDate(b.posted_at)}`

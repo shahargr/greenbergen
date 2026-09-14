@@ -28,6 +28,10 @@ export type PhotoRequestState = {
 };
 export type Booking = {
   project_id: string; home_project_id: string; package_code: string; package: Package | null; address: string | null; unit: string | null;
+  // The job's own name, and whether any of this came from a booking at all.
+  // A job somebody simply started has no package to be named after and no
+  // price to show (migration 117).
+  project_name: string | null; from_booking: boolean;
   project_status: string; price_cents: number; base_price_cents: number; selections: Record<string, string>; config_label: string | null;
   facts: Record<string, unknown> | null; budget_band: string | null; note: string | null;
   state: BookingState; created_at: string; posted_at: string | null; target_window: TargetWindow | null; live_price_cents: number | null;
