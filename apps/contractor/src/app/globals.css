@@ -60,6 +60,10 @@
   margin-top: 2px;
 }
 .task-row-value { min-width: 0; display: grid; gap: var(--space-2); }
+/* A grid item's automatic minimum is its min-content, so one wide child - a
+   row of buttons, a long filename - pushed the whole page sideways instead
+   of wrapping inside its own column. */
+.task-row-value > * { min-width: 0; }
 .task-row-value .input { width: 100%; }
 
 /* A phone is narrower than two columns deserve: the label goes above the

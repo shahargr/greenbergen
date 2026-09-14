@@ -303,6 +303,20 @@ export default async function TaskPage({
           </Notice>
         )}
 
+        {/* A STEP UNDER THIS ONE. Shahar (2026-09-14): "inside each task, add
+            an option to create sub-task." The new-task screen has taken a
+            parent since it was built; there was simply no way in from the
+            task the step belongs to, so you had to open a blank one and find
+            this task again in a list of everything open on the site. */}
+        {!closed && t.can_edit && t.project_id && (
+          <Link
+            href={`/project/${t.project_id}/task/new?parent=${t.id}&back=${encodeURIComponent(`/task/${t.id}?back=${encodeURIComponent(to)}`)}`}
+            className="btn btn-secondary btn-block"
+          >
+            ＋ Add a step under this
+          </Link>
+        )}
+
         {/* Read-only: the expanded task, for somebody who may not change it,
             and for a task that has ended. The editable version below shows
             the same words in their fields, so it is one or the other. */}

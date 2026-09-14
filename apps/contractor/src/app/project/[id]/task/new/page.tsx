@@ -53,10 +53,14 @@ export default async function NewTaskPage({
   // `from` is the property we were sent here from, so the form can say so and
   // offer the way back to the list; `pick` forces the list instead of the
   // default.
-  searchParams: Promise<{ back?: string; error?: string; from?: string; pick?: string }>;
+  // `parent` arrives when this was opened from inside a task: "Add a step
+  // under this one". It is pre-picked below rather than left for the person
+  // to find again in a list of a hundred and twenty-nine.
+  searchParams: Promise<{ back?: string; error?: string; from?: string; pick?: string; parent?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, from, pick } = await searchParams;
+  const { back, error, from, pick, parent } = await searchParams;
+  const parentId = parent && /^[0-9a-f-]{36}$/i.test(parent) ? parent : null;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
 
   const w = stopwatch("/project/[id]/task/new");
@@ -104,6 +108,7 @@ export default async function NewTaskPage({
     // the form can name where it came from and offer the list.
     if (targets.default_id && pick !== "1") {
       const q = new URLSearchParams({ back: to, from: id });
+      if (parentId) q.set("parent", parentId);
       redirect(`/project/${targets.default_id}/task/new?${q.toString()}`);
     }
     const options = targets.options ?? [];
@@ -166,6 +171,10 @@ export default async function NewTaskPage({
   const openTasks = board.tasks
     .filter((t) => t.project_id === id && t.state === "open")
     .map((t) => ({ id: t.id, label: t.action }));
+  // The task this one goes under, when we were sent here from inside it. Only
+  // honoured if it is actually open on THIS project - a parent from another
+  // job would be a quiet lie in the picker.
+  const parentOf = parentId ? openTasks.find((t) => t.id === parentId)?.label ?? null : null;
   const contracts = (contractRows ?? []).map((c) => ({
     id: c.id,
     label: [c.title, c.trade].filter(Boolean).join(" · ") || "Contract",
@@ -184,10 +193,12 @@ export default async function NewTaskPage({
         {error && <Notice kind="error" title="Not added.">{error}</Notice>}
 
         <div className="hero">
-          <h1 style={{ fontSize: 22 }}>What needs doing?</h1>
+          <h1 style={{ fontSize: 22 }}>{parentOf ? "What is the next step?" : "What needs doing?"}</h1>
           <p className="lead">
-            A name is enough to get it on the board. Everything else — who holds it, when it is
-            due, what it ends up costing — goes on afterwards.
+            {parentOf
+              ? <>A step under <strong>{parentOf}</strong>. That task cannot close while this one is open.</>
+              : <>A name is enough to get it on the board. Everything else — who holds it, when it is
+                due, what it ends up costing — goes on afterwards.</>}
           </p>
         </div>
 
@@ -205,7 +216,8 @@ export default async function NewTaskPage({
         <form action={createTask.bind(null, id)} className="stack" style={{ gap: 14 }}>
           <input type="hidden" name="back" value={to} />
           <NewTaskForm projectId={id} types={types} people={people}
-            payees={payeeData ?? []} trades={trades} contracts={contracts} openTasks={openTasks} />
+            payees={payeeData ?? []} trades={trades} contracts={contracts} openTasks={openTasks}
+            defaultParent={parentOf ? parentId : null} />
         </form>
       </div>
     </Screen>

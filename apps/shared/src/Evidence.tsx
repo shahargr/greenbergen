@@ -19,7 +19,7 @@ import { MicPicker } from "./MicPicker";
 // It uploads as it goes and reports ids through onChange, so the form it sits
 // in only has to submit them. Nothing here decides who may attach what: the
 // database checks that the file belongs to the project before it links it.
-export type Attached = { id: string; name: string; kind: string; preview?: string; mic?: string };
+export type Attached = { id: string; name: string; kind: string; preview?: string; mic?: string; caption?: string };
 
 const kindOf = (mime: string, name: string) =>
   mime.startsWith("image/") ? "photo"
@@ -200,33 +200,60 @@ export function Evidence({
     publish(items.filter((i) => i.id !== id));
   }
 
+  // WHAT THIS FILE IS. Shahar (2026-09-14): "when uploading files, need to
+  // have a line of description added optionally."
+  //
+  // Typed after the upload, saved when the box loses focus - the bytes are
+  // already gone by the time anybody has words for them, and a description
+  // is not worth a Save button of its own. If the write fails the text stays
+  // on screen and says so, rather than vanishing as though it took.
+  async function describe(id: string, caption: string) {
+    const at = items.find((i) => i.id === id);
+    if (!at || (at.caption ?? "") === caption) return;
+    publish(items.map((i) => (i.id === id ? { ...i, caption } : i)));
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_file_caption", { p_file_id: id, p_caption: caption || null });
+    if (error) setErr(friendly(error.message, "That description did not save."));
+    else if (data?.ok === false) setErr(data.reason ?? "That description did not save.");
+    else setErr("");
+  }
+
   return (
     <div className="stack" style={{ gap: 8 }}>
+      {/* ONE ATTACHMENT, ONE BLOCK. Shahar (2026-09-14): "fix the file name
+          added and buttons so they are aligned left and all fit the width.
+          its ok if the file description line is added below each file
+          added." So: the thumbnail, the name and Remove on one line that
+          cannot outgrow its column, then anything that belongs to that file
+          underneath it - the player for a recording, the description for
+          anything. */}
       {items.length > 0 && (
-        <div className="stack" style={{ gap: 6 }}>
+        <div className="stack" style={{ gap: 8 }}>
           {items.map((i) => (
-            // A RECORDING PLAYS RIGHT HERE (Shahar: "i cannot play it back
-            // after closing the record option to see what is there"). It was a
-            // filename and nothing else, so there was no way to know whether
-            // the microphone had heard you until the note was posted.
-            i.kind === "audio" ? (
-              <div className="stack" key={i.id} style={{ gap: 4 }}>
-                <div className="row" style={{ gap: 10, alignItems: "center" }}>
-                  <audio className="grow" src={i.preview} controls preload="metadata" style={{ height: 34, minWidth: 0 }} />
-                  <button type="button" className="btn btn-ghost small" onClick={() => remove(i.id)}>Remove</button>
-                </div>
-                {i.mic && <span className="tiny text-muted">Recorded on {i.mic}.</span>}
-              </div>
-            ) : (
-              <div className="row" key={i.id} style={{ gap: 10, alignItems: "center" }}>
-                {i.preview
+            <div className="attached" key={i.id}>
+              <div className="attached-head">
+                {i.preview && i.kind === "photo"
                   // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={i.preview} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flex: "none" }} />
-                  : <span aria-hidden style={{ width: 40, height: 40, borderRadius: 8, background: "var(--color-soft-2)", display: "grid", placeItems: "center", flex: "none" }}>{ICON[i.kind] ?? "📎"}</span>}
-                <span className="grow small" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
+                  ? <img className="attached-thumb" src={i.preview} alt="" />
+                  : <span className="attached-thumb glyph" aria-hidden>{ICON[i.kind] ?? "📎"}</span>}
+                <span className="attached-name">{i.name}</span>
                 <button type="button" className="btn btn-ghost small" onClick={() => remove(i.id)}>Remove</button>
               </div>
-            )
+
+              {/* A RECORDING PLAYS RIGHT HERE (Shahar: "i cannot play it back
+                  after closing the record option to see what is there"). It
+                  was a filename and nothing else, so there was no way to know
+                  whether the microphone had heard you until it was posted. */}
+              {i.kind === "audio" && (
+                <audio src={i.preview} controls preload="metadata" style={{ width: "100%", height: 34 }} />
+              )}
+              {i.mic && <span className="tiny text-muted">Recorded on {i.mic}.</span>}
+
+              <input className="input attached-note" defaultValue={i.caption ?? ""}
+                aria-label={`Description for ${i.name}`}
+                placeholder="What this is — optional"
+                onBlur={(e) => void describe(i.id, e.target.value.trim())} />
+            </div>
           ))}
         </div>
       )}

@@ -981,12 +981,20 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
    and record a voice note more visible. maybe add icons next to both." They
    were ghost buttons - grey text among grey text - on the screens whose whole
    point is that somebody is standing on site holding a phone. */
-.proof-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)); gap: var(--space-2); }
+/* They also ran off the side of the screen. Shahar (2026-09-14): "check the
+   UI and fix it around the log progress. the record etc runs too wide. fix
+   the file name added and buttons so they are aligned left and all fit the
+   width." A grid of minmax(146px, 1fr) tracks keeps a 146px floor per column
+   whatever the container does, so two buttons inside a narrow task-row value
+   could not fit and did not wrap - they simply overflowed. Flex wraps. */
+.proof-row { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
 .proof-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
+  flex: 1 1 150px;
+  min-width: 0;
   min-height: 46px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-input);
@@ -995,11 +1003,37 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
   color: var(--color-text);
   font: 700 13.5px/1.2 var(--font-body);
   cursor: pointer;
-  text-align: center;
+  text-align: left;
 }
+.proof-btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proof-btn svg { flex: none; color: var(--muted); }
 .proof-btn:hover:not(:disabled) { border-color: var(--color-text); }
 .proof-btn:hover:not(:disabled) svg { color: var(--color-text); }
 .proof-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .proof-btn:disabled { opacity: .45; cursor: default; }
 .proof-btn.recording { border-color: var(--color-status); color: var(--color-status); }
+
+/* ONE ATTACHMENT, ONE BLOCK: the file on a line that cannot outgrow its
+   column, then what belongs to it underneath - the player for a recording,
+   and the description line for any of them. */
+.attached { display: grid; gap: 6px; min-width: 0; }
+.attached-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.attached-thumb {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--color-soft-2);
+}
+.attached-thumb.glyph { display: grid; place-items: center; font-size: 16px; }
+.attached-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attached-head .btn { flex: none; }
+.attached-note { width: 100%; font-size: 13px; }

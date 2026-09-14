@@ -16,9 +16,16 @@ import { useMemo, useState } from "react";
 // it is an id and a sentence per task, a few kilobytes at this size, and a
 // round trip per keystroke on a phone on a building site is worse than the
 // bytes.
-export function ParentPicker({ tasks }: { tasks: { id: string; label: string }[] }) {
+// `defaultParent` is set when the screen was opened from inside a task ("Add
+// a step under this one"). Arriving with the answer already filled in is the
+// whole point of that route - having to find the task again in a list of a
+// hundred and twenty-nine would undo it.
+export function ParentPicker({ tasks, defaultParent = null }: {
+  tasks: { id: string; label: string }[];
+  defaultParent?: string | null;
+}) {
   const [q, setQ] = useState("");
-  const [picked, setPicked] = useState("");
+  const [picked, setPicked] = useState(defaultParent ?? "");
 
   const found = useMemo(() => {
     const needle = q.trim().toLowerCase();

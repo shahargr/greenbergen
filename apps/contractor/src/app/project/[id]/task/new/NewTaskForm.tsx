@@ -25,7 +25,7 @@ export type TaskType = {
 // the money questions exist at all, and the attachments upload as you go so
 // nothing is waiting on Save. Everything else is a plain form posting to a
 // server action, and every rule is portal_task_create's.
-export function NewTaskForm({ projectId, types, people, payees, trades, contracts, openTasks }: {
+export function NewTaskForm({ projectId, types, people, payees, trades, contracts, openTasks, defaultParent = null }: {
   projectId: string | null;
   types: TaskType[];
   people: { contact_id: string; name: string }[];
@@ -37,6 +37,8 @@ export function NewTaskForm({ projectId, types, people, payees, trades, contract
   // Everything still open on this site, for "part of". Shipped whole so the
   // search box can filter without a round trip per keystroke.
   openTasks: { id: string; label: string }[];
+  // Set when this was opened from inside a task ("Add a step under this one").
+  defaultParent?: string | null;
 }) {
   const [type, setType] = useState("");
   const [delivers, setDelivers] = useState<"work" | "product">("work");
@@ -170,7 +172,7 @@ export function NewTaskForm({ projectId, types, people, payees, trades, contract
       {/* PART OF, with a search - because on this job the list is 129 long
           (Shahar, 2026-09-14). Its own component: the filtering is the whole
           point and it cannot be done on the server. */}
-      <ParentPicker tasks={openTasks} />
+      <ParentPicker tasks={openTasks} defaultParent={defaultParent} />
 
       {/* THE TWO GATES. Both already exist and are already enforced - by
           portal_close_task and by close_action - and until now nothing in
