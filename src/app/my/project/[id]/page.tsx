@@ -283,7 +283,7 @@ export default async function ProjectPage({
       : Promise.resolve({ data: [] as { contact_id: string; trade: string }[] }),
     peopleIds.length
       ? supabase.from("transactions").select("contractor_id, amount, status")
-          .eq("project_id", id).eq("direction", "out").in("contractor_id", peopleIds)
+          .eq("project_id", id).not("source_account_id", "is", null).in("contractor_id", peopleIds)
       : Promise.resolve({ data: [] as { contractor_id: string; amount: number | null; status: string }[] }),
   ]);
   const personTrade = new Map<string, string>();
@@ -578,7 +578,7 @@ export default async function ProjectPage({
   const winEnd = [threeDays[2], selectedDay ?? threeDays[2]].sort()[1];
   const { data: weekTxRows } = await supabase
     .from("transactions").select("id, description, amount, paid_on, target_date, status")
-    .eq("project_id", id).eq("direction", "out")
+    .eq("project_id", id).not("source_account_id", "is", null)
     .in("status", ["scheduled", "forecast", "approved", "invoice received"])
     .or(`paid_on.gte.${winStart},target_date.gte.${winStart}`)
     .limit(100);

@@ -32,10 +32,12 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
   // WHICH WAY THE MONEY WENT. Shahar (2026-09-13), on a lumber credit:
   // "tried to log in negative value as credit -1646.14 and got this error".
   // A credit is not a negative payment - it is a POSITIVE amount coming the
-  // other way, and transactions.direction is where the sign lives. All 173
-  // rows in that table are positive; a minus sign here would have been the
-  // first, and would have quietly broken the eight roll-ups that sum by
-  // direction rather than by sign (migration 086).
+  // other way. All 173 rows in the ledger are positive; a minus sign here
+  // would have been the first, and would have quietly broken the roll-ups.
+  //
+  // This state stays in the BROWSER. It decides which slot your account sits
+  // in and therefore which field name it is posted under - nothing named
+  // "direction" is sent, and nothing writes that column (migration 093).
   const [dir, setDir] = useState<"out" | "in">("out");
   const credit = dir === "in";
   const m = methods.find((x) => x.id === methodId);
@@ -74,7 +76,12 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
       <span className="field-label">
         {credit ? "To — your account" : "From — your account"} <span className="text-muted">(optional)</span>
       </span>
-      <input className="input" name="from_account" list="task-account-list" autoComplete="off"
+      {/* THE NAME OF THIS FIELD IS THE DIRECTION. Your account is the source
+          when you paid and the destination when they paid you back, so the
+          slot posts under from_account or to_account accordingly and the
+          database reads which way the money went off the two ends. There is
+          no separate direction field left to disagree with it. */}
+      <input className="input" name={credit ? "to_account" : "from_account"} list="task-account-list" autoComplete="off"
         value={account} onChange={(e) => setAccount(e.target.value)}
         placeholder={accounts[0] ? `${accounts[0]}, or a new one` : "Business card ·4821, checking, cash"} />
       {accounts.length > 0 && (
@@ -107,7 +114,6 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
           and two hidden fields of one name would hand the note's photos to
           the payment and the receipt to the note. */}
       <input type="hidden" name="payment_file_ids" value={files.map((f) => f.id).join(",")} />
-      <input type="hidden" name="direction" value={dir} />
 
       {/* WHICH WAY THE MONEY WENT, said as where it came from and where it
           landed. Swap turns a payment into a credit and back; nothing else on

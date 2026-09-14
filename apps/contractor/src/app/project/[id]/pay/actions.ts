@@ -38,13 +38,15 @@ export async function logCategoryPayment(formData: FormData) {
   const raw = String(formData.get("amount") ?? "").replace(/[$,\s]/g, "");
   const amount = raw ? Number(raw) : NaN;
   // PaymentBox is shared with the task screen, so it can send a credit from
-  // here too - money coming back, positive, with the sign in the direction
-  // (migration 086). Without this the swap would be silently ignored and a
-  // credit would be filed as a payment.
-  const direction = String(formData.get("direction") ?? "out") === "in" ? "in" : "out";
+  // here too - money coming back, positive, with your account posted under
+  // to_account instead of from_account (migration 093). Which slot it arrives
+  // in IS the direction; there is no direction field to ignore or contradict.
+  const fromAccount = txt(formData.get("from_account"));
+  const toAccount = txt(formData.get("to_account"));
+  const credit = toAccount != null;
   if (!Number.isFinite(amount) || amount <= 0) {
     redirect(at({
-      error: direction === "in"
+      error: credit
         ? "Enter how much came back, as a positive number."
         : "Enter what it cost.",
     }));
@@ -59,11 +61,11 @@ export async function logCategoryPayment(formData: FormData) {
     p_payee_name: txt(formData.get("payee")),
     p_reference: txt(formData.get("reference")),
     p_paid_on: txt(formData.get("paid_on")),
-    p_from_account: txt(formData.get("from_account")),
+    p_from_account: fromAccount,
+    p_to_account: toAccount,
     p_notes: txt(formData.get("notes")),
     p_awaiting: String(formData.get("awaiting") ?? "") === "1",
     p_file_ids: files.length > 0 ? files : null,
-    p_direction: direction,
   });
   if (error) redirect(at({ error: error.message }));
   if (data?.ok === false) redirect(at({ error: data.reason ?? "That payment did not save." }));

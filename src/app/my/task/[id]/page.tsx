@@ -193,11 +193,11 @@ export default async function TaskPage({
   const TX_COLS = "id, description, amount, paid_on, status, paid_from_account";
   const [{ data: attachedTxRows }, { data: candidateTxRows }, { data: methodRows }] = await Promise.all([
     supabase.from("transactions").select(TX_COLS)
-      .eq("action_id", t.id).eq("direction", "out")
+      .eq("action_id", t.id).not("source_account_id", "is", null)
       .order("paid_on", { ascending: false, nullsFirst: false }),
     t.project_id
       ? supabase.from("transactions").select(TX_COLS)
-          .eq("project_id", t.project_id).eq("direction", "out").is("action_id", null)
+          .eq("project_id", t.project_id).not("source_account_id", "is", null).is("action_id", null)
           .order("created_at", { ascending: false }).limit(200)
       : Promise.resolve({ data: [] }),
     supabase.from("payment_methods").select("id, name").eq("is_active", true)

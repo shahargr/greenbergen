@@ -136,16 +136,22 @@ export async function saveTask(formData: FormData) {
     return Number.isFinite(n) ? n : null;
   };
   const amount = money(formData.get("amount"));
-  // 'out' is a payment, 'in' is a credit or refund. The amount is POSITIVE
-  // either way - transactions.direction carries the sign, which is what all
-  // eight money roll-ups already read (migration 086). Shahar tried a
-  // negative and got "Enter what it cost", which was true and unhelpful.
-  const direction = String(formData.get("direction") ?? "out") === "in" ? "in" : "out";
+  // FROM and TO, never a direction. The PaymentBox posts your account under
+  // from_account when you paid and under to_account when they paid you back;
+  // whichever arrives is the end we know, and the database derives the rest.
+  // The amount is POSITIVE either way - Shahar tried a negative credit and got
+  // "Enter what it cost", which was true and unhelpful.
+  //
+  // Shahar (2026-09-14): "make sure that the UI no longer try to set value on
+  // direction." Nothing here does; migration 093 took p_direction away.
+  const fromAccount = txt(formData.get("from_account"));
+  const toAccount = txt(formData.get("to_account"));
+  const credit = toAccount != null;
   if (intent === "payment" || amount != null) {
     if (amount == null || amount <= 0) {
       redirect(here({
-        error: direction === "in"
-          ? "Enter how much came back, as a positive number — “Money in” is what makes it a credit, not a minus sign."
+        error: credit
+          ? "Enter how much came back, as a positive number — the account it landed in is what makes it a credit, not a minus sign."
           : "Enter what it cost.",
         money: "1",
       }));
@@ -158,11 +164,11 @@ export async function saveTask(formData: FormData) {
       p_payee_name: txt(formData.get("payee")),
       p_reference: txt(formData.get("reference")),
       p_paid_on: txt(formData.get("paid_on")),
-      p_from_account: txt(formData.get("from_account")),
+      p_from_account: fromAccount,
+      p_to_account: toAccount,
       p_notes: txt(formData.get("notes")),
       p_awaiting: String(formData.get("awaiting") ?? "") === "1",
       p_file_ids: payFiles.length > 0 ? payFiles : null,
-      p_direction: direction,
     });
     // The fields and the comment above are already saved; say so with the
     // refusal, and reopen the drawer so the payment is where they left it.

@@ -590,15 +590,23 @@ export async function createTaskTransaction(taskId: string, formData: FormData) 
     ?.contact_id ?? null;
 
   const status = String(formData.get("status") ?? "paid").trim() || "paid";
+  // WHICH ACCOUNT PAID, not which way it went. Shahar (2026-09-14): "make sure
+  // that the UI no longer try to set value on direction." The account is the
+  // fact; fn_transactions_direction reads it and sets the direction itself, so
+  // the two can never disagree.
+  const paidFrom = String(formData.get("paid_from") ?? "").trim() || null;
+  const sourceAccountId = paidFrom
+    ? (await supabase.rpc("money_account_resolve", { p_name: paidFrom, p_project: projectId })).data ?? null
+    : null;
   const { error } = await supabase.from("transactions").insert({
     description: `Payment to ${paidTo}`,
     amount,
-    direction: "out",
     status,
     paid_on: String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10),
     paid_via: methodRow?.name ?? null,
     payment_method_id: methodId,
-    paid_from_account: String(formData.get("paid_from") ?? "").trim() || null,
+    paid_from_account: paidFrom,
+    source_account_id: sourceAccountId,
     project_id: projectId,
     action_id: taskId,
     contractor_id: payeeId,

@@ -72,7 +72,7 @@ export default async function PaymentsPage({
       let qy = supabase
         .from("transactions")
         .select("id, amount, paid_on, status, description, notes, paid_from_account, payment_method_id, created_at, payment_methods(name), projects(project_name)")
-        .eq("direction", "out");
+        .not("source_account_id", "is", null);
       if (q) qy = qy.or(`description.ilike.%${q}%,notes.ilike.%${q}%,paid_from_account.ilike.%${q}%`);
       // Order by when it was entered, not its pay-date: future-dated scheduled
       // / forecast rows (2027 taxes, mortgage) would otherwise outrank an
@@ -92,11 +92,11 @@ export default async function PaymentsPage({
 
   const PAID_SET = ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"];
   const [{ data: paidAgg }, { data: openAgg }, { data: statusRows }, { data: acctRows }] = await Promise.all([
-    supabase.from("transactions").select("amount").eq("direction", "out").in("status", PAID_SET),
-    supabase.from("transactions").select("amount").eq("direction", "out")
+    supabase.from("transactions").select("amount").not("source_account_id", "is", null).in("status", PAID_SET),
+    supabase.from("transactions").select("amount").not("source_account_id", "is", null)
       .in("status", ["forecast", "scheduled", "invoice received", "approved", "disputed"]),
     supabase.from("transaction_statuses").select("status"),
-    supabase.from("transactions").select("paid_from_account").eq("direction", "out")
+    supabase.from("transactions").select("paid_from_account").not("source_account_id", "is", null)
       .not("paid_from_account", "is", null).limit(500),
   ]);
   const paidRows2 = (paidAgg ?? []) as { amount: number | null }[];

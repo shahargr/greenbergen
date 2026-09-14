@@ -44,7 +44,7 @@ export default async function FinancialsPage() {
       .from("transactions")
       .select("project_id, amount")
       .in("project_id", pmIds)
-      .eq("direction", "out")
+      .not("source_account_id", "is", null)
       .in("status", ["paid", "paid - receipt filed", "paid - pending confirmation", "settled"]),
   ]);
 
