@@ -15,8 +15,7 @@ export type TaskView = {
   notes: string | null;
   dependencies: string | null;
   learnings: string | null;
-  pending_on: string | null;
-  pending_reason: string | null;
+  status_note: string | null;
   requires_photo_evidence: boolean;
   is_gate: boolean;
   cadence: string | null;
@@ -102,7 +101,7 @@ export function TaskEditor({
   const [closeReason, setCloseReason] = useState("");
   // A comment rides along with a stage move; mandatory for Pending on Others.
   const [moveComment, setMoveComment] = useState("");
-  const [pendingOn, setPendingOn] = useState(task.pending_on ?? "");
+  const [pendingOn, setPendingOn] = useState(task.status_note ?? "");
   // Close-and-chain: name the next task and it is created as a follow-up
   // (a sibling that follows this one, never a child that would block the close).
   const [followUp, setFollowUp] = useState("");
@@ -158,7 +157,7 @@ export function TaskEditor({
       }
       fd.append("status", moveTo);
       if (moveComment.trim()) fd.append("comment", moveComment.trim());
-      if (pendingOn.trim()) fd.append("pending_on", pendingOn.trim());
+      if (pendingOn.trim()) fd.append("status_note", pendingOn.trim());
       await guarded(setBusyMove, () => setTaskStatus(task.id, fd));
     }
   }
@@ -365,18 +364,13 @@ export function TaskEditor({
 
         {pendingSelected && (
           <>
-            <Row label="Waiting on">
+            {/* One line, in your own words: who holds the ball and what for.
+                Replaced Waiting on + Why pending + Type (migration 095). */}
+            <Row label="Status">
               {unlocked && perms.notes ? (
-                <input name="pending_on" className="input" defaultValue={task.pending_on ?? ""} placeholder="Who are we waiting on?" />
+                <input name="status_note" className="input" defaultValue={task.status_note ?? ""} placeholder="Waiting on Steve at Andersen for the revised quote" />
               ) : (
-                task.pending_on ?? "—"
-              )}
-            </Row>
-            <Row label="Why pending">
-              {unlocked && perms.notes ? (
-                <input name="pending_reason" className="input" defaultValue={task.pending_reason ?? ""} placeholder="Required while pending" />
-              ) : (
-                task.pending_reason ?? "—"
+                task.status_note ?? "—"
               )}
             </Row>
           </>

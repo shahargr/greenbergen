@@ -630,12 +630,12 @@ export default async function ProjectPage({
       : `/my/project/${project.id}?${selectedDay ? `day=${selectedDay}&` : ""}item=${taskId}`;
   type ItemDetail = {
     id: string; action: string | null; status: string; priority: string | null; target_date: string | null; completed_on: string | null;
-    desired_outcome: string | null; notes: string | null; is_gate: boolean | null; pending_on: string | null; pending_reason: string | null;
+    desired_outcome: string | null; notes: string | null; is_gate: boolean | null; status_note: string | null;
     assigned_to: string | null; contacts: { name: string | null; person_name: string | null } | null;
   };
   const { data: itemRow } = selectedItem
     ? await supabase.from("actions")
-        .select("id, action, status, priority, target_date, completed_on, desired_outcome, notes, is_gate, pending_on, pending_reason, assigned_to, contacts:assigned_to_contact_id(name, person_name)")
+        .select("id, action, status, priority, target_date, completed_on, desired_outcome, notes, is_gate, status_note, assigned_to, contacts:assigned_to_contact_id(name, person_name)")
         .eq("id", selectedItem).eq("project_id", id).maybeSingle()
     : { data: null };
   const item = (itemRow ?? null) as unknown as ItemDetail | null;
@@ -897,7 +897,7 @@ export default async function ProjectPage({
             <div className="small" style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr)", gap: "4px 10px" }}>
               <span className="muted">Assigned to</span>
               <span>{item.contacts?.person_name ?? item.contacts?.name ?? item.assigned_to ?? "—"}</span>
-              {item.pending_on && <><span className="muted">Waiting on</span><span>{item.pending_on}{item.pending_reason ? ` — ${item.pending_reason}` : ""}</span></>}
+              {item.status_note && <><span className="muted">Status</span><span>{item.status_note}</span></>}
               {item.desired_outcome && <><span className="muted">Outcome</span><span style={{ whiteSpace: "pre-line" }}>{item.desired_outcome}</span></>}
               <span className="muted">Notes</span>
               <span style={{ whiteSpace: "pre-line", maxHeight: "5.8em", overflowY: "auto" }}>{item.notes ?? "—"}</span>

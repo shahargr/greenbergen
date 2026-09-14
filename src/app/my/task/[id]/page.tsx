@@ -14,8 +14,8 @@ const CLOSED = ["Completed", "Cancelled", "Force Cancelled"];
 type TaskFull = {
   id: string; action: string | null; status: string; priority: string | null;
   target_date: string | null; desired_outcome: string | null; notes: string | null;
-  dependencies: string | null; learnings: string | null; pending_on: string | null;
-  pending_reason: string | null; requires_photo_evidence: boolean | null;
+  dependencies: string | null; learnings: string | null; status_note: string | null;
+  requires_photo_evidence: boolean | null;
   is_gate: boolean | null; cadence: string | null; created_at: string;
   created_by: string | null; source: string | null; project_id: string | null;
   assigned_to_contact_id: string | null; assigned_to_persona_id: string | null;
@@ -42,7 +42,7 @@ export default async function TaskPage({
     .from("actions")
     .select(
       "id, action, status, priority, target_date, desired_outcome, notes, dependencies, learnings, " +
-      "pending_on, pending_reason, requires_photo_evidence, is_gate, cadence, created_at, created_by, " +
+      "status_note, requires_photo_evidence, is_gate, cadence, created_at, created_by, " +
       "source, project_id, assigned_to_contact_id, assigned_to_persona_id, assigned_by, inquiry_id, follows_action_id, parent_action_id, " +
       "projects(project_name)",
     )
@@ -168,8 +168,7 @@ export default async function TaskPage({
     notes: t.notes,
     dependencies: t.dependencies,
     learnings: t.learnings,
-    pending_on: t.pending_on,
-    pending_reason: t.pending_reason,
+    status_note: t.status_note,
     requires_photo_evidence: t.requires_photo_evidence ?? false,
     is_gate: t.is_gate ?? false,
     cadence: t.cadence,

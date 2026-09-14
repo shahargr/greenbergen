@@ -86,12 +86,17 @@ export async function saveTask(formData: FormData) {
   //    what actually differs, so an untouched drawer is a no-op.
   if (String(formData.get("has_fields") ?? "") === "1") {
     const s = (k: string) => String(formData.get(k) ?? "").trim();
+    // The name and what done looks like only arrive when the set-up drawer is
+    // open; sending them blank from a closed drawer would wipe both. The rest
+    // are on the page always, so they go every time.
     const patch: Record<string, string> = {
-      action: s("action"), desired_outcome: s("desired_outcome"),
-      pending_on: s("pending_on"), pending_reason: s("pending_reason"),
-      pending_category: s("pending_category"), priority: s("priority"),
+      status_note: s("status_note"), priority: s("priority"),
       target_date: s("target_date"), assignee: s("assignee"),
     };
+    if (String(formData.get("has_setup") ?? "") === "1") {
+      patch.action = s("action");
+      patch.desired_outcome = s("desired_outcome");
+    }
     // The stage goes in the patch UNLESS it is Completed: portal_task_edit
     // refuses that word (closing has a gate) and `complete` below takes it
     // through portal_close_task instead. The key is left out rather than
@@ -327,8 +332,14 @@ export async function cancelTask(formData: FormData) {
 export async function deleteTask(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const back = safeBack(formData.get("back"));
-  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, ...extra });
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, setup: "1", ...extra });
   if (!id) redirect(back);
+  // Shahar (2026-09-14): "deleted nothing but an approval to make sure this
+  // does not happen accidently." The tick IS the approval - deleting sits one
+  // button away from cancelling, and the two are not undoable in the same way.
+  if (String(formData.get("delete_confirm") ?? "") !== "1") {
+    redirect(here({ error: "Tick the box to confirm you want this task deleted. Calling it off keeps the record; deleting does not." }));
+  }
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_task_delete", { p_action_id: id });
   if (error) redirect(here({ error: error.message }));

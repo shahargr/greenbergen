@@ -22,8 +22,7 @@ type Detail = {
   target_date: string | null;
   desired_outcome: string | null;
   notes: string | null;
-  pending_on: string | null;
-  pending_reason: string | null;
+  status_note: string | null;
   requires_photo_evidence: boolean | null;
   created_at: string | null;
   created_by: string | null;
@@ -146,9 +145,8 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                     <Field label="Project" value={detail.project ?? "—"} />
                     <Field label="Updated" value={<>{when(detail.last_updated)}</>} />
                   </div>
-                  {detail.pending_on && (
-                    <div className="small"><span className="muted">Waiting on: </span><strong>{detail.pending_on}</strong>
-                      {detail.pending_reason && <span className="muted"> — {detail.pending_reason}</span>}</div>
+                  {detail.status_note && (
+                    <div className="small"><span className="muted">Status: </span>{detail.status_note}</div>
                   )}
                   {detail.desired_outcome && <div className="small"><span className="muted">Outcome: </span>{detail.desired_outcome}</div>}
                   {detail.notes && <div className="small" style={{ whiteSpace: "pre-line" }}><span className="muted">Notes: </span>{detail.notes}</div>}
@@ -244,15 +242,11 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                 </div>
               </div>
               {isPending && (
-                <div className="form-2col">
-                  <div className="field" style={{ marginBottom: 0 }}>
-                    <label htmlFor={`ct-po-${task.id}`}>Waiting on</label>
-                    <input id={`ct-po-${task.id}`} name="pending_on" className="input" defaultValue={detail.pending_on ?? ""} />
-                  </div>
-                  <div className="field" style={{ marginBottom: 0 }}>
-                    <label htmlFor={`ct-pr-${task.id}`}>Reason</label>
-                    <input id={`ct-pr-${task.id}`} name="pending_reason" className="input" defaultValue={detail.pending_reason ?? ""} />
-                  </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor={`ct-sn-${task.id}`}>Status</label>
+                  <input id={`ct-sn-${task.id}`} name="status_note" className="input"
+                    defaultValue={detail.status_note ?? ""}
+                    placeholder="Waiting on Steve at Andersen for the revised quote" />
                 </div>
               )}
               <div className="field" style={{ marginBottom: 0 }}>

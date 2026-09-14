@@ -21,7 +21,10 @@ export const dynamic = "force-dynamic";
 type Detail = {
   id: string; action: string; status: string; priority: string | null;
   target_date: string | null; desired_outcome: string | null; notes: string | null;
-  pending_on: string | null; pending_reason: string | null; pending_category: string | null;
+  // Where it stands, in one line, in your own words. Replaced Pending on +
+  // Why + Type, which asked three questions to describe one thing and made
+  // you answer two of them before it would save (migration 095).
+  status_note: string | null;
   requires_photo_evidence: boolean | null;
   can_edit: boolean;
   created_at: string | null; created_by: string | null; last_updated: string | null;
@@ -111,16 +114,30 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 // unblock comes from outside, so it needs a reason (help: actions).
 const STAGES = ["Not Started", "In Progress", "Pending on Others", "Parked", "Completed"] as const;
 const PRIORITIES = ["Missing", "No Priority", "Low", "Medium", "High"] as const;
-const PENDING_KINDS = [["", "—"], ["decision", "A decision"], ["delivery", "A delivery"], ["inspection", "An inspection"], ["legal", "Legal / permit"], ["financial", "Money"]] as const;
+
+// Label on the left, the thing you change on the right. One row per line,
+// which is what Shahar asked for (2026-09-14) and what makes the screen
+// readable on a phone at arm's length on a site.
+function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="task-row">
+      <span className="task-row-label">
+        {label}
+        {hint && <span className="text-muted" style={{ display: "block", fontWeight: 400 }}>{hint}</span>}
+      </span>
+      <div className="task-row-value">{children}</div>
+    </div>
+  );
+}
 
 export default async function TaskPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string }>;
+  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string; setup?: string; info?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, ok, why, undo, money } = await searchParams;
+  const { back, error, ok, why, undo, money, setup: setupQ, info: infoQ } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : "/tasks";
 
   const w = stopwatch("/task/[id]");
@@ -205,6 +222,24 @@ export default async function TaskPage({
   // update.
   const askWhy = why === "1";
 
+  // THE GEAR AND THE i. Shahar (2026-09-14): "task name / have a gear icon
+  // next to it to allow enter the task setup... Next to the gear button you
+  // have an 'i' information button, allowing also to see what good look like
+  // for the task if entered."
+  //
+  // Both are links carrying a query flag rather than client state, the way
+  // this screen already opens the payment drawer. That keeps them working
+  // with the page's ONE form: a panel opened by a link is rendered by the
+  // server INSIDE that form, so its fields save with everything else. A
+  // client toggle would have had to live outside the form or drag the whole
+  // screen into a client component.
+  const setup = setupQ === "1";
+  const info = infoQ === "1";
+  const flag = (extra: Record<string, string>) => {
+    const p = new URLSearchParams({ back: to, ...extra });
+    return `/task/${id}?${p.toString()}`;
+  };
+
   return (
     <Screen>
       <AppBar back={to} title="Task" sub={t.project ?? undefined} />
@@ -233,7 +268,17 @@ export default async function TaskPage({
         {/* THE TASK LINE. Shahar (2026-09-13): "Task line, below expanded
             info about the task." */}
         <div className="hero">
-          <h1 style={{ fontSize: 24 }}>{t.action}</h1>
+          <div className="task-title">
+            <h1 style={{ fontSize: 24, margin: 0 }}>{t.action}</h1>
+            {!closed && t.can_edit && (
+              <Link href={setup ? flag({}) : flag({ setup: "1" })} aria-label="Task set-up"
+                title="Task set-up — the name, what done looks like, cancelling and deleting"
+                className={`task-icon${setup ? " on" : ""}`}>⚙</Link>
+            )}
+            <Link href={info ? flag({}) : flag({ info: "1" })} aria-label="What good looks like"
+              title="What good looks like on this task"
+              className={`task-icon${info ? " on" : ""}`}>i</Link>
+          </div>
           <p className="lead">
             {[
               t.holder?.name
@@ -273,8 +318,23 @@ export default async function TaskPage({
           </Card>
         )}
 
-        {(closed || !t.can_edit) && t.pending_on && (
-          <Notice kind="info" title={`Waiting on ${t.pending_on}.`}>{t.pending_reason ?? "No reason recorded."}</Notice>
+        {(closed || !t.can_edit) && t.status_note && (
+          <Notice kind="info" title="Where this stands">{t.status_note}</Notice>
+        )}
+
+        {/* THE i. What good looks like, on demand - and honest when nobody
+            has said. Open to everyone, including a crew member who cannot
+            edit the task but has to know when they are finished. */}
+        {info && (
+          <Card soft pad>
+            <div className="kicker">Done looks like</div>
+            {t.desired_outcome
+              ? <LongText text={t.desired_outcome} lines={8} style={{ marginTop: 4 }} />
+              : <p className="small text-muted" style={{ margin: "4px 0 0" }}>
+                  Nobody has written what done looks like on this task yet.
+                  {t.can_edit && <> It goes in under the gear.</>}
+                </p>}
+          </Card>
         )}
 
         {/* ONE FORM, TWO PARTS (Shahar, 2026-09-12 and 2026-09-13).
@@ -293,172 +353,166 @@ export default async function TaskPage({
             <input type="hidden" name="id" value={t.id} />
             <input type="hidden" name="back" value={to} />
 
-            {/* ---- PART ONE: THE TASK ---------------------------------- */}
+            {/* ---- THE SET-UP DRAWER, behind the gear ------------------
+                What the task IS, rather than where it has got to: its name,
+                what done looks like, and the two ways it can end. Shahar
+                (2026-09-14): "have a gear icon next to it to allow enter the
+                task setup, define what good looks like, cancel and delete
+                it." Out of the way, because you set it once and then spend
+                weeks on the lines below. */}
             {t.can_edit && (
-              <section className="stack" style={{ gap: 10 }}>
-                <div className="divider-label">The task</div>
-                {/* Says the fields are on the page at all: a crew member who
-                    may not edit never sends them, and the action knows. */}
+              <>
                 <input type="hidden" name="has_fields" value="1" />
-                <label className="field">
-                  <span className="field-label">Task</span>
-                  <input className="input" name="action" defaultValue={t.action} required maxLength={300} />
-                </label>
-                <label className="field">
-                  <span className="field-label">Done looks like <span className="text-muted">(the end state, not the work)</span></span>
-                  <textarea className="input" name="desired_outcome" rows={3} defaultValue={t.desired_outcome ?? ""} />
-                </label>
-                <div className="row" style={{ gap: 8 }}>
-                  <label className="field grow">
-                    <span className="field-label">Stage</span>
+                {setup && (
+                  <section className="stack" style={{ gap: 10 }}>
+                    {/* Tells the action the name and the outcome are actually
+                        on the page. Without it a closed drawer would send them
+                        blank and wipe both. */}
+                    <input type="hidden" name="has_setup" value="1" />
+                    <div className="divider-label">Task set-up</div>
+                    <label className="field">
+                      <span className="field-label">Task</span>
+                      <input className="input" name="action" defaultValue={t.action} required maxLength={300} />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Done looks like <span className="text-muted">(the end state, not the work)</span></span>
+                      <textarea className="input" name="desired_outcome" rows={3} defaultValue={t.desired_outcome ?? ""} />
+                    </label>
+
+                    {/* THE TWO WAYS A TASK ENDS. Calling it off keeps it as a
+                        record with the reason on it; deleting pretends it was
+                        never entered, and the database only allows that on a
+                        task nothing hangs off - no notes, no files, no
+                        subtasks, no money. Both skip the browser's validation:
+                        a half-filled payment below must not stand between
+                        somebody and calling a task off. */}
+                    <details className="home-panel">
+                      <summary className="home-row">
+                        <span className="grow" style={{ minWidth: 0 }}>
+                          <span className="t">Cancel or delete this task</span>
+                          <span className="m" style={{ display: "block" }}>Call it off, or remove one entered by mistake</span>
+                        </span>
+                        <span className="chev"><ChevronIcon /></span>
+                      </summary>
+                      <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+                        <label className="field">
+                          <span className="field-label">Why it will not happen <span className="text-muted">(optional)</span></span>
+                          <input className="input" name="cancel_reason" placeholder="Scope changed · done by someone else · no longer needed" />
+                        </label>
+                        <button formAction={cancelTask} formNoValidate className="btn btn-secondary btn-block">
+                          Call this task off
+                        </button>
+                        <div className="stack" style={{ gap: 6 }}>
+                          <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
+                            <input type="checkbox" name="delete_confirm" value="1" style={{ marginTop: 3 }} />
+                            <span>Yes — delete it. It was entered by mistake and there is nothing to keep.</span>
+                          </label>
+                          <button formAction={deleteTask} formNoValidate className="btn btn-ghost btn-block btn-danger">
+                            Delete this task
+                          </button>
+                          <p className="tiny text-muted" style={{ margin: 0 }}>
+                            Deleting is refused once anything hangs off the task — a note, a file, a
+                            subtask or a payment. Those get cancelled instead, and the record stays.
+                          </p>
+                        </div>
+                      </div>
+                    </details>
+                  </section>
+                )}
+              </>
+            )}
+
+            {/* ---- WHERE IT HAS GOT TO --------------------------------
+                One line per thing, label on the left and the control on the
+                right. Status is where it stands and stays on the task; Log
+                progress is what happened today and posts to the record. */}
+            <section className="stack" style={{ gap: 0 }}>
+              {t.can_edit && (
+                <Row label="Status" hint="where it stands">
+                  <input className="input" name="status_note" defaultValue={t.status_note ?? ""}
+                    placeholder="Waiting on Steve at Andersen for the revised quote" />
+                </Row>
+              )}
+
+              {/* A div, not a label: Evidence carries buttons, and a click on
+                  a button inside a label goes to the label's control. */}
+              <Row label="Log progress" hint="posts to the record">
+                <NoteBox projectId={t.project_id} />
+              </Row>
+
+              {t.can_edit && (
+                <>
+                  <Row label="Stage">
                     <select className="input" name="status" defaultValue={STAGES.includes(t.status as typeof STAGES[number]) ? t.status : "Not Started"}>
                       {STAGES.map((x) => <option key={x} value={x}>{x}</option>)}
                     </select>
-                  </label>
-                  <label className="field grow">
-                    <span className="field-label">Priority</span>
+                  </Row>
+                  <Row label="Priority">
                     <select className="input" name="priority" defaultValue={t.priority ?? "Missing"}>
                       {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
                     </select>
-                  </label>
-                </div>
-                <label className="field">
-                  <span className="field-label">Pending on <span className="text-muted">(who or what holds the ball)</span></span>
-                  <input className="input" name="pending_on" defaultValue={t.pending_on ?? ""} placeholder="Steve at Andersen · the town inspector · a decision from Ifat" />
-                </label>
-                <div className="row" style={{ gap: 8 }}>
-                  <label className="field grow">
-                    <span className="field-label">Why <span className="text-muted">(required when Pending on Others)</span></span>
-                    <input className="input" name="pending_reason" defaultValue={t.pending_reason ?? ""} placeholder="Waiting for the revised quote" />
-                  </label>
-                  <label className="field" style={{ flex: "0 0 40%" }}>
-                    <span className="field-label">Type</span>
-                    <select className="input" name="pending_category" defaultValue={t.pending_category ?? ""}>
-                      {PENDING_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                    </select>
-                  </label>
-                </div>
-                <div className="row" style={{ gap: 8 }}>
-                  <label className="field grow">
-                    <span className="field-label">Due</span>
-                    <input className="input" name="target_date" type="date" defaultValue={t.target_date ?? ""} />
-                  </label>
-                  <label className="field grow">
-                    <span className="field-label">Assigned to</span>
+                  </Row>
+                  <Row label="Assigned to">
                     <select className="input" name="assignee" defaultValue={t.assignee?.id ?? ""}>
                       <option value="">Nobody yet</option>
                       {people.map((x) => (
                         <option key={x.contact_id} value={x.contact_id}>{x.me ? `${x.name} (me)` : x.name}{x.seat ? ` · ${x.seat}` : ""}</option>
                       ))}
                     </select>
-                  </label>
-                </div>
+                  </Row>
+                  <Row label="Completion target">
+                    <input className="input" name="target_date" type="date" defaultValue={t.target_date ?? ""} />
+                  </Row>
+                </>
+              )}
+            </section>
 
-                {/* SAVE · CANCEL THE CHANGES · CANCEL THE TASK, in that
-                    order, right under the fields they belong to. Save takes
-                    the whole screen with it, so nothing typed further down
-                    is ever lost to pressing it. */}
-                <div className="row" style={{ gap: 8 }}>
-                  <button name="do" value="save" className="btn btn-primary grow">Save</button>
-                  <Link href={`/task/${t.id}?back=${encodeURIComponent(to)}`} className="btn btn-ghost grow">Cancel changes</Link>
-                </div>
-
-                {/* THE END OF THE TASK, not the end of the edit. This
-                    replaced the old "This task will not happen" panel
-                    (Shahar, 2026-09-13) and sits with the task rather than
-                    at the foot of the page, which is where the confusion
-                    with Discard came from. Both buttons skip the browser's
-                    validation - a half-filled payment further down must not
-                    stand between somebody and calling a task off. */}
-                <details className="home-panel">
-                  <summary className="home-row">
-                    <span className="grow" style={{ minWidth: 0 }}>
-                      <span className="t">Cancel the task</span>
-                      <span className="m" style={{ display: "block" }}>Call it off, or remove one entered by mistake</span>
-                    </span>
-                    <span className="chev"><ChevronIcon /></span>
-                  </summary>
-                  <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-                    <p className="tiny text-muted" style={{ margin: 0 }}>
-                      Not the same as Cancel changes: that one throws away what you have typed.
-                      These end the TASK — calling it off keeps it as a record with your reason
-                      on it, deleting removes it as though it had never been entered.
-                    </p>
-                    <label className="field">
-                      <span className="field-label">Why it will not happen <span className="text-muted">(optional)</span></span>
-                      <input className="input" name="cancel_reason" placeholder="Scope changed · done by someone else · no longer needed" />
-                    </label>
-                    <button formAction={cancelTask} formNoValidate className="btn btn-secondary btn-block">
-                      Call this task off
-                    </button>
-                    <button formAction={deleteTask} formNoValidate className="btn btn-ghost btn-block btn-danger">
-                      Delete it — it was entered by mistake
-                    </button>
-                    <p className="tiny text-muted" style={{ margin: 0 }}>
-                      Only a task nothing has been posted on, made by you or on a site you run.
-                      Anything else is cancelled, not deleted.
-                    </p>
-                  </div>
-                </details>
-              </section>
+            {/* Only when the database has actually refused - see askWhy.
+                Choosing Completed in Stage is what closes a task now, so this
+                is where the "nothing attached" question lands. */}
+            {askWhy && (
+              <label className="field">
+                <span className="field-label">Why it closes with nothing attached</span>
+                <input name="unlock_reason" className="input" autoFocus
+                  placeholder="Nothing to photograph · the certificate is with the town · done by phone" />
+                <span className="hint">
+                  A few words, recorded against the task. Or attach the proof above instead —
+                  a photo, a certificate or a recording all count.
+                </span>
+              </label>
             )}
 
-            {/* ---- PART TWO: WHAT YOU DO ABOUT IT ---------------------- */}
-            <section className="stack" style={{ gap: 10 }}>
-              <div className="divider-label">Against this task</div>
+            {/* ONE LINE OF BUTTONS. Commit takes the WHOLE screen with it -
+                the status, the progress note and its files, the dropdowns and
+                the payment below. Shahar (2026-09-14): "Post the update and
+                Post it & mark complete becomes a duplicate if i understand
+                correctly and can be removed." He was right on both. Marking
+                complete is Stage → Completed, which goes through the same
+                gate the button used to, so a second button only offered a
+                second way to do one thing. */}
+            <div className="row" style={{ gap: 8 }}>
+              <button name="do" value="save" className="btn btn-primary grow">Commit updates</button>
+              <Link href={`/task/${t.id}?back=${encodeURIComponent(to)}`} className="btn btn-ghost grow">Cancel changes</Link>
+            </div>
 
-              {/* WHAT IT COST (migration 065). Inside the same form, so
-                  logging a purchase saves the field edits and the update
-                  with it, and an amount in the box is logged by whichever
-                  button gets pressed. */}
-              {t.can_log_payment && (
-                <details className="home-panel" open={money === "1"}>
-                  <summary className="home-row">
-                    <span className="grow" style={{ minWidth: 0 }}>
-                      <span className="t">Log a payment</span>
-                      <span className="m" style={{ display: "block" }}>Something you bought or paid for to get this done</span>
-                    </span>
-                    <span className="chev"><ChevronIcon /></span>
-                  </summary>
-                  <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-                    <PaymentBox projectId={t.project_id} methods={t.methods} accounts={accounts}
-                      people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
-                  </div>
-                </details>
-              )}
-
-              {/* THE UPDATE. One writing box, and the proof that goes with
-                  it - a photo, the certificate, a recording. */}
-              {/* A div, not a label: Evidence carries buttons, and a click
-                  on a button inside a label goes to the label's control. */}
-              <div className="field">
-                <span className="field-label">Update the status</span>
-                <NoteBox projectId={t.project_id} />
-              </div>
-
-              {/* Only when the database has actually refused - see askWhy. */}
-              {askWhy && (
-                <label className="field">
-                  <span className="field-label">Why it closes with nothing attached</span>
-                  <input name="unlock_reason" className="input" autoFocus
-                    placeholder="Nothing to photograph · the certificate is with the town · done by phone" />
-                  <span className="hint">
-                    A few words, recorded against the task. Or attach the proof above instead —
-                    a photo, a certificate or a recording all count.
+            {/* WHAT IT COST (migration 065). Inside the same form, so logging
+                a purchase saves the lines above with it, and an amount in the
+                box goes in whichever button gets pressed. */}
+            {t.can_log_payment && (
+              <details className="home-panel" open={money === "1"}>
+                <summary className="home-row">
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">Log a payment</span>
+                    <span className="m" style={{ display: "block" }}>Something you bought or paid for to get this done</span>
                   </span>
-                </label>
-              )}
-
-              <div className="stack" style={{ gap: 8 }}>
-                <button name="do" value="save" className="btn btn-primary btn-block">Post the update</button>
-                <button name="do" value="complete" className="btn btn-secondary btn-block">Post it &amp; mark complete</button>
-                <p className="tiny text-muted" style={{ margin: 0 }}>
-                  Either button saves the whole screen — the task fields, the update, the files and
-                  the payment. The first stays here so you can carry on; the second closes the task,
-                  and what you wrote above is the reason on record if nothing is attached.
-                </p>
-              </div>
-            </section>
+                  <span className="chev"><ChevronIcon /></span>
+                </summary>
+                <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
+                  <PaymentBox projectId={t.project_id} methods={t.methods} accounts={accounts}
+                    people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
+                </div>
+              </details>
+            )}
           </form>
         )}
 

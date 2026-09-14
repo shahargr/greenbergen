@@ -105,8 +105,7 @@ export async function saveTask(taskId: string, formData: FormData) {
     updates.notes = String(formData.get("notes") ?? "").trim() || null;
     const effectiveStatus = String(updates.status ?? task.status);
     if (effectiveStatus.includes("Pending")) {
-      updates.pending_on = String(formData.get("pending_on") ?? "").trim() || null;
-      updates.pending_reason = String(formData.get("pending_reason") ?? "").trim() || null;
+      updates.status_note = String(formData.get("status_note") ?? "").trim() || null;
     }
   }
   if (p.dependencies) {
@@ -251,9 +250,13 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
   }
   const updates: Record<string, unknown> = { status: st, last_modified_by: "portal:task" };
   if (isPending) {
-    updates.pending_reason = comment;
-    const who = String(formData.get("pending_on") ?? "").trim();
-    if (who) updates.pending_on = who;
+    // One line where three fields used to be (migration 095). The comment IS
+    // the status when a task is parked on somebody else; a name typed in the
+    // box leads it so the line reads the way anyone would say it out loud.
+    const who = String(formData.get("status_note") ?? "").trim();
+    updates.status_note = who && !comment.toLowerCase().includes(who.toLowerCase())
+      ? `Waiting on  — `
+      : comment;
   }
   const { error } = await supabase.from("actions").update(updates).eq("id", taskId);
   if (!error && comment) {
@@ -585,9 +588,16 @@ export async function createTaskTransaction(taskId: string, formData: FormData) 
   // The row's contact is the PAYEE. Match "Paid to" against people on this
   // project; no match simply leaves it unlinked rather than guessing.
   const want = paidTo.toLowerCase();
+  // A payment names both ends (migration 094). Matching only against people
+  // already on this project used to leave contractor_id null on a miss - an
+  // anonymous payment, which is how 87 rows ended up needing migration 090.
+  // Project members first because they are the likely answer; anyone else is
+  // found or created by name, exactly as the task screen does it.
   const payeeId = (((payeeRows ?? []) as unknown as { contact_id: string; contacts: { name: string | null; person_name: string | null } | null }[]))
     .find((m) => [m.contacts?.person_name, m.contacts?.name].some((n) => (n ?? "").trim().toLowerCase() === want))
-    ?.contact_id ?? null;
+    ?.contact_id
+    ?? (await supabase.rpc("contact_for_name", { p_name: paidTo })).data
+    ?? null;
 
   const status = String(formData.get("status") ?? "paid").trim() || "paid";
   // WHICH ACCOUNT PAID, not which way it went. Shahar (2026-09-14): "make sure

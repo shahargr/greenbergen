@@ -311,9 +311,14 @@ export async function logPayment(formData: FormData) {
     .eq("status", "active")
     .not("contact_id", "is", null);
   const want = paidTo.toLowerCase();
+  // A payment names both ends (migration 094). A name that matches nobody on
+  // the project is found or created rather than dropped, so no payment goes in
+  // anonymous.
   const payeeId = (((payeeRows ?? []) as unknown as { contact_id: string; contacts: { name: string | null; person_name: string | null } | null }[]))
     .find((m) => [m.contacts?.person_name, m.contacts?.name].some((n) => (n ?? "").trim().toLowerCase() === want))
-    ?.contact_id ?? null;
+    ?.contact_id
+    ?? (await supabase.rpc("contact_for_name", { p_name: paidTo })).data
+    ?? null;
   const paidBy = String(formData.get("paid_by") ?? "").trim();
   const extraNotes = String(formData.get("notes") ?? "").trim();
   const paidOn = String(formData.get("paid_on") ?? "").trim() || new Date().toISOString().slice(0, 10);
