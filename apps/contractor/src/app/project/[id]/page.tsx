@@ -191,6 +191,33 @@ export default async function ProjectPage({
   const openHere = here.filter((t) => t.state === "open");
   const doneHere = here.filter((t) => t.state === "closed");
   const late = openHere.filter((t) => t.target_date && t.target_date < today);
+
+  // TODAY AND TOMORROW, and what is due inside this week.
+  //
+  // "Due" is the only schedule this database holds. Migration 081 laid the
+  // spine for a real one - activities, links, gates, computed dates - and
+  // nothing writes to it yet, so a screen drawing bars off it would be
+  // drawing fiction. Dates on tasks are real and are what people set.
+  const todayISO = today;
+  const dayAfter = (iso: string, n: number) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const tomorrowISO = dayAfter(todayISO, 1);
+  const twoDays = [todayISO, tomorrowISO].map((iso) => ({
+    iso,
+    // Today carries everything still open that was due today OR EARLIER -
+    // a task that slipped is on today's plate, not filed under the day it
+    // was missed. Tomorrow is only tomorrow.
+    rows: openHere.filter((t) => !!t.target_date
+      && (iso === todayISO ? t.target_date <= iso : t.target_date === iso)),
+  }));
+  // What this week owes, which is what the panel counts. The week runs from
+  // portal_site_week's own window when there is one, so the panel and the
+  // list under it cannot disagree about where the week starts.
+  const weekTo = week?.to ?? dayAfter(todayISO, 6);
+  const dueThisWeek = openHere.filter((t) => !!t.target_date && t.target_date <= weekTo);
   // What is YOURS on this site - the number a trade means by "my work".
   const myOpen = board.me?.contact_id
     ? openHere.filter((t) => t.assignee_id === board.me!.contact_id).length : 0;
@@ -388,10 +415,18 @@ export default async function ProjectPage({
   const PANELS: Record<PanelKey, {
     n: number | string; empty: boolean; label: string; sub?: string; tone?: "late"; quiet: string;
   }> = {
+    // TASKS OPEN FOR THIS WEEK, not on this site. Shahar (2026-09-14):
+    // "panels: trades in this week. tasks open for this week. log task."
+    //
+    // 129 was a true number that nobody could act on. What is due by Sunday
+    // is a day's work you can actually look at, and the count of everything
+    // still says so underneath rather than disappearing.
     tasks: {
-      n: openHere.length, empty: openHere.length === 0, quiet: "open work",
-      label: hasKids ? "tasks open on this site" : "tasks still open",
-      sub: late.length > 0 ? `${late.length} past its date` : "nothing is late",
+      n: dueThisWeek.length, empty: openHere.length === 0, quiet: "this week's work",
+      label: "tasks open for this week",
+      sub: late.length > 0
+        ? `${late.length} past its date · ${openHere.length} open in all`
+        : `${openHere.length} open in all`,
       tone: late.length > 0 ? "late" : undefined,
     },
     bids: {
@@ -437,11 +472,16 @@ export default async function ProjectPage({
   };
   // The one you are looking at stays whatever it counts - a panel that
   // vanished when you opened it would be a screen arguing with you.
-  const shownPanels = offered
-    .filter((k) => !PANELS[k].empty || k === panel)
+  // THE TWO YOU ACT ON, in his order: who is here this week, what it owes
+  // this week. Kept only where this lens is offered them at all, so a viewer
+  // is not handed a panel its own lens withholds.
+  const ACT: PanelKey[] = ["week", "tasks"];
+  const actPanels = ACT.filter((k) => offered.includes(k))
     .map((k) => ({ key: k, ...PANELS[k] }));
-  const emptyPanels = offered
-    .filter((k) => PANELS[k].empty && k !== panel && k !== "soon")
+  // Everything else - money, bids, the job stages, today's visit - keeps its
+  // route in the quiet line, whether it has something to say or not.
+  const restPanels = offered
+    .filter((k) => !ACT.includes(k) && k !== "soon" && k !== panel)
     .map((k) => ({ key: k, ...PANELS[k] }));
 
   // One signed-URL round trip for the cover and everything hanging off the
@@ -478,8 +518,39 @@ export default async function ProjectPage({
 
   return (
     <Screen>
+      {/* THE SEAT, BY THE NAME. Shahar (2026-09-14): "viewing as should be
+          changed to seat, and drop down with all options. top right above the
+          photo, by the project name."
+
+          It was six chips wrapping to three rows under the photo - a control
+          you touch once a week taking more room than the photo it sat under.
+          Up here it is one word, and the list is behind it. */}
       <AppBar back={parent ? `/project/${parent}` : "/"} title={seat.project_name}
-        sub={seat.address ?? seat.parent_name ?? undefined} />
+        sub={seat.address ?? seat.parent_name ?? undefined}
+        right={!isFolder && lenses.length > 1 ? (
+          <details className="seat-pop">
+            <summary className="seat-chip" aria-label={`Seat: ${lens.label}`} title="Change seat">
+              <span className="k">Seat</span>
+              <span className="v">{lens.label}</span>
+              <span className="chev"><ChevronIcon /></span>
+            </summary>
+            <div className="seat-menu">
+              <div className="seat-menu-label">See this project as</div>
+              {lenses.map((l) => (
+                <Link key={l.key} href={lensHref(l)} scroll={false}
+                  className={`seat-menu-row${l.key === lens.key ? " on" : ""}`}>
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">{l.label}{l.key === actualLens ? " · you" : ""}</span>
+                    <span className="m">{l.full}</span>
+                  </span>
+                </Link>
+              ))}
+              <p className="seat-menu-foot">
+                This only changes what the screen puts first — never what you are allowed to see.
+              </p>
+            </div>
+          </details>
+        ) : undefined} />
       <div className="body">
         {error && <Notice kind="error">{error}</Notice>}
         {ok === "visit" && <div className="banner-ok">Logged. You&apos;re on that day&apos;s roster.</div>}
@@ -518,18 +589,41 @@ export default async function ProjectPage({
             never show you something your seat does not already reach - which
             is exactly why looking down your own ladder is safe, and how you
             check what your trades are actually looking at. */}
-        {!isFolder && lenses.length > 1 && (
-          <section className="stack" style={{ gap: 6 }}>
-            <nav className="chips" aria-label="View this project as">
-              <span className="tiny text-muted" style={{ alignSelf: "center", marginRight: 2 }}>Viewing as</span>
-              {lenses.map((l) => (
-                <Chip key={l.key} href={lensHref(l)} on={l.key === lens.key}
-                  label={l.key === actualLens ? `${l.label} · you` : l.label} />
-              ))}
-            </nav>
-            <p className="tiny text-muted" style={{ margin: 0 }}>
-              {lens.full}.{lens.key === actualLens ? "" : " This only changes what the screen puts first — never what you are allowed to see."}
-            </p>
+        {/* TODAY AND TOMORROW, under the picture. Shahar (2026-09-14):
+            "below, image, show today + tomorrow schedule."
+
+            It is built from what tasks are DUE, because that is the only
+            schedule this database actually holds - migration 081 laid the
+            spine for a real one (activities, gates, computed dates) but
+            nothing writes to it yet. Saying "nothing due" is true; drawing an
+            empty Gantt would not be. */}
+        {!isFolder && (
+          <section className="two-days">
+            {twoDays.map((d) => (
+              <div key={d.iso} className={`day${d.iso === todayISO ? " now" : ""}`}>
+                <div className="head">
+                  <span className="when">{d.iso === todayISO ? "Today" : "Tomorrow"}</span>
+                  <span className="date">{weekDay(d.iso)}</span>
+                </div>
+                {d.rows.length === 0
+                  ? <p className="none">Nothing due</p>
+                  : (
+                    <ul className="rows">
+                      {d.rows.slice(0, 4).map((t) => (
+                        <li key={t.id}>
+                          <Link href={`/task/${t.id}?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}>
+                            <span className="t">{t.action}</span>
+                            <span className="m">{t.trade ?? t.assignee ?? "nobody yet"}</span>
+                          </Link>
+                        </li>
+                      ))}
+                      {d.rows.length > 4 && (
+                        <li className="more">+{d.rows.length - 4} more</li>
+                      )}
+                    </ul>
+                  )}
+              </div>
+            ))}
           </section>
         )}
 
@@ -594,19 +688,37 @@ export default async function ProjectPage({
             hiding a panel outright would mean the only way to reach the bid
             book on a site with no open package is to guess the URL. The one
             you are looking at always stays, whatever it counts. */}
+        {/* THREE PANELS. Shahar (2026-09-14): "panels: trades in this week.
+            tasks open for this week. log task."
+
+            The grid used to be six or nine, and they were of two kinds: the
+            ones you ACT on standing on site, and the ones you READ at a desk
+            - money, bids, how many jobs are at which stage. He named the
+            three you act on, so those are the grid. Nothing is lost: every
+            other panel keeps its route, one line below, alongside the ones
+            that are simply empty. */}
         <div className="pgrid">
-          {shownPanels.map((p) => (
-            p.key === "soon"
-              ? <div className="pnl soon" key={p.key} aria-hidden><div className="n">—</div><div className="l">held for what comes next</div></div>
-              : <Panel key={p.key} href={panelHref(p.key)} on={p.key === panel}
-                  n={p.n} label={p.label} sub={p.sub} tone={p.tone} />
+          {actPanels.map((p) => (
+            <Panel key={p.key} href={panelHref(p.key)} on={p.key === panel}
+              n={p.n} label={p.label} sub={p.sub} tone={p.tone} />
           ))}
+          {/* Not a count, a door: the way to put something on this list. It
+              sits with the two panels it belongs beside rather than at the
+              foot of a screen you have to scroll to. */}
+          {lens.rank >= 30 && (
+            <Link href={`/project/${id}/task/new?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}
+              className="pnl act">
+              <div className="n" aria-hidden>+</div>
+              <div className="l">log a task</div>
+              <div className="s">something that has to happen here</div>
+            </Link>
+          )}
         </div>
 
-        {emptyPanels.length > 0 && (
+        {restPanels.length > 0 && (
           <p className="tiny text-muted" style={{ margin: "-4px 0 0" }}>
-            Nothing yet:{" "}
-            {emptyPanels.map((p, i) => (
+            Also:{" "}
+            {restPanels.map((p, i) => (
               <span key={p.key}>
                 {i > 0 ? " · " : ""}
                 <Link href={panelHref(p.key)}>{p.quiet}</Link>

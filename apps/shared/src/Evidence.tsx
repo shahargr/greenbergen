@@ -32,6 +32,23 @@ const ICON: Record<string, string> = { photo: "🖼", video: "🎬", audio: "�
 
 
 
+
+// The three ways proof arrives, as one stroke each. Same hand as the rest of
+// the line art: currentColor, no fill.
+const g = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+  strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+
+const CameraGlyph = () => (
+  <svg {...g}><path d="M3 8h3l2-3h8l2 3h3v11H3z" /><circle cx="12" cy="13" r="3.6" /></svg>
+);
+const PaperclipGlyph = () => (
+  <svg {...g}><path d="M20 11l-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 6" /></svg>
+);
+const MicGlyph = () => (
+  <svg {...g}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" /></svg>
+);
+
+
 export function Evidence({
   projectId, caption = "Evidence", onChange, accept = "image/*,video/*,application/pdf", folder = "notes",
 }: {
@@ -214,26 +231,35 @@ export function Evidence({
         </div>
       )}
 
-      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+      {/* THE PROOF, MADE VISIBLE. Shahar (2026-09-14): "make the attach photo
+          / file, and record a voice note more visible. maybe add icons next
+          to both." They were ghost buttons - grey text in a row of grey text
+          - on a screen whose whole point is that you are standing on site
+          holding a phone. Bordered, with a glyph, side by side. */}
+      <div className="proof-row">
         {/* Only where there IS a camera to open: on a laptop this button and
             the next one did the same thing under two names. */}
         {handheld && (
-          <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
+          <button type="button" className="proof-btn" disabled={!!busy || recording}
                   onClick={() => cam.current?.click()}>
-            Take a photo
+            <CameraGlyph />
+            <span>Take a photo</span>
           </button>
         )}
-        <button type="button" className="btn btn-ghost small" disabled={!!busy || recording}
+        <button type="button" className="proof-btn" disabled={!!busy || recording}
                 onClick={() => pick.current?.click()}>
-          Attach photo / file
+          <PaperclipGlyph />
+          <span>{handheld ? "Attach a file" : "Attach photo / file"}</span>
         </button>
         {recording ? (
-          <button type="button" className="btn btn-primary small" onClick={stopRec}>
-            <span className="rec-dot" aria-hidden /> Stop · {String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}
+          <button type="button" className="proof-btn recording" onClick={stopRec}>
+            <span className="rec-dot" aria-hidden />
+            <span>Stop · {String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}</span>
           </button>
         ) : (
-          <button type="button" className="btn btn-ghost small" disabled={!!busy} onClick={() => void startRec()}>
-            Record a voice note
+          <button type="button" className="proof-btn" disabled={!!busy} onClick={() => void startRec()}>
+            <MicGlyph />
+            <span>Record a voice note</span>
           </button>
         )}
       </div>

@@ -156,3 +156,78 @@
 .trade-tile .n { font-size: 12px; color: var(--muted); }
 .trade-tile .late { font-size: 12px; font-weight: 700; color: var(--color-status); }
 .trade-tile .owed { font-size: 12px; font-weight: 700; color: var(--color-text); }
+
+/* THE SEAT, BESIDE THE PROJECT NAME. Was six chips wrapping to three rows
+   under the photo - a control you touch once a week taking more room than the
+   photo it sat under. */
+.seat-pop { position: relative; display: inline-flex; }
+.seat-pop > summary { list-style: none; cursor: pointer; }
+.seat-pop > summary::-webkit-details-marker { display: none; }
+.seat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px 6px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-divider-strong);
+  background: var(--color-surface);
+  font-size: 12.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.seat-chip .k { color: var(--muted); }
+.seat-chip .v { font-weight: 700; }
+.seat-chip .chev { color: var(--muted); display: inline-flex; transition: transform .15s ease; }
+.seat-pop[open] .seat-chip { background: var(--color-text); color: var(--color-bg); border-color: var(--color-text); }
+.seat-pop[open] .seat-chip .k, .seat-pop[open] .seat-chip .chev { color: var(--color-bg); opacity: .75; }
+.seat-pop[open] .seat-chip .chev { transform: rotate(90deg); }
+
+.seat-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  width: 268px;
+  max-width: calc(100vw - 32px);
+  padding: 6px;
+  background: var(--color-surface);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card), 0 0 0 1px var(--color-divider);
+}
+.seat-menu-label { padding: 8px 10px 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.seat-menu-row { display: flex; gap: 8px; padding: 9px 10px; border-radius: 12px; text-decoration: none; color: inherit; }
+.seat-menu-row:hover { background: var(--color-soft-2); }
+.seat-menu-row.on { background: var(--color-soft); }
+.seat-menu-row .t { display: block; font-weight: 700; font-size: 13.5px; }
+.seat-menu-row .m { display: block; font-size: 12px; color: var(--muted); }
+.seat-menu-foot { margin: 6px 10px 8px; font-size: 11.5px; color: var(--muted); }
+
+/* TODAY AND TOMORROW, under the picture. Built from what is DUE, because that
+   is the only schedule this database holds - migration 081 laid the spine for
+   a real one and nothing writes to it yet. */
+.two-days { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.two-days .day {
+  background: var(--color-surface);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3);
+  min-width: 0;
+}
+.two-days .day.now { border: 1.5px solid var(--color-text); }
+.two-days .head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+.two-days .when { font-weight: 800; font-size: 13px; }
+.two-days .date { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.two-days .none { margin: 0; font-size: 12.5px; color: var(--muted); }
+.two-days .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.two-days .rows a { text-decoration: none; color: inherit; display: block; min-width: 0; }
+.two-days .rows .t {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 12.5px; font-weight: 600; line-height: 1.3;
+}
+.two-days .rows .m { display: block; font-size: 11.5px; color: var(--muted); }
+.two-days .rows a:hover .t { text-decoration: underline; }
+.two-days .more { font-size: 11.5px; color: var(--muted); }
+
+/* LOG A TASK sits in the panel grid: not a count, a door. */
+.pnl.act { display: flex; flex-direction: column; justify-content: center; text-decoration: none; }
+.pnl.act .n { color: var(--muted); }

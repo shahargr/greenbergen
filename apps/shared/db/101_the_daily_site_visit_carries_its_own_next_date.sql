@@ -1,0 +1,24 @@
+-- 101 - The daily site visit carries its own next date.
+--
+-- Shahar (2026-09-14): "the date of the next daily site visit should be
+-- tomorrow in case one was updated today. if none was updated today, set it
+-- for today. avoid sunday on the list."
+--
+-- The task in front of him read "no date", which is the one thing a DAILY
+-- task must never say. The rule is entirely about TODAY, so it cannot live in
+-- a trigger alone - a trigger fires when something happens, and "nobody
+-- visited today" is the absence of something happening. Three pieces:
+--
+--   daily_visit_due(project)   says what the date should be, right now
+--   trg_site_checkin_rolls_visit  rolls it the moment a visit is logged
+--   cron 'roll-daily-site-visits' at 04:05 rolls it for every site nobody
+--                                 visited
+--
+-- Sunday is stepped FORWARD off, never backward, so a date is never set in
+-- the past to avoid it. "Today" is the day the SITE is having
+-- (America/New_York), not the day UTC is having - a visit logged at eight in
+-- the evening in Bergen County is still today's.
+--
+-- Matched on the task's name because that is what makes it the daily visit;
+-- there is no flag for it, and inventing one would leave every existing task
+-- behind. Applied live - see the migration log entry of the same name.
