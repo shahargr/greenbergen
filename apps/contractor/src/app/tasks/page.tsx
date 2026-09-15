@@ -2,11 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
 import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
-import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { getBoard, priorityRank, topLevels, type Task } from "@/lib/board";
 import { SearchBox } from "@/components/SearchBox";
+import { TaskTable } from "@/components/TaskTable";
 import { matchesQuery } from "@/lib/search";
 
 export const dynamic = "force-dynamic";
@@ -149,21 +149,50 @@ export default async function TasksPage({
           </div>
         )}
 
-        <SearchBox placeholder="Find a task" count={query ? rows.length : null} />
-
-        <nav className="chips" aria-label="Whose tasks">
-          <Chip href={q({ who: undefined })} on={!mineOnly} label={`Everyone · ${allOpen.length}`} />
-          <Chip href={q({ who: "me" })} on={mineOnly}
-            label={`On me · ${contact ? allOpen.filter((t) => t.assignee_id === contact).length : 0}`} />
-        </nav>
-
-        {/* Priority and lateness are the two things that decide what to do
-            next, so they are filters and not just badges. */}
-        <nav className="chips" aria-label="Which tasks">
-          <Chip href={q({ show: undefined })} on={!show} label="All" />
-          <Chip href={q({ show: "late" })} on={show === "late"} label={`Late · ${lateCount}`} />
-          <Chip href={q({ show: "high" })} on={show === "high"} label={`High · ${highCount}`} />
-        </nav>
+        {/* THE FILTERS, BEHIND THEIR OWN ICON. Shahar (2026-09-15): "the
+            filter should be expandable by clicking on the filter icon to be
+            placed next to the task name search window." Two rows of chips
+            standing open cost more of a phone screen than the choices are
+            worth - they are made once and then looked past. The button
+            carries a dot when anything is on, so a filtered list never looks
+            like the whole list. */}
+        <div className="row" style={{ gap: 8, alignItems: "flex-start" }}>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <SearchBox placeholder="Find a task" count={query ? rows.length : null} />
+          </div>
+          <details className="filter-pop">
+            <summary aria-label="Filters">
+              <span className="filter-btn">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M3 5h18l-7 8v6l-4 2v-8z" />
+                </svg>
+                {(mineOnly || !!show) && <span className="dot" aria-hidden />}
+              </span>
+            </summary>
+            <div className="filter-menu">
+              <div>
+                <div className="divider-label">Whose</div>
+                <nav className="chips" aria-label="Whose tasks" style={{ marginTop: 6 }}>
+                  <Chip href={q({ who: undefined })} on={!mineOnly} label={`Everyone · ${allOpen.length}`} />
+                  <Chip href={q({ who: "me" })} on={mineOnly}
+                    label={`On me · ${contact ? allOpen.filter((t) => t.assignee_id === contact).length : 0}`} />
+                </nav>
+              </div>
+              <div>
+                <div className="divider-label">Which</div>
+                <nav className="chips" aria-label="Which tasks" style={{ marginTop: 6 }}>
+                  <Chip href={q({ show: undefined })} on={!show} label="All" />
+                  <Chip href={q({ show: "late" })} on={show === "late"} label={`Late · ${lateCount}`} />
+                  <Chip href={q({ show: "high" })} on={show === "high"} label={`High · ${highCount}`} />
+                </nav>
+              </div>
+              {(mineOnly || !!show) && (
+                <Link href={q({ who: undefined, show: undefined })} className="small">Clear the filters</Link>
+              )}
+            </div>
+          </details>
+        </div>
 
         {groups.map((g) => {
           // A property with late work opens itself; the rest stay folded, so
@@ -182,9 +211,7 @@ export default async function TasksPage({
                         {s.label} · {s.rows.length}{s.late ? ` · ${s.late} late` : ""}
                       </div>
                     )}
-                    {(focused ? s.rows : s.rows.slice(0, CAP)).map((t) => (
-                      <Row key={t.id} t={t} late={isLate(t)} back={here} />
-                    ))}
+                    <TaskTable rows={focused ? s.rows : s.rows.slice(0, CAP)} back={here} />
                     {!focused && s.rows.length > CAP && (
                       <p className="small text-muted" style={{ margin: "0 0 2px" }}>
                         …and {s.rows.length - CAP} more.{" "}
@@ -218,43 +245,6 @@ function Chip({ href, on, label }: { href: string; on: boolean; label: string })
       className={`tag ${on ? "" : "tag-neutral"}`}
       style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }}>
       {label}
-    </Link>
-  );
-}
-
-// Priority earns a badge only when it says something: High and Low do,
-// Medium is the default and unset is unknown. Sixty-nine red pills would
-// tell you nothing.
-function Row({ t, late, back }: { t: Task; late: boolean; back: string }) {
-  const meta = [
-    t.trade,
-    // An assistant holding a task is a holder (migration 079); this line
-    // used to call every one of them "unassigned".
-    t.assignee
-      ? (t.assignee_kind === "assistant" ? `${t.assignee} · assistant` : t.assignee)
-      : "nobody holds this",
-    t.status && t.status !== "Not Started" ? t.status : null,
-  ].filter(Boolean) as string[];
-  return (
-    <Link href={`/task/${t.id}?back=${encodeURIComponent(back)}`}
-      style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-      <Card pad className="tight">
-        <div className="between">
-          <div className="grow" style={{ minWidth: 0 }}>
-            <div className="card-title" style={{ fontSize: 15 }}>{t.action}</div>
-            <div className="small text-muted">{meta.join(" · ")}</div>
-          </div>
-          <span className="stack" style={{ gap: 4, alignItems: "flex-end" }}>
-            {t.target_date && (
-              <span className={`tag ${late ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
-                {shortDate(t.target_date)}
-              </span>
-            )}
-            {t.priority === "High" && <span className="tag tag-outline">High</span>}
-            {t.priority === "Low" && <span className="tag tag-neutral">Low</span>}
-          </span>
-        </div>
-      </Card>
     </Link>
   );
 }

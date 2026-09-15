@@ -51,6 +51,9 @@ export const faceUrl = (s: Seat, signed: Record<string, string>) =>
 export type Task = {
   id: string; action: string; status: string; priority: string | null;
   target_date: string | null; last_updated: string | null; notes: string | null;
+  // "Where this stands" - the live word on the task, as against notes which
+  // is what the task IS (migration 126). The list column prefers this.
+  status_note: string | null;
   project: string | null; project_id: string | null; domain: string | null;
   has_contract: boolean; state: "open" | "closed";
   // WHO HOLDS IT. assignee_id is the CONTACT and only the contact, so "is

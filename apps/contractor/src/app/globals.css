@@ -227,19 +227,18 @@
 .next-up .when { font-weight: 800; font-size: 13px; }
 .next-up .date { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 .next-up .none { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
-.next-up .rows { list-style: none; margin: 0; padding: 0; display: grid; }
-.next-up .rows li { border-top: 1px solid var(--color-divider); }
-.next-up .rows a {
-  text-decoration: none; color: inherit; display: block; min-width: 0;
-  padding: var(--space-2) 0;
+/* The table inside this panel is not a second card: it is already standing on
+   the panel's floor, so it gives up its shadow and its corners and keeps only
+   the hairlines. It runs to the panel's edges, because a table inset from a
+   card looks like it is hiding something to the right. */
+.next-up .tt {
+  box-shadow: none;
+  border-radius: 0;
+  margin: 4px calc(var(--space-4) * -1) 0;
+  border-top: 1px solid var(--color-divider);
 }
-.next-up .rows .t {
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  font-size: 13.5px; font-weight: 600; line-height: 1.3;
-}
-.next-up .rows .m { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
-.next-up .rows .m .late { color: var(--color-status); font-weight: 700; }
-.next-up .rows a:hover .t { text-decoration: underline; }
+.next-up .tt-row { padding-left: calc(var(--space-4) - 3px); padding-right: var(--space-4); }
+.next-up .tt-row:hover .name { text-decoration: underline; }
 
 /* The door to the whole list. Full width and on the panel's own floor, so it
    reads as "there is more through here" rather than as another task. */
@@ -297,3 +296,90 @@
 .do-btn.primary { background: var(--color-text); border-color: var(--color-text); color: var(--color-bg); }
 .do-btn.primary svg { color: var(--color-bg); }
 .do-btn.on { border-color: var(--color-text); }
+
+/* A TASK LIST AS A TABLE, ON A PHONE (Shahar, 2026-09-15: "show in table
+   format... find a design where this fits on iphone screen").
+
+   Five real columns do not fit 390 points, and scrolling sideways was the
+   thing ruled out. So each row is turned on its side and ALIGNMENT does the
+   work a table's rules would: the due dates share an x, the stages share an
+   x, and every row has the same anatomy. The 1px gap over a divider-coloured
+   ground draws the hairlines without a border on each cell. */
+.tt {
+  display: grid;
+  gap: 1px;
+  background: var(--color-divider);
+  border-radius: var(--radius-tile);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.tt-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: baseline;
+  padding: 10px 12px 10px 13px;
+  background: var(--color-surface);
+  border-left: 3px solid transparent;
+  text-decoration: none;
+  color: inherit;
+}
+.tt-row.late { border-left-color: var(--color-status); }
+.tt-row:active { background: var(--color-soft); }
+.tt-row .name {
+  font-family: var(--font-heading); font-weight: 800; font-size: 14px; line-height: 1.2;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tt-row .due {
+  font-size: 12px; white-space: nowrap; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tt-row .due.late { color: var(--color-status); font-weight: 700; }
+.tt-row .who {
+  font-size: 12px; color: var(--muted);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tt-row .stage { font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* The latest word on it, and never more than two lines - a task list that
+   lets one comment run to six lines stops being a list. */
+.tt-row .say {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  font-size: 12px; line-height: 1.35; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* THE FILTERS, BEHIND THEIR OWN ICON (Shahar: "the filter should be
+   expandable by clicking on the filter icon to be placed next to the task
+   name search window"). Same popover mechanics as the seat switcher: a
+   details, a summary that is the button, and the panel hung off the corner
+   so opening it does not push the list down the page. */
+.filter-pop { position: relative; display: inline-flex; flex: none; }
+.filter-pop > summary { list-style: none; cursor: pointer; }
+.filter-pop > summary::-webkit-details-marker { display: none; }
+.filter-btn {
+  display: inline-grid; place-items: center;
+  width: 44px; height: 44px; flex: none;
+  border-radius: var(--radius-input);
+  border: 1.5px solid var(--color-divider-strong);
+  background: var(--color-surface); color: var(--color-text);
+  position: relative;
+}
+.filter-pop[open] .filter-btn { background: var(--color-text); color: var(--color-bg); border-color: var(--color-text); }
+.filter-btn .dot {
+  position: absolute; top: 6px; right: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--color-status);
+}
+.filter-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  width: 264px; max-width: calc(100vw - 32px);
+  padding: var(--space-3);
+  display: grid; gap: var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius-tile);
+  border: 1px solid var(--color-divider);
+  box-shadow: 0 18px 40px rgba(22, 21, 19, .18);
+}
+.filter-menu .divider-label { margin: 0; }

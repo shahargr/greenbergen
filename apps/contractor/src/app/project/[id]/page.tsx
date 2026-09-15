@@ -10,6 +10,7 @@ import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, groupWo
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
 import { SearchBox } from "@/components/SearchBox";
+import { TaskTable } from "@/components/TaskTable";
 import { matchesQuery } from "@/lib/search";
 import { ProjectSetup } from "./ProjectSetup";
 import { SiteVisits, type Visit } from "./SiteVisits";
@@ -588,25 +589,16 @@ export default async function ProjectPage({
               <span className="when">Today and tomorrow</span>
               <span className="date">{weekDay(todayISO)} · {weekDay(tomorrowISO)}</span>
             </div>
+            {/* THE SAME TABLE THE TASK LIST USES. Shahar (2026-09-15): "when
+                you show the tasks open, show in table format. assigned to,
+                name, stage, comment, target end date." This panel used to say
+                "today" or "tomorrow" where the date goes and nothing at all
+                about stage or the latest word on the task - so a job you were
+                standing in front of told you less than the list one tap away.
+                One component now, so the two cannot drift apart again. */}
             {soon.length === 0
               ? <p className="none">Nothing due today or tomorrow.</p>
-              : (
-                <ul className="rows">
-                  {soon.slice(0, 6).map((t) => (
-                    <li key={t.id}>
-                      <Link href={`/task/${t.id}?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}>
-                        <span className="t">{t.action}</span>
-                        <span className="m">
-                          <span className={t.target_date! < todayISO ? "late" : ""}>
-                            {t.target_date! < todayISO ? "late" : t.target_date === todayISO ? "today" : "tomorrow"}
-                          </span>
-                          {" · "}{t.trade ?? t.assignee ?? "nobody yet"}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              : <TaskTable rows={soon.slice(0, 6)} back={keepAs(`/project/${id}`)} />}
             {/* THE WHOLE LIST, ON ITS OWN SCREEN. "all tasks should be a new
                 window, with a back, or filter" - which /tasks already is: a
                 back to the board, whose / late / high, and a search. Scoped
