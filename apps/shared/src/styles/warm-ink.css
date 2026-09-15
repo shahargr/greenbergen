@@ -22,6 +22,15 @@
   --color-danger: #b8432f;
   --color-danger-soft: #fbe6e1;
 
+  /* A DECISION WAITING ON A PERSON. The palette had settled (green) and wrong
+     (red) and nothing in between, so anything mid-flight had to borrow one of
+     them and lie a little. Ochre sits with the warm ground without competing
+     with the red that means late. Added for the trade spine (Shahar,
+     2026-09-15: "color will help me see which are active, which has not
+     started, and which requires a bid"). */
+  --color-bid: #9a6b12;
+  --color-bid-soft: #f7ecd6;
+
   --font-heading: var(--font-manrope), "Manrope", "Segoe UI", system-ui, sans-serif;
   --font-heading-weight: 800;
   --font-body: var(--font-manrope), "Manrope", "Segoe UI", system-ui, sans-serif;

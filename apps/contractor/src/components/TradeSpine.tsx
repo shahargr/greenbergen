@@ -1,24 +1,33 @@
-import Link from "next/link";
-import { shortDate } from "@shared/format";
-import { TradeIllustration } from "@shared/Illustrations";
-import { StartTrade } from "@/app/project/[id]/StartTrade";
+"use client";
 
-// A JOB IS ELEVEN TRADES IN ORDER, NOT TWO HUNDRED TASKS.
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@shared/supabase/client";
+import { friendly } from "@shared/rpc";
+import { TradeIllustration } from "@shared/Illustrations";
+
+// A JOB IS ITS TRADES, IN ORDER, ON ONE SCREEN.
 //
-// Shahar (2026-09-15): "What's not working for me here is when I land on
-// task, I see a long list of tasks. Instead of that, I would like to start by
-// seeing all the trades, the panels for all the different trades and what is
-// currently being worked on... I want you to know how the trades are
-// sequenced on a project. At the beginning you have demolition and
-// excavation, and then you're bringing in the mason guy, and then you're
-// bringing in the plumber. And after that, the frame. And after that, again
-// the plumber and the electrician and the HVAC guy."
+// Shahar (2026-09-15): "I would like to start by seeing all the trades, the
+// panels for all the different trades and what is currently being worked
+// on... I want you to know how the trades are sequenced on a project."
 //
-// The sequence was already in the database and nothing had ever read it:
-// trade_stages orders Buy and Sell, Survey, Site preparation, Rough and
-// mechanical, Stairs, Finishing, Outdoor, Suppliers, Others. So the screen
-// leads with the build order, each trade in one of four states, and the tasks
-// live one tap inside whichever trade owns them.
+// And then, looking at the first version of it: "when i log in as a trade
+// owner, and see all the panels, its a long list. maybe better to list it as
+// 4 by 4 panels, allowing to present 16 trades on one screen. color will help
+// me see which are active, which has not started, and which requires a bid."
+//
+// He is right, and the reason is worth writing down: a row is the right shape
+// for a list you READ and the wrong shape for a board you SCAN. Twenty-three
+// trades as rows is a page and a half of scrolling to answer "where is this
+// house". Twenty-three trades as a four-wide grid is one screen, and the
+// answer arrives before you have read a single word - because the state is
+// carried by colour and only confirmed by the label.
+//
+// So: no stage headings breaking the grid into nine stubby rows. The sequence
+// is the ORDER, which is what a sequence is; the stage is an eyebrow on each
+// tile, so every tile still says where in the build it sits.
 export type SpineTrade = {
   trade: string;
   stage: string | null;
@@ -39,15 +48,31 @@ export type Spine = {
   untagged: { open: number; late: number };
 };
 
-// What a state IS, in the word a person on site would use for it. "loose" is
-// the honest one: work filed under a trade with no package and no agreement
-// behind it, which is most of what a real job accumulates.
+// THREE THINGS HE ASKED TO SEE AT A GLANCE - "which are active, which has not
+// started, and which requires a bid" - and a fourth the data insists on.
+//
+// `loose` is work happening with no package and no signed agreement behind
+// it. It is active, so it is not grey; it is not settled, so it is not green.
+// Folding it into either would be the screen telling a comfortable lie about
+// a real state of a real job.
 const SAY: Record<SpineTrade["state"], string> = {
   working: "on the job",
-  hiring: "choosing who",
+  hiring: "bid out",
   loose: "open work",
   idle: "not started",
 };
+
+// A STAGE NAME HAS TO FIT IN EIGHTY PIXELS OR IT IS NOT A LABEL.
+//
+// The first cut put the whole stage on the tile and every one of them
+// truncated: "BUY AND ...", "SITE PRE...", "ROUGH A...", "STAIRS A...". Nine
+// tiles wearing an ellipsis is not information, it is texture.
+//
+// The first word is the whole answer - Buy, Survey, Site, Rough, Stairs,
+// Finishing, Outdoor, Suppliers, Others - all of them short, all of them
+// distinct, and no map to keep in step with the trade_stages table. The full
+// name is on the tile's tooltip for anybody who wants it.
+const shortStage = (stage: string) => stage.split(/[\s&]+/)[0];
 
 export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
   projectId: string;
@@ -57,28 +82,59 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
   back: string;
   allTasksHref: string;
 }) {
-  const live = spine.trades.filter((t) => t.state !== "idle");
-  const idle = spine.trades.filter((t) => t.state === "idle");
-  if (live.length === 0 && idle.length === 0 && spine.untagged.open === 0) return null;
+  const router = useRouter();
+  // Starting a trade off WRITES a task, and a tile in a four-wide grid is too
+  // small a target to do that on one tap. So an idle tile asks once: the
+  // first tap turns it into the question, the second answers it. No modal, no
+  // eight-pixel button.
+  const [asking, setAsking] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [went, setWent] = useState<Record<string, true>>({});
+  const [err, setErr] = useState("");
 
-  // Stages, in the order the database sequences them - which is the order the
-  // rows already arrive in, so this only has to notice where one ends.
-  const stages: { stage: string; rows: SpineTrade[] }[] = [];
-  for (const t of live) {
-    const name = t.stage ?? "Everything else";
-    const last = stages[stages.length - 1];
-    if (last && last.stage === name) last.rows.push(t);
-    else stages.push({ stage: name, rows: [t] });
-  }
+  const live = spine.trades.filter((t) => t.state !== "idle");
+  const idle = manages ? spine.trades.filter((t) => t.state === "idle") : [];
+  if (live.length === 0 && idle.length === 0 && spine.untagged.open === 0) return null;
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const totalLate = live.reduce((n, t) => n + t.late, 0) + spine.untagged.late;
+  const working = live.filter((t) => t.state === "working").length;
+  const hiring = live.filter((t) => t.state === "hiring").length;
+
+  async function start(trade: string) {
+    setBusy(trade); setErr("");
+    const { data, error } = await createClient()
+      .rpc("portal_trade_start_bid", { p_project: projectId, p_trade: trade });
+    setBusy(null); setAsking(null);
+    if (error) { setErr(friendly(error.message)); return; }
+    if (!data?.ok) { setErr(data?.reason ?? "That could not be started."); return; }
+    setWent((w) => ({ ...w, [trade]: true }));
+    router.refresh();
+  }
+
+  // ONE TILE, whichever state it is in - written once so a live trade and an
+  // idle one cannot drift into looking like different kinds of thing.
+  const face = (t: SpineTrade) => (
+    <>
+      <span className="art" aria-hidden><TradeIllustration name={t.art} /></span>
+      {t.stage && <span className="st">{shortStage(t.stage)}</span>}
+      <span className="t">{t.trade}</span>
+      {/* The count and the state stack rather than sitting side by side. At
+          four across "60 open work" on one line is a clipped "60 open wor",
+          which is how a number stops being a number. */}
+      <span className="f">
+        {t.state !== "idle" && <span className="n">{t.open}</span>}
+        <span className="say">{SAY[t.state]}</span>
+      </span>
+      {t.late > 0 && <span className="pip" title={`${t.late} past its date`}>{t.late}</span>}
+    </>
+  );
 
   return (
-    <section className="stack" style={{ gap: 12 }}>
+    <section className="stack" style={{ gap: 10 }}>
       <div className="between" style={{ alignItems: "baseline", gap: 10 }}>
         <div className="divider-label" style={{ padding: 0 }}>
-          The trades · {live.length}
+          The trades · {spine.trades.length}
           {totalLate > 0 && (
             <span style={{ fontWeight: 700, color: "var(--color-status)" }}> · {totalLate} late</span>
           )}
@@ -86,58 +142,64 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
         <span className="tiny text-muted">In build order</span>
       </div>
 
-      {live.length === 0 && (
-        <div className="card pad">
-          <div className="small">Nothing is open on any trade yet.</div>
-        </div>
-      )}
+      {/* WHAT THE COLOURS MEAN, said once. A colour code nobody was taught is
+          decoration; it takes one line to make it readable, and after a week
+          nobody reads the line. */}
+      <div className="spine-key">
+        <span><i className="sw working" />on the job{working > 0 ? ` · ${working}` : ""}</span>
+        <span><i className="sw hiring" />bid out{hiring > 0 ? ` · ${hiring}` : ""}</span>
+        <span><i className="sw loose" />open work</span>
+        {idle.length > 0 && <span><i className="sw idle" />not started · {idle.length}</span>}
+      </div>
 
-      {stages.map((s) => (
-        <div key={s.stage} className="spine-stage">
-          <div className="spine-head">{s.stage}</div>
-          <div className="spine-rows">
-            {s.rows.map((t) => (
-              <Link key={t.trade} className={`spine-row${t.late > 0 ? " late" : ""}`}
-                href={`/project/${projectId}/trade/${encodeURIComponent(t.trade)}?back=${encodeURIComponent(back)}`}>
+      <div className="spine-grid">
+        {live.map((t) => (
+          <Link key={t.trade} className={`tp ${t.state}${t.late > 0 ? " late" : ""}`}
+            href={`/project/${projectId}/trade/${encodeURIComponent(t.trade)}?back=${encodeURIComponent(back)}`}
+            title={[t.stage, t.trade, t.who, `${t.open} open`, t.next_due
+              ? (t.next_due <= today ? "due today" : `next ${t.next_due}`) : null]
+              .filter(Boolean).join(" · ")}>
+            {face(t)}
+          </Link>
+        ))}
+
+        {/* The trades the job needs and nobody has started, in their own place
+            in the sequence rather than exiled to a strip below it - because
+            "the plumber has not been called yet" is a fact about THIS point in
+            the build, and it belongs where the plumber belongs. */}
+        {idle.map((t) => (
+          <button key={t.trade} type="button"
+            className={`tp idle${went[t.trade] ? " went" : ""}${asking === t.trade ? " asking" : ""}`}
+            disabled={busy === t.trade || !!went[t.trade]}
+            title={`${t.trade} — not started${t.who ? ` · ${t.who} has worked here before` : ""}`}
+            onClick={() => {
+              if (went[t.trade]) return;
+              if (asking === t.trade) void start(t.trade);
+              else { setAsking(t.trade); setErr(""); }
+            }}>
+            {went[t.trade] ? (
+              <>
                 <span className="art" aria-hidden><TradeIllustration name={t.art} /></span>
-                <span className="grow" style={{ minWidth: 0 }}>
-                  <span className="t">{t.trade}</span>
-                  <span className="m">
-                    {[SAY[t.state], t.who].filter(Boolean).join(" · ")}
-                  </span>
-                  {/* WHAT IS ACTUALLY HAPPENING IN IT, not only how much of it
-                      there is. One line is enough to recognise the trade's
-                      state without opening it; the rest is inside. */}
-                  {t.now[0] && (
-                    <span className="nx">
-                      {t.now[0].action}
-                      {t.now.length > 1 ? ` · +${t.open - 1} more` : ""}
-                    </span>
-                  )}
-                </span>
-                <span className="nums">
-                  <span className="n">{t.open}</span>
-                  {t.late > 0 && <span className="lt">{t.late} late</span>}
-                  {t.late === 0 && t.next_due && (
-                    <span className="due">{t.next_due <= today ? "today" : shortDate(t.next_due)}</span>
-                  )}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      ))}
+                {t.stage && <span className="st">{shortStage(t.stage)}</span>}
+                <span className="t">{t.trade}</span>
+                <span className="f"><span className="say">bid started</span></span>
+              </>
+            ) : asking === t.trade ? (
+              <span className="ask">
+                <span className="q">Run the bid for {t.trade}?</span>
+                <span className="y">{busy === t.trade ? "…" : "Yes — start it"}</span>
+              </span>
+            ) : face(t)}
+          </button>
+        ))}
+      </div>
 
-      {/* THE TRADES THIS JOB NEEDS AND NOBODY HAS STARTED. The database only
-          hands these to somebody who runs the job - the plan is not a trade's
-          business - and the screen checks the same thing rather than trusting
-          an empty list to mean the right thing. */}
+      {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
       {manages && idle.length > 0 && (
-        <div className="stack" style={{ gap: 8 }}>
-          <div className="divider-label" style={{ padding: 0 }}>Not started · {idle.length}</div>
-          <StartTrade projectId={projectId}
-            trades={idle.map((t) => ({ trade: t.trade, who: t.who }))} />
-        </div>
+        <p className="tiny text-muted" style={{ margin: 0 }}>
+          A dashed tile is a trade this job needs and nobody has started. Tapping one writes a single
+          line on you — <em>Run the bid for …</em> — filed under the trade and invisible to the trades.
+        </p>
       )}
 
       {/* Whatever the spine could not place. Never folded into a trade that
