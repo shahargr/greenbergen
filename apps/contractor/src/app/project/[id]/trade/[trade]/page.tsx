@@ -120,8 +120,27 @@ export default async function TradePage({
 
         {/* THE WORK. */}
         <section className="stack" style={{ gap: 14 }}>
-          <div className="divider-label">
-            {show === "done" ? "Done" : show === "all" ? "All work" : "Open work"} · {shown.length}
+          <div className="between" style={{ alignItems: "baseline", gap: 10 }}>
+            <div className="divider-label" style={{ padding: 0 }}>
+              {show === "done" ? "Done" : show === "all" ? "All work" : "Open work"} · {shown.length}
+            </div>
+            {/* WRITE IT DOWN WHERE YOU ARE STANDING. Shahar (2026-09-15):
+                "when you're getting into a trade with all the tasks
+                underneath, be able to log immediate tasks right away. So from
+                that screen, you can log a task. The task automatically is
+                created to that specific trade."
+
+                The trade rides along on the link, so the new-task screen
+                opens already filed under it - and if this row is a PROPERTY
+                rather than a job, it carries through the "which project?"
+                hop as well, because the answer to that question does not
+                change which trade you were looking at. */}
+            {manages && (
+              <Link href={`/project/${id}/task/new?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}
+                className="btn btn-secondary small" style={{ minHeight: 32 }}>
+                + New {trade.toLowerCase()} task
+              </Link>
+            )}
           </div>
           <nav className="chips" aria-label="Which tasks">
             <Chip href={`/project/${id}/trade/${raw}`} on={!show} label={`Open · ${open.length}`} />

@@ -418,3 +418,10 @@
 .passes li.done .n { background: var(--color-ok); color: var(--color-ok-soft); }
 /* On a narrow phone the labels go and the numbers carry it. */
 @media (max-width: 380px) { .passes li .l { display: none; } .passes li { justify-content: center; } }
+
+/* The tile you are standing in, on the open-work list (Shahar, 2026-09-15:
+   "put the trades first"). The grid is the project screen's; this is the one
+   thing it never needed, because there a tile was always a door out. Here it
+   is a filter, so it has to be able to look chosen. */
+.trade-tile.on { border-color: var(--color-text); background: var(--color-soft-2); }
+.trade-tile.on .t { text-decoration: underline; text-underline-offset: 3px; }

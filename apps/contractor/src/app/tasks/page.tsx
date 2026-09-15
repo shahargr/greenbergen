@@ -5,6 +5,7 @@ import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
 import { getBoard, nest, priorityRank, topLevels, type Task } from "@/lib/board";
+import { TradeIllustration } from "@shared/Illustrations";
 import { SearchBox } from "@/components/SearchBox";
 import { TaskTable } from "@/components/TaskTable";
 import { matchesQuery } from "@/lib/search";
@@ -23,6 +24,9 @@ export const metadata = { title: "Tasks" };
 const today = () => new Date().toISOString().slice(0, 10);
 
 type Sub = { key: string; label: string; rows: Task[]; late: number };
+// A trade on the board, as a door rather than a heading (Shahar, 2026-09-15:
+// "put the trades first, the icons, and then the list of the task").
+type Trade = { key: string; label: string; art: string | null; n: number; late: number };
 type Group = { key: string; label: string; subs: Sub[]; open: number; late: number };
 
 const CAP = 10; // rows per job before the group sends you to its own page
@@ -30,9 +34,12 @@ const CAP = 10; // rows per job before the group sends you to its own page
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ who?: string; show?: string; project?: string; q?: string; back?: string }>;
+  searchParams: Promise<{ who?: string; show?: string; project?: string; q?: string; back?: string; trade?: string }>;
 }) {
-  const { who, show, project, q: qRaw, back } = await searchParams;
+  const { who, show, project, q: qRaw, back, trade: tradeRaw } = await searchParams;
+  // "none" is the everything-else catcher: real work with no trade recorded,
+  // which on 55 Walnut is the biggest pile there is.
+  const trade = (tradeRaw ?? "").trim() || null;
   const query = (qRaw ?? "").trim();
   // Where the back arrow goes when somebody arrived from a screen of their
   // own - the project's "Show all tasks" row. Without it, back drops you on
@@ -69,9 +76,37 @@ export default async function TasksPage({
     };
   };
 
+  // WHAT IS IN EACH TRADE, counted before the trade filter is applied - a
+  // tile has to say how much is behind it, which is the whole reason it is a
+  // tile and not a word.
+  const inTrade = byWho
+    .filter((t) => (show === "late" ? isLate(t) : show === "high" ? t.priority === "High" : true))
+    .filter((t) => !project || groupOf(t).key === project)
+    .filter((t) => matchesQuery(query, [t.action, t.notes, t.project, groupOf(t).label, t.trade, t.assignee, t.status]));
+  const trades: Trade[] = [];
+  const tradeIndex = new Map<string, Trade>();
+  for (const t of inTrade) {
+    const key = t.trade ?? "none";
+    let g = tradeIndex.get(key);
+    if (!g) {
+      g = { key, label: t.trade ?? "Everything else", art: t.trade_art ?? null, n: 0, late: 0 };
+      tradeIndex.set(key, g);
+      trades.push(g);
+    }
+    g.n += 1;
+    if (isLate(t)) g.late += 1;
+  }
+  // What is behind first, then where the work is. "Everything else" goes last
+  // whatever its size: it is a pile, not a trade.
+  trades.sort((a, b) =>
+    (a.key === "none" ? 1 : 0) - (b.key === "none" ? 1 : 0) ||
+    b.late - a.late || b.n - a.n || a.label.localeCompare(b.label));
+  const onTrade = trades.find((x) => x.key === trade) ?? null;
+
   const rows = byWho
     .filter((t) => (show === "late" ? isLate(t) : show === "high" ? t.priority === "High" : true))
     .filter((t) => !project || groupOf(t).key === project)
+    .filter((t) => !trade || (t.trade ?? "none") === trade)
     // The search (Shahar: "find relevant tasks faster"): subject, notes,
     // job, property, trade, person, status - any word, in any order.
     .filter((t) => matchesQuery(query, [t.action, t.notes, t.project, groupOf(t).label, t.trade, t.assignee, t.status]));
@@ -121,13 +156,13 @@ export default async function TasksPage({
   // this list, filters and all.
   const here = (() => {
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ who, show, project, q: query || undefined, back: cameFrom || undefined })) if (v) p.set(k, v);
+    for (const [k, v] of Object.entries({ who, show, project, trade: trade || undefined, q: query || undefined, back: cameFrom || undefined })) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/tasks?${s}` : "/tasks";
   })();
   const q = (over: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const merged = { who, show, project, q: query || undefined, back: cameFrom || undefined, ...over };
+    const merged = { who, show, project, trade: trade || undefined, q: query || undefined, back: cameFrom || undefined, ...over };
     for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
     const s = p.toString();
     return s ? `/tasks?${s}` : "/tasks";
@@ -196,6 +231,43 @@ export default async function TasksPage({
             </div>
           </details>
         </div>
+
+        {/* TRADES FIRST, THEN THE WORK. Shahar (2026-09-15): "instead of
+            starting with the task and then doing by trade, put the trades
+            first... the icons, and then the list of the task. And it's okay
+            to put like an all catcher, everything else."
+
+            A trade is how a build divides up, and a person on site thinks
+            "what is Framing waiting on" long before they think "what is task
+            114". The drawing does the reading: nine names in a column all
+            look alike, nine pictures do not. What has no trade recorded is a
+            pile rather than a trade, so it is last whatever its size - and it
+            is offered rather than hidden, because that pile IS the list of
+            what still needs classifying. */}
+        {trades.length > 1 && (
+          <section className="stack" style={{ gap: 6 }}>
+            <div className="divider-label" style={{ padding: 0 }}>
+              {onTrade ? onTrade.label : "By trade"}
+              {onTrade && (
+                <>
+                  {" · "}
+                  <Link href={q({ trade: undefined })} style={{ fontWeight: 700 }}>every trade</Link>
+                </>
+              )}
+            </div>
+            <div className="trade-grid">
+              {trades.map((x) => (
+                <Link key={x.key} href={q({ trade: x.key === trade ? undefined : x.key })}
+                  className={`trade-tile${x.key === trade ? " on" : ""}`} scroll={false}>
+                  <span className="art" aria-hidden><TradeIllustration name={x.art} /></span>
+                  <span className="t">{x.label}</span>
+                  <span className="n">{x.n} {x.n === 1 ? "task" : "tasks"}</span>
+                  {x.late > 0 && <span className="late">{x.late} late</span>}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {groups.map((g) => {
           // A property with late work opens itself; the rest stay folded, so

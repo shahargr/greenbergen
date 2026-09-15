@@ -66,7 +66,8 @@ type Contract = { id: string; label: string };
 // and carry on is the only way forward, and it costs nothing when there is
 // nothing to save: closing the app is the skip.
 export function NewTaskForm({
-  projectId, back, types, people, payees, trades, contracts, openTasks, defaultParent = null,
+  projectId, back, types, people, payees, trades, contracts, openTasks,
+  defaultParent = null, defaultTrade = null,
 }: {
   projectId: string | null;
   /** Where Done goes when the person would rather not open the task. */
@@ -83,6 +84,10 @@ export function NewTaskForm({
   openTasks: { id: string; label: string }[];
   // Set when this was opened from inside a task ("Add a step under this one").
   defaultParent?: string | null;
+  // Set when this was opened from a trade's own screen. The task is filed
+  // under that trade without being asked - you were looking at Framing, so
+  // the thing you just thought of is a Framing task.
+  defaultTrade?: string | null;
 }) {
   const router = useRouter();
 
@@ -96,7 +101,7 @@ export function NewTaskForm({
   const [delivers, setDelivers] = useState<"work" | "product">("work");
   const [description, setDescription] = useState("");
   const [type, setType] = useState("");
-  const [trade, setTrade] = useState("");
+  const [trade, setTrade] = useState(defaultTrade ?? "");
   const [cost, setCost] = useState("");
   const [payTo, setPayTo] = useState("");
 
@@ -160,7 +165,10 @@ export function NewTaskForm({
       p_description: description.trim() || null,
       p_target_cost: money ? num(cost) : null,
       p_pay_to_contact: money ? (payTo || null) : null,
-      p_trade: money ? (trade || null) : null,
+      // NOT gated on the money kind. A trade is how the work is filed, not
+      // a detail of its price, and a task opened from a trade's screen is
+      // filed under it whatever kind it turns out to be.
+      p_trade: trade || null,
       p_parent: parent || null,
     });
     setBusy(false);
@@ -278,7 +286,7 @@ export function NewTaskForm({
       // The work is what the contract is called until somebody is appointed:
       // a list of rows all named "(placeholder)" is a list nobody can use.
       p_title: shell.who || shell.company.trim() ? null : name.trim() || null,
-      p_trade: (money && trade) || null,
+      p_trade: trade || null,
       p_counterparty: shell.who || null,
       p_company_name: shell.who ? null : (shell.company.trim() || null),
       p_amount: money ? num(cost) : null,
@@ -320,6 +328,16 @@ export function NewTaskForm({
       {/* ================= 1. WHAT IT IS ================= */}
       {step === 1 && (
         <>
+          {/* FILED WHERE YOU WERE STANDING. Opened from a trade's screen, the
+              trade is already answered - saying so beats a pre-selected field
+              buried behind the money questions, which is where the Trade
+              select lives. */}
+          {defaultTrade && (
+            <p className="small" style={{ margin: 0 }}>
+              Filed under <strong>{defaultTrade}</strong>.
+            </p>
+          )}
+
           <label className="field">
             <span className="field-label">What has to happen</span>
             <input className="input" value={name} onChange={(e) => setName(e.target.value)}

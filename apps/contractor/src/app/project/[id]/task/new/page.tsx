@@ -55,10 +55,12 @@ export default async function NewTaskPage({
   // `parent` arrives when this was opened from inside a task: "Add a step
   // under this one". It is pre-picked below rather than left for the person
   // to find again in a list of a hundred and twenty-nine.
-  searchParams: Promise<{ back?: string; error?: string; from?: string; pick?: string; parent?: string }>;
+  // `trade` arrives when this was opened from a trade's own screen: the task
+  // is filed under it without being asked (Shahar, 2026-09-15).
+  searchParams: Promise<{ back?: string; error?: string; from?: string; pick?: string; parent?: string; trade?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, from, pick, parent } = await searchParams;
+  const { back, error, from, pick, parent, trade: tradeQ } = await searchParams;
   const parentId = parent && /^[0-9a-f-]{36}$/i.test(parent) ? parent : null;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
 
@@ -108,13 +110,15 @@ export default async function NewTaskPage({
     if (targets.default_id && pick !== "1") {
       const q = new URLSearchParams({ back: to, from: id });
       if (parentId) q.set("parent", parentId);
+      if (tradeQ) q.set("trade", tradeQ);
       redirect(`/project/${targets.default_id}/task/new?${q.toString()}`);
     }
     const options = targets.options ?? [];
     const work = options.filter((o) => !o.standing);
     const standing = options.filter((o) => o.standing);
     const row = (o: Targets["options"][number]) => (
-      <Link key={o.id} href={`/project/${o.id}/task/new?back=${encodeURIComponent(to)}`} className="home-row">
+      <Link key={o.id} className="home-row"
+        href={`/project/${o.id}/task/new?back=${encodeURIComponent(to)}${tradeQ ? `&trade=${encodeURIComponent(tradeQ)}` : ""}`}>
         <span className="grow" style={{ minWidth: 0 }}>
           <span className="t">{o.name}</span>
           <span className="m" style={{ display: "block" }}>
@@ -190,6 +194,9 @@ export default async function NewTaskPage({
     .find((x) => x.project_id === id)?.people
     .map((p) => ({ contact_id: p.contact_id, name: p.name, seat: p.seat, rank: p.rank ?? 0 })) ?? [];
 
+  // A trade off the URL is untrusted: it only counts if it is one of ours.
+  const onTrade = tradeQ && trades.includes(tradeQ) ? tradeQ : null;
+
   return (
     <Screen>
       <AppBar back={to} title="New task" sub={here} />
@@ -224,7 +231,7 @@ export default async function NewTaskPage({
             something a single posting form can do. */}
         <NewTaskForm projectId={id} back={to} types={types} people={people}
           payees={payeeData ?? []} trades={trades} contracts={contracts} openTasks={openTasks}
-          defaultParent={parentOf ? parentId : null} />
+          defaultParent={parentOf ? parentId : null} defaultTrade={onTrade} />
       </div>
     </Screen>
   );
