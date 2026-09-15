@@ -26,24 +26,44 @@ export const metadata = { title: "Green Bergen" };
 // list of things that did not happen is an odd thing to greet somebody with,
 // and the record is not lost: a cancelled booking is still on its own project
 // page, and the ledger and the timeline still have all of it.
-type Bucket = "all" | "lining" | "under" | "done";
-// Three honest groups, from project_progress's own ordering (migration 119):
-// everything before a contractor is actually on it, everything while they
-// are, and everything finished. "In progress" as a heading was the problem -
-// it meant nothing more than "not closed".
+type Bucket = "all" | "offers" | "going" | "done";
+// TWO GROUPS AND A DRAWER. Shahar (2026-09-15): "Change under way to on-going
+// (DIY or Awarded) / Change lining up to pending offers / Remove done,
+// keeping all."
 //
-// THE ORDER IS THE PRIORITY. Shahar (2026-09-15): "the default should be
-// under way, and list on the left. than done, and last all." What is
-// happening right now is what you opened the app to see; everything ever is
-// the last thing you want, so it is the last tab rather than the first.
-const BUCKETS: { key: Bucket; label: string }[] = [
-  { key: "under", label: "Under way" }, { key: "lining", label: "Lining up" },
-  { key: "done", label: "Done" }, { key: "all", label: "All" },
+// The old pair split on how far along a job was - before a contractor was on
+// it, and after - which put "Improvements" at 52 Ryerson, three things on a
+// list that nobody has been asked to do, under "Lining up", as though an
+// offer were coming. Nothing is out on it. Nobody has been asked. It is his
+// own work to do, and lining up is not what it is doing.
+//
+// The split is now WHO YOU ARE WAITING FOR, which is the only question with
+// two different answers:
+//
+//   Pending offers          somebody has been ASKED and has not answered.
+//   On-going (DIY or        nobody is being waited on: either a contractor
+//   Awarded)                has it, or you do.
+//
+// Done is no longer a tab. Finished work is not something you go looking for
+// on the home screen - but it is not hidden either: it keeps its section
+// under All, which is the tab that means "everything, nothing left out".
+const TABS: { key: Bucket; label: string }[] = [
+  { key: "going", label: "On-going (DIY or Awarded)" },
+  { key: "offers", label: "Pending offers" },
+  { key: "all", label: "All" },
 ];
+// The sections under All, in this order. Done has a heading without having a
+// tab, which is the whole point of keeping it here.
+const ORDER: Exclude<Bucket, "all">[] = ["going", "offers", "done"];
+const SECTION: Record<Exclude<Bucket, "all">, string> = {
+  going: "On-going (DIY or Awarded)",
+  offers: "Pending offers",
+  done: "Done",
+};
 // The bare /project URL means this one, so it is the tab that carries no
 // query string - and an empty screen is never the default, so if nothing is
-// under way the first tab with anything on it opens instead.
-const DEFAULT_BUCKET: Bucket = "under";
+// on-going the first tab with anything on it opens instead.
+const DEFAULT_BUCKET: Bucket = "going";
 
 // ONE ROW PER JOB, booked or not (migration 116). Shahar, with two
 // screenshots: "as professional i see both Ran and My own generator project.
@@ -63,11 +83,21 @@ type Row =
 // a project is BORN with. project_progress reads the stage AND checks it
 // against the record - people, contracts, money, bids, finished work - and
 // says the smaller true thing when the claim is not supported.
+// It keys off project_progress's KEY rather than its order, because the
+// question is no longer "how far along" - it is "is anybody being waited on",
+// and the three keys that mean yes do not sit together on the ladder.
 const bucketOf = (r: Row): Exclude<Bucket, "all"> | "cancelled" => {
-  const s = r.p.progress_label;
-  if (s?.key === "cancelled") return "cancelled";
-  const o = s?.order ?? 0;
-  return o >= 9 ? "done" : o >= 6 ? "under" : "lining";
+  const k = r.p.progress_label?.key;
+  if (k === "cancelled") return "cancelled";
+  if (k === "done") return "done";
+  // bid     - the scope is out, no prices back yet
+  // finding - posted to the community, nobody has taken it
+  // compare - prices are in and none of them is accepted
+  // Everything else is either running or sitting on your own list, and both
+  // of those are on-going: a job with a contractor on it, and a job you have
+  // not asked anybody about, are the same in the one way that matters here -
+  // nobody owes you an answer.
+  return k === "bid" || k === "finding" || k === "compare" ? "offers" : "going";
 };
 
 // Semantic colour, not decoration: finished is good, somebody working is
@@ -100,7 +130,10 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // count missed offers, questions and anything else addressed to you.
   // my_unread_count() is the same predicate the inbox list calls `pending`.
   const unread = await unreadForShell();
-  const asked: Bucket | null = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : null;
+  // "done" is still accepted here though it has no tab any more, so an old
+  // link to the finished list still lands where it meant to.
+  const asked: Bucket | null =
+    show === "all" || ORDER.some((k) => k === show) ? (show as Bucket) : null;
 
   // THE SHOP WINDOW, THE WAY THE FRONT DOOR SHOWS IT.
   //
@@ -126,13 +159,12 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
     return b ? { kind: "booking" as const, project_id: p.project_id, b, p } : { kind: "project" as const, project_id: p.project_id, p };
   });
   const mine = onlyHome ? all.filter((r) => r.p.home_project_id === onlyHome.project_id) : all;
-  const counts = { all: 0, lining: 0, under: 0, done: 0 } as Record<Bucket, number>;
+  const counts = { all: 0, going: 0, offers: 0, done: 0 } as Record<Bucket, number>;
   for (const r of mine) { const k = bucketOf(r); if (k !== "cancelled") { counts[k]++; counts.all++; } }
-  const order: Exclude<Bucket, "all">[] = ["under", "lining", "done"];
-  // Nobody asked, so: what is under way - unless nothing is, in which case
-  // the first tab that has something on it, and "All" if none of them do.
+  // Nobody asked, so: what is on-going - unless nothing is, in which case the
+  // first tab that has something on it, and "All" if none of them do.
   const filter: Bucket = asked
-    ?? (counts[DEFAULT_BUCKET] > 0 ? DEFAULT_BUCKET : order.find((k) => counts[k] > 0) ?? "all");
+    ?? (counts[DEFAULT_BUCKET] > 0 ? DEFAULT_BUCKET : ORDER.find((k) => counts[k] > 0) ?? "all");
   const shown = mine.filter((r) => { const k = bucketOf(r); return k !== "cancelled" && (filter === "all" || k === filter); });
   const manyHomes = me.homes.length > 1;
   const href = (b: Bucket) => {
@@ -226,7 +258,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
 
             {mine.length > 0 && (
               <nav className="chips" aria-label="Filter projects">
-                {BUCKETS.filter((x) => x.key === "all" || counts[x.key] > 0).map((x) => (
+                {TABS.filter((x) => x.key === "all" || counts[x.key] > 0).map((x) => (
                   <Link key={x.key} href={href(x.key)} className={`tag ${filter === x.key ? "" : "tag-neutral"}`} aria-current={filter === x.key ? "page" : undefined} style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }}>
                     {x.label} · {counts[x.key]}
                   </Link>
@@ -234,12 +266,12 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
               </nav>
             )}
 
-            {(filter === "all" ? order : [filter as Exclude<Bucket, "all">]).map((k) => {
+            {(filter === "all" ? ORDER : [filter as Exclude<Bucket, "all">]).map((k) => {
               const rows = shown.filter((r) => bucketOf(r) === k);
               if (rows.length === 0) return null;
               return (
                 <section className="stack" style={{ gap: 10 }} key={k}>
-                  {filter === "all" && <div className="divider-label">{BUCKETS.find((x) => x.key === k)?.label}</div>}
+                  {filter === "all" && <div className="divider-label">{SECTION[k]}</div>}
                   {rows.map((r) => r.kind === "booking"
                     ? <BookingRow key={r.project_id} b={r.b} showHome={manyHomes && !onlyHome} />
                     : <ProjectRow key={r.project_id} p={r.p} showHome={manyHomes && !onlyHome} />)}
