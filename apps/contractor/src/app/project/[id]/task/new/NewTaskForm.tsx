@@ -61,9 +61,10 @@ type Contract = { id: string; label: string };
 //                         carried along in a hidden field.
 //
 // Every pass after the first is a patch, so stopping at any of them leaves a
-// task that is correct as far as it goes. The Skip on two and three is not
-// politeness: a task with a name is already useful, and pretending otherwise
-// is how a two-line note becomes a form nobody fills in.
+// task that is correct as far as it goes - which is why there is no Skip on
+// pass two (Shahar, 2026-09-15: "Remove the skip to the picture option"). Save
+// and carry on is the only way forward, and it costs nothing when there is
+// nothing to save: closing the app is the skip.
 export function NewTaskForm({
   projectId, back, types, people, payees, trades, contracts, openTasks, defaultParent = null,
 }: {
@@ -122,7 +123,7 @@ export function NewTaskForm({
   // Making a contract that does not exist yet.
   const [shelling, setShelling] = useState(false);
   const [shellErr, setShellErr] = useState("");
-  const [shell, setShell] = useState({ who: "", company: "", amount: "" });
+  const [shell, setShell] = useState({ who: "", company: "" });
 
   const chosen = types.find((t) => t.action_type === type) ?? null;
   // The money questions belong to the KIND, not to this component's opinion
@@ -166,6 +167,20 @@ export function NewTaskForm({
   // ---- pass two: patch ----------------------------------------------------
   async function savePassTwo() {
     if (!taskId) return;
+    // THE SHELL CONTRACT IS PART OF THIS SAVE. An open panel with nobody named
+    // is not silently ignored - that would lose a decision somebody was in the
+    // middle of making. Cancel is how you close it without one.
+    let deal = contract;
+    if (shelling) {
+      if (!shell.who && !shell.company.trim()) {
+        setShellErr("Say who it will be with — somebody on the job, or a company name. Cancel if you would rather not.");
+        return;
+      }
+      setBusy(true); setErr(""); setShellErr("");
+      const made = await makeShell();
+      if (!made) { setBusy(false); return; }
+      deal = made;
+    }
     setBusy(true); setErr("");
     const supabase = createClient();
     // The parent FIRST, because "blocks whatever it is part of" is refused
@@ -184,7 +199,7 @@ export function NewTaskForm({
         assignee: assignee || null,
         target_date: due || null,
         priority,
-        contract: contract || null,
+        contract: deal || null,
         requires_photo: needsPhoto,
         is_gate: gate,
       },
@@ -235,30 +250,36 @@ export function NewTaskForm({
 
   // A CONTRACT THAT DOES NOT EXIST YET. Shahar (2026-09-15): "if no contract
   // can be attached, you need to enable me create a shell contract that will
-  // be used later but referenced already from the start."
-  async function makeShell() {
-    if (!projectId) return;
-    if (!shell.who && !shell.company.trim()) {
-      setShellErr("Say who it will be with — somebody on the job, or a company name.");
-      return;
-    }
-    setBusy(true); setShellErr("");
-    const supabase = createClient();
-    const { data, error } = await supabase.rpc("portal_contract_shell", {
+  // be used later but referenced already from the start" - and then: "If
+  // selecting someone not on the job yet, the save and carry on should create
+  // a new contract."
+  //
+  // So there is no button of its own any more. Filling the panel in IS the
+  // decision; Save and carry on makes the contract and ties this task to it in
+  // the same breath, which is one press instead of two for something nobody
+  // would fill in and then not want.
+  //
+  // It carries the target cost from pass one rather than asking again ("you
+  // already have budget from previously"). A shell contract's value is what
+  // you expect to spend on the work it covers, and that number has already
+  // been typed once on this screen.
+  async function makeShell(): Promise<string | null> {
+    if (!projectId) return null;
+    const { data, error } = await createClient().rpc("portal_contract_shell", {
       p_project: projectId,
       p_trade: (money && trade) || null,
       p_counterparty: shell.who || null,
       p_company_name: shell.who ? null : shell.company.trim(),
-      p_amount: num(shell.amount),
+      p_amount: money ? num(cost) : null,
     });
-    setBusy(false);
-    if (error) { setShellErr(friendly(error.message)); return; }
-    if (!data?.ok) { setShellErr(data?.reason ?? "That contract was not made."); return; }
+    if (error) { setShellErr(friendly(error.message)); return null; }
+    if (!data?.ok) { setShellErr(data?.reason ?? "That contract was not made."); return null; }
     const row = { id: data.id as string, label: data.label as string };
     setDeals((list) => [row, ...list]);
     setContract(row.id);
     setShelling(false);
-    setShell({ who: "", company: "", amount: "" });
+    setShell({ who: "", company: "" });
+    return row.id;
   }
 
   return (
@@ -521,12 +542,10 @@ export function NewTaskForm({
               <div className="card pad stack" style={{ gap: 8, marginTop: 6 }}>
                 <div className="between">
                   <span className="small" style={{ fontWeight: 700 }}>Start a shell contract</span>
-                  <button type="button" className="btn btn-ghost small" onClick={() => setShelling(false)}>Cancel</button>
+                  <button type="button" className="btn btn-ghost small" onClick={() => { setShelling(false); setShellErr(""); }}>
+                    Cancel
+                  </button>
                 </div>
-                <p className="tiny text-muted" style={{ margin: 0 }}>
-                  A placeholder: no value agreed, no scope, nothing signed — but the work is tied to it from
-                  today, so when the real terms exist you fill this one in rather than starting a second one.
-                </p>
                 <select className="input" value={shell.who} onChange={(e) => setShell({ ...shell, who: e.target.value })}>
                   <option value="">Somebody not on the job yet</option>
                   {crew.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
@@ -535,16 +554,11 @@ export function NewTaskForm({
                   <input className="input" placeholder="Company it will be with" value={shell.company}
                     onChange={(e) => setShell({ ...shell, company: e.target.value })} />
                 )}
-                <span className="input-money">
-                  <span className="input-money-mark" aria-hidden>$</span>
-                  <input className="input" inputMode="decimal" placeholder="Expected value (optional)"
-                    value={shell.amount} onChange={(e) => setShell({ ...shell, amount: e.target.value })} />
-                </span>
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  Save and carry on makes it and ties this task to it.
+                  {money && num(cost) !== null && " It carries the target cost you already gave."}
+                </p>
                 {shellErr && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{shellErr}</p>}
-                <button type="button" className="btn btn-secondary" disabled={busy}
-                  onClick={() => { void makeShell(); }}>
-                  {busy ? "Making…" : "Make it and tie this task to it"}
-                </button>
               </div>
             )}
           </div>
@@ -552,10 +566,6 @@ export function NewTaskForm({
           <button type="button" className="btn btn-primary btn-block" disabled={busy}
             onClick={() => { void savePassTwo(); }}>
             {busy ? "Saving…" : "Save and carry on"}
-          </button>
-          <button type="button" className="btn btn-ghost btn-block" disabled={busy}
-            onClick={() => setStep(3)}>
-            Skip to the pictures
           </button>
         </>
       )}
