@@ -104,7 +104,11 @@ export function AppBar({
 }: { // A string is a fixed destination; a function is the page's own step
      // logic; { fallback } goes back through the browser's history while a
      // page of ours is behind this one, else to the fallback (BackButton).
-     back?: string | (() => void) | { fallback: string }; title?: string; sub?: string; right?: ReactNode; brand?: boolean;
+     back?: string | (() => void) | { fallback: string };
+     // Usually the screen's name. A node, so a screen can hang one control
+     // off the name itself - the project screen puts its gear there (Shahar,
+     // 2026-09-15: "Place the gear button next to the Project name").
+     title?: ReactNode; sub?: ReactNode; right?: ReactNode; brand?: boolean;
      // Overrides the build's door for the logo line. Rarely needed: the app
      // already knows which door it is - the exception is the inbox, which is
      // one page serving every door and names the one you came through.

@@ -22,13 +22,23 @@ import { ChevronIcon } from "@shared/ui";
 // only about the job running. `lifecycle` is server-rendered on the page -
 // those forms post to server actions and have no business being in a client
 // component - and is simply given a place here.
-export function ProjectSetup({ projectId, url, own, stock, canEdit, scopeLines, scopeTrades, lifecycle }: {
-  projectId: string; url: string | null; own: boolean; stock: boolean; canEdit: boolean;
+// THE PHOTO IS GONE FROM THIS SCREEN. Shahar (2026-09-15): "Remove the photo
+// to reduce traffic." It was a signed storage URL fetched on every open of
+// every project, 150px tall, to say what the type icon now says for nothing.
+// Changing it still lives HERE, behind the gear, because that is where the
+// things you set once belong - the screen simply no longer shows the result.
+//
+// And the gear itself has left this component (Shahar, same message: "Place
+// the gear button next to the Project name"). It is a link in the app bar
+// carrying ?setup=1, the way the task screen's gear already worked, so this
+// panel is opened by the server and `open` arrives as a prop.
+export function ProjectSetup({ projectId, own, stock, canEdit, open, closeHref, scopeLines, scopeTrades, lifecycle }: {
+  projectId: string; own: boolean; stock: boolean; canEdit: boolean;
+  open: boolean; closeHref: string;
   scopeLines: number; scopeTrades: number; lifecycle?: React.ReactNode;
 }) {
   const router = useRouter();
   const pick = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
 
@@ -55,7 +65,7 @@ export function ProjectSetup({ projectId, url, own, stock, canEdit, scopeLines, 
     setBusy("");
     if (error) { setErr(friendly(error.message)); return; }
     if (!data?.ok) { setErr(data?.reason ?? "Could not set the photo."); return; }
-    setOpen(false);
+    setErr("");
     router.refresh();
   }
 
@@ -64,46 +74,18 @@ export function ProjectSetup({ projectId, url, own, stock, canEdit, scopeLines, 
       onChange={(e) => { void upload(e.target.files); e.target.value = ""; }} />
   );
 
+  if (!canEdit || !open) return null;
+
   return (
     <div className="stack" style={{ gap: 6 }}>
-      <div style={{ position: "relative" }}>
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="shot" src={url} alt=""
-            style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: "var(--radius-tile)", display: "block" }} />
-        ) : canEdit ? (
-          <button type="button" className="cover-empty" disabled={!!busy} onClick={() => pick.current?.click()}>
-            <span style={{ fontSize: 22 }} aria-hidden>📷</span>
-            <strong>{busy || "Add a photo of this project"}</strong>
-            <span className="tiny text-muted">It becomes the face on the board.</span>
-          </button>
-        ) : (
-          <div className="cover-empty" aria-hidden><span style={{ fontSize: 22 }}>🏗</span></div>
-        )}
-
-        {canEdit && (
-          <button type="button" className="cover-gear" aria-label="Set this project up"
-            aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-            <GearIcon />
-          </button>
-        )}
-      </div>
-
-      {canEdit && !own && url && !open && (
-        <p className="tiny text-muted" style={{ margin: 0 }}>
-          {stock
-            ? "Showing the standard photo for this kind of job until this project has one of its own."
-            : "Showing the house's photo until this project has one of its own."}
-        </p>
-      )}
       {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
 
       {/* Set-up, not running: opened from the gear, shut the rest of the time. */}
-      {canEdit && open && (
+      {(
         <div className="card pad stack" style={{ gap: 8 }}>
           <div className="between">
             <span className="small" style={{ fontWeight: 700 }}>Set this project up</span>
-            <button type="button" className="btn btn-ghost small" onClick={() => setOpen(false)}>Done</button>
+            <Link href={closeHref} className="btn btn-ghost small" scroll={false}>Done</Link>
           </div>
           <p className="tiny text-muted" style={{ margin: 0 }}>
             The things you set once, usually when the job is created.
@@ -114,7 +96,7 @@ export function ProjectSetup({ projectId, url, own, stock, canEdit, scopeLines, 
             <span className="grow" style={{ minWidth: 0 }}>
               <span className="t">{busy || (own ? "Change the photo" : "Give it its own photo")}</span>
               <span className="m" style={{ display: "block" }}>
-                {own ? "The face on the board and on this screen"
+                {own ? "The face on the board"
                   : stock ? "It is wearing the standard photo for this kind of job"
                   : "It is wearing the house's photo right now"}
               </span>
@@ -149,11 +131,3 @@ export function ProjectSetup({ projectId, url, own, stock, canEdit, scopeLines, 
     </div>
   );
 }
-
-const GearIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-  </svg>
-);

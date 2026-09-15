@@ -354,3 +354,34 @@ export async function deleteTask(formData: FormData) {
   revalidatePath("/");
   redirect(back);
 }
+
+// HOW A TASK FITS: what it waits on, what waits on it, what it is a step of.
+//
+// Shahar (2026-09-15): "allow to create dependencies between tasks : after ...
+// or before ... / allow a task to point to a parent task."
+//
+// One action for all four moves, because they are one database call
+// (portal_task_link, migration 130) and one place to come back to. "After"
+// and "before" are the same edge written from opposite ends - the function
+// decides which row it touches, and therefore whose project has to let you
+// write - so the screen can offer both without the app having to know that.
+export async function linkTask(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const back = safeBack(formData.get("back"));
+  const rel = String(formData.get("rel") ?? "");
+  // An empty pick is the clear, which is exactly what the database wants:
+  // a null other means "cut this link".
+  const other = txt(formData.get("other"));
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, fit: "1", ...extra });
+  if (!id || !rel) redirect(here({}));
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_task_link", {
+    p_action: id, p_rel: rel, p_other: other,
+  });
+  if (error) redirect(here({ error: error.message }));
+  if (data?.ok === false) redirect(here({ error: data.reason ?? "That link was not made." }));
+  revalidatePath(`/task/${id}`);
+  revalidatePath("/tasks");
+  revalidatePath("/");
+  redirect(here({ ok: data?.cleared ? "Link removed." : "Linked." }));
+}

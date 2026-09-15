@@ -6,9 +6,10 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { TradeIllustration } from "@shared/Illustrations";
-import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupTasks, groupWork, money, nest, openBeneath, readMoney, runs, topLevels, type Group, type GroupKey, type Node, type Seat, type Task, type TaskMoney } from "@/lib/board";
+import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupTasks, groupWork, money, nest, openBeneath, readMoney, runs, seatLabel, topLevels, type Group, type GroupKey, type Node, type Seat, type Task, type TaskMoney } from "@/lib/board";
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
+import { ProjectTypeIcon } from "@/components/ProjectTypeIcon";
 import { SearchBox } from "@/components/SearchBox";
 import { TaskTable } from "@/components/TaskTable";
 import { matchesQuery } from "@/lib/search";
@@ -62,10 +63,10 @@ export default async function ProjectPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; q?: string; by?: string; show?: string; panel?: string; as?: string; who?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; q?: string; by?: string; show?: string; panel?: string; as?: string; who?: string; setup?: string }>;
 }) {
   const { id } = await params;
-  const { ok, error, q, by: byRaw, show, panel: panelRaw, as: asRaw, who } = await searchParams;
+  const { ok, error, q, by: byRaw, show, panel: panelRaw, as: asRaw, who, setup: setupQ } = await searchParams;
   // TRADE IS THE DEFAULT ARRANGEMENT NOW. Shahar (2026-09-13), looking at
   // one bucket holding almost everything: "where there are tasks open, club
   // them by trade. anything you don't know club under the owner." Timing is
@@ -358,6 +359,10 @@ export default async function ProjectPage({
   // "jimmy" has no meaning on the money panel, and carrying it there only
   // makes the back button lie. The lens is not view state, it is who you are
   // standing as, so it survives every hop on this screen.
+  // The set-up panel is opened by the gear on the name, as a query flag
+  // rather than client state - the same way the task screen's gear works, and
+  // the only way a server-rendered panel can be opened from the app bar.
+  const setupOpen = setupQ === "1";
   const keepAs = (extra = "") => {
     const p = new URLSearchParams(extra);
     if (asParam) p.set("as", asParam);
@@ -419,6 +424,9 @@ export default async function ProjectPage({
               t.open_children > 0
                 ? `${t.open_children} step${t.open_children === 1 ? "" : "s"} left`
                 : null,
+              // A step names its parent only when it is not drawn under it -
+              // the rail already says so where there is one.
+              depth === 0 && t.parent_title ? `part of ${t.parent_title}` : null,
               // Whatever the section is not already named after.
               by === "trade" || by === "phase" ? null : t.trade,
               by === "contract" ? null : t.contract,
@@ -471,11 +479,16 @@ export default async function ProjectPage({
   // off - `panel` decides which one answer this screen is showing - so the
   // record stays even though nothing draws a grid of it any more.
 
-  // One signed-URL round trip for the cover and everything hanging off the
-  // visits - they all live in the same private bucket.
+  // One signed-URL round trip for everything hanging off the visits and for
+  // the child jobs' faces - they all live in the same private bucket.
+  //
+  // THIS PROJECT'S OWN COVER IS NO LONGER IN THAT LIST. Shahar (2026-09-15):
+  // "Remove the photo to reduce traffic." It was signed and fetched on every
+  // open of every project screen to show a 150px band that said what the type
+  // icon now says for nothing. The photo itself is not gone - it is still the
+  // project's face on the board, and still changed from behind the gear.
   const visitPaths = panel === "visits" ? visits.flatMap((v) => v.files.map((f) => f.path)) : [];
-  const signed = await w.step("media", () => coverUrls(supabase, [seat.cover, ...visitPaths, ...kids.map((k) => k.cover)]));
-  const cover = faceUrl(seat, signed);
+  const signed = await w.step("media", () => coverUrls(supabase, [...visitPaths, ...kids.map((k) => k.cover)]));
   w.done();
 
   const jobRows = (list: Seat[], empty: string) => (
@@ -512,8 +525,27 @@ export default async function ProjectPage({
           It was six chips wrapping to three rows under the photo - a control
           you touch once a week taking more room than the photo it sat under.
           Up here it is one word, and the list is behind it. */}
-      <AppBar back={parent ? `/project/${parent}` : "/"} title={seat.project_name}
-        sub={seat.address ?? seat.parent_name ?? undefined}
+      {/* THE GEAR SITS ON THE NAME. Shahar (2026-09-15): "Place the gear
+          button next to the Project name." It was floating on the corner of
+          the photograph, which has gone. A link carrying ?setup=1 rather than
+          client state, the way the task screen's gear already works - and the
+          address has come out of the sub line, because it is now said once,
+          properly, in the head row below. */}
+      <AppBar back={parent ? `/project/${parent}` : "/"}
+        title={
+          <span className="row" style={{ gap: 6, alignItems: "center", minWidth: 0 }}>
+            <span className="grow" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+              {seat.project_name}
+            </span>
+            {manages && (
+              <Link href={setupOpen ? keepAs() : keepAs("setup=1")} scroll={false}
+                className={`name-gear${setupOpen ? " on" : ""}`} aria-label="Set this project up"
+                title="Set this project up — the photo, the scope, and how it ends">
+                <GearIcon />
+              </Link>
+            )}
+          </span>
+        }
         right={!isFolder && lenses.length > 1 ? (
           <details className="seat-pop">
             <summary className="seat-chip" aria-label={`Seat: ${lens.label}`} title="Change seat">
@@ -559,11 +591,37 @@ export default async function ProjectPage({
         )}
         {ok === "cancelled-paid" && <div className="banner-ok">Cancelled — and money had already gone out on it. The ledger keeps that.</div>}
 
-        {/* The face, and the gear that holds everything you set ONCE - the
-            photo, the scope, and how this job ends (Shahar, 2026-09-11: "move
-            the cancel this job into the setting of it"). The screen below is
+        {/* WHAT IT IS, AND WHERE. Shahar (2026-09-15): "Split the top
+            differently, so on the left it shows an icon based on project type
+            (New build = construction), and on the right, status and address."
+
+            This replaces the photograph. The icon is drawn from what the
+            database already knows - the catalogue package first, then whether
+            this row has jobs under it, then the domain - so it costs nothing
+            to fetch and reads as "a build" faster than a photograph of a
+            house resolves into one. The address lives here now rather than in
+            the app bar's sub line, where it was a second copy of the name
+            half the time. */}
+        <div className="proj-head">
+          <ProjectTypeIcon seat={seat} hasChildren={kids.length > 0} />
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="what">
+              {[
+                manages ? "You run this" : seatLabel(seat) ?? "Your seat",
+                seat.status,
+                seat.stage,
+              ].filter(Boolean).join(" · ")}
+            </div>
+            <div className="where">{seat.address ?? seat.parent_name ?? "No address on this job"}</div>
+          </div>
+        </div>
+
+        {/* Everything you set ONCE - the photo, the scope, and how this job
+            ends (Shahar, 2026-09-11: "move the cancel this job into the
+            setting of it"). Behind the gear on the name; the screen below is
             only about the job running. */}
-        <ProjectSetup projectId={id} url={cover} own={seat.cover_own} stock={!!seat.cover_url} canEdit={manages}
+        <ProjectSetup projectId={id} own={seat.cover_own} stock={!!seat.cover_url} canEdit={manages}
+          open={setupOpen} closeHref={keepAs()}
           scopeLines={scopeLines} scopeTrades={scopeTrades}
           lifecycle={manages ? (
             <Lifecycle projectId={id} status={seat.status} closed={closedAlready}
@@ -571,11 +629,6 @@ export default async function ProjectPage({
               open={openHere.length} liveKids={liveKids} owed={owed} paid={roll?.paid ?? 0}
               superadmin={!!board.me?.is_superadmin} />
           ) : null} />
-
-        <div className="kicker">
-          {manages ? "You run this" : seat.seat ?? "Your seat"} · {seat.status}
-          {seat.stage ? ` · ${seat.stage}` : ""}
-        </div>
 
         {/* VIEWING AS. Shahar (2026-09-13): "allow me to log in as GC /
             Professional / home owner / investor / viewer. This currently does
@@ -1085,6 +1138,14 @@ export default async function ProjectPage({
     </Screen>
   );
 }
+
+const GearIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+  </svg>
+);
 
 // A panel: a number, the words for what it counts, and a second line that
 // says the thing the number leaves out. With an href, tapping it opens it

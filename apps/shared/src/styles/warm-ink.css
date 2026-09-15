@@ -331,16 +331,35 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .cover-empty:disabled { opacity: .6; cursor: default; }
 .cover-change { position: absolute; right: 8px; bottom: 8px; padding: 6px 10px; border: 0; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .cover-change:disabled { opacity: .7; cursor: default; }
-/* The gear, top right of the photo: everything you set ONCE lives behind it
-   (Shahar, 2026-09-11) - the photo and the scope - so the screen below is
-   only about the job running. */
-.cover-gear {
-  position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; display: grid; place-items: center;
-  border: 0; border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer;
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+/* THE GEAR ON THE NAME. It used to float on the corner of the project's
+   photograph; the photograph has gone (Shahar, 2026-09-15: "Remove the photo
+   to reduce traffic" / "Place the gear button next to the Project name") and
+   the gear moved to the one place that is always there - the title. */
+.name-gear {
+  flex: none; width: 30px; height: 30px; display: inline-grid; place-items: center;
+  border-radius: 50%; color: var(--muted); text-decoration: none;
 }
-.cover-gear:hover { background: rgba(0, 0, 0, .7); }
-.cover-gear[aria-expanded="true"] { background: var(--color-accent); }
+.name-gear:hover { background: var(--color-soft); color: var(--color-text); }
+.name-gear.on { background: var(--color-text); color: var(--color-bg); }
+
+/* WHAT IT IS, AND WHERE - the band that replaced the photograph. A drawing of
+   the job's type on the left, and on the right the two lines a photograph
+   never said: where you stand on it, and the address. */
+.proj-head {
+  display: flex; align-items: center; gap: var(--space-3);
+  background: var(--color-surface); border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-card); padding: var(--space-3) var(--space-4);
+}
+.proj-head .what {
+  font-family: var(--font-heading); font-weight: 800; font-size: 12px;
+  letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.3;
+}
+.proj-head .where { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.type-mark {
+  flex: none; width: 46px; height: 46px; display: grid; place-items: center;
+  border-radius: var(--radius-input); background: var(--color-soft); color: var(--color-text);
+}
+.type-mark svg { width: 26px; height: 26px; }
 .prop .body { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
 .prop .t { font-family: var(--font-heading); font-weight: 800; font-size: 15.5px; line-height: 1.15; display: block; }
 .prop .m { font-size: 12px; color: var(--muted); display: block; margin-top: 2px; }

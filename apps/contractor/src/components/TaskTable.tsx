@@ -54,6 +54,11 @@ export function TaskTable({ rows, back, showProject = false }: {
           // A parent says what is under it, so a row with steps is never
           // mistaken for a single task (migration 129).
           t.open_children > 0 ? `${t.open_children} step${t.open_children === 1 ? "" : "s"} left` : null,
+          // And a step says what it is a step of - but only when it is NOT
+          // sitting under it. Where the rail already shows the hierarchy,
+          // naming the parent again is noise; where the list is a slice and
+          // the parent is nowhere on screen, it is the whole point.
+          depth === 0 && t.parent_title ? `part of ${t.parent_title}` : null,
           showProject ? t.project : null,
         ].filter(Boolean).join(" · ");
         const say = (t.status_note ?? "").trim() || (t.notes ?? "").trim();

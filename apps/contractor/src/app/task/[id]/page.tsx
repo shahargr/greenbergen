@@ -5,7 +5,7 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, LongText, Notice, Screen } from "@shared/ui";
-import { saveTask, undoNote, editPayment, cancelTask, deleteTask } from "./actions";
+import { saveTask, undoNote, editPayment, cancelTask, deleteTask, linkTask } from "./actions";
 import { NoteBox } from "./NoteBox";
 import { PaymentBox, type Method } from "./PaymentBox";
 import { ReceiptBox, type ReceiptFile } from "./ReceiptBox";
@@ -38,6 +38,15 @@ type Detail = {
   evidence: { id: string; file_name: string | null; kind: string | null; role: string | null }[];
   comments: { author: string | null; body: string | null; created_at: string | null }[];
   open_children: number;
+  // HOW IT FITS (migration 130). Both columns have been on actions since the
+  // beginning and neither had a door until now: `parent` is the task this is
+  // a step of, `follows` is the one thing it waits on, `blocks` is everything
+  // waiting on it. link_options is what may be picked - this job's tasks,
+  // minus this one and anything already beneath it.
+  parent: Link1 | null;
+  follows: (Link1 & { done: boolean }) | null;
+  blocks: Link1[];
+  link_options: { id: string; action: string; open: boolean }[];
   // What this task cost, and whether the person looking may add to it
   // (migration 065). Money follows the money ladder: a crew member reads
   // the work and never the cost, so both come back empty for them.
@@ -45,6 +54,8 @@ type Detail = {
   payments: Payment[];
   methods: Method[];
 };
+
+type Link1 = { id: string; action: string; status: string };
 
 type Payment = {
   id: string; description: string | null; amount: number | null; paid_on: string | null;
@@ -130,14 +141,60 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
+// One link, as a sentence you can tap through. A finished predecessor is
+// worth saying out loud: "comes after X · done" is the difference between
+// blocked and free to start.
+function FitLine({ label, x, back }: { label: string; x: Link1; back: string }) {
+  const done = CLOSED.includes(x.status);
+  return (
+    <span className="small" style={{ display: "block" }}>
+      <span className="text-muted">{label} </span>
+      <Link href={`/task/${x.id}?back=${encodeURIComponent(back)}`}>{x.action}</Link>
+      {done && <span className="text-muted"> · done</span>}
+    </span>
+  );
+}
+
+// A picker that is its own form: pick, save, done. `clearable` is for the two
+// links this task owns - "part of" and "comes after" are one thing each, so
+// an empty pick means cut it. "Comes before" has no empty option because
+// there can be several and each is removed by name.
+function LinkPicker({ id, back, rel, label, hint, current, options, clearable = false }: {
+  id: string; back: string; rel: "parent" | "after" | "before";
+  label: string; hint: string; current: string;
+  options: { id: string; action: string; open: boolean }[];
+  clearable?: boolean;
+}) {
+  return (
+    <form action={linkTask} className="stack" style={{ gap: 4 }}>
+      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="back" value={back} />
+      <input type="hidden" name="rel" value={rel} />
+      <label className="divider-label" style={{ padding: 0 }} htmlFor={`link-${rel}`}>{label}</label>
+      <p className="tiny text-muted" style={{ margin: 0 }}>{hint}</p>
+      <div className="row" style={{ gap: 8, alignItems: "center" }}>
+        <select id={`link-${rel}`} name="other" defaultValue={current} className="input grow" style={{ minWidth: 0 }}>
+          <option value="">{clearable ? "— nothing —" : "— pick a task —"}</option>
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>{o.action}{o.open ? "" : " · done"}</option>
+          ))}
+        </select>
+        <button className="btn btn-secondary small" style={{ minHeight: 38, flex: "none" }}>
+          {rel === "before" ? "Add" : "Save"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default async function TaskPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string; setup?: string; info?: string }>;
+  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string; setup?: string; info?: string; fit?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, ok, why, undo, money, setup: setupQ, info: infoQ } = await searchParams;
+  const { back, error, ok, why, undo, money, setup: setupQ, info: infoQ, fit: fitQ } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : "/tasks";
 
   const w = stopwatch("/task/[id]");
@@ -235,6 +292,11 @@ export default async function TaskPage({
   // screen into a client component.
   const setup = setupQ === "1";
   const info = infoQ === "1";
+  // HOW IT FITS. Same trick, one more flag - except this panel's forms post
+  // to linkTask rather than to the page's own save, so they sit OUTSIDE the
+  // big form (nested forms are not a thing) and are rendered before it.
+  const fit = fitQ === "1";
+  const fits = !!t.parent || !!t.follows || t.blocks.length > 0;
   const flag = (extra: Record<string, string>) => {
     const p = new URLSearchParams({ back: to, ...extra });
     return `/task/${id}?${p.toString()}`;
@@ -315,6 +377,83 @@ export default async function TaskPage({
           >
             ＋ Add a step under this
           </Link>
+        )}
+
+        {/* HOW IT FITS. Shahar (2026-09-15): "allow to create dependencies
+            between tasks : after ... or before ... / allow a task to point to
+            a parent task."
+
+            Three facts, in the words somebody standing on a site would use:
+            what this is a step OF, what it waits ON, and what is waiting on
+            IT. After and before are one edge seen from two ends - the
+            database decides which row it writes (migration 130) - so the
+            screen can offer both without pretending they are different kinds
+            of link.
+
+            These forms post to linkTask, not to the page's own save, so they
+            sit outside the big form below: a form inside a form is not a
+            thing, and each of these is one decision that takes effect at
+            once. */}
+        {(fits || (!closed && t.can_edit)) && (
+          <Card soft pad>
+            <div className="between" style={{ alignItems: "baseline", gap: 10 }}>
+              <span className="kicker" style={{ margin: 0 }}>How it fits</span>
+              {!closed && t.can_edit && (
+                <Link href={fit ? flag({}) : flag({ fit: "1" })} className="small" style={{ fontWeight: 700 }}>
+                  {fit ? "Done" : fits ? "Change" : "Set it"}
+                </Link>
+              )}
+            </div>
+
+            {fits ? (
+              <div className="stack" style={{ gap: 3, marginTop: 6 }}>
+                {t.parent && <FitLine label="Part of" x={t.parent} back={to} />}
+                {t.follows && <FitLine label="Comes after" x={t.follows} back={to} />}
+                {t.blocks.map((b) => <FitLine key={b.id} label="Comes before" x={b} back={to} />)}
+              </div>
+            ) : (
+              <p className="tiny text-muted" style={{ margin: "4px 0 0" }}>
+                It waits on nothing and nothing waits on it.
+              </p>
+            )}
+
+            {fit && !closed && t.can_edit && (
+              <div className="stack" style={{ gap: 12, marginTop: 12 }}>
+                {t.link_options.length === 0 ? (
+                  <p className="tiny text-muted" style={{ margin: 0 }}>
+                    There is nothing else on this job to link to yet.
+                  </p>
+                ) : (
+                  <>
+                    <LinkPicker id={id} back={to} rel="parent" label="Part of"
+                      hint="The task this one is a step of. It then sits under it in every list."
+                      current={t.parent?.id ?? ""} options={t.link_options} clearable />
+                    <LinkPicker id={id} back={to} rel="after" label="Comes after"
+                      hint="The one thing that has to happen before this can start."
+                      current={t.follows?.id ?? ""} options={t.link_options} clearable />
+                    <LinkPicker id={id} back={to} rel="before" label="Comes before"
+                      hint="Something that cannot start until this is done. Add as many as you like."
+                      current="" options={t.link_options.filter((o) => !t.blocks.some((b) => b.id === o.id))} />
+                    {t.blocks.length > 0 && (
+                      <div className="stack" style={{ gap: 4 }}>
+                        <div className="divider-label" style={{ padding: 0 }}>Waiting on this</div>
+                        {t.blocks.map((b) => (
+                          <form key={b.id} action={linkTask} className="between" style={{ gap: 8 }}>
+                            <input type="hidden" name="id" value={id} />
+                            <input type="hidden" name="back" value={to} />
+                            <input type="hidden" name="rel" value="unbefore" />
+                            <input type="hidden" name="other" value={b.id} />
+                            <span className="small grow" style={{ minWidth: 0 }}>{b.action}</span>
+                            <button className="btn btn-ghost small" style={{ minHeight: 32 }}>Unlink</button>
+                          </form>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </Card>
         )}
 
         {/* Read-only: the expanded task, for somebody who may not change it,
