@@ -51,7 +51,11 @@ export type Target = {
   project_name: string;
   // `me` marks your own seat on the project, so a note to yourself is a
   // choice rather than your name listed beside strangers (migration 038).
-  people: { contact_id: string; name: string; seat: string | null; me?: boolean }[];
+  // `rank` is the seat's authority (asset owner 70, site GC 60, site PM 50,
+  // contractor 30, sub 10-20, crew 5) - migration 131 hands it over so a
+  // picker can put whoever runs the job at the top instead of sorting by
+  // whatever order the rows came back in.
+  people: { contact_id: string; name: string; seat: string | null; rank?: number; me?: boolean }[];
 };
 
 // An open task, as the inbox shows it - the five fields homeowner_tasks

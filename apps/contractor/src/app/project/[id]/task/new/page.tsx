@@ -182,9 +182,14 @@ export default async function NewTaskPage({
   // portal_compose_targets groups people BY project, so the ones for this
   // site are one hop in - the same read and the same shape the task screen
   // uses for its assignee list.
+  // The seat and its RANK come through now (migration 131). Shahar
+  // (2026-09-15): "sort assigned to drop down: first, list the PM, GC, Owner.
+  // then, list the rest of the assigned contractors." The database already
+  // sorts by rank; the form splits the list at 50, which is exactly the line
+  // between the people who run the job and the people who do the work.
   const people = (Array.isArray(peopleData) ? peopleData : [])
     .find((x) => x.project_id === id)?.people
-    .map((p) => ({ contact_id: p.contact_id, name: p.name })) ?? [];
+    .map((p) => ({ contact_id: p.contact_id, name: p.name, seat: p.seat, rank: p.rank ?? 0 })) ?? [];
 
   return (
     <Screen>
