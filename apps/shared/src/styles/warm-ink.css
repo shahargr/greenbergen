@@ -1208,9 +1208,10 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .nb-note {
   background: var(--color-surface); border-radius: var(--radius-tile);
   box-shadow: var(--shadow-card); padding: 10px 12px;
-  border-left: 3px solid transparent;
 }
-.nb-note.pin { border-left-color: var(--color-accent); }
+/* Pinned reads as a tint rather than a left bar: a 3px border on a 20px
+   radius follows the curve and renders as a smudge, not a marker. */
+.nb-note.pin { background: var(--color-soft-2); }
 .nb-note .b { margin: 0; font-size: 13.5px; line-height: 1.4; white-space: pre-wrap; }
 .nb-note .w { margin: 4px 0 0; font-size: 11.5px; color: var(--muted); }
 .nb-note .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -1221,3 +1222,63 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 }
 .nb-note .acts button:hover:not(:disabled) { border-color: var(--color-text); }
 .nb-note .acts button:disabled { opacity: .45; cursor: default; }
+
+/* THE NOTEBOOK'S SECOND HALF (migration 142). Shahar: "we need the floaty
+   thing for easy tasks as well... we can have a process that goes after them
+   one by one at the end of the day. So that becomes kind of the back
+   office." */
+.nb-title { flex: auto; min-width: 0; font-size: 13px; font-weight: 800; }
+.nb-back {
+  flex: none; border: 0; background: transparent; cursor: pointer; padding: 7px 8px 7px 4px;
+  font-size: 13px; font-weight: 700; color: var(--muted);
+}
+.nb-back:hover { color: var(--color-text); }
+
+.nb-two { display: grid; gap: 8px; grid-template-columns: 1fr auto; align-items: end; }
+@media (max-width: 400px) { .nb-two { grid-template-columns: 1fr; } }
+.nb-fld { display: grid; gap: 3px; min-width: 0; }
+.nb-fld > span {
+  font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--muted);
+}
+.nb-fld .input { width: 100%; }
+
+/* The way into the back office, offered where the pile is rather than behind
+   a menu - a sweep nobody is invited to run is a sweep nobody runs. */
+.nb-sweep {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
+  padding: 10px 12px; border-radius: var(--radius-input);
+  border: 1.5px solid var(--color-text); background: var(--color-text); color: var(--color-bg);
+}
+.nb-sweep .grow { flex: auto; min-width: 0; }
+.nb-sweep .t { display: block; font-size: 13.5px; font-weight: 800; }
+.nb-sweep .m { display: block; font-size: 11.5px; opacity: .78; }
+.nb-sweep .n {
+  flex: none; min-width: 26px; padding: 3px 8px; border-radius: var(--radius-pill);
+  background: var(--color-bg); color: var(--color-text);
+  font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center;
+}
+.nb-sweep:disabled { opacity: .6; cursor: default; }
+
+/* One card, one decision. Big type, because at the end of the day you are
+   reading it rather than scanning it. */
+.nb-card {
+  margin: 0; font-size: 15.5px; line-height: 1.45; white-space: pre-wrap;
+  padding: 12px 14px; background: var(--color-surface); border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-card);
+}
+.nb-body > .w { margin: 0; font-size: 11.5px; color: var(--muted); }
+.nb-choose { display: grid; gap: 6px; }
+.nb-choose .btn { width: 100%; }
+.tagline {
+  display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--color-bid);
+  background: var(--color-bid-soft); border-radius: var(--radius-pill); padding: 2px 8px;
+  /* .nb-body is a grid, and a grid stretches its children - inline-block is
+     not enough to stop a six-word label becoming a full-width band. */
+  justify-self: start;
+}
+.nb-note .tagline { margin-bottom: 4px; }
+.nb-done { display: grid; gap: 6px; justify-items: start; padding: 10px 0; }
+.nb-done .t { margin: 0; font-size: 16px; font-weight: 800; }
+.nb-done .m { margin: 0; font-size: 13px; color: var(--muted); }
