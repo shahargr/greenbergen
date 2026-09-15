@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { money, type Node } from "@/lib/board";
+import { money, seatLabel, type Node } from "@/lib/board";
 
 // A PROPERTY AS A LINE, NOT A POSTER.
 //
@@ -15,16 +15,11 @@ import { money, type Node } from "@/lib/board";
 // recognises their own house at any size), the roll-up stays, and the seat
 // moves to the right where it can be read down the column.
 //
-// The seat is the DATABASE's word for it, shortened only where the full
-// phrase would push the name off a phone.
-const SEAT: Record<string, string> = {
-  "asset owner": "owner",
-  "site project manager": "site PM",
-  "site GC": "GC",
-};
-
+// The seat's word comes from seatLabel in lib/board, which is the one place
+// that knows "owner" means co-owner next to somebody else's house.
 export function PropertyRow({ node, url }: { node: Node; url: string | null }) {
   const s = node.seat;
+  const role = seatLabel(s);
   // The town, not the street: the street is the row's own name half the time.
   const where = s.address?.split(",").slice(1).join(",").trim() || s.address;
   const owed = money(node.owed);
@@ -53,8 +48,8 @@ export function PropertyRow({ node, url }: { node: Node; url: string | null }) {
           ].filter(Boolean).join(" · ")}
         </span>
       </span>
-      {s.seat && (
-        <span className="tag tag-neutral" style={{ flex: "none" }}>{SEAT[s.seat] ?? s.seat}</span>
+      {role && (
+        <span className="tag tag-neutral" style={{ flex: "none" }}>{role}</span>
       )}
     </Link>
   );

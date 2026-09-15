@@ -36,7 +36,32 @@ export type Seat = {
   // chosen a photo of its own. A generator job looks like a generator.
   cover_url: string | null;
   package_code: string | null;
+  // Somebody ELSE is the owner of record (migration 128). An owner-class
+  // seat can be held by several people and carries the same authority for
+  // all of them; owner of record is one person. See seatLabel below.
+  owner_other: boolean;
 };
+
+// WHAT TO CALL THE SEAT. Shahar (2026-09-15): "Why Shahar shows as owner on
+// Ran project? If he was assigned as co owner, say co owner."
+//
+// He accepted Ran's invitation to co-manage and got project_role 'asset
+// owner' - the only owner-class seat there is, and the right authority: a
+// co-owner can hire, cancel, close and reopen exactly as the owner can. What
+// was wrong is the WORD, and only next to somebody else's house, where
+// "owner" stops being a job title and becomes a claim.
+//
+// Shortened only where the database's own phrase would push the project name
+// off a phone.
+const SEAT_WORD: Record<string, string> = {
+  "asset owner": "owner",
+  "site project manager": "site PM",
+  "site GC": "GC",
+};
+export const seatLabel = (s: Seat): string | null =>
+  !s.seat ? null
+  : s.owner_other && s.rank >= 70 ? "co-owner"
+  : SEAT_WORD[s.seat] ?? s.seat;
 
 // What a list shows: everything the owner has not put away. One helper so
 // the board, the project list and the counts cannot disagree about it.
