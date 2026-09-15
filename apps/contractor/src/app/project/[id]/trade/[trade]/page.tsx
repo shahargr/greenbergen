@@ -7,6 +7,7 @@ import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { getBoard, groupTasks, money, runs } from "@/lib/board";
 import type { SiteWeek } from "../../SiteWeek";
+import { QuickTask } from "./QuickTask";
 
 export const dynamic = "force-dynamic";
 
@@ -54,8 +55,15 @@ export default async function TradePage({
     }
   }
   const nameOf = new Map(board.seats.map((s) => [s.project_id, s.project_name]));
+  // WHICH JOB A NEW TASK LANDS ON. A property holds no work - its jobs do -
+  // so the quick box aims at wherever THIS TRADE's work already is, and says
+  // so when that is not the row you are standing on. Busiest wins; failing
+  // everything, this row, and the database refuses it with its own words.
+  const lives = new Map<string, number>();
   const all = board.tasks.filter((t) => t.project_id && family.has(t.project_id) && t.trade === trade);
   const open = all.filter((t) => t.state === "open");
+  for (const t of all) if (t.project_id) lives.set(t.project_id, (lives.get(t.project_id) ?? 0) + 1);
+  const landsOn = [...lives.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? id;
   const done = all.filter((t) => t.state === "closed");
   const shown = show === "done" ? done : show === "all" ? all : open;
   const sections = groupTasks(shown, "timing");
@@ -135,13 +143,15 @@ export default async function TradePage({
                 rather than a job, it carries through the "which project?"
                 hop as well, because the answer to that question does not
                 change which trade you were looking at. */}
-            {manages && (
-              <Link href={`/project/${id}/task/new?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}
-                className="btn btn-secondary small" style={{ minHeight: 32 }}>
-                + New {trade.toLowerCase()} task
-              </Link>
-            )}
           </div>
+
+          {/* The two ways to write something down, and they are one box: the
+              line you type here is a SIMPLE task, and "Needs steps?" is the
+              wizard for the other kind (migration 137). */}
+          {manages && (
+            <QuickTask projectId={landsOn} projectName={nameOf.get(landsOn) ?? null}
+              trade={trade} elsewhere={landsOn !== id} />
+          )}
           <nav className="chips" aria-label="Which tasks">
             <Chip href={`/project/${id}/trade/${raw}`} on={!show} label={`Open · ${open.length}`} />
             <Chip href={`/project/${id}/trade/${raw}?show=done`} on={show === "done"} label={wantDone ? `Done · ${done.length}` : "Done"} />

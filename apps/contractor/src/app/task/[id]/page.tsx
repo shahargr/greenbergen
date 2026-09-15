@@ -26,6 +26,10 @@ type Detail = {
   // you answer two of them before it would save (migration 095).
   status_note: string | null;
   requires_photo_evidence: boolean | null;
+  // SIMPLE OR NOT (migration 137). False means nothing may be filed beneath
+  // it - a one-line task logged from a trade screen. The database refuses a
+  // child either way; this is so the screen stops offering one.
+  accepts_steps: boolean;
   can_edit: boolean;
   created_at: string | null; created_by: string | null; last_updated: string | null;
   project_id: string | null; project: string | null;
@@ -490,13 +494,24 @@ export default async function TaskPage({
             parent since it was built; there was simply no way in from the
             task the step belongs to, so you had to open a blank one and find
             this task again in a list of everything open on the site. */}
-        {!closed && t.can_edit && t.project_id && (
+        {!closed && t.can_edit && t.project_id && t.accepts_steps && (
           <Link
             href={`/project/${t.project_id}/task/new?parent=${t.id}&back=${encodeURIComponent(`/task/${t.id}?back=${encodeURIComponent(to)}`)}`}
             className="btn btn-secondary btn-block"
           >
             ＋ Add a step under this
           </Link>
+        )}
+
+        {/* A SIMPLE TASK SAYS SO. Shahar (2026-09-15): "Simple task is task
+            that you cannot have any child to." Offering a button the database
+            will refuse is worse than not offering it, and saying nothing at
+            all leaves a person hunting for a button that was never there. */}
+        {!closed && t.can_edit && !t.accepts_steps && (
+          <p className="tiny text-muted" style={{ margin: 0 }}>
+            A simple task — one line, no steps under it. Work that needs a scope, a contract or a
+            price is its own task rather than a step of this one.
+          </p>
         )}
 
         {/* HOW IT FITS. Shahar (2026-09-15): "allow to create dependencies
