@@ -4,6 +4,7 @@ import "./globals.css";
 import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
 import { NavOrigin } from "@shared/BackButton";
+import { Notebook } from "@shared/Notebook";
 import { Analytics } from "@vercel/analytics/next";
 
 // The same shell as the homeowner app, deliberately. A contractor and a
@@ -31,6 +32,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <OfflineBanner />
           <NavOrigin />
           {children}
+          {/* THE NOTEBOOK FLOATS ON EVERY SCREEN (Shahar, 2026-09-15:
+              "something that would float on every screen allowing me to take
+              a note"). It is in the layout rather than on the screens that
+              seemed likely, because the thought you want to keep arrives on
+              whichever screen you happen to be reading. Notes are private to
+              their author and hide themselves on the doors where there is
+              nothing yet to take a note about. */}
+          <Notebook />
         </div>
         {/* Vercel Web Analytics; records once switched on for the project. */}
         <Analytics />
