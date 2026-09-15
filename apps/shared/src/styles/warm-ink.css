@@ -386,6 +386,11 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
   top: 0; bottom: 0; width: 2px; background: var(--color-divider);
 }
 .bucket-rows > a.kid .t { font-size: 13.5px; }
+/* A step that has ended, still in its place in the sequence (migration 133):
+   a checklist is read down the order, and a finished step is most useful
+   where it happened. Quieter, not struck through - a rule through eight
+   words is harder to read on a phone than a lighter grey. */
+.bucket-rows > a.done .t { color: var(--muted); font-weight: 500; }
 
 /* A MESSAGE, AS AN EMAIL. Closed: who, subject, when. The body, the picture
    and the verbs wait behind the disclosure - an inbox is a list you scan and

@@ -38,6 +38,10 @@ type Detail = {
   evidence: { id: string; file_name: string | null; kind: string | null; role: string | null }[];
   comments: { author: string | null; body: string | null; created_at: string | null }[];
   open_children: number;
+  // WHAT IS IN IT (migration 133). A container's children, in the blueprint's
+  // own order, done ones in place rather than sorted to the bottom - a
+  // checklist is read down the sequence.
+  children: Kid[];
   // HOW IT FITS (migration 130). Both columns have been on actions since the
   // beginning and neither had a door until now: `parent` is the task this is
   // a step of, `follows` is the one thing it waits on, `blocks` is everything
@@ -56,6 +60,13 @@ type Detail = {
 };
 
 type Link1 = { id: string; action: string; status: string };
+
+type Kid = {
+  id: string; action: string; status: string; open: boolean;
+  target_date: string | null; completed_on: string | null;
+  step_order: number | null; is_gate: boolean;
+  holder: string | null; open_children: number;
+};
 
 type Payment = {
   id: string; description: string | null; amount: number | null; paid_on: string | null;
@@ -359,10 +370,61 @@ export default async function TaskPage({
           </p>
         )}
 
-        {t.open_children > 0 && (
-          <Notice kind="info" title={`${t.open_children} step${t.open_children === 1 ? "" : "s"} still open beneath this.`}>
-            Those close first — the database blocks a parent while a gate child is open.
-          </Notice>
+        {/* WHAT IS IN IT. Shahar (2026-09-15): "when showing tasks as
+            containers, the top part of the task should list all its kids
+            tasks."
+
+            It used to say "1 step still open beneath this" and stop there - a
+            count is the one fact about a container that cannot be acted on. On
+            a task whose NAME is a sequence, "design, permit, order", that is
+            absurd. The list is in the blueprint's own order with the finished
+            ones in place, because that is how a checklist is read.
+
+            The gate sentence is only said where there is a gate, and it names
+            it. It used to be said under every count, about no child in
+            particular. */}
+        {t.children.length > 0 && (
+          <section className="stack" style={{ gap: 6 }}>
+            <div className="bucket">
+              <span className="h">
+                {t.children.length === 1 ? "The step in this" : `The ${t.children.length} steps in this`}
+              </span>
+              <span className="n">
+                {t.open_children === 0
+                  ? "all done"
+                  : `${t.open_children} open`}
+              </span>
+            </div>
+            <div className="bucket-rows">
+              {t.children.map((k) => (
+                <Link key={k.id} href={`/task/${k.id}?back=${encodeURIComponent(flag({}))}`}
+                  className={k.open ? undefined : "done"}>
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">{k.action}</span>
+                    <span className="m">
+                      {[
+                        k.holder,
+                        k.open ? (k.status !== "Not Started" ? k.status : null) : k.status.toLowerCase(),
+                        k.open && k.target_date ? `due ${shortDate(k.target_date)}` : null,
+                        !k.open && k.completed_on ? shortDate(k.completed_on) : null,
+                        k.open_children > 0 ? `${k.open_children} beneath` : null,
+                        k.is_gate ? "blocks this one" : null,
+                      ].filter(Boolean).join(" · ") || "—"}
+                    </span>
+                  </span>
+                  {k.open && k.target_date && k.target_date < todayISO() && (
+                    <span className="tag tag-status" style={{ whiteSpace: "nowrap" }}>late</span>
+                  )}
+                </Link>
+              ))}
+            </div>
+            {t.children.some((k) => k.open && k.is_gate) && (
+              <p className="tiny text-muted" style={{ margin: 0 }}>
+                This task cannot close while a step marked <strong>blocks this one</strong> is open — the database
+                refuses it, not the screen.
+              </p>
+            )}
+          </section>
         )}
 
         {/* A STEP UNDER THIS ONE. Shahar (2026-09-14): "inside each task, add
