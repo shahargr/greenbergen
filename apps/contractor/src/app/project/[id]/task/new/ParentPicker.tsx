@@ -16,16 +16,20 @@ import { useMemo, useState } from "react";
 // it is an id and a sentence per task, a few kilobytes at this size, and a
 // round trip per keystroke on a phone on a building site is worse than the
 // bytes.
-// `defaultParent` is set when the screen was opened from inside a task ("Add
-// a step under this one"). Arriving with the answer already filled in is the
-// whole point of that route - having to find the task again in a list of a
+// The wizard seeds the value when the screen was opened from inside a task
+// ("Add a step under this one"). Arriving with the answer already filled in is
+// the whole point of that route - having to find the task again in a list of a
 // hundred and twenty-nine would undo it.
-export function ParentPicker({ tasks, defaultParent = null }: {
+// CONTROLLED since migration 132 split the screen into three passes: the
+// wizard owns the answer, because it has to send it to portal_task_link when
+// the pass is saved. The search box is still this component's own business.
+export function ParentPicker({ tasks, value, onPick }: {
   tasks: { id: string; label: string }[];
-  defaultParent?: string | null;
+  value: string;
+  onPick: (id: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const [picked, setPicked] = useState(defaultParent ?? "");
+  const picked = value;
 
   const found = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -49,7 +53,7 @@ export function ParentPicker({ tasks, defaultParent = null }: {
       <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)}
         placeholder={`Search ${tasks.length} open tasks`} aria-label="Search open tasks"
         autoComplete="off" style={{ marginBottom: 6 }} />
-      <select className="input" name="parent" value={picked} onChange={(e) => setPicked(e.target.value)}
+      <select className="input" value={picked} onChange={(e) => onPick(e.target.value)}
         size={options.length > 8 ? 6 : undefined}>
         <option value="">Not part of anything</option>
         {options.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}

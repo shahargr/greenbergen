@@ -6,7 +6,6 @@ import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { getBoard } from "@/lib/board";
 import { NewTaskForm, type TaskType } from "./NewTaskForm";
-import { createTask } from "./actions";
 import type { Target } from "@shared/inbox/data";
 
 export const dynamic = "force-dynamic";
@@ -218,12 +217,14 @@ export default async function NewTaskPage({
           </Card>
         )}
 
-        <form action={createTask.bind(null, id)} className="stack" style={{ gap: 14 }}>
-          <input type="hidden" name="back" value={to} />
-          <NewTaskForm projectId={id} types={types} people={people}
-            payees={payeeData ?? []} trades={trades} contracts={contracts} openTasks={openTasks}
-            defaultParent={parentOf ? parentId : null} />
-        </form>
+        {/* NOT A FORM ANY MORE. Shahar (2026-09-15): "change this to a step
+            by step, where first step saves some info." Each pass is its own
+            database call made from the browser, so the task exists after the
+            first one and the rest are patches onto it - which is not
+            something a single posting form can do. */}
+        <NewTaskForm projectId={id} back={to} types={types} people={people}
+          payees={payeeData ?? []} trades={trades} contracts={contracts} openTasks={openTasks}
+          defaultParent={parentOf ? parentId : null} />
       </div>
     </Screen>
   );

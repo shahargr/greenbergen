@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
 import { friendly } from "@shared/rpc";
 import { Evidence, type Attached } from "@shared/Evidence";
@@ -39,48 +40,175 @@ export type TaskType = {
   needs_money: boolean;
 };
 
-// WRITING A NEW TASK.
+type Contract = { id: string; label: string };
+
+// WRITING A NEW TASK, IN THREE PASSES.
 //
-// Shahar (2026-09-14): "i need to be able to log a new task. new task will
-// have: task name, work / product, desciption, attachments (camera, voice,
-// file), type: financial transaction (target cost, pay to), visual inspection,
-// backoffice, other."
+// Shahar (2026-09-15): "on task creation - image comes next. so change this to
+// a step by step, where first step saves some info. needs to be a total of 3
+// steps."
 //
-// Client-side for two reasons and no others: the type picker decides whether
-// the money questions exist at all, and the attachments upload as you go so
-// nothing is waiting on Save. Everything else is a plain form posting to a
-// server action, and every rule is portal_task_create's.
-export function NewTaskForm({ projectId, types, people, payees, trades, contracts, openTasks, defaultParent = null }: {
+// It was one form fourteen fields long with the camera at the bottom, which
+// is backwards for the way it actually gets used: you are standing in front
+// of the thing, you photograph it, and everything else is typed later. And
+// nothing existed until Save, so a phone call halfway through lost the lot.
+//
+//   1. WHAT IT IS       - and this one SAVES. From here on there is a real
+//                         task with a real id and nothing can be lost.
+//   2. WHO AND WHEN     - the holder, the date, what it is part of, what it
+//                         is agreed under.
+//   3. THE PICTURES     - attached to something that exists, rather than
+//                         carried along in a hidden field.
+//
+// Every pass after the first is a patch, so stopping at any of them leaves a
+// task that is correct as far as it goes. The Skip on two and three is not
+// politeness: a task with a name is already useful, and pretending otherwise
+// is how a two-line note becomes a form nobody fills in.
+export function NewTaskForm({
+  projectId, back, types, people, payees, trades, contracts, openTasks, defaultParent = null,
+}: {
   projectId: string | null;
+  /** Where Done goes when the person would rather not open the task. */
+  back: string;
   types: TaskType[];
   people: { contact_id: string; name: string; seat: string | null; rank: number }[];
   // Who can be paid on this job: the people on it PLUS everyone already paid
   // here, because a supplier is almost never a member (migration 099).
   payees: { contact_id: string; name: string }[];
   trades: string[];
-  contracts: { id: string; label: string }[];
+  contracts: Contract[];
   // Everything still open on this site, for "part of". Shipped whole so the
   // search box can filter without a round trip per keystroke.
   openTasks: { id: string; label: string }[];
   // Set when this was opened from inside a task ("Add a step under this one").
   defaultParent?: string | null;
 }) {
-  const [type, setType] = useState("");
-  const [delivers, setDelivers] = useState<"work" | "product">("work");
+  const router = useRouter();
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  // Pass one.
   const [name, setName] = useState("");
-  const [files, setFiles] = useState<Attached[]>([]);
-  // The people list is state now, because a person added from this screen has
-  // to appear in the select without a reload - a reload would take the
-  // half-written task with it.
+  const [delivers, setDelivers] = useState<"work" | "product">("work");
+  const [description, setDescription] = useState("");
+  const [type, setType] = useState("");
+  const [trade, setTrade] = useState("");
+  const [cost, setCost] = useState("");
+  const [payTo, setPayTo] = useState("");
+
+  // Pass two.
   const [crew, setCrew] = useState(people);
   const [assignee, setAssignee] = useState("");
+  const [due, setDue] = useState("");
+  const [priority, setPriority] = useState<string>("Missing");
+  const [parent, setParent] = useState(defaultParent ?? "");
+  const [savedParent, setSavedParent] = useState(defaultParent ?? "");
+  const [needsPhoto, setNeedsPhoto] = useState(false);
+  const [gate, setGate] = useState(false);
+  const [deals, setDeals] = useState<Contract[]>(contracts);
+  const [contract, setContract] = useState("");
+
+  // Pass three.
+  const [files, setFiles] = useState<Attached[]>([]);
+
+  // Adding somebody who is not on the job yet.
   const [adding, setAdding] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [addErr, setAddErr] = useState("");
   const [who, setWho] = useState({ name: "", company: "", email: "", phone: "", role: "contractor" as string });
 
+  // Making a contract that does not exist yet.
+  const [shelling, setShelling] = useState(false);
+  const [shellErr, setShellErr] = useState("");
+  const [shell, setShell] = useState({ who: "", company: "", amount: "" });
+
+  const chosen = types.find((t) => t.action_type === type) ?? null;
+  // The money questions belong to the KIND, not to this component's opinion
+  // of which kind. action_types.needs_money is the flag; a new kind that
+  // costs money is a row in that table, not an edit here.
+  const money = !!chosen?.needs_money;
+  const ready = name.trim().length > 0;
+
   const running = crew.filter((p) => p.rank >= RUNS);
   const doing = crew.filter((p) => p.rank < RUNS);
+
+  const num = (s: string) => {
+    const n = Number(s.replace(/[^0-9.]/g, ""));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
+  // ---- pass one: create ---------------------------------------------------
+  async function savePassOne() {
+    if (!projectId || !ready) return;
+    setBusy(true); setErr("");
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_task_create", {
+      p_project: projectId,
+      p_action: name.trim(),
+      p_type: type || null,
+      p_delivers: delivers,
+      p_description: description.trim() || null,
+      p_target_cost: money ? num(cost) : null,
+      p_pay_to_contact: money ? (payTo || null) : null,
+      p_trade: money ? (trade || null) : null,
+      p_parent: parent || null,
+    });
+    setBusy(false);
+    if (error) { setErr(friendly(error.message)); return; }
+    if (!data?.ok) { setErr(data?.reason ?? "The task was not added."); return; }
+    setTaskId(data.id as string);
+    setSavedParent(parent);
+    setStep(2);
+  }
+
+  // ---- pass two: patch ----------------------------------------------------
+  async function savePassTwo() {
+    if (!taskId) return;
+    setBusy(true); setErr("");
+    const supabase = createClient();
+    // The parent FIRST, because "blocks whatever it is part of" is refused
+    // outright when there is nothing to be part of.
+    if (parent !== savedParent) {
+      const { data, error } = await supabase.rpc("portal_task_link", {
+        p_action: taskId, p_rel: "parent", p_other: parent || null,
+      });
+      if (error) { setBusy(false); setErr(friendly(error.message)); return; }
+      if (!data?.ok) { setBusy(false); setErr(data?.reason ?? "That could not be filed under the other task."); return; }
+      setSavedParent(parent);
+    }
+    const { data, error } = await supabase.rpc("portal_task_edit", {
+      p_action_id: taskId,
+      p_patch: {
+        assignee: assignee || null,
+        target_date: due || null,
+        priority,
+        contract: contract || null,
+        requires_photo: needsPhoto,
+        is_gate: gate,
+      },
+    });
+    setBusy(false);
+    if (error) { setErr(friendly(error.message)); return; }
+    if (!data?.ok) { setErr(data?.reason ?? "That did not save."); return; }
+    setStep(3);
+  }
+
+  // ---- pass three: attach -------------------------------------------------
+  async function finish(open: boolean) {
+    if (!taskId) return;
+    setBusy(true); setErr("");
+    if (files.length > 0) {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("portal_task_attach", {
+        p_action_id: taskId, p_file_ids: files.map((f) => f.id),
+      });
+      if (error) { setBusy(false); setErr(friendly(error.message)); return; }
+      if (!data?.ok) { setBusy(false); setErr(data?.reason ?? "Those did not attach."); return; }
+    }
+    router.push(open ? `/task/${taskId}?back=${encodeURIComponent(back)}` : back);
+  }
 
   async function addPerson() {
     if (!projectId || !who.name.trim()) return;
@@ -105,251 +233,352 @@ export function NewTaskForm({ projectId, types, people, payees, trades, contract
     setWho({ name: "", company: "", email: "", phone: "", role: "contractor" });
   }
 
-  const chosen = types.find((t) => t.action_type === type) ?? null;
-  // The money questions belong to the KIND, not to this component's opinion
-  // of which kind. action_types.needs_money is the flag; a new kind that
-  // costs money is a row in that table, not an edit here.
-  const money = !!chosen?.needs_money;
-  const ready = name.trim().length > 0;
+  // A CONTRACT THAT DOES NOT EXIST YET. Shahar (2026-09-15): "if no contract
+  // can be attached, you need to enable me create a shell contract that will
+  // be used later but referenced already from the start."
+  async function makeShell() {
+    if (!projectId) return;
+    if (!shell.who && !shell.company.trim()) {
+      setShellErr("Say who it will be with — somebody on the job, or a company name.");
+      return;
+    }
+    setBusy(true); setShellErr("");
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_contract_shell", {
+      p_project: projectId,
+      p_trade: (money && trade) || null,
+      p_counterparty: shell.who || null,
+      p_company_name: shell.who ? null : shell.company.trim(),
+      p_amount: num(shell.amount),
+    });
+    setBusy(false);
+    if (error) { setShellErr(friendly(error.message)); return; }
+    if (!data?.ok) { setShellErr(data?.reason ?? "That contract was not made."); return; }
+    const row = { id: data.id as string, label: data.label as string };
+    setDeals((list) => [row, ...list]);
+    setContract(row.id);
+    setShelling(false);
+    setShell({ who: "", company: "", amount: "" });
+  }
 
   return (
-    <>
-      <input type="hidden" name="file_ids" value={files.map((f) => f.id).join(",")} />
-
-      <label className="field">
-        <span className="field-label">What has to happen</span>
-        <input className="input" name="action" value={name} onChange={(e) => setName(e.target.value)}
-          required maxLength={300} autoFocus
-          placeholder="Order the LVL beam · Book the framing inspection · Chase the COI" />
-      </label>
-
-      {/* WORK OR A PRODUCT. Not decoration: it decides what done looks like.
-          Work finishes when somebody has done it and it passes; a product
-          finishes when it is on site. */}
-      <div className="field">
-        <span className="field-label">Is it work, or a product?</span>
-        <div className="seg" role="radiogroup" aria-label="Work or a product">
-          <label className="seg-opt">
-            <input type="radio" name="delivers" value="work" checked={delivers === "work"}
-              onChange={() => setDelivers("work")} />
-            <span>Work</span>
-          </label>
-          <label className="seg-opt">
-            <input type="radio" name="delivers" value="product" checked={delivers === "product"}
-              onChange={() => setDelivers("product")} />
-            <span>Product</span>
-          </label>
-        </div>
-        <p className="hint">
-          {delivers === "work"
-            ? "Somebody does something. It is done when the work is done and checked."
-            : "Something arrives. It is done when it is on site."}
+    <div className="stack" style={{ gap: 14 }}>
+      {/* WHERE YOU ARE, AND WHAT IS ALREADY SAFE. After pass one the second
+          line says the task exists - which is the whole reason the screen was
+          split, so it has to be visible rather than implied. */}
+      <ol className="passes" aria-label="Steps">
+        {["What it is", "Who and when", "Pictures"].map((label, i) => {
+          const n = (i + 1) as 1 | 2 | 3;
+          return (
+            <li key={label} className={n === step ? "on" : n < step ? "done" : ""}>
+              <span className="n" aria-hidden>{n < step ? "✓" : n}</span>
+              <span className="l">{label}</span>
+            </li>
+          );
+        })}
+      </ol>
+      {taskId && step > 1 && (
+        <p className="tiny text-muted" style={{ margin: 0 }}>
+          Saved. <strong>{name.trim()}</strong> is on the board — everything from here is added to it, and
+          you can stop whenever you like.
         </p>
-      </div>
+      )}
+      {err && <p className="small" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
 
-      <label className="field">
-        <span className="field-label">Description <span className="text-muted">(optional)</span></span>
-        <textarea className="input" name="description" rows={3}
-          placeholder="What it covers, what it depends on, anything the next person needs to know." />
-      </label>
-
-      <div className="field">
-        <span className="field-label">What kind of task</span>
-        <select className="input" name="type" value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="">— not set —</option>
-          {types.map((t) => <option key={t.action_type} value={t.action_type}>{t.label}</option>)}
-        </select>
-        {chosen?.description && <p className="hint">{chosen.description}</p>}
-        {/* Say what is about to happen before it happens. A task that
-            silently grows four children is a surprise; one that says it will
-            is a decision. */}
-        {type === "build" && (
-          <p className="hint" style={{ fontWeight: 600 }}>
-            Four steps come with it: define the scope, contractor selection, legal and insurance,
-            punch list and inspection.
-          </p>
-        )}
-      </div>
-
-      {/* Only the kind that carries money asks about money. The database
-          agrees: fn_actions_money_fits_type clears a price off a kind that
-          does not take one, so a stale number cannot survive a change of
-          mind here. */}
-      {money && (
+      {/* ================= 1. WHAT IT IS ================= */}
+      {step === 1 && (
         <>
-          {/* STACKED, not side by side. Shahar (2026-09-14): "list target cost
-              and pay to one above the other with a place to add $ and select
-              pay to from drop down list." Side by side, a payee's name had
-              half a phone to sit in and every one of them was truncated. */}
           <label className="field">
-            <span className="field-label">Target cost</span>
-            <span className="input-money">
-              <span className="input-money-mark" aria-hidden>$</span>
-              <input className="input" name="target_cost" inputMode="decimal" placeholder="4,200" />
-            </span>
-            <span className="hint">What you expect it to cost — not what has been paid.</span>
+            <span className="field-label">What has to happen</span>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)}
+              required maxLength={300} autoFocus
+              placeholder="Order the LVL beam · Book the framing inspection · Chase the COI" />
           </label>
+
+          {/* WORK OR A PRODUCT. Not decoration: it decides what done looks
+              like. Work finishes when somebody has done it and it passes; a
+              product finishes when it is on site. */}
+          <div className="field">
+            <span className="field-label">Is it work, or a product?</span>
+            <div className="seg" role="radiogroup" aria-label="Work or a product">
+              <label className="seg-opt">
+                <input type="radio" name="delivers" value="work" checked={delivers === "work"}
+                  onChange={() => setDelivers("work")} />
+                <span>Work</span>
+              </label>
+              <label className="seg-opt">
+                <input type="radio" name="delivers" value="product" checked={delivers === "product"}
+                  onChange={() => setDelivers("product")} />
+                <span>Product</span>
+              </label>
+            </div>
+            <p className="hint">
+              {delivers === "work"
+                ? "Somebody does something. It is done when the work is done and checked."
+                : "Something arrives. It is done when it is on site."}
+            </p>
+          </div>
+
           <label className="field">
-            <span className="field-label">Pay to</span>
-            <select className="input" name="pay_to_contact" defaultValue="">
+            <span className="field-label">Description <span className="text-muted">(optional)</span></span>
+            <textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
+              placeholder="What it covers, what it depends on, anything the next person needs to know." />
+          </label>
+
+          <div className="field">
+            <span className="field-label">What kind of task</span>
+            <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
               <option value="">— not set —</option>
-              {payees.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
+              {types.map((t) => <option key={t.action_type} value={t.action_type}>{t.label}</option>)}
             </select>
-            <span className="hint">
-              Everyone on this job, plus everyone already paid on it. Somebody new goes in the
-              first time you pay them.
-            </span>
-          </label>
-          {/* The trade belongs to the money kind because that is where it
-              earns its keep: it is how the spend lands under Framing on the
-              project screen rather than under the owner. */}
-          <label className="field">
-            <span className="field-label">Trade</span>
-            <select className="input" name="trade" defaultValue="">
-              <option value="">— not set —</option>
-              {trades.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <span className="hint">
-              Which trade this sits under on the board. Left unset, it is taken from the contract,
-              the scope line, or whoever holds it.
-            </span>
-          </label>
+            {chosen?.description && <p className="hint">{chosen.description}</p>}
+            {/* Say what is about to happen before it happens. A task that
+                silently grows four children is a surprise; one that says it
+                will is a decision. */}
+            {type === "build" && (
+              <p className="hint" style={{ fontWeight: 600 }}>
+                Four steps come with it: define the scope, contractor selection, legal and insurance,
+                punch list and inspection.
+              </p>
+            )}
+          </div>
+
+          {/* Only the kind that carries money asks about money. The database
+              agrees: fn_actions_money_fits_type clears a price off a kind that
+              does not take one, so a stale number cannot survive a change of
+              mind here. */}
+          {money && (
+            <>
+              {/* The trade leads on a Build, because it is what files the work
+                  under Framing on the project screen rather than under the
+                  owner - which is the whole reason the kind exists. */}
+              <label className="field">
+                <span className="field-label">Trade</span>
+                <select className="input" value={trade} onChange={(e) => setTrade(e.target.value)}>
+                  <option value="">— not set —</option>
+                  {trades.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <span className="hint">
+                  Which trade this sits under on the board. Left unset, it is taken from the contract,
+                  the scope line, or whoever holds it.
+                </span>
+              </label>
+              {/* STACKED, not side by side (Shahar, 2026-09-14): side by side,
+                  a payee's name had half a phone to sit in. */}
+              <label className="field">
+                <span className="field-label">Target cost</span>
+                <span className="input-money">
+                  <span className="input-money-mark" aria-hidden>$</span>
+                  <input className="input" inputMode="decimal" placeholder="4,200"
+                    value={cost} onChange={(e) => setCost(e.target.value)} />
+                </span>
+                <span className="hint">What you expect it to cost — not what has been paid.</span>
+              </label>
+              <label className="field">
+                <span className="field-label">Pay to</span>
+                <select className="input" value={payTo} onChange={(e) => setPayTo(e.target.value)}>
+                  <option value="">— not set —</option>
+                  {payees.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
+                </select>
+                <span className="hint">
+                  Everyone on this job, plus everyone already paid on it. Somebody new goes in the
+                  first time you pay them.
+                </span>
+              </label>
+            </>
+          )}
+
+          <button type="button" className="btn btn-primary btn-block" disabled={!ready || busy}
+            onClick={() => { void savePassOne(); }}>
+            {busy ? "Saving…" : ready ? "Save and carry on" : "Name the task first"}
+          </button>
         </>
       )}
 
-      {/* WHO HOLDS IT, IN THE ORDER YOU WOULD SAY THEM. Shahar (2026-09-15):
-          "sort assigned to drop down: first, list the PM, GC, Owner. then,
-          list the rest of the assigned contractors."
-
-          The split is at authority rank 50, which is the line between the
-          people who RUN the job and the people who DO the work - and it is
-          the database's own ladder (project_roles.authority_rank), handed
-          over by portal_compose_targets since migration 131, not a list of
-          role names kept in here to drift. Two optgroups rather than one long
-          list, because the grouping is the point. */}
-      <div className="field">
-        <span className="field-label">Assigned to <span className="text-muted">(optional)</span></span>
-        <select className="input" name="assignee" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-          <option value="">Nobody yet</option>
-          {running.length > 0 && (
-            <optgroup label="Running this job">
-              {running.map((p) => (
-                <option key={p.contact_id} value={p.contact_id}>{p.name}{p.seat ? ` · ${p.seat}` : ""}</option>
-              ))}
-            </optgroup>
-          )}
-          {doing.length > 0 && (
-            <optgroup label="On the job">
-              {doing.map((p) => (
-                <option key={p.contact_id} value={p.contact_id}>{p.name}{p.seat ? ` · ${p.seat}` : ""}</option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-        {/* SOMEBODY WHO IS NOT ON THE LIST. "add an option to add new assigned
-            to / will require to create a contact - or company if does not
-            exist." It happens HERE rather than on a screen of its own,
-            because navigating away from a half-written task to make a contact
-            and coming back to an empty form is how a two-line note becomes a
-            thing you do not bother with. */}
-        {projectId && !adding && (
-          <button type="button" className="btn btn-ghost small" style={{ alignSelf: "flex-start", padding: "4px 0" }}
-            onClick={() => { setAdding(true); setAddErr(""); }}>
-            ＋ Somebody who is not on this list
-          </button>
-        )}
-        {projectId && adding && (
-          <div className="card pad stack" style={{ gap: 8, marginTop: 6 }}>
-            <div className="between">
-              <span className="small" style={{ fontWeight: 700 }}>Add them to this job</span>
-              <button type="button" className="btn btn-ghost small" onClick={() => setAdding(false)}>Cancel</button>
-            </div>
-            <input className="input" placeholder="Their name" value={who.name}
-              onChange={(e) => setWho({ ...who, name: e.target.value })} />
-            <input className="input" placeholder="Company (optional)" value={who.company}
-              onChange={(e) => setWho({ ...who, company: e.target.value })} />
-            <div className="row" style={{ gap: 8 }}>
-              <input className="input grow" style={{ minWidth: 0 }} placeholder="Email (optional)" inputMode="email"
-                value={who.email} onChange={(e) => setWho({ ...who, email: e.target.value })} />
-              <input className="input grow" style={{ minWidth: 0 }} placeholder="Phone (optional)" inputMode="tel"
-                value={who.phone} onChange={(e) => setWho({ ...who, phone: e.target.value })} />
-            </div>
-            <select className="input" value={who.role} onChange={(e) => setWho({ ...who, role: e.target.value })}>
-              {SEATS.map((s) => <option key={s.role} value={s.role}>{s.label}</option>)}
+      {/* ================= 2. WHO AND WHEN ================= */}
+      {step === 2 && (
+        <>
+          {/* WHO HOLDS IT, IN THE ORDER YOU WOULD SAY THEM. Shahar
+              (2026-09-15): "first, list the PM, GC, Owner. then, list the rest
+              of the assigned contractors." The split is at authority rank 50,
+              the line between the people who RUN the job and the people who DO
+              the work - the database's own ladder, handed over by
+              portal_compose_targets, not a list of role names kept in here. */}
+          <div className="field">
+            <span className="field-label">Assigned to <span className="text-muted">(optional)</span></span>
+            <select className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+              <option value="">Nobody yet</option>
+              {running.length > 0 && (
+                <optgroup label="Running this job">
+                  {running.map((p) => (
+                    <option key={p.contact_id} value={p.contact_id}>{p.name}{p.seat ? ` · ${p.seat}` : ""}</option>
+                  ))}
+                </optgroup>
+              )}
+              {doing.length > 0 && (
+                <optgroup label="On the job">
+                  {doing.map((p) => (
+                    <option key={p.contact_id} value={p.contact_id}>{p.name}{p.seat ? ` · ${p.seat}` : ""}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
-            <p className="tiny text-muted" style={{ margin: 0 }}>
-              An email or a phone number is what stops the same person being written down twice. Neither is
-              required, and neither sends them anything — this only puts them on the job.
-            </p>
-            {addErr && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{addErr}</p>}
-            <button type="button" className="btn btn-secondary" disabled={busy || !who.name.trim()}
-              onClick={() => { void addPerson(); }}>
-              {busy ? "Adding…" : "Add and assign"}
-            </button>
+            {projectId && !adding && (
+              <button type="button" className="btn btn-ghost small" style={{ alignSelf: "flex-start", padding: "4px 0" }}
+                onClick={() => { setAdding(true); setAddErr(""); }}>
+                ＋ Somebody who is not on this list
+              </button>
+            )}
+            {projectId && adding && (
+              <div className="card pad stack" style={{ gap: 8, marginTop: 6 }}>
+                <div className="between">
+                  <span className="small" style={{ fontWeight: 700 }}>Add them to this job</span>
+                  <button type="button" className="btn btn-ghost small" onClick={() => setAdding(false)}>Cancel</button>
+                </div>
+                <input className="input" placeholder="Their name" value={who.name}
+                  onChange={(e) => setWho({ ...who, name: e.target.value })} />
+                <input className="input" placeholder="Company (optional)" value={who.company}
+                  onChange={(e) => setWho({ ...who, company: e.target.value })} />
+                <div className="row" style={{ gap: 8 }}>
+                  <input className="input grow" style={{ minWidth: 0 }} placeholder="Email (optional)" inputMode="email"
+                    value={who.email} onChange={(e) => setWho({ ...who, email: e.target.value })} />
+                  <input className="input grow" style={{ minWidth: 0 }} placeholder="Phone (optional)" inputMode="tel"
+                    value={who.phone} onChange={(e) => setWho({ ...who, phone: e.target.value })} />
+                </div>
+                <select className="input" value={who.role} onChange={(e) => setWho({ ...who, role: e.target.value })}>
+                  {SEATS.map((s) => <option key={s.role} value={s.role}>{s.label}</option>)}
+                </select>
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  An email or a phone number is what stops the same person being written down twice. Neither is
+                  required, and neither sends them anything — this only puts them on the job.
+                </p>
+                {addErr && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{addErr}</p>}
+                <button type="button" className="btn btn-secondary" disabled={busy || !who.name.trim()}
+                  onClick={() => { void addPerson(); }}>
+                  {busy ? "Adding…" : "Add and assign"}
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <div className="row" style={{ gap: 8 }}>
-        <label className="field grow">
-          <span className="field-label">Completion target</span>
-          <input className="input" name="target_date" type="date" />
-        </label>
-        <label className="field grow">
-          <span className="field-label">Priority</span>
-          <select className="input" name="priority" defaultValue="Missing">
-            {PRIORITIES.map((p) => <option key={p} value={p}>{p === "Missing" ? "Not set" : p}</option>)}
-          </select>
-        </label>
-      </div>
+          <div className="row" style={{ gap: 8 }}>
+            <label className="field grow">
+              <span className="field-label">Completion target</span>
+              <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+            </label>
+            <label className="field grow">
+              <span className="field-label">Priority</span>
+              <select className="input" value={priority} onChange={(e) => setPriority(e.target.value)}>
+                {PRIORITIES.map((p) => <option key={p} value={p}>{p === "Missing" ? "Not set" : p}</option>)}
+              </select>
+            </label>
+          </div>
 
-      {/* PART OF, with a search - because on this job the list is 129 long
-          (Shahar, 2026-09-14). Its own component: the filtering is the whole
-          point and it cannot be done on the server. */}
-      <ParentPicker tasks={openTasks} defaultParent={defaultParent} />
+          <ParentPicker tasks={openTasks} value={parent} onPick={setParent} />
 
-      {/* THE TWO GATES. Both already exist and are already enforced - by
-          portal_close_task and by close_action - and until now nothing in
-          either app could set either of them. */}
-      <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
-        <input type="checkbox" name="requires_photo" value="1" style={{ marginTop: 3 }} />
-        <span>
-          Needs photographs to close
-          <span className="text-muted"> — before and after, on the record, or it will not complete.</span>
-        </span>
-      </label>
-      <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
-        <input type="checkbox" name="is_gate" value="1" style={{ marginTop: 3 }} />
-        <span>
-          Blocks whatever it is part of
-          <span className="text-muted"> — the parent task cannot close while this one is open.</span>
-        </span>
-      </label>
+          {/* THE TWO GATES. Both already exist and are already enforced - by
+              portal_close_task and by close_action - and until migration 132
+              only creation could set them. */}
+          <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={needsPhoto} onChange={(e) => setNeedsPhoto(e.target.checked)}
+              style={{ marginTop: 3 }} />
+            <span>
+              Needs photographs to close
+              <span className="text-muted"> — before and after, on the record, or it will not complete.</span>
+            </span>
+          </label>
+          <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
+            <input type="checkbox" checked={gate} onChange={(e) => setGate(e.target.checked)}
+              disabled={!parent} style={{ marginTop: 3 }} />
+            <span>
+              Blocks whatever it is part of
+              <span className="text-muted">
+                {parent
+                  ? " — the parent task cannot close while this one is open."
+                  : " — pick what it is part of first; there has to be something to block."}
+              </span>
+            </span>
+          </label>
 
-      {contracts.length > 0 && (
-        <label className="field">
-          <span className="field-label">Part of a contract <span className="text-muted">(optional)</span></span>
-          <select className="input" name="contract" defaultValue="">
-            <option value="">Not under a contract</option>
-            {contracts.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-          </select>
-          <span className="hint">Ties the task to what was agreed, so it counts against that contract.</span>
-        </label>
+          <div className="field">
+            <span className="field-label">Part of a contract <span className="text-muted">(optional)</span></span>
+            <select className="input" value={contract} onChange={(e) => setContract(e.target.value)}>
+              <option value="">Not under a contract</option>
+              {deals.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+            <span className="hint">
+              {deals.length === 0
+                ? "Nothing is signed on this job yet."
+                : "Ties the task to what was agreed, so it counts against that contract."}
+            </span>
+            {projectId && !shelling && (
+              <button type="button" className="btn btn-ghost small" style={{ alignSelf: "flex-start", padding: "4px 0" }}
+                onClick={() => { setShelling(true); setShellErr(""); }}>
+                ＋ There is no contract yet — start a shell
+              </button>
+            )}
+            {projectId && shelling && (
+              <div className="card pad stack" style={{ gap: 8, marginTop: 6 }}>
+                <div className="between">
+                  <span className="small" style={{ fontWeight: 700 }}>Start a shell contract</span>
+                  <button type="button" className="btn btn-ghost small" onClick={() => setShelling(false)}>Cancel</button>
+                </div>
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  A placeholder: no value agreed, no scope, nothing signed — but the work is tied to it from
+                  today, so when the real terms exist you fill this one in rather than starting a second one.
+                </p>
+                <select className="input" value={shell.who} onChange={(e) => setShell({ ...shell, who: e.target.value })}>
+                  <option value="">Somebody not on the job yet</option>
+                  {crew.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
+                </select>
+                {!shell.who && (
+                  <input className="input" placeholder="Company it will be with" value={shell.company}
+                    onChange={(e) => setShell({ ...shell, company: e.target.value })} />
+                )}
+                <span className="input-money">
+                  <span className="input-money-mark" aria-hidden>$</span>
+                  <input className="input" inputMode="decimal" placeholder="Expected value (optional)"
+                    value={shell.amount} onChange={(e) => setShell({ ...shell, amount: e.target.value })} />
+                </span>
+                {shellErr && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{shellErr}</p>}
+                <button type="button" className="btn btn-secondary" disabled={busy}
+                  onClick={() => { void makeShell(); }}>
+                  {busy ? "Making…" : "Make it and tie this task to it"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button type="button" className="btn btn-primary btn-block" disabled={busy}
+            onClick={() => { void savePassTwo(); }}>
+            {busy ? "Saving…" : "Save and carry on"}
+          </button>
+          <button type="button" className="btn btn-ghost btn-block" disabled={busy}
+            onClick={() => setStep(3)}>
+            Skip to the pictures
+          </button>
+        </>
       )}
 
-      {/* A div, not a label: Evidence carries buttons, and a click on a
-          button inside a label goes to the label's control. */}
-      {projectId && (
-        <div className="field">
-          <span className="field-label">Attach <span className="text-muted">(optional)</span></span>
-          <Evidence projectId={projectId} caption="New task" onChange={setFiles} />
-          <span className="hint">A photo, a recording, the quote, the drawing — whatever says what this is.</span>
-        </div>
-      )}
+      {/* ================= 3. THE PICTURES ================= */}
+      {step === 3 && projectId && (
+        <>
+          <div className="field">
+            <span className="field-label">Attach</span>
+            <Evidence projectId={projectId} caption={name.trim() || "New task"} onChange={setFiles} />
+            <span className="hint">A photo, a recording, the quote, the drawing — whatever says what this is.</span>
+          </div>
 
-      <button className="btn btn-primary btn-block" disabled={!ready}>
-        {ready ? "Add this task" : "Name the task first"}
-      </button>
-    </>
+          <button type="button" className="btn btn-primary btn-block" disabled={busy}
+            onClick={() => { void finish(true); }}>
+            {busy ? "Finishing…" : files.length > 0 ? `Attach ${files.length} and open the task` : "Open the task"}
+          </button>
+          <button type="button" className="btn btn-ghost btn-block" disabled={busy}
+            onClick={() => { void finish(false); }}>
+            Done — back to the job
+          </button>
+        </>
+      )}
+    </div>
   );
 }

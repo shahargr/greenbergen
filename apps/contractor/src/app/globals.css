@@ -391,3 +391,30 @@
   box-shadow: 0 18px 40px rgba(22, 21, 19, .18);
 }
 .filter-menu .divider-label { margin: 0; }
+
+/* THREE PASSES, AND WHICH ONE YOU ARE ON (Shahar, 2026-09-15: "change this to
+   a step by step, where first step saves some info... needs to be a total of
+   3 steps"). A tick rather than a number on a pass that is behind you,
+   because after the first one the task really is saved and that is the whole
+   reason the screen was split. */
+.passes { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.passes li {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
+  padding: 8px 10px; border-radius: var(--radius-input);
+  background: var(--color-soft-2); color: var(--muted);
+}
+.passes li .n {
+  flex: none; width: 20px; height: 20px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--color-divider-strong); color: var(--color-surface);
+  font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.passes li .l {
+  font-size: 11.5px; font-weight: 700; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.passes li.on { background: var(--color-text); color: var(--color-bg); }
+.passes li.on .n { background: var(--color-bg); color: var(--color-text); }
+.passes li.done { background: var(--color-ok-soft); color: var(--color-ok); }
+.passes li.done .n { background: var(--color-ok); color: var(--color-ok-soft); }
+/* On a narrow phone the labels go and the numbers carry it. */
+@media (max-width: 380px) { .passes li .l { display: none; } .passes li { justify-content: center; } }
