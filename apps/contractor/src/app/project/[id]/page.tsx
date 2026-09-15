@@ -12,6 +12,7 @@ import { PropertyCard } from "@/components/PropertyCard";
 import { ProjectTypeIcon } from "@/components/ProjectTypeIcon";
 import { SearchBox } from "@/components/SearchBox";
 import { TaskTable } from "@/components/TaskTable";
+import { TradeSpine, type Spine } from "@/components/TradeSpine";
 import { matchesQuery } from "@/lib/search";
 import { ProjectSetup } from "./ProjectSetup";
 import { SiteVisits, type Visit } from "./SiteVisits";
@@ -90,7 +91,7 @@ export default async function ProjectPage({
   // the domain, and this screen wants the whole property anyway (see below),
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
-  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }, { data: moneyData }] = await Promise.all([
+  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
@@ -108,6 +109,11 @@ export default async function ProjectPage({
     (!panelRaw || panelRaw === "tasks" || panelRaw === "week")
       ? w.step("taskMoney", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id }))
       : Promise.resolve({ data: null }),
+    // THE SPINE: this job as its trades, in build order, across the whole
+    // family beneath it (migration 139). It is one read rather than a
+    // grouping done here, because it also has to answer what the job NEEDS
+    // and has not started - which no list of tasks can say.
+    w.step("spine", () => rpc<Spine>(supabase, "portal_project_trades", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}`);
 
@@ -136,6 +142,8 @@ export default async function ProjectPage({
   const scopeLines = (scopeData ?? []).reduce((n, t) => n + t.scope_lines, 0);
   const scopeTrades = (scopeData ?? []).filter((t) => t.chosen).length;
   const week = (weekData ?? null) as SiteWeek | null;
+  const spine: Spine = spineData && Array.isArray(spineData.trades)
+    ? spineData : { trades: [], untagged: { open: 0, late: 0 } };
   const visits = Array.isArray(visitData) ? visitData : [];
   const closedAlready = seat.status.startsWith("Closed");
   const onSite = !!seat.address;
@@ -648,6 +656,24 @@ export default async function ProjectPage({
             spine for a real one (activities, gates, computed dates) but
             nothing writes to it yet. Saying "nothing due" is true; drawing an
             empty Gantt would not be. */}
+        {/* THE TRADES, IN BUILD ORDER — the spine of the screen.
+            Shahar (2026-09-15): "when I land on task, I see a long list of
+            tasks. Instead of that, I would like to start by seeing all the
+            trades, the panels for all the different trades and what is
+            currently being worked on... I want you to know how the trades are
+            sequenced on a project."
+
+            It goes ABOVE today and tomorrow because it is the question you
+            are actually asking when you open a job — what stage is this house
+            at, and who is on it — and the two days are the detail inside
+            that. A trade with nothing open does not take a panel; it appears
+            as a chip with one move on it, which is the other half of what he
+            asked for ("you need to start an engagement"). */}
+        {!isFolder && (
+          <TradeSpine projectId={id} spine={spine} manages={manages}
+            back={keepAs(`/project/${id}`)} allTasksHref={allTasksHref} />
+        )}
+
         {!isFolder && (
           <section className="next-up">
             <div className="head">
@@ -740,10 +766,17 @@ export default async function ProjectPage({
             opens its own screen - every pending item it holds, its contracts
             and its money - which is what "show all the pending items for
             them" already means here. */}
-        {siteTrades.length > 0 && (
+        {/* WHO HAS ACTUALLY BEEN HERE THIS WEEK. This is attendance - counted
+            from check-ins - which is a different fact from the spine above,
+            and the only one that answers "did the plumber turn up". It used to
+            fall back to whoever OWED work this week when nobody had checked
+            in, which made it a weaker copy of the spine; now that the spine
+            leads the screen, this row only appears when it has something the
+            spine does not say. */}
+        {observed && siteTrades.length > 0 && (
           <section className="stack" style={{ gap: 8 }}>
             <div className="divider-label" style={{ padding: 0 }}>
-              {observed ? "On site this week" : "Working this week"} · {siteTrades.length}
+              On site this week · {siteTrades.length}
             </div>
             <div className="trade-grid">
               {siteTrades.map((t) => (
