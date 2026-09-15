@@ -124,6 +124,9 @@ export function NewTaskForm({
   const [shelling, setShelling] = useState(false);
   const [shellErr, setShellErr] = useState("");
   const [shell, setShell] = useState({ who: "", company: "" });
+  // "This work really is not under a contract" - said by cancelling the
+  // panel, and remembered, so the button stops offering to make one.
+  const [noDeal, setNoDeal] = useState(false);
 
   const chosen = types.find((t) => t.action_type === type) ?? null;
   // The money questions belong to the KIND, not to this component's opinion
@@ -131,6 +134,10 @@ export function NewTaskForm({
   // costs money is a row in that table, not an edit here.
   const money = !!chosen?.needs_money;
   const ready = name.trim().length > 0;
+
+  // Nothing agreed and nobody has said there will not be: the button offers
+  // to make the shell rather than pretending the question was answered.
+  const offerDeal = !!projectId && !contract && !noDeal;
 
   const running = crew.filter((p) => p.rank >= RUNS);
   const doing = crew.filter((p) => p.rank < RUNS);
@@ -172,10 +179,11 @@ export function NewTaskForm({
     // middle of making. Cancel is how you close it without one.
     let deal = contract;
     if (shelling) {
-      if (!shell.who && !shell.company.trim()) {
-        setShellErr("Say who it will be with — somebody on the job, or a company name. Cancel if you would rather not.");
-        return;
-      }
+      // NOT KNOWING WHO IT IS WITH IS THE POINT. Shahar (2026-09-15): "the
+      // whole idea is to create a contract with target for transaction as
+      // place holder as we don't know them yet." So an empty panel is a
+      // complete answer - the contract is made against the WORK, and the
+      // party is filled in when there is one (migration 135).
       setBusy(true); setErr(""); setShellErr("");
       const made = await makeShell();
       if (!made) { setBusy(false); return; }
@@ -267,9 +275,12 @@ export function NewTaskForm({
     if (!projectId) return null;
     const { data, error } = await createClient().rpc("portal_contract_shell", {
       p_project: projectId,
+      // The work is what the contract is called until somebody is appointed:
+      // a list of rows all named "(placeholder)" is a list nobody can use.
+      p_title: shell.who || shell.company.trim() ? null : name.trim() || null,
       p_trade: (money && trade) || null,
       p_counterparty: shell.who || null,
-      p_company_name: shell.who ? null : shell.company.trim(),
+      p_company_name: shell.who ? null : (shell.company.trim() || null),
       p_amount: money ? num(cost) : null,
     });
     if (error) { setShellErr(friendly(error.message)); return null; }
@@ -528,7 +539,8 @@ export function NewTaskForm({
 
           <div className="field">
             <span className="field-label">Part of a contract <span className="text-muted">(optional)</span></span>
-            <select className="input" value={contract} onChange={(e) => setContract(e.target.value)}>
+            <select className="input" value={contract}
+              onChange={(e) => { setContract(e.target.value); if (e.target.value) { setShelling(false); setShellErr(""); } }}>
               <option value="">Not under a contract</option>
               {deals.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
@@ -537,40 +549,51 @@ export function NewTaskForm({
                 ? "Nothing is signed on this job yet."
                 : "Ties the task to what was agreed, so it counts against that contract."}
             </span>
-            {projectId && !shelling && (
-              <button type="button" className="btn btn-ghost small" style={{ alignSelf: "flex-start", padding: "4px 0" }}
-                onClick={() => { setShelling(true); setShellErr(""); }}>
-                ＋ There is no contract yet — start a shell
-              </button>
-            )}
+            {/* The link that used to sit here has gone (Shahar, 2026-09-15:
+                "no need to see + There is no contract yet"). The button at the
+                foot of the pass says what it will do and opens this panel
+                itself, so a second way in was one affordance too many. */}
             {projectId && shelling && (
               <div className="card pad stack" style={{ gap: 8, marginTop: 6 }}>
                 <div className="between">
                   <span className="small" style={{ fontWeight: 700 }}>Start a shell contract</span>
-                  <button type="button" className="btn btn-ghost small" onClick={() => { setShelling(false); setShellErr(""); }}>
+                  {/* Cancel is also the answer to "this work really is not
+                      under a contract" - it is remembered, so the button below
+                      stops offering to make one and goes back to saving. */}
+                  <button type="button" className="btn btn-ghost small"
+                    onClick={() => { setShelling(false); setShellErr(""); setNoDeal(true); }}>
                     Cancel
                   </button>
                 </div>
                 <select className="input" value={shell.who} onChange={(e) => setShell({ ...shell, who: e.target.value })}>
-                  <option value="">Somebody not on the job yet</option>
+                  <option value="">Not appointed yet</option>
                   {crew.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
                 </select>
                 {!shell.who && (
-                  <input className="input" placeholder="Company it will be with" value={shell.company}
+                  <input className="input" placeholder="Or a company, if you know it" value={shell.company}
                     onChange={(e) => setShell({ ...shell, company: e.target.value })} />
                 )}
                 <p className="tiny text-muted" style={{ margin: 0 }}>
-                  Save and carry on makes it and ties this task to it.
-                  {money && num(cost) !== null && " It carries the target cost you already gave."}
+                  Leave it at <strong>Not appointed yet</strong> if you do not know — that is what a shell is for.
+                  It is made against the work{money && num(cost) !== null ? ", and carries the target cost you already gave" : ""},
+                  and whoever ends up doing it is written in later.
                 </p>
                 {shellErr && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{shellErr}</p>}
               </div>
             )}
           </div>
 
+          {/* THE BUTTON SAYS WHAT THE NEXT PRESS DOES. Shahar (2026-09-15):
+              "if not under contract, change the Save and carry on to Create
+              contract and continue. otherwise, Save and carry on is good."
+
+              So while nothing is agreed it offers to make the shell - opening
+              the panel if it is shut, making the contract if it is filled in.
+              Cancelling the panel is how you say the work really is not under
+              one, and the button goes back to saving. */}
           <button type="button" className="btn btn-primary btn-block" disabled={busy}
-            onClick={() => { void savePassTwo(); }}>
-            {busy ? "Saving…" : "Save and carry on"}
+            onClick={() => { if (offerDeal && !shelling) { setShelling(true); setShellErr(""); } else void savePassTwo(); }}>
+            {busy ? "Saving…" : offerDeal ? "Create contract and continue" : "Save and carry on"}
           </button>
         </>
       )}

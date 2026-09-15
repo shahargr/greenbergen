@@ -92,6 +92,15 @@ export function Evidence({
     setHandheld(window.matchMedia?.("(pointer: coarse) and (hover: none)")?.matches ?? false);
   }, []);
 
+  // DROP IT STRAIGHT ON (Shahar, 2026-09-15: "allow to drop an image here").
+  // At a desk the file is already under the cursor - a drawing, a quote, a
+  // photograph somebody emailed - and making you go through a file picker to
+  // find what you are already holding is a step for nothing. `over` is a
+  // counter rather than a flag because dragging across a child element fires
+  // leave-then-enter, and a boolean flickers.
+  const [over, setOver] = useState(0);
+  const dropping = over > 0 && !handheld;
+
   useEffect(() => {
     if (!recording) return;
     const t = setInterval(() => setSecs(Math.floor((Date.now() - started.current) / 1000)), 250);
@@ -219,7 +228,14 @@ export function Evidence({
   }
 
   return (
-    <div className="stack" style={{ gap: 8 }}>
+    <div className={`stack${dropping ? " dropping" : ""}`} style={{ gap: 8 }}
+      onDragEnter={handheld ? undefined : (e) => { e.preventDefault(); setOver((n) => n + 1); }}
+      onDragOver={handheld ? undefined : (e) => { e.preventDefault(); }}
+      onDragLeave={handheld ? undefined : () => setOver((n) => Math.max(0, n - 1))}
+      onDrop={handheld ? undefined : (e) => {
+        e.preventDefault(); setOver(0);
+        if (e.dataTransfer?.files?.length) void attach(e.dataTransfer.files);
+      }}>
       {/* ONE ATTACHMENT, ONE BLOCK. Shahar (2026-09-14): "fix the file name
           added and buttons so they are aligned left and all fit the width.
           its ok if the file description line is added below each file
@@ -263,6 +279,15 @@ export function Evidence({
           to both." They were ghost buttons - grey text in a row of grey text
           - on a screen whose whole point is that you are standing on site
           holding a phone. Bordered, with a glyph, side by side. */}
+      {/* Only at a desk: a drop zone on a phone is a rectangle that does
+          nothing, taking the room the buttons need. */}
+      {!handheld && (
+        <div className={`drop-zone${dropping ? " on" : ""}`} aria-hidden>
+          <PaperclipGlyph />
+          <span>{dropping ? "Let go to attach it" : "Drop a photo or a file here"}</span>
+        </div>
+      )}
+
       <div className="proof-row">
         {/* Only where there IS a camera to open: on a laptop this button and
             the next one did the same thing under two names. */}

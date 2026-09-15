@@ -35,7 +35,12 @@ type Detail = {
   // here while the list beside it said Bobby.
   assignee: { id: string; name: string | null } | null;
   holder: { name: string | null; kind: "person" | "assistant" } | null;
-  evidence: { id: string; file_name: string | null; kind: string | null; role: string | null }[];
+  // WHAT IS ATTACHED TO THE TASK ITSELF, as against what is attached to a
+  // note. Returned since this function was written and only ever COUNTED -
+  // the count feeds the photo gate and the pictures were never drawn
+  // (migration 136, which added the caption so they can be).
+  evidence: { id: string; file_name: string | null; kind: string | null; role: string | null;
+              path: string; caption: string | null; mime: string | null; created_at: string | null }[];
   comments: { author: string | null; body: string | null; created_at: string | null }[];
   open_children: number;
   // WHAT IS IN IT (migration 133). A container's children, in the blueprint's
@@ -248,6 +253,9 @@ export default async function TaskPage({
   const notePaths = [
     ...notes.flatMap((n) => n.files.map((f) => f.path)),
     ...t.payments.flatMap((p) => (p.files ?? []).map((f) => f.path)),
+    // The task's own attachments ride the same round trip: same bucket, and
+    // two calls would buy nothing.
+    ...(t.evidence ?? []).map((f) => f.path),
   ];
   const noteUrls: Record<string, string> = {};
   if (notePaths.length > 0) {
@@ -368,6 +376,56 @@ export default async function TaskPage({
           <p className="small text-muted" style={{ margin: "-4px 0 0" }}>
             On <Link href={`/project/${t.project_id}`}>{t.project}</Link>.
           </p>
+        )}
+
+        {/* WHAT IS ATTACHED. Shahar (2026-09-15), opening a task he had just
+            made with a photograph on it: "why don't you show it here on the
+            task?"
+
+            Because nothing ever has. The files linked straight to the action
+            were counted - that count is what satisfies the photo gate - and
+            never drawn. Notes render theirs; the task's own have been
+            invisible since the new-task screen learned to take attachments.
+
+            Near the top, because a photograph of the thing is the fastest
+            sentence on the screen. The caption under each one is what was
+            typed when it was attached: a picture called "the panel, showing
+            the amperage" is worth reading, the same picture called
+            IMG_5915.png is not. */}
+        {t.evidence.length > 0 && (
+          <section className="stack" style={{ gap: 6 }}>
+            <div className="divider-label" style={{ padding: 0 }}>
+              Attached · {t.evidence.length}
+            </div>
+            <div className="proofs">
+              {t.evidence.map((f) => {
+                const url = noteUrls[f.path];
+                const label = f.caption?.trim() || f.file_name || "Attachment";
+                return (
+                  <figure className="proof-card" key={f.id}>
+                    {f.kind === "photo" && url ? (
+                      <a href={url} target="_blank" rel="noreferrer" className="shot-link">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={label} />
+                      </a>
+                    ) : f.kind === "audio" && url ? (
+                      <audio src={url} controls preload="metadata" style={{ width: "100%", height: 34 }} />
+                    ) : (
+                      <a href={url ?? "#"} target="_blank" rel="noreferrer" className="file-link">
+                        <span aria-hidden>{f.kind === "video" ? "🎬" : f.kind === "document" ? "📄" : "📎"}</span>
+                        <span className="grow" style={{ minWidth: 0 }}>{f.file_name ?? "File"}</span>
+                      </a>
+                    )}
+                    <figcaption>
+                      {f.caption?.trim()
+                        ? f.caption
+                        : <span className="text-muted">{f.file_name}</span>}
+                    </figcaption>
+                  </figure>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {/* WHAT IS IN IT. Shahar (2026-09-15): "when showing tasks as
