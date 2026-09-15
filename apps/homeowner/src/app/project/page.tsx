@@ -31,10 +31,19 @@ type Bucket = "all" | "lining" | "under" | "done";
 // everything before a contractor is actually on it, everything while they
 // are, and everything finished. "In progress" as a heading was the problem -
 // it meant nothing more than "not closed".
+//
+// THE ORDER IS THE PRIORITY. Shahar (2026-09-15): "the default should be
+// under way, and list on the left. than done, and last all." What is
+// happening right now is what you opened the app to see; everything ever is
+// the last thing you want, so it is the last tab rather than the first.
 const BUCKETS: { key: Bucket; label: string }[] = [
-  { key: "all", label: "All" }, { key: "lining", label: "Lining up" },
-  { key: "under", label: "Under way" }, { key: "done", label: "Done" },
+  { key: "under", label: "Under way" }, { key: "lining", label: "Lining up" },
+  { key: "done", label: "Done" }, { key: "all", label: "All" },
 ];
+// The bare /project URL means this one, so it is the tab that carries no
+// query string - and an empty screen is never the default, so if nothing is
+// under way the first tab with anything on it opens instead.
+const DEFAULT_BUCKET: Bucket = "under";
 
 // ONE ROW PER JOB, booked or not (migration 116). Shahar, with two
 // screenshots: "as professional i see both Ran and My own generator project.
@@ -91,7 +100,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // count missed offers, questions and anything else addressed to you.
   // my_unread_count() is the same predicate the inbox list calls `pending`.
   const unread = await unreadForShell();
-  const filter: Bucket = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : "all";
+  const asked: Bucket | null = BUCKETS.some((x) => x.key === show) ? (show as Bucket) : null;
 
   // THE SHOP WINDOW, THE WAY THE FRONT DOOR SHOWS IT.
   //
@@ -119,13 +128,17 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   const mine = onlyHome ? all.filter((r) => r.p.home_project_id === onlyHome.project_id) : all;
   const counts = { all: 0, lining: 0, under: 0, done: 0 } as Record<Bucket, number>;
   for (const r of mine) { const k = bucketOf(r); if (k !== "cancelled") { counts[k]++; counts.all++; } }
+  const order: Exclude<Bucket, "all">[] = ["under", "lining", "done"];
+  // Nobody asked, so: what is under way - unless nothing is, in which case
+  // the first tab that has something on it, and "All" if none of them do.
+  const filter: Bucket = asked
+    ?? (counts[DEFAULT_BUCKET] > 0 ? DEFAULT_BUCKET : order.find((k) => counts[k] > 0) ?? "all");
   const shown = mine.filter((r) => { const k = bucketOf(r); return k !== "cancelled" && (filter === "all" || k === filter); });
   const manyHomes = me.homes.length > 1;
-  const order: Exclude<Bucket, "all">[] = ["under", "lining", "done"];
   const href = (b: Bucket) => {
     const q = new URLSearchParams();
     if (onlyHome) q.set("home", onlyHome.project_id);
-    if (b !== "all") q.set("show", b);
+    if (b !== DEFAULT_BUCKET) q.set("show", b);
     return q.size ? `/project?${q}` : "/project";
   };
 
