@@ -680,3 +680,35 @@ Steps 1–4 are the product. 5–8 are what makes it worth building.
   is copied down, how grants are written, how a booking becomes an offer.
 - Read `apps/shared/db/008_address_after_award.sql`. It is short, and it is
   the rule you are most likely to break by accident.
+
+---
+
+## 15. Deploying: why every app rebuilds on every push
+
+Each consumer app is its own Vercel project with its own Root Directory
+(`apps/contractor`, `apps/homeowner`). Vercel's built-in "skip unaffected
+projects" watches the ROOT DIRECTORY ONLY, so a change under
+`apps/shared/` — the design system, the Supabase glue, the whole database
+contract — looked like no change at all and the app deployed nothing.
+That bug shipped five commits of shared code into a void on 2026-09-15.
+
+The obvious fix was an `ignoreCommand` in each app's `vercel.json`
+naming the paths that matter:
+
+    git diff --quiet HEAD^ HEAD -- :/apps/contractor :/apps/shared ...
+
+It is correct on a normal clone — verified, exit 1, build. It does NOT
+work in Vercel's checkout: commit `1503a8a`, the first one in the repo's
+history to touch ONLY `apps/shared`, was skipped by both apps. Every
+earlier commit that appeared to prove the rule also touched an
+app-specific path, so the shared arm had never once been exercised.
+A skipped build reports as `CANCELED` with no build logs and an
+`errorLink` pointing at the monorepo skipping docs — it does not look
+like a failure, which is exactly what makes it dangerous.
+
+So the ignore command is now `exit 1`: **always build**. Three small
+Next apps take about a minute each. The cost of an unnecessary build is
+that minute; the cost of a wrongly skipped one is believing you shipped
+something you did not, which has now happened twice. If someone wants
+the optimisation back, the test that matters is a commit touching
+`apps/shared` and NOTHING else — anything less proves nothing.
