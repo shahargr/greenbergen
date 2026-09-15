@@ -397,8 +397,13 @@ export function NewTaskForm({
               </label>
               <label className="field">
                 <span className="field-label">Pay to</span>
+                {/* "Not yet awarded" rather than "not set" (Shahar,
+                    2026-09-15). Blank here is not an oversight - on a Build it
+                    is the normal state, because you write the work down before
+                    you know who is doing it. Saying so stops it reading as a
+                    field you forgot. */}
                 <select className="input" value={payTo} onChange={(e) => setPayTo(e.target.value)}>
-                  <option value="">— not set —</option>
+                  <option value="">Not yet awarded</option>
                   {payees.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
                 </select>
                 <span className="hint">
