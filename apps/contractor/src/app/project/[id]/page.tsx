@@ -6,7 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { TradeIllustration } from "@shared/Illustrations";
-import { GROUPINGS, buildTree, coverUrls, faceUrl, getBoard, groupTasks, groupWork, money, openBeneath, readMoney, runs, topLevels, type Group, type GroupKey, type Node, type Seat, type TaskMoney } from "@/lib/board";
+import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupTasks, groupWork, money, nest, openBeneath, readMoney, runs, topLevels, type Group, type GroupKey, type Node, type Seat, type Task, type TaskMoney } from "@/lib/board";
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
 import { SearchBox } from "@/components/SearchBox";
@@ -397,16 +397,28 @@ export default async function ProjectPage({
 
   // ONE TASK, one row - written once and used by both arrangements, so the
   // flat buckets and the nested categories cannot drift apart.
-  const taskRow = (t: (typeof board.tasks)[number]) => {
+  //
+  // `depth` is how far under a parent it sits (nest(), lib/board). A step of
+  // a blueprint is not a sibling of the thing it is a step of, and rendering
+  // it as one is what made the generator's list unreadable: twelve steps of
+  // "Hire the generator installer" scattered through the list, in alphabetical
+  // order, with their own parent buried among them.
+  const taskRow = (t: (typeof board.tasks)[number], depth = 0) => {
     const m = taskMoney.tasks[t.id];
     return (
-      <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(viewHref({}))}`}>
+      <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(viewHref({}))}`}
+        className={depth > 0 ? "kid" : undefined}>
         <span className="grow" style={{ minWidth: 0 }}>
           <span className="t">{t.action}</span>
           <span className="m">
             {[
               // Which job it is on, when that is not this row.
               t.project_id && t.project_id !== id ? (nameOf.get(t.project_id) ?? t.project) : null,
+              // What is under it. A parent with steps says how many are left,
+              // so a folded-looking row is never mistaken for a single task.
+              t.open_children > 0
+                ? `${t.open_children} step${t.open_children === 1 ? "" : "s"} left`
+                : null,
               // Whatever the section is not already named after.
               by === "trade" || by === "phase" ? null : t.trade,
               by === "contract" ? null : t.contract,
@@ -598,7 +610,7 @@ export default async function ProjectPage({
                 One component now, so the two cannot drift apart again. */}
             {soon.length === 0
               ? <p className="none">Nothing due today or tomorrow.</p>
-              : <TaskTable rows={soon.slice(0, 6)} back={keepAs(`/project/${id}`)} />}
+              : <TaskTable rows={flat(soon.slice(0, 6))} back={keepAs(`/project/${id}`)} />}
             {/* THE WHOLE LIST, ON ITS OWN SCREEN. "all tasks should be a new
                 window, with a back, or filter" - which /tasks already is: a
                 back to the board, whose / late / high, and a search. Scoped
@@ -1025,7 +1037,7 @@ export default async function ProjectPage({
                   <span className={`h ${b.tone === "status" ? "late" : ""}`}>{b.label}</span>
                   <span className="n">{b.rows.length}{b.late > 0 && b.tone !== "status" ? ` · ${b.late} late` : ""}</span>
                 </div>
-                <div className="bucket-rows">{b.rows.map(taskRow)}</div>
+                <TaskRows rows={b.rows} row={taskRow} />
               </div>
             ))}
 
@@ -1109,10 +1121,23 @@ function Panel({ href, on, n, label, sub, tone }: {
 // It opens by itself when there is something owed or something late - the two
 // reasons a person is on this screen - and stays shut otherwise, which is what
 // makes a hundred and forty tasks readable at all.
+// A SECTION'S ROWS, WITH THE STEPS UNDER THE THING THEY ARE STEPS OF.
+//
+// nest() hands back the same rows in the same order, each carrying how deep
+// it sits. They stay DIRECT children of .bucket-rows - the hairlines and the
+// padding come from `> a` - so the indent is a class on the row, not a
+// wrapper around it.
+function TaskRows({ rows, row }: {
+  rows: Task[];
+  row: (t: Task, depth?: number) => React.ReactNode;
+}) {
+  return <div className="bucket-rows">{nest(rows).map(({ t, depth }) => row(t, depth))}</div>;
+}
+
 function GroupBlock({ g, depth, row, payHref, canLog }: {
   g: Group;
   depth: number;
-  row: (t: Group["rows"][number]) => React.ReactNode;
+  row: (t: Group["rows"][number], depth?: number) => React.ReactNode;
   payHref: (g: Group) => string;
   canLog: boolean;
 }) {
@@ -1142,7 +1167,7 @@ function GroupBlock({ g, depth, row, payHref, canLog }: {
         {g.sub.map((s) => (
           <GroupBlock key={s.key} g={s} depth={depth + 1} row={row} payHref={payHref} canLog={canLog} />
         ))}
-        {g.rows.length > 0 && <div className="bucket-rows">{g.rows.map(row)}</div>}
+        {g.rows.length > 0 && <TaskRows rows={g.rows} row={row} />}
         {/* The payment belongs to a task; this row is the way in. */}
         {canLog && g.rows.length > 0 && (
           <Link href={payHref(g)} className="home-row">

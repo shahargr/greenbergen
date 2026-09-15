@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { shortDate } from "@shared/format";
-import type { Task } from "@/lib/board";
+import type { Twig } from "@/lib/board";
 
 // A TASK LIST AS A TABLE, ON A PHONE.
 //
@@ -30,7 +30,8 @@ const STAGE_SHORT: Record<string, string> = {
 };
 
 export function TaskTable({ rows, back, showProject = false }: {
-  rows: Task[];
+  /** Rows with their depth on them - nest() for a list, flat() for a slice. */
+  rows: Twig[];
   /** Where a task sends you when you are done with it: back to this list. */
   back: string;
   /** On a list that crosses jobs, the row says which one it is on. */
@@ -40,7 +41,7 @@ export function TaskTable({ rows, back, showProject = false }: {
   if (rows.length === 0) return null;
   return (
     <div className="tt">
-      {rows.map((t) => {
+      {rows.map(({ t, depth }) => {
         const late = !!t.target_date && t.target_date < today;
         // Who holds it. An assistant is a holder too (migration 079), and
         // nobody is a fact worth reading rather than a blank.
@@ -50,12 +51,15 @@ export function TaskTable({ rows, back, showProject = false }: {
         const left = [
           who,
           t.priority === "High" ? "High" : null,
+          // A parent says what is under it, so a row with steps is never
+          // mistaken for a single task (migration 129).
+          t.open_children > 0 ? `${t.open_children} step${t.open_children === 1 ? "" : "s"} left` : null,
           showProject ? t.project : null,
         ].filter(Boolean).join(" · ");
         const say = (t.status_note ?? "").trim() || (t.notes ?? "").trim();
         return (
           <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(back)}`}
-            className={`tt-row${late ? " late" : ""}`}>
+            className={`tt-row${late ? " late" : ""}${depth > 0 ? " kid" : ""}`}>
             <span className="name">{t.action}</span>
             <span className={`due${late ? " late" : ""}`}>
               {t.target_date ? shortDate(t.target_date) : "—"}

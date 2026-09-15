@@ -357,6 +357,16 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .bucket-rows > a:first-child { border-top: 0; }
 .bucket-rows .t { font-size: 14px; line-height: 1.25; display: block; }
 .bucket-rows .m { font-size: 11.5px; color: var(--muted); display: block; margin-top: 2px; }
+/* A STEP OF THE TASK ABOVE IT, not a task beside it. The row stays a direct
+   child of .bucket-rows so it keeps the hairline and the padding; the indent
+   and the rail are a class on the row itself. The rail is what makes twelve
+   steps read as one block rather than twelve more things to do. */
+.bucket-rows > a.kid { position: relative; padding-left: calc(var(--space-4) + 22px); }
+.bucket-rows > a.kid::before {
+  content: ""; position: absolute; left: calc(var(--space-4) + 7px);
+  top: 0; bottom: 0; width: 2px; background: var(--color-divider);
+}
+.bucket-rows > a.kid .t { font-size: 13.5px; }
 
 /* A MESSAGE, AS AN EMAIL. Closed: who, subject, when. The body, the picture
    and the verbs wait behind the disclosure - an inbox is a list you scan and

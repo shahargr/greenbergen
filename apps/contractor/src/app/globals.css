@@ -327,6 +327,14 @@
 }
 .tt-row.late { border-left-color: var(--color-status); }
 .tt-row:active { background: var(--color-soft); }
+/* A step of the row above it (migration 129). The rail is what makes twelve
+   blueprint steps read as one block rather than twelve separate jobs. */
+.tt-row.kid { position: relative; padding-left: 35px; }
+.tt-row.kid::before {
+  content: ""; position: absolute; left: 20px; top: 0; bottom: 0;
+  width: 2px; background: var(--color-divider);
+}
+.tt-row.kid .name { font-weight: 600; }
 .tt-row .name {
   font-family: var(--font-heading); font-weight: 800; font-size: 14px; line-height: 1.2;
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

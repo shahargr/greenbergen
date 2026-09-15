@@ -98,6 +98,13 @@ export type Task = {
   contract_id: string | null; contract: string | null;
   phase: string | null; phase_order: number | null;
   completed_on: string | null;
+  // A TASK INSIDE A TASK. portal_tasks has always returned these three and
+  // nothing read them, so a blueprint's twelve steps rendered as twelve
+  // siblings of the thing they are steps OF. See nest() below.
+  parent_id: string | null; parent_title: string | null; open_children: number;
+  // Where it sits in the sequence it came from (migration 129). Null on most
+  // tasks - nobody put them in an order - and null sorts last, never first.
+  step_order: number | null;
 };
 
 export type Me = {
@@ -387,12 +394,7 @@ export function bucketTasks(tasks: Task[], now = new Date()) {
     const k = taskBucket(t, today, weekEnd);
     out.set(k, [...(out.get(k) ?? []), t]);
   }
-  for (const rows of out.values()) {
-    rows.sort((a, b) =>
-      (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999") ||
-      priorityRank(a.priority) - priorityRank(b.priority) ||
-      a.action.localeCompare(b.action));
-  }
+  for (const rows of out.values()) rows.sort(withinSection);
   return TASK_BUCKETS
     .map((b) => ({ ...b, rows: out.get(b.key) ?? [] }))
     .filter((b) => b.rows.length > 0);
@@ -427,16 +429,72 @@ export const GROUPINGS: { key: GroupKey; label: string }[] = [
 export type Section = { key: string; label: string; tone: "status" | null; rows: Task[]; late: number };
 
 // Inside every section, whatever the grouping: what is late first, then by
-// date, then by priority. A finished task sorts by when it finished.
+// date, then by SEQUENCE, then by priority. A finished task sorts by when it
+// finished.
+//
+// Step order earns its place above priority and the name because it is the
+// only one of the four that was DECIDED. Shahar (2026-09-15) asking how the
+// generator's tasks were ordered: thirteen of the fifteen had no date, so the
+// alphabet was deciding, and a hire-a-contractor blueprint was reading
+// "Close (sign)" before "Review proposals". Null step_order sorts last, so
+// nothing that was never in an order jumps ahead of something that was.
 const withinSection = (a: Task, b: Task) => {
   if (a.state !== b.state) return a.state === "open" ? -1 : 1;
   if (a.state === "closed") {
     return (b.completed_on ?? b.last_updated ?? "").localeCompare(a.completed_on ?? a.last_updated ?? "");
   }
   return (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999") ||
+    (a.step_order ?? 9999) - (b.step_order ?? 9999) ||
     priorityRank(a.priority) - priorityRank(b.priority) ||
     a.action.localeCompare(b.action);
 };
+
+// A TASK INSIDE A TASK, flattened back out with its depth on it.
+//
+// Under one parent the sequence is the whole truth, so it comes FIRST here -
+// ahead of the date, unlike the top level where what is late still leads. A
+// blueprint's step 14 having a date does not make it step 3.
+const childOrder = (a: Task, b: Task) =>
+  (a.step_order ?? 9999) - (b.step_order ?? 9999) ||
+  (a.target_date ?? "9999").localeCompare(b.target_date ?? "9999") ||
+  a.action.localeCompare(b.action);
+
+export type Twig = { t: Task; depth: number };
+
+// Takes a section's rows in the order withinSection put them and returns the
+// same rows, no more and no fewer, each under the parent it belongs to.
+//
+// A child whose parent is NOT in these rows - filtered out by "open only",
+// the search, or the grouping - stays where it was, at the top. Losing a task
+// because its parent is not on screen would be the worst possible bug in a
+// list of what is left to do, so the walk keeps a seen-set and sweeps up
+// anything a cycle in the data would otherwise have dropped.
+export function nest(rows: Task[]): Twig[] {
+  const here = new Set(rows.map((t) => t.id));
+  const kids = new Map<string, Task[]>();
+  const roots: Task[] = [];
+  for (const t of rows) {
+    if (t.parent_id && here.has(t.parent_id)) {
+      kids.set(t.parent_id, [...(kids.get(t.parent_id) ?? []), t]);
+    } else roots.push(t);
+  }
+  const out: Twig[] = [];
+  const seen = new Set<string>();
+  const walk = (t: Task, depth: number) => {
+    if (seen.has(t.id)) return;
+    seen.add(t.id);
+    out.push({ t, depth });
+    for (const k of [...(kids.get(t.id) ?? [])].sort(childOrder)) walk(k, depth + 1);
+  };
+  for (const t of roots) walk(t, 0);
+  for (const t of rows) if (!seen.has(t.id)) { seen.add(t.id); out.push({ t, depth: 0 }); }
+  return out;
+}
+
+// For a list where nesting would be a lie: "Today and tomorrow" is a slice of
+// what is DUE, so a step that happens to be dated is not standing in for its
+// parent. Same shape, no hierarchy claimed.
+export const flat = (rows: Task[]): Twig[] => rows.map((t) => ({ t, depth: 0 }));
 
 export function groupTasks(tasks: Task[], by: GroupKey, now = new Date()): Section[] {
   const today = now.toISOString().slice(0, 10);

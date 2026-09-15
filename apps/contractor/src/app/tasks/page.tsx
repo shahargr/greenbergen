@@ -4,7 +4,7 @@ import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
 import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
-import { getBoard, priorityRank, topLevels, type Task } from "@/lib/board";
+import { getBoard, nest, priorityRank, topLevels, type Task } from "@/lib/board";
 import { SearchBox } from "@/components/SearchBox";
 import { TaskTable } from "@/components/TaskTable";
 import { matchesQuery } from "@/lib/search";
@@ -77,11 +77,14 @@ export default async function TasksPage({
     .filter((t) => matchesQuery(query, [t.action, t.notes, t.project, groupOf(t).label, t.trade, t.assignee, t.status]));
 
   // Late first and oldest first, then everything dated, then the undated by
-  // priority - an undated task has nothing else to order it by.
+  // SEQUENCE and priority. Step order sits above both because it is the only
+  // one of them that somebody decided: without it the alphabet was ordering
+  // every undated task, and a blueprint's steps came out shuffled.
   const bucket = (t: Task) => (isLate(t) ? 0 : t.target_date ? 1 : 2);
   const order = (a: Task, b: Task) =>
     bucket(a) - bucket(b) ||
     (a.target_date ?? "").localeCompare(b.target_date ?? "") ||
+    (a.step_order ?? 9999) - (b.step_order ?? 9999) ||
     priorityRank(a.priority) - priorityRank(b.priority) ||
     a.action.localeCompare(b.action);
 
@@ -204,14 +207,19 @@ export default async function TasksPage({
                 {g.label} · {g.open}{g.late ? ` · ${g.late} late` : ""}
               </summary>
               <div className="stack" style={{ gap: 10 }}>
-                {g.subs.map((s) => (
+                {g.subs.map((s) => {
+                  // Nest FIRST, then cap: capping the flat list would leave
+                  // eight steps on screen with the task they belong to cut
+                  // off below the line.
+                  const twigs = nest(s.rows);
+                  return (
                   <div className="stack" style={{ gap: 6 }} key={s.key}>
                     {g.subs.length > 1 && (
                       <div className="tiny text-muted" style={{ paddingLeft: 2 }}>
                         {s.label} · {s.rows.length}{s.late ? ` · ${s.late} late` : ""}
                       </div>
                     )}
-                    <TaskTable rows={focused ? s.rows : s.rows.slice(0, CAP)} back={here} />
+                    <TaskTable rows={focused ? twigs : twigs.slice(0, CAP)} back={here} />
                     {!focused && s.rows.length > CAP && (
                       <p className="small text-muted" style={{ margin: "0 0 2px" }}>
                         …and {s.rows.length - CAP} more.{" "}
@@ -219,7 +227,8 @@ export default async function TasksPage({
                       </p>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </details>
           );
