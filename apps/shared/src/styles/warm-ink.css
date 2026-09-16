@@ -1282,3 +1282,14 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .nb-done { display: grid; gap: 6px; justify-items: start; padding: 10px 0; }
 .nb-done .t { margin: 0; font-size: 16px; font-weight: 800; }
 .nb-done .m { margin: 0; font-size: 13px; color: var(--muted); }
+
+
+/* "THE SAME SIZE OF SCREEN" (Shahar, 2026-09-16). Three kinds of capture wear
+   one sheet, so the sheet must not jump as you move between the tabs - a
+   control that resizes under your thumb is a control you stop trusting. A
+   floor on the body rather than a fixed height, so a long note can still
+   grow. */
+.nb-capture { min-height: 340px; align-content: start; }
+.nb-capture .nb-text { min-height: 84px; }
+/* Evidence brings its own spacing; inside the sheet it is one more row. */
+.nb-capture .drop-zone { margin: 0; }
