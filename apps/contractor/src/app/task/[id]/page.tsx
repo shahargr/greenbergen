@@ -5,6 +5,7 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, LongText, Notice, Screen } from "@shared/ui";
+import { TaskBar } from "./TaskBar";
 import { saveTask, undoNote, editPayment, cancelTask, deleteTask, linkTask } from "./actions";
 import { NoteBox } from "./NoteBox";
 import { PaymentBox, type Method } from "./PaymentBox";
@@ -329,6 +330,15 @@ export default async function TaskPage({
   return (
     <Screen>
       <AppBar back={to} title="Task" sub={t.project ?? undefined} />
+
+      {/* SAVE, UNDO, EXIT - kept in view. Shahar (2026-09-16): "any change made
+          in the form should check how save button shows, helping me understand
+          if anything requires a save. undo shows only if save was clicked on."
+          The screen is long enough that both questions you have while scrolling
+          it - have I changed anything, how do I get out - needed a journey. */}
+      {!closed && t.can_edit && (
+        <TaskBar formId="task-form" taskId={id} exitHref={to} justSaved={!!ok} />
+      )}
       <div className="body">
         {error && <Notice kind="error" title="Not saved.">{error}</Notice>}
         {/* IT STAYS ON THE TASK NOW, and the thing you just posted is one tap
@@ -671,7 +681,7 @@ export default async function TaskPage({
             Then, after that part, what you DO about it: log a payment
             against it, or post an update and close it. */}
         {!closed && (
-          <form action={saveTask} className="stack" style={{ gap: 18 }}>
+          <form id="task-form" action={saveTask} className="stack" style={{ gap: 18 }}>
             <input type="hidden" name="id" value={t.id} />
             <input type="hidden" name="back" value={to} />
 

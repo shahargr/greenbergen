@@ -595,3 +595,34 @@
 .fit-line { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; }
 .fit-line .k { flex: none; font-size: 12px; font-weight: 700; color: var(--muted); min-width: 92px; }
 .fit-line .v { min-width: 0; font-size: 13px; }
+
+/* THE TASK BAR. Sticky under the app bar, because the two questions it answers
+   - is there anything to save, how do I leave - are the ones you have while
+   scrolling, not the ones you have at the top. */
+.task-bar {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px var(--space-4);
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--color-divider);
+}
+.task-bar .grow { flex: auto; }
+.tb-btn {
+  flex: none; min-height: 34px; padding: 0 12px; border-radius: var(--radius-pill);
+  display: inline-flex; align-items: center; cursor: pointer; text-decoration: none;
+  font-size: 13px; font-weight: 700; line-height: 1;
+  border: 1.5px solid var(--color-divider-strong); background: var(--color-surface);
+  color: var(--color-text);
+}
+.tb-btn:hover { border-color: var(--color-text); }
+/* A SAVE BUTTON THAT ADMITS WHETHER IT HAS ANYTHING TO DO. Quiet and disabled
+   when the form matches how it arrived; ink and alive the moment it does not. */
+.tb-btn.save { opacity: .45; }
+.tb-btn.save.on {
+  opacity: 1; background: var(--color-text); color: var(--color-bg); border-color: var(--color-text);
+}
+.tb-btn.save:disabled { cursor: default; }
+.tb-state { flex: none; font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.tb-state.on { color: var(--color-bid); }
+@media (max-width: 400px) { .tb-state { display: none; } }
