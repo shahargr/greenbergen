@@ -1,0 +1,39 @@
+-- 153. A TRADE NAMES THE JOB ITS WORK LANDS ON.
+--
+-- Shahar (2026-09-16), on Asbestos under 55 Walnut Drive: "I'm trying to award
+-- this business to someone - document past activity in the project. Unable to
+-- do this ... how do I add a contractor and contract from here?"
+--
+-- The award screen was never the problem. It takes a ?trade= and opens
+-- filtered to it, it lists everybody he knows, and it already has fields for
+-- somebody who is not on the list yet - name, company, phone, email. It
+-- refused because of WHERE it was pointed.
+--
+-- A PROPERTY HOLDS NO WORK; ITS JOBS DO. portal_task_takes_tasks is false for
+-- exactly one row in that family - 55 Walnut Drive itself, the container with
+-- eleven jobs under it - and true for every job beneath, New build included.
+-- The award screen says so plainly ("This is the property, not a job") and
+-- hides its form. The Engage card added in 147 linked to /project/<the screen
+-- you are on>/award, and on a property screen that is the container, so the
+-- button led to a wall. Mine, not the award screen's.
+--
+-- The spine aggregates the whole family, which is why Asbestos appears on the
+-- property at all: no open tasks anywhere, and its contract - "Asbestos
+-- inspection & abatement - 55 Walnut (Mark Jovic)" - sits on New build. So the
+-- answer to "which job" is knowable and the trade should carry it.
+--
+-- The same fix covers "Run a bid instead", which was equally broken and would
+-- have been refused a layer deeper by fn_actions_not_on_property.
+--
+-- lands_on, in the order the evidence is worth trusting:
+--   1. the job where this trade already has the most open work
+--   2. the job holding a contract that covers this trade
+--   3. this project, when it is itself a job
+--   4. null - and the card says to start a job rather than pretending
+--
+-- Verified on 55 Walnut: Asbestos, Demo & Excavation, Framing and Plumbing all
+-- land on New build; nothing lands on a project that cannot take work; Tile,
+-- which exists only as a scope line, honestly reports no job.
+--
+-- Applied as "a_trade_names_the_job_its_work_lands_on"; the live definition is
+-- the record.

@@ -43,7 +43,7 @@ export default async function TradePage({
     // `contracts` is derived from TASKS, so a trade with a signed contract and
     // no tasks yet read as nobody-appointed - which is exactly the state you
     // are in when you arrive here to start it off.
-    w.step("spine", () => rpc<{ trades: { trade: string; state: string; awarded: boolean; who: string | null }[] }>(
+    w.step("spine", () => rpc<{ trades: { trade: string; state: string; awarded: boolean; who: string | null; lands_on: { id: string; name: string | null } | null }[] }>(
       supabase, "portal_project_trades", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}/trade/${raw}`);
@@ -161,6 +161,7 @@ export default async function TradePage({
               you noticed it rather than back on the project screen. */}
           {manages && mine && !mine.awarded && (
             <Engage projectId={id} trade={trade} who={mine.who}
+              landsOn={mine.lands_on ?? null}
               back={`/project/${id}/trade/${raw}`} />
           )}
 
