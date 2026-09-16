@@ -124,3 +124,8 @@ begin
   if out_ = src then raise exception 'portal_project_trades has drifted at idle done'; end if;
   execute out_;
 end $patch$;
+
+-- And the pest-control contract, so the trade sits on its tile in the new
+-- stage before anybody re-awards it (run directly, 2026-09-16).
+update public.contracts set trade = 'Pest Control', last_modified_by = 'Claude (158b)'
+ where id = '8273fbcc-87e5-464a-83d6-7c8e65a4137b' and trade is null;
