@@ -9,6 +9,7 @@ import { getBoard, groupTasks, money, runs } from "@/lib/board";
 import type { SiteWeek } from "../../SiteWeek";
 import { QuickTask } from "./QuickTask";
 import { Engage } from "./Engage";
+import { GateMark } from "@/components/GateMark";
 
 export const dynamic = "force-dynamic";
 
@@ -187,9 +188,12 @@ export default async function TradePage({
               </div>
               <div className="bucket-rows">
                 {b.rows.map((t) => (
-                  <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}>
+                  <Link key={t.id} className={t.is_gate ? "gated" : undefined}
+                    href={`/task/${t.id}?back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}>
                     <span className="grow" style={{ minWidth: 0 }}>
-                      <span className="t">{t.action}</span>
+                      <span className="t">
+                        {t.is_gate && <GateMark label={false} />}{t.is_gate ? " " : ""}{t.action}
+                      </span>
                       <span className="m">
                         {[
                           t.project_id && t.project_id !== id ? (nameOf.get(t.project_id) ?? t.project) : null,

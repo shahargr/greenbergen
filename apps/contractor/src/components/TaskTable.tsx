@@ -29,6 +29,8 @@ const STAGE_SHORT: Record<string, string> = {
   "Pending on Others": "On others",
 };
 
+import { GateMark } from "./GateMark";
+
 export function TaskTable({ rows, back, showProject = false }: {
   /** Rows with their depth on them - nest() for a list, flat() for a slice. */
   rows: Twig[];
@@ -65,7 +67,7 @@ export function TaskTable({ rows, back, showProject = false }: {
         return (
           <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(back)}`}
             className={`tt-row${late ? " late" : ""}${depth > 0 ? " kid" : ""}`}>
-            <span className="name">{t.action}</span>
+            <span className="name">{t.is_gate && <GateMark label={false} />}{t.is_gate ? " " : ""}{t.action}</span>
             <span className={`due${late ? " late" : ""}`}>
               {t.target_date ? shortDate(t.target_date) : "—"}
             </span>

@@ -555,3 +555,37 @@
 }
 .tp.appointed .f .say { color: var(--color-ok); }
 .spine-key .sw.appointed { background: var(--color-surface); border-color: var(--color-ok); }
+
+/* THE GATE SIGN (migration 149). Ochre, the colour already reserved for a
+   decision waiting on a person, because that is exactly what a gate is - not
+   an error, not a warning, a barrier that lifts when somebody deals with it. */
+.gate-chip {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  padding: 2px 7px 2px 5px; border-radius: var(--radius-pill);
+  background: var(--color-bid-soft); color: var(--color-bid);
+  border: 1px solid color-mix(in srgb, var(--color-bid) 35%, transparent);
+  font-size: 10.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+  white-space: nowrap; line-height: 1.4;
+}
+.gate-chip svg { width: 12px; height: 12px; flex: none; }
+/* A gated row carries the bar down its left edge, so a list reads as "this one
+   is holding the rest" without every row needing the chip read. */
+.bucket-rows > a.gated, .tt-row.gated { border-left-color: var(--color-bid); }
+
+/* The tick that makes a gate. Bigger than a default checkbox because it is
+   pressed on a phone with a glove on, and it says what it does rather than
+   making you remember. */
+.gate-tick {
+  display: flex; align-items: flex-start; gap: 9px; cursor: pointer;
+  padding: 9px 10px; border-radius: var(--radius-input);
+  border: 1px dashed var(--color-divider-strong); background: var(--color-soft-2);
+}
+.gate-tick:has(input:checked) {
+  border-style: solid; border-color: color-mix(in srgb, var(--color-bid) 45%, transparent);
+  background: var(--color-bid-soft);
+}
+.gate-tick input { width: 20px; height: 20px; flex: none; margin-top: 1px; accent-color: var(--color-bid); }
+.gate-tick .grow { flex: auto; min-width: 0; }
+.gate-tick .t { display: block; font-size: 13px; font-weight: 700; line-height: 1.25; }
+.gate-tick .m { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.gate-tick:has(input:checked) .t { color: var(--color-bid); }

@@ -105,6 +105,8 @@ export type Task = {
   // Where it sits in the sequence it came from (migration 129). Null on most
   // tasks - nobody put them in an order - and null sorts last, never first.
   step_order: number | null;
+  /** Everything else in its trade (or its parent) waits on this. */
+  is_gate: boolean;
 };
 
 export type Me = {

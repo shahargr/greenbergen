@@ -1,0 +1,45 @@
+-- 149 + 150. A GATE IS A TASK THAT SAYS STOP.
+--
+-- Shahar (2026-09-16): "when logging a task on a trade, i'd like to log a task
+-- as a blocker that must be resolved for the job to be completed. in a way, it
+-- replaces the need for me to get into the next task and build dependency on
+-- it. next to the 'Log a plumbing task', allow me to check a box stating this
+-- must come first for the rest to resume, with high priority. so this task
+-- become a gate in a way. such task created should be logged with a gate sign."
+--
+-- THE POINT IS THE ARITHMETIC IT AVOIDS. Migration 130 gave tasks real
+-- dependencies - after, before, parent - and they are correct and almost
+-- nobody will ever use them, because saying "this blocks those four" means
+-- opening four tasks and pointing each back here. A gate says the same thing in
+-- one tick: everything in this trade waits on me. Cruder, and what a person on
+-- a site actually has time to record.
+--
+-- 149: portal_task_quick gains p_is_gate (and DROPS the old signature first -
+-- migration 146 is the whole story of what happens when it does not). A gate
+-- carries High priority with it rather than asking twice: a thing the rest of
+-- the job waits on IS the urgent one. portal_tasks now returns is_gate so the
+-- lists can draw the sign.
+--
+-- 150: portal_task_create refused the whole thing with GATE_NEEDS_PARENT - "a
+-- task that blocks its parent has to be part of one". That guard was right
+-- about what it guarded (a gate with nothing to hold is a tick that does
+-- nothing) and wrong that a parent is the only thing a gate can hold. What he
+-- describes holds a TRADE: "nobody closes a wall until the inspector has been"
+-- is not a step of some package, it is a bar across all the plumbing on the
+-- job. So the rule became what it always meant - a gate must hold SOMETHING:
+--
+--   gate with a parent   blocks that parent            (unchanged)
+--   gate with a trade    blocks that trade on this job (new)
+--   gate with neither    refused, GATE_NEEDS_SOMETHING
+--
+-- No existing gate changes meaning: every one on the system has a parent and
+-- still blocks it.
+--
+-- Verified: a trade gate saves with is_gate true and priority High without
+-- being asked; an ordinary quick task is untouched (is_gate false, priority
+-- Missing); a gate holding nothing is still refused; the old parent-gate path
+-- still works; and portal_tasks reports is_gate to the lists.
+--
+-- Both were applied as "a_gate_is_a_task_that_says_stop" and
+-- "a_gate_can_hold_a_trade_not_only_a_parent"; see the live definitions of
+-- portal_task_quick, portal_tasks and portal_task_create.

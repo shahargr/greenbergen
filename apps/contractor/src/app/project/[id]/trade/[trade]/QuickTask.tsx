@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
 import { friendly } from "@shared/rpc";
+import { GateMark } from "@/components/GateMark";
 
 // TWO KINDS OF WRITING-DOWN, AND THEY ARE NOT THE SAME ACT.
 //
@@ -37,6 +38,8 @@ export function QuickTask({ projectId, projectName, trade, elsewhere }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [added, setAdded] = useState<string[]>([]);
+  // "this must come first for the rest to resume" (Shahar, 2026-09-16)
+  const [gate, setGate] = useState(false);
 
   const ready = name.trim().length > 0;
 
@@ -48,12 +51,13 @@ export function QuickTask({ projectId, projectName, trade, elsewhere }: {
       p_action: name.trim(),
       p_trade: trade,
       p_target_date: due || null,
+      p_is_gate: gate,
     });
     setBusy(false);
     if (error) { setErr(friendly(error.message)); return; }
     if (!data?.ok) { setErr(data?.reason ?? "That was not added."); return; }
     setAdded((list) => [...list, data.action as string]);
-    setName(""); setDue("");
+    setName(""); setDue(""); setGate(false);
     router.refresh();
   }
 
@@ -85,6 +89,28 @@ export function QuickTask({ projectId, projectName, trade, elsewhere }: {
           aria-label="When it is due" style={{ maxWidth: 190 }} />
         <span className="tiny text-muted">When, if you know.</span>
       </div>
+
+      {/* A GATE, IN ONE TICK RATHER THAN FOUR VISITS.
+          Shahar (2026-09-16): "allow me to check a box stating this must come
+          first for the rest to resume, with high priority. so this task become
+          a gate in a way."
+
+          Real dependencies exist (migration 130: after, before, parent) and
+          almost nobody will ever use them, because saying "this blocks those
+          four" means opening four tasks and pointing each one back here. This
+          says the same thing in one tick: everything in this trade waits on
+          me. High priority comes with it rather than being a second decision -
+          a thing the rest of the job is waiting on IS the urgent one. */}
+      <label className="gate-tick">
+        <input type="checkbox" checked={gate} onChange={(e) => setGate(e.target.checked)} />
+        <span className="grow">
+          <span className="t">This must come first</span>
+          <span className="m">
+            Nothing else in {trade.toLowerCase()} moves until it is done. Logged as a gate, high priority.
+          </span>
+        </span>
+        {gate && <GateMark label={false} />}
+      </label>
 
       <p className="tiny text-muted" style={{ margin: 0 }}>
         Filed under <strong>{trade}</strong>
