@@ -725,3 +725,32 @@ The ignore command stays `exit 1` as a belt, but the graph is the
 braces. **The test that matters is a commit touching `apps/shared` and
 NOTHING else** — anything that also touches an app path proves nothing,
 which is exactly how this went unnoticed through five commits.
+
+
+---
+
+## 16. Migrations: adding a parameter is not editing a function
+
+`CREATE OR REPLACE FUNCTION` replaces a function with the **same signature**.
+The argument list is part of the identity, so adding a parameter — even one
+with a default, even at the end — creates a **second function** and leaves the
+first standing. The migration reports success, which is what makes this
+dangerous: nothing looks wrong until a caller whose arguments fit both
+signatures gets
+
+    Could not choose the best candidate function between: ...
+
+That killed every quick-task box in the app for a day (migration 146).
+
+**So: a migration that adds a parameter must DROP the old signature in the
+same migration.** After any migration that touches function signatures, check:
+
+    select proname, count(*) from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prokind = 'f'
+     group by proname having count(*) > 1;
+
+Deliberate overloads are fine and do exist — `may_create_project` takes 0, 1
+or 2 arguments with no defaults, so every call resolves to exactly one. The
+bug is specifically two signatures that a single call could satisfy, which is
+what defaults create.
