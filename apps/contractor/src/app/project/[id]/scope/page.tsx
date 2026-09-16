@@ -48,10 +48,10 @@ export default async function ScopePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ step?: string; ok?: string; error?: string }>;
+  searchParams: Promise<{ step?: string; ok?: string; error?: string; trade?: string; back?: string }>;
 }) {
   const { id } = await params;
-  const { step, ok, error } = await searchParams;
+  const { step, ok, error, trade: focusRaw, back } = await searchParams;
 
   const w = stopwatch("/project/[id]/scope");
   const supabase = await createClient();
@@ -84,23 +84,53 @@ export default async function ScopePage({
   const totalScope = trades.reduce((n, t) => n + t.scope_lines, 0);
   const withProof = lines.filter((l) => (l.evidence?.length ?? 0) > 0).length;
 
-  // Where you are, unless you asked for a step by name.
-  const auto = chosen.length === 0 ? "1" : totalScope === 0 ? "2" : "3";
+  // ONE TRADE AT A TIME, when you came from one. Shahar (2026-09-16), having
+  // tapped Framing and then Scope: "it is really strange you present me with
+  // a list of all trades, where all trades are flagged on by default. can we
+  // narrow the list? can we add the trade name so we know what we are
+  // working on?"
+  //
+  // The wizard was built for the job as a whole - which trades, which lines,
+  // then packages - and that is still what it is from the project screen.
+  // From a trade it is that trade's scope: the trade named in the bar, its
+  // row alone in step 1 (the rest of the job's trades kept exactly as they
+  // are, behind a fold, and never dropped by a save), its lines alone in
+  // step 2, and the way back to where you were.
+  const focus = trades.find((t) => t.trade === focusRaw) ?? null;
+  const focusQ = focus ? `&trade=${encodeURIComponent(focus.trade)}` : "";
+  const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
+  const backQ = back ? `&back=${encodeURIComponent(to)}` : "";
+
+  // Where you are, unless you asked for a step by name. With a trade in
+  // focus the question is about that trade: not chosen yet, or its lines.
+  const auto = focus
+    ? (focus.chosen ? "2" : "1")
+    : chosen.length === 0 ? "1" : totalScope === 0 ? "2" : "3";
   const at = step === "1" || step === "2" || step === "3" ? step : auto;
-  const href = (n: string) => `/project/${id}/scope?step=${n}`;
+  const href = (n: string) => `/project/${id}/scope?step=${n}${focusQ}${backQ}`;
 
   return (
     <Screen>
-      <AppBar back={`/project/${id}`} title="Scope" sub={seat.project_name} />
+      <AppBar back={to} title={focus ? `Scope · ${focus.trade}` : "Scope"} sub={seat.project_name} />
       <div className="body">
         {ok && <div className="banner-ok">{ok}</div>}
         {error && <Notice kind="error">{error}</Notice>}
 
         <div className="kicker">
-          {chosen.length === 0
-            ? "Nothing scoped yet"
-            : `${chosen.length} trade${chosen.length === 1 ? "" : "s"} · ${totalScope} line${totalScope === 1 ? "" : "s"} in scope`}
+          {focus
+            ? (focus.scope_lines > 0
+                ? `${focus.trade} · ${focus.scope_lines} line${focus.scope_lines === 1 ? "" : "s"} in scope`
+                : focus.chosen ? `${focus.trade} · nothing in scope yet` : `${focus.trade} · not on this job yet`)
+            : chosen.length === 0
+              ? "Nothing scoped yet"
+              : `${chosen.length} trade${chosen.length === 1 ? "" : "s"} · ${totalScope} line${totalScope === 1 ? "" : "s"} in scope`}
         </div>
+
+        {focus && (
+          <p className="tiny text-muted" style={{ margin: 0 }}>
+            Just {focus.trade}. <Link href={`/project/${id}/scope`}>The whole job&apos;s scope</Link> is the other view.
+          </p>
+        )}
 
         {!canEdit && (
           <Notice kind="info" title="You are reading this one.">
@@ -112,12 +142,20 @@ export default async function ScopePage({
         <Step n="1" at={at} title="Trades" done={`${chosen.length} chosen`} href={href("1")}>
           {at === "1" ? (
             <form action={setTrades.bind(null, id)} className="stack" style={{ gap: 8 }}>
+              <input type="hidden" name="focus" value={focus?.trade ?? ""} />
+              <input type="hidden" name="back" value={back ?? ""} />
               <p className="small text-muted" style={{ margin: 0 }}>
-                Ticked ones are what the blueprint expects for a job named like this. Add or drop any.
+                {focus
+                  ? `Tick it and ${focus.trade} joins the job's trades. The rest of the job's trades stay as they are.`
+                  : "Ticked ones are what the blueprint expects for a job named like this. Add or drop any."}
               </p>
-              {trades.filter((t) => t.suggested || t.chosen).map((t) => (
+              {/* In focus: this trade's row, ticked; the job's OTHER chosen
+                  trades ride along as checked rows behind a fold, so a save
+                  from here can never drop them - the database sets the whole
+                  list from what the form sends. */}
+              {trades.filter((t) => focus ? t.trade === focus.trade : (t.suggested || t.chosen)).map((t) => (
                 <label className="check-row" key={t.trade}>
-                  <input type="checkbox" name="trade" value={t.trade} defaultChecked={t.chosen || t.suggested} />
+                  <input type="checkbox" name="trade" value={t.trade} defaultChecked={focus ? true : (t.chosen || t.suggested)} />
                   <span className="grow" style={{ minWidth: 0 }}>
                     <span className="t">{t.trade}</span>
                     <span className="m">
@@ -127,12 +165,30 @@ export default async function ScopePage({
                   </span>
                 </label>
               ))}
+              {focus && chosen.filter((t) => t.trade !== focus.trade).length > 0 && (
+                <details>
+                  <summary className="small text-muted" style={{ cursor: "pointer" }}>
+                    The job&apos;s other trades · {chosen.filter((t) => t.trade !== focus.trade).length} · kept as they are
+                  </summary>
+                  <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+                    {chosen.filter((t) => t.trade !== focus.trade).map((t) => (
+                      <label className="check-row" key={t.trade}>
+                        <input type="checkbox" name="trade" value={t.trade} defaultChecked />
+                        <span className="grow" style={{ minWidth: 0 }}>
+                          <span className="t">{t.trade}</span>
+                          <span className="m">{t.scope_lines > 0 ? `${t.scope_lines} in scope` : "chosen"}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              )}
               <details>
                 <summary className="small text-muted" style={{ cursor: "pointer" }}>
-                  Every other trade · {trades.filter((t) => !t.suggested && !t.chosen).length}
+                  Every other trade · {trades.filter((t) => focus ? (!t.chosen && t.trade !== focus.trade) : (!t.suggested && !t.chosen)).length}
                 </summary>
                 <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-                  {trades.filter((t) => !t.suggested && !t.chosen).map((t) => (
+                  {trades.filter((t) => focus ? (!t.chosen && t.trade !== focus.trade) : (!t.suggested && !t.chosen)).map((t) => (
                     <label className="check-row" key={t.trade}>
                       <input type="checkbox" name="trade" value={t.trade} />
                       <span className="grow" style={{ minWidth: 0 }}>
@@ -161,13 +217,29 @@ export default async function ScopePage({
           {at === "2" && chosen.length === 0 && (
             <p className="small text-muted" style={{ margin: 0 }}>Choose the trades in step 1 first.</p>
           )}
+          {at === "2" && chosen.length > 0 && focus && !focus.chosen && (
+            <p className="small text-muted" style={{ margin: 0 }}>
+              {focus.trade} is not on this job yet — <Link href={href("1")}>add it in step 1</Link> and its lines appear here.
+            </p>
+          )}
           {at === "2" && chosen.length > 0 && (
             <form action={copyLines.bind(null, id)} className="stack" style={{ gap: 10 }}>
+              <input type="hidden" name="focus" value={focus?.trade ?? ""} />
+              <input type="hidden" name="back" value={back ?? ""} />
               <p className="small text-muted" style={{ margin: 0 }}>
-                The blueprint&apos;s knowledge for these trades, in their language. What you keep becomes the
-                line items on the proposal, so every bidder prices the same list.
+                {focus
+                  ? <>The blueprint&apos;s knowledge for {focus.trade}, in its language. What you keep becomes the
+                      line items on the proposal. The other trades&apos; lines are not touched from here.</>
+                  : <>The blueprint&apos;s knowledge for these trades, in their language. What you keep becomes the
+                      line items on the proposal, so every bidder prices the same list.</>}
               </p>
-              {chosen.map((t) => {
+              {/* Unticked means removed (portal_scope_copy sets the whole
+                  list), so in focus every OTHER trade's copied line is sent
+                  hidden and unchanged. */}
+              {focus && candidates.filter((c) => c.trade !== focus.trade && c.copied).map((c) => (
+                <input type="hidden" name="line" value={c.id} key={c.id} />
+              ))}
+              {chosen.filter((t) => !focus || t.trade === focus.trade).map((t) => {
                 const rows = candidates.filter((c) => c.trade === t.trade);
                 if (rows.length === 0) return null;
                 // The lines that name this job lead and come ticked; the rest

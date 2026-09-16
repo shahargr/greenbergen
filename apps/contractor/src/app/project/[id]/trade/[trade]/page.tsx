@@ -251,9 +251,13 @@ export default async function TradePage({
           </Notice>
         )}
 
-        <Link href={`/project/${id}/scope`} className="home-row">
+        {/* The trade rides along, so the scope screen opens on THIS trade's
+            lines rather than on the whole job's trade list (Shahar: "it is
+            really strange you present me with a list of all trades"). It
+            lands on the job the work is on, since scope lives there. */}
+        <Link href={`/project/${mine?.lands_on?.id ?? landsOn}/scope?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`} className="home-row">
           <span className="grow" style={{ minWidth: 0 }}>
-            <span className="t">Scope</span>
+            <span className="t">Scope · {trade}</span>
             <span className="m" style={{ display: "block" }}>The lines this trade is priced against</span>
           </span>
           <ChevronIcon />

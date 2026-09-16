@@ -15,6 +15,15 @@ const to = (projectId: string, params: Record<string, string>) => {
   return `/project/${projectId}/scope${q ? `?${q}` : ""}`;
 };
 
+// The trade in focus and the way back, when the screen was opened from a
+// trade: they came in on the URL and go out on it, so a save does not drop
+// you into the whole-job view you did not ask for.
+const keep = (formData: FormData) => {
+  const focus = String(formData.get("focus") ?? "").trim();
+  const back = String(formData.get("back") ?? "").trim();
+  return { ...(focus ? { trade: focus } : {}), ...(back ? { back } : {}) };
+};
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 // Step 1 - which trades this job needs. The chosen list becomes the
@@ -23,6 +32,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export async function setTrades(projectId: string, formData: FormData) {
   const supabase = await createClient();
   const trades = formData.getAll("trade").map((v) => String(v));
+  const k = keep(formData);
 
   const { error } = await supabase.rpc("portal_scope_trades_set", {
     p_project: projectId,
@@ -30,8 +40,8 @@ export async function setTrades(projectId: string, formData: FormData) {
   });
   revalidatePath(`/project/${projectId}/scope`);
   redirect(error
-    ? to(projectId, { step: "1", error: error.message })
-    : to(projectId, { step: "2", ok: `${plural(trades.length, "trade")} on this job.` }));
+    ? to(projectId, { step: "1", error: error.message, ...k })
+    : to(projectId, { step: "2", ok: k.trade ? `${k.trade} is on this job.` : `${plural(trades.length, "trade")} on this job.`, ...k }));
 }
 
 // Step 2 - the blueprint's lines for those trades, copied down into this
@@ -45,15 +55,19 @@ export async function setTrades(projectId: string, formData: FormData) {
 export async function copyLines(projectId: string, formData: FormData) {
   const supabase = await createClient();
   const lines = formData.getAll("line").map((v) => String(v));
+  const k = keep(formData);
 
   const { error } = await supabase.rpc("portal_scope_copy", {
     p_project: projectId,
     p_blueprint_ids: lines,
   });
   revalidatePath(`/project/${projectId}/scope`);
+  // In focus the count sent includes the other trades' lines, carried
+  // hidden, so the line total is not the trade's - say what was saved, not
+  // a number that would mislead.
   redirect(error
-    ? to(projectId, { step: "2", error: error.message })
-    : to(projectId, { step: "3", ok: `${plural(lines.length, "line")} in scope.` }));
+    ? to(projectId, { step: "2", error: error.message, ...k })
+    : to(projectId, { step: k.trade ? "2" : "3", ok: k.trade ? `${k.trade}'s scope saved.` : `${plural(lines.length, "line")} in scope.`, ...k }));
 }
 
 // Step 3 - scope becomes draft bid packages, one per trade, carrying that
