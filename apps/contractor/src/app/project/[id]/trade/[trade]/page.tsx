@@ -43,7 +43,7 @@ export default async function TradePage({
     // `contracts` is derived from TASKS, so a trade with a signed contract and
     // no tasks yet read as nobody-appointed - which is exactly the state you
     // are in when you arrive here to start it off.
-    w.step("spine", () => rpc<{ trades: { trade: string; state: string; awarded: boolean; who: string | null; lands_on: { id: string; name: string | null } | null }[] }>(
+    w.step("spine", () => rpc<{ trades: { trade: string; state: string; awarded: boolean; finished: boolean; who: string | null; lands_on: { id: string; name: string | null } | null }[] }>(
       supabase, "portal_project_trades", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}/trade/${raw}`);
@@ -159,10 +159,24 @@ export default async function TradePage({
               wizard for the other kind (migration 137). */}
           {/* NOBODY APPOINTED YET - the two ways to fix that, offered where
               you noticed it rather than back on the project screen. */}
-          {manages && mine && !mine.awarded && (
+          {manages && mine && !mine.awarded && !mine.finished && (
             <Engage projectId={id} trade={trade} who={mine.who}
               landsOn={mine.lands_on ?? null}
               back={`/project/${id}/trade/${raw}`} />
+          )}
+          {/* FINISHED, NOT UNSTARTED. A trade whose contract is Complete used
+              to get the "nobody is appointed" card - migration 154. The award
+              screen stays one link away for a second visit. */}
+          {manages && mine?.finished && (
+            <Card soft pad>
+              <div className="small" style={{ fontWeight: 800 }}>Done{mine.who ? ` — ${mine.who}` : ""}.</div>
+              <div className="tiny text-muted" style={{ marginTop: 2 }}>
+                The contract behind this trade is complete. Need them again?{" "}
+                {mine.lands_on
+                  ? <Link href={`/project/${mine.lands_on.id}/award?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}>Award it afresh</Link>
+                  : "Award it afresh from the job"}.
+              </div>
+            </Card>
           )}
 
           {manages && (

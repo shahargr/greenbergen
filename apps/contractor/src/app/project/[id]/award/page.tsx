@@ -32,9 +32,19 @@ type Awarded = {
   seat: string | null; since: string | null; may_remove: boolean;
   contract_id: string | null; contract: string | null; contract_status: string | null; trade: string | null;
 };
+// A CONTRACT ALREADY ON THE JOB (migration 154). Shahar: "i believe previous
+// design allowed me to award to an existing contract, or open a new contract
+// if necessary... so i can document few closed contracts, including pest
+// control." Closed ones are in the list on purpose - a finished contract with
+// nobody seated on it is exactly the past work there is to document.
+type Contract = {
+  id: string; title: string; status: string | null; type: string | null;
+  trade: string | null; trade_known: string | null; amount: number | null;
+  signed: string | null; who: string | null; company: string | null; seats: number;
+};
 type Board = {
   project_name: string | null; may_award: boolean; takes_work: boolean;
-  needs: string[]; awarded: Awarded[]; people: Person[];
+  needs: string[]; awarded: Awarded[]; people: Person[]; contracts: Contract[];
 };
 
 // Running the job is not a thing you put out to bid, so it is never in the
@@ -84,7 +94,7 @@ export default async function AwardPage({
   ]);
   w.done();
 
-  const b: Board = boardData ?? { project_name: null, may_award: false, takes_work: true, needs: [], awarded: [], people: [] };
+  const b: Board = boardData ?? { project_name: null, may_award: false, takes_work: true, needs: [], awarded: [], people: [], contracts: [] };
   const trades = (tradeRows ?? []).map((t) => t.trade).filter((t) => t !== "ALL" && t !== "Meta");
   const picked = pickedRaw && trades.includes(pickedRaw) ? pickedRaw : "";
 
@@ -111,6 +121,26 @@ export default async function AwardPage({
     return am - cm || a.name.localeCompare(c.name);
   });
   const matches = picked ? people.filter((p) => p.trades.includes(picked)).length : 0;
+
+  // THE CONTRACTS, in the order they are worth offering: the ones for the
+  // chosen trade, then the ones that name no trade yet (the pest-control
+  // contract had none, which is why its tile did not know about it), then
+  // everything else. Cancelled ones stay visible and are refused by name.
+  const contracts = [...(b.contracts ?? [])].sort((a, c) => {
+    const rank = (x: Contract) =>
+      picked && x.trade_known === picked ? 0
+      : x.trade === null ? 1
+      : x.status === "Cancelled" ? 3 : 2;
+    return rank(a) - rank(c) || (a.title ?? "").localeCompare(c.title ?? "");
+  });
+  const contractLabel = (c: Contract) => [
+    c.title,
+    c.status === "placeholder" ? "placeholder" : c.status?.toLowerCase() ?? null,
+    c.amount != null ? `$${Math.round(Number(c.amount)).toLocaleString("en-US")}` : null,
+    c.signed ? shortDate(c.signed) : null,
+    c.seats > 0 ? `${c.seats} seated` : "nobody seated",
+  ].filter(Boolean).join(" · ");
+  const forTrade = picked ? contracts.filter((c) => c.trade_known === picked).length : 0;
 
   if (!b.may_award) {
     return (
@@ -212,7 +242,7 @@ export default async function AwardPage({
               </div>
               <div className="task-row-value">
                 <select name="contact" className="input" defaultValue="">
-                  <option value="">Choose someone…</option>
+                  <option value="">Choose someone — or whoever the contract names</option>
                   {people.map((p) => (
                     <option key={p.contact_id} value={p.contact_id}>{personLabel(p, picked)}</option>
                   ))}
@@ -239,6 +269,37 @@ export default async function AwardPage({
               </div>
             </div>
 
+            {/* THE CONTRACT IT LANDS ON. "New" opens a placeholder, as it
+                always did. Picking one that exists binds the seat to it and
+                opens nothing - so the signed Masonry contract stops sharing
+                the job with a placeholder twin, and a contract that was
+                Complete in May can finally say who did the work. */}
+            <div className="task-row">
+              <div className="task-row-label">
+                Contract
+                <div className="text-muted">One that exists, or a new one</div>
+              </div>
+              <div className="task-row-value">
+                <select name="contract" className="input" defaultValue="">
+                  <option value="">Open a new one — a placeholder until terms are agreed</option>
+                  {contracts.length > 0 && (
+                    <optgroup label={picked && forTrade > 0 ? `${picked} first, then the rest` : "Already on this job"}>
+                      {contracts.map((c) => (
+                        <option key={c.id} value={c.id}>{contractLabel(c)}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                <p className="hint" style={{ margin: 0 }}>
+                  {contracts.length === 0
+                    ? "No contracts on this job yet, so this award opens the first."
+                    : picked && forTrade > 0
+                      ? `${forTrade} ${forTrade === 1 ? "contract on this job is" : "contracts on this job are"} for ${picked.toLowerCase()}. Pick one and the seat is bound to it — no placeholder, and a closed one is how past work gets documented. Leave “Who” blank and it is read off the contract.`
+                      : "Pick one and the seat is bound to it — no placeholder opens. A closed contract is how past work gets documented; leave “Who” blank and the person is read off it."}
+                </p>
+              </div>
+            </div>
+
             <div className="task-row">
               <div className="task-row-label">
                 Note
@@ -252,7 +313,7 @@ export default async function AwardPage({
 
             <button className="btn btn-primary btn-block">Award it</button>
             <p className="tiny text-muted" style={{ margin: 0, textAlign: "center" }}>
-              This opens a placeholder contract — no value, no scope. Agree the terms on{" "}
+              With no contract picked this opens a placeholder — no value, no scope. Agree the terms on{" "}
               <Link href={`/project/${id}/money`}>the job&apos;s money screen</Link>.
             </p>
           </form>
@@ -289,6 +350,7 @@ export default async function AwardPage({
                       // leaving blank — it is the thing that needs fixing.
                       a.contract_id === null ? "no contract behind this seat"
                         : a.contract_status === "placeholder" ? "terms not agreed yet"
+                        : a.contract_status === "Complete" ? "contract complete"
                         : a.contract_status,
                       a.since ? `since ${shortDate(a.since)}` : null].filter(Boolean).join(" · ")}
                   </span>

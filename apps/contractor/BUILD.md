@@ -754,3 +754,22 @@ Deliberate overloads are fine and do exist — `may_create_project` takes 0, 1
 or 2 arguments with no defaults, so every call resolves to exactly one. The
 bug is specifically two signatures that a single call could satisfy, which is
 what defaults create.
+
+## 17. An award lands on the contract that exists
+
+Since migration 154 the award screen has a **Contract** row. Left on "new"
+it does what it always did: seat the person, let `fn_members_ensure_contract`
+find their live contract on the job or open a placeholder. Pick a contract
+that exists and the seat is bound to it, nothing is opened, the person may be
+left blank and is read off the contract, and the trade is written onto the
+contract when it had none. A **closed** contract is in the list on purpose:
+a Complete contract with nobody seated on it is the past work there is to
+document, and the spine then shows the trade as **done** rather than "not
+started". A seat sitting on a placeholder is moved to the picked contract —
+that is the repair for the duplicates the old trigger opened (it compared a
+person seat with `counterparty_contact_id` while every real contract names
+the company there and the person on `contractor_id`; it now matches both).
+
+What it refuses, by name: a contract on another job, a receivable, a
+cancelled one, a person who is not the contract's party, a trade that
+contradicts a trade the contract already names.

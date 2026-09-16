@@ -32,10 +32,13 @@ export type SpineTrade = {
   next_due: string | null;
   /** idle = the job needs it and nobody has been called · appointed = under a
    *  signed or awarded contract with nothing open · hiring = choosing ·
-   *  working = appointed and under way · loose = open work, nothing behind it */
-  state: "idle" | "appointed" | "hiring" | "working" | "loose";
+   *  working = appointed and under way · loose = open work, nothing behind it
+   *  · done = its contract is Complete and nothing is open (migration 154) */
+  state: "idle" | "appointed" | "hiring" | "working" | "loose" | "done";
   /** Whether a signed or awarded contract covers this trade. */
   awarded: boolean;
+  /** Whether the only contract behind this trade is Complete. */
+  finished: boolean;
   who: string | null;
   now: { id: string; action: string; target_date: string | null }[];
 };
@@ -52,11 +55,17 @@ export type Spine = {
 // it. It is active, so it is not grey; it is not settled, so it is not green.
 // Folding it into either would be the screen telling a comfortable lie about
 // a real state of a real job.
+//
+// `done` is the fifth the data insisted on next (migration 154): asbestos
+// was inspected and abated in May, the contract is Complete, and the tile
+// said "not started" - the opposite of the truth, and an invitation to
+// award it again.
 const SAY: Record<SpineTrade["state"], string> = {
   working: "on the job",
   appointed: "appointed",
   hiring: "bid out",
   loose: "open work",
+  done: "done",
   idle: "not started",
 };
 
@@ -148,6 +157,7 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
         <span><i className="sw appointed" />appointed{count("appointed") > 0 ? ` · ${count("appointed")}` : ""}</span>
         <span><i className="sw hiring" />bid out{count("hiring") > 0 ? ` · ${count("hiring")}` : ""}</span>
         <span><i className="sw loose" />open work</span>
+        {count("done") > 0 && <span><i className="sw done" />done · {count("done")}</span>}
         {idle.length > 0 && <span><i className="sw idle" />not started · {idle.length}</span>}
       </div>
 
@@ -164,13 +174,6 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
         <p className="tiny text-muted" style={{ margin: 0 }}>
           A dashed tile is a trade this job needs and nobody has started. Open it to log the first
           task, run a bid, or award it straight to somebody you have already picked.
-        </p>
-      )}
-
-      {manages && idle.length > 0 && (
-        <p className="tiny text-muted" style={{ margin: 0 }}>
-          A dashed tile is a trade this job needs and nobody has started. Tapping one writes a single
-          line on you — <em>Run the bid for …</em> — filed under the trade and invisible to the trades.
         </p>
       )}
 

@@ -7,8 +7,11 @@ import { friendly } from "@shared/rpc";
 
 // AWARDING WORK. Two ways in, one rule underneath: portal_award_trade seats
 // them and hands back the contract (migration 106); portal_award_add_trade
-// makes the contact first when the person is not on file yet (107). Who may
-// do it is can_edit_project's business, asked in the database, not here.
+// makes the contact first when the person is not on file yet (107). Since
+// 154 the award can name a contract that already exists - the seat is bound
+// to it and no placeholder opens - and the person may be left out and read
+// off the contract. Who may do it is can_edit_project's business, asked in
+// the database, not here.
 
 const txt = (v: FormDataEntryValue | null) => { const s = String(v ?? "").trim(); return s || null; };
 
@@ -18,12 +21,18 @@ export async function awardTrade(projectId: string, formData: FormData) {
 
   const trade = txt(formData.get("trade"));
   const contact = txt(formData.get("contact"));
+  const contract = txt(formData.get("contract"));
   const name = txt(formData.get("name"));
   const note = txt(formData.get("note"));
 
   // A name typed into "someone new" wins over a leftover selection, because
-  // typing is the more deliberate of the two.
-  if (!contact && !name) {
+  // typing is the more deliberate of the two - unless a contract was picked
+  // as well, and then the two are contradicting each other: a contract that
+  // exists already names its party, and somebody not on file is not them.
+  if (name && contract) {
+    redirect(here({ error: "A contract that exists already names its party. Pick them from the list, or leave the contract on “new” to add somebody.", trade: trade ?? "" }));
+  }
+  if (!contact && !name && !contract) {
     redirect(here({ error: "Pick who is taking it, or type their name in below.", trade: trade ?? "" }));
   }
 
@@ -36,6 +45,7 @@ export async function awardTrade(projectId: string, formData: FormData) {
       })
     : await supabase.rpc("portal_award_trade", {
         p_project: projectId, p_contact: contact, p_trade: trade, p_note: note,
+        p_contract: contract,
       });
 
   if (error) redirect(here({ error: friendly(error.message, "That award did not go through."), trade: trade ?? "" }));
@@ -53,14 +63,22 @@ export async function awardTrade(projectId: string, formData: FormData) {
   // phone name two different people).
   const matched = data?.matched_note ? `${data.matched_note} ` : "";
   // Only claim a contract when one exists. It did not always, and the screen
-  // said it did — migration 111.
-  const terms = data?.bounded
+  // said it did — migration 111. When the award landed on a contract that
+  // was already there, say which, and say what became of the placeholder the
+  // seat used to sit on.
+  const landed = data?.existing
+    ? ` On “${data.contract_title}”${data.contract_status === "Complete" ? " — complete, so this is the record of past work" : ""}.`
+    : "";
+  const moved = data?.rebound_from_title
+    ? ` Their seat moved off “${data.rebound_from_title}”, which is still on the job with nobody on it.`
+    : "";
+  const terms = data?.bounded && !data?.existing
     ? " The contract is a placeholder until you agree the terms."
     : "";
   redirect(here({
     ok: matched + (data?.seated === false
-      ? `${who} already held a seat here — the${what || " work"} is theirs.${terms}`
-      : `${who} has${what || " the work"}.${terms}`),
+      ? `${who} already held a seat here — the${what || " work"} is theirs.${landed}${moved}${terms}`
+      : `${who} has${what || " the work"}.${landed}${terms}`),
   }));
 }
 

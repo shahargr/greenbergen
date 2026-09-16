@@ -556,6 +556,17 @@
 .tp.appointed .f .say { color: var(--color-ok); }
 .spine-key .sw.appointed { background: var(--color-surface); border-color: var(--color-ok); }
 
+/* DONE (migration 154): the contract behind this trade is Complete and
+   nothing is open. Settled and over, so it is quiet - solid border, no fill,
+   muted label - and it sits in the sequence where the work was, because
+   "the asbestos was dealt with in May" is a fact about this build. It must
+   never read as "not started", which is what it said before. */
+.tp.done { background: var(--color-surface); border-color: var(--color-divider-strong); }
+.tp.done .t, .tp.done .st { color: var(--muted); }
+.tp.done .art { opacity: .45; }
+.tp.done .f .say { color: var(--color-ok); }
+.spine-key .sw.done { background: var(--color-surface); border-color: var(--color-divider-strong); }
+
 /* THE GATE SIGN (migration 149). Ochre, the colour already reserved for a
    decision waiting on a person, because that is exactly what a gate is - not
    an error, not a warning, a barrier that lifts when somebody deals with it. */
