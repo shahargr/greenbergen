@@ -1,0 +1,38 @@
+-- 152. THE CAPTURE PICKER IS GREEN BERGEN ONLY.
+--
+-- Shahar (2026-09-16): "under Greenbergen, you have Cloud Hero, as well as
+-- what else you have under it? I just want to make sure the hierarchy makes
+-- sense... are you suggesting that the database as it is holds information
+-- about Cloud Hero?"
+--
+-- It does, and the hierarchy is not what the picker implied. There is no
+-- "under Green Bergen": the top level is a flat list of SEVEN roots, and Green
+-- Bergen Development is one of them rather than the parent of the rest. Two of
+-- the other six are different businesses entirely - SGR Data - System &
+-- Architecture (domain system, 104 tasks, the largest project in the database)
+-- and CloudHiro GTM (domain cloudhiro, 31 tasks).
+--
+-- The separator has always existed and has always worked: domain. The
+-- contractor board asks portal_tasks for p_domain = 'construction' and has
+-- never shown either of them.
+--
+-- portal_capture_targets, written the day before for the floating sheet's job
+-- picker, did not ask. It filtered on can_edit_project and nothing else, so it
+-- offered a Green Bergen homeowner the option of filing a note against
+-- CloudHiro GTM. A regression against a convention every other surface already
+-- kept - not a question about what belongs in the database.
+--
+-- WHICH DOMAINS ARE THIS BUSINESS: construction (28 projects) and real estate
+-- development (1 - the Green Bergen Development folder itself). Filtering to
+-- construction alone, which is what the board does, would drop that folder, so
+-- it is the pair rather than the one. A parameter rather than a hardcoded list,
+-- because the answer is a business fact that may grow and should not need a
+-- function rewritten to change it.
+--
+-- The old signature is dropped in the same migration. Migration 146 is the
+-- story of what happens otherwise.
+--
+-- Verified after: the picker returns 20 Oliver St, Castle, Green Bergen
+-- Development and its jobs, Home, Ifat's list - and nothing from cloudhiro or
+-- system. Applied as "the_capture_picker_is_green_bergen_only"; the live
+-- definition is the record.
