@@ -24,6 +24,9 @@ export async function awardTrade(projectId: string, formData: FormData) {
   const contract = txt(formData.get("contract"));
   const name = txt(formData.get("name"));
   const note = txt(formData.get("note"));
+  // "Open a new one anyway" - the tick that answers the HAS_CONTRACT flag
+  // (migration 160). Sent only when the flag was shown and ticked.
+  const confirm = String(formData.get("confirm") ?? "") === "1";
 
   // A name typed into "someone new" wins over a leftover selection, because
   // typing is the more deliberate of the two - unless a contract was picked
@@ -41,14 +44,21 @@ export async function awardTrade(projectId: string, formData: FormData) {
     ? await supabase.rpc("portal_award_add_trade", {
         p_project: projectId, p_name: name, p_trade: trade,
         p_company: txt(formData.get("company")), p_phone: txt(formData.get("phone")),
-        p_email: txt(formData.get("email")), p_note: note,
+        p_email: txt(formData.get("email")), p_note: note, p_confirm: confirm,
       })
     : await supabase.rpc("portal_award_trade", {
         p_project: projectId, p_contact: contact, p_trade: trade, p_note: note,
-        p_contract: contract,
+        p_contract: contract, p_confirm: confirm,
       });
 
   if (error) redirect(here({ error: friendly(error.message, "That award did not go through."), trade: trade ?? "" }));
+  // THE FLAG. Shahar (2026-09-16): "if someone is trying to open a new
+  // contract for a trade with a contract on a project, raise a flag. allow
+  // it, but in most cases i think it is a mistake." The database refuses
+  // once with the list; the screen comes back with the tick to say so.
+  if (data?.ok === false && data.code === "HAS_CONTRACT") {
+    redirect(here({ error: data.reason ?? "That trade already has a contract here.", trade: trade ?? "", flag: "1" }));
+  }
   if (data?.ok === false) redirect(here({ error: data.reason ?? "That award did not go through.", trade: trade ?? "" }));
 
   revalidatePath(`/project/${projectId}/award`);

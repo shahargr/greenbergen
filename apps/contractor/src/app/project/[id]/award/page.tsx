@@ -78,11 +78,15 @@ export default async function AwardPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; ok?: string; error?: string; trade?: string; all?: string }>;
+  searchParams: Promise<{ back?: string; ok?: string; error?: string; trade?: string; all?: string; flag?: string }>;
 }) {
   const { id } = await params;
-  const { back, ok, error, trade: pickedRaw, all } = await searchParams;
+  const { back, ok, error, trade: pickedRaw, all, flag } = await searchParams;
   const showAll = all === "1";
+  // The database has just said this trade already has a contract here with
+  // somebody else (HAS_CONTRACT, migration 160). The tick below is the one
+  // way past it, and it only appears once the flag has been raised.
+  const flagged = flag === "1";
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
 
   const w = stopwatch("/project/[id]/award");
@@ -296,6 +300,18 @@ export default async function AwardPage({
                 <div className="text-muted">One that exists, or a new one</div>
               </div>
               <div className="task-row-value">
+                {flagged && (
+                  <label className="gate-tick">
+                    <input type="checkbox" name="confirm" value="1" />
+                    <span className="grow">
+                      <span className="t">Open a new contract anyway</span>
+                      <span className="m">
+                        {picked || "This trade"} already has a contract on this job with somebody else — in most cases that is
+                        a mistake. Tick this only if it really is a second, separate contract.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 <select name="contract" className="input" defaultValue="">
                   <option value="">Open a new one — awarded now, terms agreed later</option>
                   {contracts.length > 0 && (
