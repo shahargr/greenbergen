@@ -227,3 +227,17 @@ begin
   if out_ = src then raise exception 'portal_award_trade has drifted at 160b'; end if;
   execute out_;
 end $patch$;
+
+-- ---------------------------------------------------------------------------
+-- THE SWEEP (run directly, 2026-09-16, on Shahar's "Yes fix all of them").
+-- Every placeholder on New build whose party holds a real, non-cancelled
+-- base contract (not a change order) was merged into it - twelve: Valdez,
+-- Jimmy, Javier, Marcel, Chris Blake, Schmidt, McClellan, Zuidema, Ifat,
+-- Donohue, ClearEdge, Bray. All twelve deleted cleanly; each moved one
+-- seat. Two placeholders remain because nothing real exists behind them:
+-- Home Depot (Supply: General) and Richard Popso (Utilities). The log is
+-- in system_trigger_errors under 'contract_merge sweep 2026-09-16'.
+-- ---------------------------------------------------------------------------
+-- do $$ ... for each placeholder p on New build:
+--   perform public.contract_merge(p.id, <its party's base contract>);
+-- end $$;
