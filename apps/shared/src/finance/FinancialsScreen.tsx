@@ -126,6 +126,14 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
   const who = c.contractor?.name ?? c.contractor?.company ?? "—";
   const moved = c.transactions.filter((t) => t.moved);
   const planned = c.transactions.filter((t) => !t.moved);
+  // A loan writes its own schedule two years ahead (migration 159), and
+  // twenty-four planned rows under one contract is a wall. The ledger shows
+  // what moved and the next six planned; the rest are counted, with the
+  // last date, so the schedule's reach is still said.
+  const NEAR = 6;
+  const near = planned.slice(0, NEAR);
+  const far = planned.slice(NEAR);
+  const farUntil = far.length ? far.map((t) => t.paid_on ?? t.target_date).filter(Boolean).sort().at(-1) : null;
   const stagesScheduled = c.stages.reduce((a, s) => a + (s.status === "Cancelled" ? 0 : (s.amount ?? 0)), 0);
 
   // The contract's OWN currency, not the app's assumption. c.currency has
@@ -221,7 +229,7 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
             Ledger · {moved.length} {moved.length === 1 ? "payment" : "payments"}{planned.length ? `, ${planned.length} planned` : ""}
           </summary>
           <div className="kv-rows" style={{ marginTop: 6 }}>
-            {[...moved, ...planned].map((t) => (
+            {[...moved, ...near].map((t) => (
               <div key={t.id}>
                 <span className="k" style={{ minWidth: 0 }}>
                   <span style={{ display: "block", color: "var(--color-text)" }}>{t.description}{t.change_order ? " (change)" : ""}</span>
@@ -241,6 +249,16 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
                 <span className="mono" style={{ whiteSpace: "nowrap", color: t.moved ? undefined : "var(--muted)" }}>{cur(t.moved ? t.amount : t.target_amount ?? t.amount)}</span>
               </div>
             ))}
+            {far.length > 0 && (
+              <div>
+                <span className="k tiny">
+                  {far.length} more planned{farUntil ? `, through ${shortDay(farUntil)}` : ""}
+                </span>
+                <span className="mono tiny" style={{ whiteSpace: "nowrap", color: "var(--muted)" }}>
+                  {cur(far.reduce((n, t) => n + (t.target_amount ?? t.amount ?? 0), 0))}
+                </span>
+              </div>
+            )}
           </div>
         </details>
       )}
