@@ -57,6 +57,7 @@ type Detail = {
   // waiting on it. link_options is what may be picked - this job's tasks,
   // minus this one and anything already beneath it.
   parent: Link1 | null;
+  scope: { id: string; item: string | null; trade: string | null; category: string | null } | null;
   follows: (Link1 & { done: boolean }) | null;
   blocks: Link1[];
   link_options: { id: string; action: string; open: boolean }[];
@@ -532,23 +533,38 @@ export default async function TaskPage({
         {(fits || (!closed && t.can_edit)) && (
           <Card soft pad>
             <div className="between" style={{ alignItems: "baseline", gap: 10 }}>
-              <span className="kicker" style={{ margin: 0 }}>How it fits</span>
+              <span className="kicker" style={{ margin: 0 }}>Dependencies in project</span>
               {!closed && t.can_edit && (
                 <Link href={fit ? flag({}) : flag({ fit: "1" })} className="small" style={{ fontWeight: 700 }}>
-                  {fit ? "Done" : fits ? "Change" : "Set it"}
+                  {fit ? "Close" : fits ? "Change" : "Set it"}
                 </Link>
               )}
             </div>
 
             {fits ? (
               <div className="stack" style={{ gap: 3, marginTop: 6 }}>
+                {/* PART OF answers two things, and the scope line is the more
+                    useful one on a real job: the priced item this task exists
+                    to deliver (Shahar, 2026-09-16). It has been on
+                    actions.scope_item_id all along and this screen never
+                    asked. */}
+                {t.scope && (
+                  <div className="fit-line">
+                    <span className="k">Part of scope</span>
+                    <span className="v">
+                      {[t.scope.trade, t.scope.item ?? t.scope.category].filter(Boolean).join(" · ")}
+                    </span>
+                  </div>
+                )}
                 {t.parent && <FitLine label="Part of" x={t.parent} back={to} />}
                 {t.follows && <FitLine label="Comes after" x={t.follows} back={to} />}
                 {t.blocks.map((b) => <FitLine key={b.id} label="Comes before" x={b} back={to} />)}
               </div>
             ) : (
               <p className="tiny text-muted" style={{ margin: "4px 0 0" }}>
-                It waits on nothing and nothing waits on it.
+                {t.scope
+                  ? <>Part of the scope line <strong>{[t.scope.trade, t.scope.item ?? t.scope.category].filter(Boolean).join(" · ")}</strong>. It waits on nothing and nothing waits on it.</>
+                  : <>It waits on nothing and nothing waits on it.</>}
               </p>
             )}
 
@@ -569,6 +585,24 @@ export default async function TaskPage({
                     <LinkPicker id={id} back={to} rel="before" label="Comes before"
                       hint="Something that cannot start until this is done. Add as many as you like."
                       current="" options={t.link_options.filter((o) => !t.blocks.some((b) => b.id === o.id))} />
+                    {/* CANCEL THE SETUP (Shahar, 2026-09-16). Each row above
+                        saves on its own, so leaving the panel never un-saved
+                        anything - undoing an arrangement meant clearing each
+                        link in turn. One button, one move. */}
+                    {(t.parent || t.follows || t.blocks.length > 0) && (
+                      <form action={linkTask} className="between" style={{ gap: 8, alignItems: "center" }}>
+                        <input type="hidden" name="id" value={id} />
+                        <input type="hidden" name="back" value={to} />
+                        <input type="hidden" name="rel" value="clear" />
+                        <span className="tiny text-muted grow" style={{ minWidth: 0 }}>
+                          Take it all off — what it is part of, what it waits on, and everything waiting on it.
+                        </span>
+                        <button className="btn btn-secondary small" style={{ minHeight: 34, flex: "none" }}>
+                          Clear all
+                        </button>
+                      </form>
+                    )}
+
                     {t.blocks.length > 0 && (
                       <div className="stack" style={{ gap: 4 }}>
                         <div className="divider-label" style={{ padding: 0 }}>Waiting on this</div>
@@ -745,16 +779,27 @@ export default async function TaskPage({
 
               {t.can_edit && (
                 <>
-                  <Row label="Stage">
-                    <select className="input" name="status" defaultValue={STAGES.includes(t.status as typeof STAGES[number]) ? t.status : "Not Started"}>
-                      {STAGES.map((x) => <option key={x} value={x}>{x}</option>)}
-                    </select>
-                  </Row>
-                  <Row label="Priority">
-                    <select className="input" name="priority" defaultValue={t.priority ?? "Missing"}>
-                      {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
-                    </select>
-                  </Row>
+                  {/* ONE ROW (Shahar, 2026-09-16: "Stage and priority on one
+                      line"). They are two halves of the same judgement - where
+                      it stands and how much it matters - and each was taking a
+                      full row of a screen you scroll. The selects carry their
+                      own values, so which is which reads at a glance. */}
+                  <div className="task-row">
+                    <span className="task-row-label">
+                      Stage
+                      <span className="text-muted">and priority</span>
+                    </span>
+                    <div className="task-row-value pair">
+                      <select className="input" name="status" aria-label="Stage"
+                        defaultValue={STAGES.includes(t.status as typeof STAGES[number]) ? t.status : "Not Started"}>
+                        {STAGES.map((x) => <option key={x} value={x}>{x}</option>)}
+                      </select>
+                      <select className="input" name="priority" aria-label="Priority"
+                        defaultValue={t.priority ?? "Missing"}>
+                        {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
+                      </select>
+                    </div>
+                  </div>
                   <Row label="Assigned to">
                     <select className="input" name="assignee" defaultValue={t.assignee?.id ?? ""}>
                       <option value="">Nobody yet</option>

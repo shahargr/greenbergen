@@ -279,39 +279,44 @@ export function Evidence({
           to both." They were ghost buttons - grey text in a row of grey text
           - on a screen whose whole point is that you are standing on site
           holding a phone. Bordered, with a glyph, side by side. */}
-      {/* Only at a desk: a drop zone on a phone is a rectangle that does
-          nothing, taking the room the buttons need. */}
-      {!handheld && (
-        <div className={`drop-zone${dropping ? " on" : ""}`} aria-hidden>
-          <PaperclipGlyph />
-          <span>{dropping ? "Let go to attach it" : "Drop a photo or a file here"}</span>
-        </div>
-      )}
+      {/* THREE ACROSS, ALWAYS. Shahar (2026-09-16): "The three icons for
+          adding evidence must fit one line."
 
-      <div className="proof-row">
-        {/* Only where there IS a camera to open: on a laptop this button and
-            the next one did the same thing under two names. */}
+          They were stacked - a full-width drop zone, then a full-width attach
+          button, then a full-width record button - three rows to say three
+          things, on the screen where you have the least room. Three cells and
+          short words instead, and the count works out the same either way: at
+          a desk it is drop / attach / voice, on a phone it is photo / file /
+          voice, because a drop zone on a phone is a rectangle that does
+          nothing and a camera button on a laptop is the attach button twice. */}
+      <div className="proof-row three">
+        {!handheld && (
+          <div className={`drop-zone${dropping ? " on" : ""}`} aria-hidden>
+            <PaperclipGlyph />
+            <span>{dropping ? "Let go" : "Drop here"}</span>
+          </div>
+        )}
         {handheld && (
           <button type="button" className="proof-btn" disabled={!!busy || recording}
                   onClick={() => cam.current?.click()}>
             <CameraGlyph />
-            <span>Take a photo</span>
+            <span>Photo</span>
           </button>
         )}
         <button type="button" className="proof-btn" disabled={!!busy || recording}
                 onClick={() => pick.current?.click()}>
           <PaperclipGlyph />
-          <span>{handheld ? "Attach a file" : "Attach photo / file"}</span>
+          <span>{handheld ? "File" : "Attach"}</span>
         </button>
         {recording ? (
           <button type="button" className="proof-btn recording" onClick={stopRec}>
             <span className="rec-dot" aria-hidden />
-            <span>Stop · {String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}</span>
+            <span>{String(Math.floor(secs / 60)).padStart(2, "0")}:{String(secs % 60).padStart(2, "0")}</span>
           </button>
         ) : (
           <button type="button" className="proof-btn" disabled={!!busy} onClick={() => void startRec()}>
             <MicGlyph />
-            <span>Record a voice note</span>
+            <span>Voice note</span>
           </button>
         )}
       </div>

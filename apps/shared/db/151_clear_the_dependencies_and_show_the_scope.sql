@@ -1,0 +1,21 @@
+-- 151. CLEAR THE LOT, AND SAY WHICH SCOPE LINE IT IS PART OF.
+--
+-- Shahar (2026-09-16): "a. allow me to cancel the dependencies setup.
+-- b. the part of should show the scope this task is attached to (if there is
+-- one)."
+--
+-- (a) Every row in that panel saves on its own, so leaving it was never going
+-- to un-save anything - which is why "Done" was the wrong word for the way out,
+-- and why there was no way to undo a whole arrangement. Undoing one link at a
+-- time was possible (the pickers are clearable, the blocks unlink) but three or
+-- four taps to get back to nothing. portal_task_link gains rel = 'clear': what
+-- this is part of, what it waits on, and everything waiting on it, in one move.
+--
+-- (b) PART OF answered only "which task is this a step of", when a task can
+-- also be part of a SCOPE LINE - the priced thing it exists to deliver, which
+-- is the more useful half of the question on a real job. It has been sitting in
+-- actions.scope_item_id, unread by this screen, the whole time.
+-- portal_task_detail now returns it.
+--
+-- Applied as "clear_the_dependencies_and_show_the_scope"; both are in-place
+-- patches of the live definitions, which are the record.

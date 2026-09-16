@@ -194,15 +194,18 @@ export default async function TradePage({
                       <span className="t">
                         {t.is_gate && <GateMark label={false} />}{t.is_gate ? " " : ""}{t.action}
                       </span>
+                      {/* WHERE IT STANDS, not who signed what. Shahar
+                          (2026-09-16): "In gray, display the status field of
+                          the task instead of what is there right now. If the
+                          status is empty, write Status: empty."
+
+                          The line used to carry the contract and the assignee -
+                          both true, neither the thing you are scanning a late
+                          list for. The status note is the last word anybody
+                          wrote about this task, which is the only line worth
+                          reading before you open it. */}
                       <span className="m">
-                        {[
-                          t.project_id && t.project_id !== id ? (nameOf.get(t.project_id) ?? t.project) : null,
-                          t.contract,
-                          t.assignee
-                            ? (t.assignee_kind === "assistant" ? `${t.assignee} · assistant` : t.assignee)
-                            : (manages ? "nobody holds this" : null),
-                          t.status !== "Not Started" ? t.status : null,
-                        ].filter(Boolean).join(" · ") || "—"}
+                        {t.status_note?.trim() || "Status: empty"}
                       </span>
                     </span>
                     {t.state === "open" && t.priority === "High" && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>High</span>}

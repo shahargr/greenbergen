@@ -1293,3 +1293,24 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .nb-capture .nb-text { min-height: 84px; }
 /* Evidence brings its own spacing; inside the sheet it is one more row. */
 .nb-capture .drop-zone { margin: 0; }
+
+/* THREE ACROSS (Shahar, 2026-09-16: "The three icons for adding evidence must
+   fit one line"). Icon above a short word, so the cell can be narrow without
+   the label clipping - which is what a horizontal icon+text button does first
+   when there is no room. */
+.proof-row.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.proof-row.three .proof-btn,
+.proof-row.three .drop-zone {
+  flex-direction: column; justify-content: center; gap: 4px;
+  min-height: 62px; padding: 8px 6px; margin: 0; width: auto; text-align: center;
+}
+.proof-row.three .proof-btn span,
+.proof-row.three .drop-zone span {
+  font-size: 11.5px; font-weight: 700; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.proof-row.three svg { width: 18px; height: 18px; flex: none; }
+
+/* Stage and priority read as one decision and now sit on one row. */
+.task-row-value.pair { grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+@media (max-width: 380px) { .task-row-value.pair { grid-template-columns: 1fr; } }
