@@ -161,7 +161,7 @@ begin
         'reason', format('%s already has %s on this job: %s. If %s is joining that work, pick the contract above; if this really is a second, separate contract, tick "open a new one anyway".',
                          v_trade,
                          case when jsonb_array_length(v_existing) = 1 then 'a contract' else jsonb_array_length(v_existing) || ' contracts' end,
-                         (select string_agg('"' || e->>'title' || '"' || coalesce(' with ' || (e->>'who'), ''), '; ') from jsonb_array_elements(v_existing) e),
+                         (select string_agg('"' || (e->>'title') || '"' || coalesce(' with ' || (e->>'who'), ''), '; ') from jsonb_array_elements(v_existing) e),
                          v_name));
     end if;
   end if;
@@ -211,3 +211,19 @@ end $sweep$;
 update public.config
    set schema_version = schema_version + 1, schema_updated_at = now()
  where id = (select c.id from public.config c limit 1);
+
+-- ---------------------------------------------------------------------------
+-- 160b. Precedence: '"' || e->>'title' parsed as ('"' || e) ->> 'title' -
+-- jsonb concatenation of a lone quote - and the flag raised a JSON error
+-- instead of the list. Parenthesised. (Applied as "..._b".)
+-- ---------------------------------------------------------------------------
+do $patch$
+declare src text; out_ text;
+begin
+  select pg_get_functiondef('public.portal_award_trade(uuid, uuid, text, text, uuid, boolean)'::regprocedure) into src;
+  out_ := replace(src,
+    $a$(select string_agg('"' || e->>'title' || '"' || coalesce(' with ' || (e->>'who'), ''), '; ') from jsonb_array_elements(v_existing) e),$a$,
+    $b$(select string_agg('"' || (e->>'title') || '"' || coalesce(' with ' || (e->>'who'), ''), '; ') from jsonb_array_elements(v_existing) e),$b$);
+  if out_ = src then raise exception 'portal_award_trade has drifted at 160b'; end if;
+  execute out_;
+end $patch$;
