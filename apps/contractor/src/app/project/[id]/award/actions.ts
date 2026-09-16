@@ -73,11 +73,11 @@ export async function awardTrade(projectId: string, formData: FormData) {
     ? ` Their seat moved off “${data.rebound_from_title}”, which is still on the job with nobody on it.`
     : "";
   const terms = data?.bounded && !data?.existing
-    ? " The contract is a placeholder until you agree the terms."
+    ? " The contract is awarded; the terms are still to be agreed on the money screen."
     : "";
   redirect(here({
     ok: matched + (data?.seated === false
-      ? `${who} already held a seat here — the${what || " work"} is theirs.${landed}${moved}${terms}`
+      ? `${who} already held a seat here —${what || " the work"} is theirs.${landed}${moved}${terms}`
       : `${who} has${what || " the work"}.${landed}${terms}`),
   }));
 }

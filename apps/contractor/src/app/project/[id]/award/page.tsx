@@ -31,6 +31,7 @@ type Awarded = {
   member_id: string; contact_id: string | null; name: string; company: string | null;
   seat: string | null; since: string | null; may_remove: boolean;
   contract_id: string | null; contract: string | null; contract_status: string | null; trade: string | null;
+  contract_amount: number | null;
 };
 // A CONTRACT ALREADY ON THE JOB (migration 154). Shahar: "i believe previous
 // design allowed me to award to an existing contract, or open a new contract
@@ -41,6 +42,8 @@ type Contract = {
   id: string; title: string; status: string | null; type: string | null;
   trade: string | null; trade_known: string | null; amount: number | null;
   signed: string | null; who: string | null; company: string | null; seats: number;
+  /** What the contract's party works - how a loan note with no trade on it is a finance contract. */
+  party_trades: string[];
 };
 type Board = {
   project_name: string | null; may_award: boolean; takes_work: boolean;
@@ -75,10 +78,11 @@ export default async function AwardPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; ok?: string; error?: string; trade?: string }>;
+  searchParams: Promise<{ back?: string; ok?: string; error?: string; trade?: string; all?: string }>;
 }) {
   const { id } = await params;
-  const { back, ok, error, trade: pickedRaw } = await searchParams;
+  const { back, ok, error, trade: pickedRaw, all } = await searchParams;
+  const showAll = all === "1";
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
 
   const w = stopwatch("/project/[id]/award");
@@ -111,28 +115,37 @@ export default async function AwardPage({
   const led = [...needs, ...running, ...held];
   const rest = trades.filter((t) => !led.includes(t));
 
-  // Whoever works the chosen trade first, then everybody else. Never a
-  // filtered list: the man who has only ever framed for you may still be the
-  // one you hand the stairs to, and hiding him would make this screen lie
-  // about who you know.
-  const people = [...b.people].sort((a, c) => {
-    const am = picked && a.trades.includes(picked) ? 0 : 1;
-    const cm = picked && c.trades.includes(picked) ? 0 : 1;
-    return am - cm || a.name.localeCompare(c.name);
-  });
-  const matches = picked ? people.filter((p) => p.trades.includes(picked)).length : 0;
+  // ONLY THE PEOPLE WHO WORK THE TRADE. The first cut sorted everybody with
+  // the matches on top, on the grounds that the man who has only ever framed
+  // for you may still be the one you hand the stairs to. Shahar, looking at
+  // Finance with fifty names under two brokers (2026-09-16): "update this so
+  // only people with the right trade are visible." He is right about the
+  // common case, so the list is filtered - and the rare case keeps one link,
+  // "show everyone", rather than being designed out.
+  const everyone = [...b.people].sort((a, c) => a.name.localeCompare(c.name));
+  const matches = picked ? everyone.filter((p) => p.trades.includes(picked)).length : 0;
+  const people = picked && !showAll && matches > 0
+    ? everyone.filter((p) => p.trades.includes(picked))
+    : everyone;
+  const hereWith = (params: Record<string, string>) =>
+    `/project/${id}/award?${new URLSearchParams({ trade: picked, back: to, ...params }).toString()}`;
 
-  // THE CONTRACTS, in the order they are worth offering: the ones for the
-  // chosen trade, then the ones that name no trade yet (the pest-control
-  // contract had none, which is why its tile did not know about it), then
-  // everything else. Cancelled ones stay visible and are refused by name.
-  const contracts = [...(b.contracts ?? [])].sort((a, c) => {
+  // THE CONTRACTS THAT ARE ABOUT THIS TRADE. Named for it, or naming no
+  // trade at all but with a party who works it - the construction loan note
+  // has no trade on it and belongs under Finance because the lender does
+  // finance. Shahar: "i see none related contracts which makes it hard to
+  // find the right one." The rest are one link away, same as the people.
+  const about = (x: Contract) =>
+    !picked || x.trade_known === picked || (x.trade === null && (x.party_trades ?? []).includes(picked));
+  const allContracts = [...(b.contracts ?? [])].sort((a, c) => {
     const rank = (x: Contract) =>
       picked && x.trade_known === picked ? 0
       : x.trade === null ? 1
       : x.status === "Cancelled" ? 3 : 2;
     return rank(a) - rank(c) || (a.title ?? "").localeCompare(c.title ?? "");
   });
+  const related = allContracts.filter(about);
+  const contracts = picked && !showAll ? related : allContracts;
   const contractLabel = (c: Contract) => [
     c.title,
     c.status === "placeholder" ? "placeholder" : c.status?.toLowerCase() ?? null,
@@ -140,7 +153,7 @@ export default async function AwardPage({
     c.signed ? shortDate(c.signed) : null,
     c.seats > 0 ? `${c.seats} seated` : "nobody seated",
   ].filter(Boolean).join(" · ");
-  const forTrade = picked ? contracts.filter((c) => c.trade_known === picked).length : 0;
+  const forTrade = related.length;
 
   if (!b.may_award) {
     return (
@@ -208,8 +221,11 @@ export default async function AwardPage({
                 <p className="hint" style={{ margin: 0 }}>
                   {picked
                     ? matches > 0
-                      ? `${matches} ${matches === 1 ? "person you know does" : "people you know do"} ${picked.toLowerCase()} — they are at the top of the list.`
-                      : `Nobody on your list works ${picked.toLowerCase()} yet. Add them below.`
+                      ? <>{matches} {matches === 1 ? "person you know does" : "people you know do"} {picked.toLowerCase()}
+                          {showAll
+                            ? <> — everyone is listed. <Link href={hereWith({})}>Only them</Link>.</>
+                            : <> — only they are listed. <Link href={hereWith({ all: "1" })}>Show everyone</Link>.</>}</>
+                      : `Nobody on your list works ${picked.toLowerCase()} yet, so everyone is listed. Or add them below.`
                     : needs.length > 0
                       ? `This job needs ${needs.length === 1 ? needs[0].toLowerCase() : `${needs.slice(0, -1).join(", ").toLowerCase()} and ${needs[needs.length - 1].toLowerCase()}`}. Every other trade is in the list too.`
                       : "Pick it and the people who work it come to the top."}
@@ -281,9 +297,9 @@ export default async function AwardPage({
               </div>
               <div className="task-row-value">
                 <select name="contract" className="input" defaultValue="">
-                  <option value="">Open a new one — a placeholder until terms are agreed</option>
+                  <option value="">Open a new one — awarded now, terms agreed later</option>
                   {contracts.length > 0 && (
-                    <optgroup label={picked && forTrade > 0 ? `${picked} first, then the rest` : "Already on this job"}>
+                    <optgroup label={picked && !showAll ? `About ${picked.toLowerCase()}` : "Already on this job"}>
                       {contracts.map((c) => (
                         <option key={c.id} value={c.id}>{contractLabel(c)}</option>
                       ))}
@@ -291,11 +307,18 @@ export default async function AwardPage({
                   )}
                 </select>
                 <p className="hint" style={{ margin: 0 }}>
-                  {contracts.length === 0
+                  {allContracts.length === 0
                     ? "No contracts on this job yet, so this award opens the first."
-                    : picked && forTrade > 0
-                      ? `${forTrade} ${forTrade === 1 ? "contract on this job is" : "contracts on this job are"} for ${picked.toLowerCase()}. Pick one and the seat is bound to it — no placeholder, and a closed one is how past work gets documented. Leave “Who” blank and it is read off the contract.`
-                      : "Pick one and the seat is bound to it — no placeholder opens. A closed contract is how past work gets documented; leave “Who” blank and the person is read off it."}
+                    : picked
+                      ? <>{forTrade === 0
+                            ? <>No contract on this job is about {picked.toLowerCase()} yet, so a new one opens</>
+                            : <>{forTrade} {forTrade === 1 ? "contract on this job is" : "contracts on this job are"} about {picked.toLowerCase()}</>}
+                          {showAll
+                            ? <> — every contract is listed. <Link href={hereWith({})}>Only those</Link>.</>
+                            : <>. <Link href={hereWith({ all: "1" })}>Show every contract</Link>.</>}
+                          {" "}Pick one and the seat is bound to it — nothing new opens. A closed contract is how past work
+                          gets documented; leave “Who” blank and the person is read off it.</>
+                      : "Pick one and the seat is bound to it — nothing new opens. A closed contract is how past work gets documented; leave “Who” blank and the person is read off it."}
                 </p>
               </div>
             </div>
@@ -313,7 +336,7 @@ export default async function AwardPage({
 
             <button className="btn btn-primary btn-block">Award it</button>
             <p className="tiny text-muted" style={{ margin: 0, textAlign: "center" }}>
-              With no contract picked this opens a placeholder — no value, no scope. Agree the terms on{" "}
+              With no contract picked this opens one, awarded, with no value and no scope yet. Agree the terms on{" "}
               <Link href={`/project/${id}/money`}>the job&apos;s money screen</Link>.
             </p>
           </form>
@@ -330,7 +353,7 @@ export default async function AwardPage({
                 {b.awarded.length === 0
                   ? "Nobody holds a contract here yet."
                   : [
-                      `${b.awarded.filter((a) => a.contract_status === "placeholder").length} still on a placeholder contract`,
+                      `${b.awarded.filter((a) => a.contract_id !== null && a.contract_amount == null && a.contract_status !== "Complete").length} with terms still to agree`,
                       b.awarded.some((a) => a.contract_id === null)
                         ? `${b.awarded.filter((a) => a.contract_id === null).length} with no contract at all`
                         : null,
@@ -348,9 +371,12 @@ export default async function AwardPage({
                     {[a.company && a.company !== a.name ? a.company : null,
                       // No contract behind a seat is worth saying plainly, not
                       // leaving blank — it is the thing that needs fixing.
+                      // "Terms not agreed" is the EMPTY AMOUNT, not a status:
+                      // an award is awarded from the moment you press the
+                      // button (migration 155), and the number comes later.
                       a.contract_id === null ? "no contract behind this seat"
-                        : a.contract_status === "placeholder" ? "terms not agreed yet"
                         : a.contract_status === "Complete" ? "contract complete"
+                        : a.contract_amount == null ? `${a.contract_status === "placeholder" ? "placeholder" : a.contract_status ?? "contract"} · terms not agreed yet`
                         : a.contract_status,
                       a.since ? `since ${shortDate(a.since)}` : null].filter(Boolean).join(" · ")}
                   </span>
