@@ -706,9 +706,22 @@ A skipped build reports as `CANCELED` with no build logs and an
 `errorLink` pointing at the monorepo skipping docs — it does not look
 like a failure, which is exactly what makes it dangerous.
 
-So the ignore command is now `exit 1`: **always build**. Three small
-Next apps take about a minute each. The cost of an unnecessary build is
-that minute; the cost of a wrongly skipped one is believing you shipped
-something you did not, which has now happened twice. If someone wants
-the optimisation back, the test that matters is a commit touching
-`apps/shared` and NOTHING else — anything less proves nothing.
+`exit 1` (always build) did not work either, and the reason is the real
+bug. Vercel's **Skip unaffected projects** runs BEFORE the ignore
+command and wins: it builds a dependency graph from the workspace's
+package.json files, and neither app declared `@greenbergen/shared` as a
+dependency. They consumed it purely through the tsconfig path alias
+`@shared/*` — the shared package.json said as much: "Consumed by path
+alias". So Vercel saw `greenbergen-pro` depending on nothing inside this
+repo and concluded a change under `apps/shared` could not possibly
+affect it.
+
+The repo was lying about its own shape, and Vercel believed it. Both
+apps now declare `"@greenbergen/shared": "*"`, which npm resolves to the
+local workspace (the symlink already existed; what was missing was the
+recorded edge in package-lock.json, which is what Vercel reads).
+
+The ignore command stays `exit 1` as a belt, but the graph is the
+braces. **The test that matters is a commit touching `apps/shared` and
+NOTHING else** — anything that also touches an app path proves nothing,
+which is exactly how this went unnoticed through five commits.
