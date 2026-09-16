@@ -205,12 +205,27 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .table th { text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: var(--space-2); border-bottom: 1px solid var(--color-divider); }
 .table td { padding: var(--space-2); border-bottom: 1px solid var(--color-divider); vertical-align: top; }
 
-/* ══════════ app layout: one phone-wide column on any screen ══════════ */
+/* ══════════ app layout: one column, as wide as the screen deserves ══════════ */
+/* The column was pinned at phone width on every screen - a phone in a frame
+   on a desktop - because the apps were drawn for a phone first and a 430px
+   column is the one width every screen was checked at. Shahar (2026-09-16),
+   on an iPad: "why do you still show me the mobile interfaces from width
+   standpoint". Fair. The column now grows in two steps - tablet, desktop -
+   and stays one column, because the screens are LISTS and a list does not
+   improve by being split in two; what improves is the room each row has and
+   how many tiles fit across. Nothing is drawn twice: the same screens, a
+   wider stage. */
+:root { --screen-w: 430px; }
+@media (min-width: 768px)  { :root { --screen-w: 680px; } }
+@media (min-width: 1200px) { :root { --screen-w: 800px; } }
 .app { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; background: var(--color-bg); }
-.screen { width: 100%; max-width: 430px; min-height: 100dvh; display: flex; flex-direction: column; background: var(--color-bg); position: relative; }
+.screen { width: 100%; max-width: var(--screen-w); min-height: 100dvh; display: flex; flex-direction: column; background: var(--color-bg); position: relative; }
 @media (min-width: 640px) {
   .app { background: #e9e4dc; padding: 28px 0; }
   .screen { min-height: calc(100dvh - 56px); border-radius: 36px; box-shadow: 0 24px 60px rgba(22, 21, 19, 0.16); overflow: hidden; }
+}
+@media (min-width: 768px) {
+  .body { padding-left: var(--space-8); padding-right: var(--space-8); }
 }
 .screen.dark { background: var(--color-text); color: var(--color-bg); }
 .screen.dark .btn { color: #fff; border-color: rgba(255, 255, 255, 0.28); }
@@ -570,7 +585,7 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 
 /* side panel / bottom sheet */
 .sheet-back { position: fixed; inset: 0; background: rgba(22, 21, 19, 0.45); display: flex; justify-content: center; align-items: flex-end; z-index: 50; }
-.sheet { width: 100%; max-width: 430px; max-height: 92dvh; overflow: auto; background: var(--color-bg); border-radius: 28px 28px 0 0; box-shadow: var(--shadow-sheet); display: flex; flex-direction: column; }
+.sheet { width: 100%; max-width: var(--screen-w); max-height: 92dvh; overflow: auto; background: var(--color-bg); border-radius: 28px 28px 0 0; box-shadow: var(--shadow-sheet); display: flex; flex-direction: column; }
 .sheet .sheet-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); position: sticky; top: 0; background: var(--color-bg); z-index: 1; }
 .sheet .sheet-head::before { content: ""; position: absolute; top: 8px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--color-soft); }
 .sheet .sheet-head .title { flex: 1; font-family: var(--font-heading); font-weight: 800; font-size: 16px; padding-top: 6px; }

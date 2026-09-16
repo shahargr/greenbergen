@@ -442,6 +442,13 @@
   display: grid; gap: 6px; grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 @media (max-width: 379px) { .spine-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* On a tablet the column is 680px wide and a four-across tile would be a
+   150px slab with a 26px drawing in the corner. Six across keeps the tile
+   the size it was designed at and puts 26 trades on five rows. */
+@media (min-width: 768px) {
+  .spine-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .tp .st { font-size: 10px; }
+}
 
 .tp {
   position: relative; display: flex; flex-direction: column; align-items: flex-start;
