@@ -167,11 +167,18 @@ export default async function TradePage({
           {/* FINISHED, NOT UNSTARTED. A trade whose contract is Complete used
               to get the "nobody is appointed" card - migration 154. The award
               screen stays one link away for a second visit. */}
+          {/* Shahar: "the Done task should be clickable." It opens the money
+              screen of the job the contract sits on - the contract, what it
+              cost and what was paid - because that is what "done" is made of. */}
           {manages && mine?.finished && (
             <Card soft pad>
-              <div className="small" style={{ fontWeight: 800 }}>Done{mine.who ? ` — ${mine.who}` : ""}.</div>
+              <Link href={`/project/${mine.lands_on?.id ?? id}/money`} className="between"
+                style={{ gap: 10, textDecoration: "none", color: "inherit" }}>
+                <span className="small" style={{ fontWeight: 800 }}>Done{mine.who ? ` — ${mine.who}` : ""}.</span>
+                <ChevronIcon />
+              </Link>
               <div className="tiny text-muted" style={{ marginTop: 2 }}>
-                The contract behind this trade is complete. Need them again?{" "}
+                The contract behind this trade is complete — open it for what was paid. Need them again?{" "}
                 {mine.lands_on
                   ? <Link href={`/project/${mine.lands_on.id}/award?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}>Award it afresh</Link>
                   : "Award it afresh from the job"}.
