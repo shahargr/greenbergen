@@ -114,8 +114,14 @@ export async function saveTask(formData: FormData) {
     });
     // The fields are on the page rather than behind a drawer now, so a
     // refusal needs nothing opened - it lands where the fields already are.
-    if (error) redirect(here({ error: error.message }));
-    if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save." }));
+    // WITH WHAT WAS CHOSEN STILL CHOSEN: the page re-renders from the
+    // database, and the database has the old values, so a refusal used to
+    // put every dropdown back and make you choose twice. Shahar (2026-09-16):
+    // "when i get an error, the system returns the form to its original
+    // state, and cleans out Stage."
+    const keep = { stage: s("status"), prio: s("priority") };
+    if (error) redirect(here({ error: error.message, ...keep }));
+    if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save.", ...keep }));
     const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
     if (changed.length) said.push(`Saved: ${changed.join(", ")}`);
   }
@@ -210,8 +216,12 @@ export async function saveTask(formData: FormData) {
       // NEEDS_PHOTO is the old name of NEEDS_EVIDENCE; a page deployed
       // before migration 074 may still be asking for it.
       const asking = data.code === "NEEDS_EVIDENCE" || data.code === "NEEDS_PHOTO" || data.code === "REASON_TOO_SHORT";
+      // Stage stays on Completed. Without this the page came back saying
+      // "Not Started", and the reason typed into the box below went nowhere:
+      // the next Commit saw no Completed, so nothing asked to close.
       redirect(here({
         error: data.reason ?? "That task did not close.",
+        stage: "Completed",
         ...(said.length ? { ok: `${said.join(" · ")}.` } : {}),
         ...(asking ? { why: "1" } : {}),
       }));

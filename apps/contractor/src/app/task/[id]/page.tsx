@@ -213,10 +213,10 @@ export default async function TaskPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string; setup?: string; info?: string; fit?: string }>;
+  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string; setup?: string; info?: string; fit?: string; stage?: string; prio?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, ok, why, undo, money, setup: setupQ, info: infoQ, fit: fitQ } = await searchParams;
+  const { back, error, ok, why, undo, money, setup: setupQ, info: infoQ, fit: fitQ, stage: stageQ, prio: prioQ } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : "/tasks";
 
   const w = stopwatch("/task/[id]");
@@ -303,6 +303,14 @@ export default async function TaskPage({
   // database still refuses, which now only happens on a genuinely empty
   // update.
   const askWhy = why === "1";
+  // WHAT YOU CHOSE, KEPT THROUGH A REFUSAL. The action sends the attempted
+  // stage and priority back on the URL when the database says no; without
+  // them the dropdowns re-read the old values and you choose twice - and the
+  // "why it closes" box was posting under a stage that no longer said
+  // Completed, so it closed nothing.
+  const isStage = (x: string | null | undefined) => (STAGES as readonly string[]).includes(x ?? "");
+  const stageShown = isStage(stageQ) ? stageQ! : isStage(t.status) ? t.status : "Not Started";
+  const prioShown = (PRIORITIES as readonly string[]).includes(prioQ ?? "") ? prioQ! : (t.priority ?? "Missing");
 
   // THE GEAR AND THE i. Shahar (2026-09-14): "task name / have a gear icon
   // next to it to allow enter the task setup... Next to the gear button you
@@ -794,20 +802,28 @@ export default async function TaskPage({
                       it stands and how much it matters - and each was taking a
                       full row of a screen you scroll. The selects carry their
                       own values, so which is which reads at a glance. */}
+                  {/* Each half wears its own name. "Stage and priority" on the
+                      left named the pair once, and the right-hand select then
+                      read as a value with no question - Shahar: "Next to stage
+                      is priority, but there is no text telling me that." */}
                   <div className="task-row">
                     <span className="task-row-label">
-                      Stage
-                      <span className="text-muted">and priority</span>
+                      Stage · Priority
+                      <span className="text-muted" style={{ display: "block", fontWeight: 400 }}>where it stands · how much it matters</span>
                     </span>
                     <div className="task-row-value pair">
-                      <select className="input" name="status" aria-label="Stage"
-                        defaultValue={STAGES.includes(t.status as typeof STAGES[number]) ? t.status : "Not Started"}>
-                        {STAGES.map((x) => <option key={x} value={x}>{x}</option>)}
-                      </select>
-                      <select className="input" name="priority" aria-label="Priority"
-                        defaultValue={t.priority ?? "Missing"}>
-                        {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
-                      </select>
+                      <label className="field">
+                        <span className="field-label">Stage</span>
+                        <select className="input" name="status" defaultValue={stageShown}>
+                          {STAGES.map((x) => <option key={x} value={x}>{x}</option>)}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span className="field-label">Priority</span>
+                        <select className="input" name="priority" defaultValue={prioShown}>
+                          {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
+                        </select>
+                      </label>
                     </div>
                   </div>
                   <Row label="Assigned to">
