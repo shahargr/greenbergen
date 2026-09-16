@@ -1,10 +1,4 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { createClient } from "@shared/supabase/client";
-import { friendly } from "@shared/rpc";
 import { TradeIllustration } from "@shared/Illustrations";
 
 // A JOB IS ITS TRADES, IN ORDER, ON ONE SCREEN.
@@ -36,9 +30,12 @@ export type SpineTrade = {
   late: number;
   done: number;
   next_due: string | null;
-  /** idle = the job needs it, nobody has started · hiring = choosing ·
-   *  working = appointed and under way · loose = open work with nothing behind it */
-  state: "idle" | "hiring" | "working" | "loose";
+  /** idle = the job needs it and nobody has been called · appointed = under a
+   *  signed or awarded contract with nothing open · hiring = choosing ·
+   *  working = appointed and under way · loose = open work, nothing behind it */
+  state: "idle" | "appointed" | "hiring" | "working" | "loose";
+  /** Whether a signed or awarded contract covers this trade. */
+  awarded: boolean;
   who: string | null;
   now: { id: string; action: string; target_date: string | null }[];
 };
@@ -57,6 +54,7 @@ export type Spine = {
 // a real state of a real job.
 const SAY: Record<SpineTrade["state"], string> = {
   working: "on the job",
+  appointed: "appointed",
   hiring: "bid out",
   loose: "open work",
   idle: "not started",
@@ -82,38 +80,28 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
   back: string;
   allTasksHref: string;
 }) {
-  const router = useRouter();
-  // Starting a trade off WRITES a task, and a tile in a four-wide grid is too
-  // small a target to do that on one tap. So an idle tile asks once: the
-  // first tap turns it into the question, the second answers it. No modal, no
-  // eight-pixel button.
-  const [asking, setAsking] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [went, setWent] = useState<Record<string, true>>({});
-  const [err, setErr] = useState("");
-
+  // EVERY TILE IS A DOOR.
+  //
+  // Shahar (2026-09-16): "why am I unable to enter demo panel, and log the
+  // work on it. any reason why I cannot enter each of these where tasks are
+  // not there to manage?"
+  //
+  // No reason at all, and the first cut was wrong about it. An idle tile was a
+  // BUTTON whose only move was "run the bid", on the assumption that a trade
+  // with no tasks has nothing to look at. But the trade screen is exactly
+  // where you log the first one - it carries the quick-task box, the scope and
+  // the contracts - so refusing entry until work exists means you can never
+  // create the work. Every tile is a link now, whatever state it is in, and
+  // starting the engagement moved inside where there is room to offer both
+  // ways of doing it.
   const live = spine.trades.filter((t) => t.state !== "idle");
   const idle = manages ? spine.trades.filter((t) => t.state === "idle") : [];
   if (live.length === 0 && idle.length === 0 && spine.untagged.open === 0) return null;
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const totalLate = live.reduce((n, t) => n + t.late, 0) + spine.untagged.late;
-  const working = live.filter((t) => t.state === "working").length;
-  const hiring = live.filter((t) => t.state === "hiring").length;
+  const count = (k: SpineTrade["state"]) => live.filter((t) => t.state === k).length;
 
-  async function start(trade: string) {
-    setBusy(trade); setErr("");
-    const { data, error } = await createClient()
-      .rpc("portal_trade_start_bid", { p_project: projectId, p_trade: trade });
-    setBusy(null); setAsking(null);
-    if (error) { setErr(friendly(error.message)); return; }
-    if (!data?.ok) { setErr(data?.reason ?? "That could not be started."); return; }
-    setWent((w) => ({ ...w, [trade]: true }));
-    router.refresh();
-  }
-
-  // ONE TILE, whichever state it is in - written once so a live trade and an
-  // idle one cannot drift into looking like different kinds of thing.
   const face = (t: SpineTrade) => (
     <>
       <span className="art" aria-hidden><TradeIllustration name={t.art} /></span>
@@ -123,11 +111,21 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
           four across "60 open work" on one line is a clipped "60 open wor",
           which is how a number stops being a number. */}
       <span className="f">
-        {t.state !== "idle" && <span className="n">{t.open}</span>}
+        {t.open > 0 && <span className="n">{t.open}</span>}
         <span className="say">{SAY[t.state]}</span>
       </span>
       {t.late > 0 && <span className="pip" title={`${t.late} past its date`}>{t.late}</span>}
     </>
+  );
+
+  const tile = (t: SpineTrade) => (
+    <Link key={t.trade} className={`tp ${t.state}${t.late > 0 ? " late" : ""}`}
+      href={`/project/${projectId}/trade/${encodeURIComponent(t.trade)}?back=${encodeURIComponent(back)}`}
+      title={[t.stage, t.trade, t.who, t.open > 0 ? `${t.open} open` : SAY[t.state], t.next_due
+        ? (t.next_due <= today ? "due today" : `next ${t.next_due}`) : null]
+        .filter(Boolean).join(" · ")}>
+      {face(t)}
+    </Link>
   );
 
   return (
@@ -146,55 +144,29 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
           decoration; it takes one line to make it readable, and after a week
           nobody reads the line. */}
       <div className="spine-key">
-        <span><i className="sw working" />on the job{working > 0 ? ` · ${working}` : ""}</span>
-        <span><i className="sw hiring" />bid out{hiring > 0 ? ` · ${hiring}` : ""}</span>
+        <span><i className="sw working" />on the job{count("working") > 0 ? ` · ${count("working")}` : ""}</span>
+        <span><i className="sw appointed" />appointed{count("appointed") > 0 ? ` · ${count("appointed")}` : ""}</span>
+        <span><i className="sw hiring" />bid out{count("hiring") > 0 ? ` · ${count("hiring")}` : ""}</span>
         <span><i className="sw loose" />open work</span>
         {idle.length > 0 && <span><i className="sw idle" />not started · {idle.length}</span>}
       </div>
 
       <div className="spine-grid">
-        {live.map((t) => (
-          <Link key={t.trade} className={`tp ${t.state}${t.late > 0 ? " late" : ""}`}
-            href={`/project/${projectId}/trade/${encodeURIComponent(t.trade)}?back=${encodeURIComponent(back)}`}
-            title={[t.stage, t.trade, t.who, `${t.open} open`, t.next_due
-              ? (t.next_due <= today ? "due today" : `next ${t.next_due}`) : null]
-              .filter(Boolean).join(" · ")}>
-            {face(t)}
-          </Link>
-        ))}
-
+        {live.map(tile)}
         {/* The trades the job needs and nobody has started, in their own place
             in the sequence rather than exiled to a strip below it - because
             "the plumber has not been called yet" is a fact about THIS point in
-            the build, and it belongs where the plumber belongs. */}
-        {idle.map((t) => (
-          <button key={t.trade} type="button"
-            className={`tp idle${went[t.trade] ? " went" : ""}${asking === t.trade ? " asking" : ""}`}
-            disabled={busy === t.trade || !!went[t.trade]}
-            title={`${t.trade} — not started${t.who ? ` · ${t.who} has worked here before` : ""}`}
-            onClick={() => {
-              if (went[t.trade]) return;
-              if (asking === t.trade) void start(t.trade);
-              else { setAsking(t.trade); setErr(""); }
-            }}>
-            {went[t.trade] ? (
-              <>
-                <span className="art" aria-hidden><TradeIllustration name={t.art} /></span>
-                {t.stage && <span className="st">{shortStage(t.stage)}</span>}
-                <span className="t">{t.trade}</span>
-                <span className="f"><span className="say">bid started</span></span>
-              </>
-            ) : asking === t.trade ? (
-              <span className="ask">
-                <span className="q">Run the bid for {t.trade}?</span>
-                <span className="y">{busy === t.trade ? "…" : "Yes — start it"}</span>
-              </span>
-            ) : face(t)}
-          </button>
-        ))}
+            the build and belongs where the plumber belongs. */}
+        {idle.map(tile)}
       </div>
 
-      {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
+      {manages && idle.length > 0 && (
+        <p className="tiny text-muted" style={{ margin: 0 }}>
+          A dashed tile is a trade this job needs and nobody has started. Open it to log the first
+          task, run a bid, or award it straight to somebody you have already picked.
+        </p>
+      )}
+
       {manages && idle.length > 0 && (
         <p className="tiny text-muted" style={{ margin: 0 }}>
           A dashed tile is a trade this job needs and nobody has started. Tapping one writes a single

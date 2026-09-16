@@ -543,3 +543,15 @@
 .spine-key .sw.hiring { background: var(--color-bid-soft); border-color: var(--color-bid); }
 .spine-key .sw.loose { background: var(--color-surface); border-color: var(--color-text); }
 .spine-key .sw.idle { background: var(--color-soft-2); border-style: dashed; }
+
+/* APPOINTED: under a signed or awarded contract with nothing open yet. It is
+   settled, so it belongs to the green family - but the work has not started,
+   so it must not read as loudly as a trade actually on site. Outline rather
+   than fill (migration 147: a signed contract was reading as "not started",
+   which is a different problem and a different thing to do about it). */
+.tp.appointed {
+  background: var(--color-surface);
+  border-color: color-mix(in srgb, var(--color-ok) 45%, transparent);
+}
+.tp.appointed .f .say { color: var(--color-ok); }
+.spine-key .sw.appointed { background: var(--color-surface); border-color: var(--color-ok); }

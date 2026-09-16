@@ -8,6 +8,7 @@ import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { getBoard, groupTasks, money, runs } from "@/lib/board";
 import type { SiteWeek } from "../../SiteWeek";
 import { QuickTask } from "./QuickTask";
+import { Engage } from "./Engage";
 
 export const dynamic = "force-dynamic";
 
@@ -34,14 +35,21 @@ export default async function TradePage({
 
   const w = stopwatch("/project/[id]/trade/[trade]");
   const supabase = await createClient();
-  const [board, { data: weekData }] = await Promise.all([
+  const [board, { data: weekData }, { data: spineData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
+    // WHO IS APPOINTED, asked of the one thing that knows. This page's own
+    // `contracts` is derived from TASKS, so a trade with a signed contract and
+    // no tasks yet read as nobody-appointed - which is exactly the state you
+    // are in when you arrive here to start it off.
+    w.step("spine", () => rpc<{ trades: { trade: string; state: string; awarded: boolean; who: string | null }[] }>(
+      supabase, "portal_project_trades", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}/trade/${raw}`);
   const seat = board.seats.find((s) => s.project_id === id);
   if (!seat) notFound();
   const manages = runs(seat);
+  const mine = (spineData?.trades ?? []).find((x) => x.trade === trade) ?? null;
 
   // Everything at or beneath this project, the same family the project
   // screen uses - the work lives on the jobs, not on the container.
@@ -148,6 +156,13 @@ export default async function TradePage({
           {/* The two ways to write something down, and they are one box: the
               line you type here is a SIMPLE task, and "Needs steps?" is the
               wizard for the other kind (migration 137). */}
+          {/* NOBODY APPOINTED YET - the two ways to fix that, offered where
+              you noticed it rather than back on the project screen. */}
+          {manages && mine && !mine.awarded && (
+            <Engage projectId={id} trade={trade} who={mine.who}
+              back={`/project/${id}/trade/${raw}`} />
+          )}
+
           {manages && (
             <QuickTask projectId={landsOn} projectName={nameOf.get(landsOn) ?? null}
               trade={trade} elsewhere={landsOn !== id} />
