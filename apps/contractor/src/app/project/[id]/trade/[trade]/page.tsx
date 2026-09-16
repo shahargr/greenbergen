@@ -172,13 +172,18 @@ export default async function TradePage({
               cost and what was paid - because that is what "done" is made of. */}
           {manages && mine?.finished && (
             <Card soft pad>
-              <Link href={`/project/${mine.lands_on?.id ?? id}/money`} className="between"
+              {/* Shahar: "clicking on the asbestos task, i am landing on the
+                  money tab." Done opens the finished WORK - the trade's done
+                  list, where the ledger's payments now sit as completed
+                  tasks (migration 158). The money is one link further. */}
+              <Link href={`/project/${id}/trade/${raw}?show=done`} className="between"
                 style={{ gap: 10, textDecoration: "none", color: "inherit" }}>
                 <span className="small" style={{ fontWeight: 800 }}>Done{mine.who ? ` — ${mine.who}` : ""}.</span>
                 <ChevronIcon />
               </Link>
               <div className="tiny text-muted" style={{ marginTop: 2 }}>
-                The contract behind this trade is complete — open it for what was paid. Need them again?{" "}
+                The contract behind this trade is complete —{" "}
+                <Link href={`/project/${mine.lands_on?.id ?? id}/money`}>what was paid</Link>. Need them again?{" "}
                 {mine.lands_on
                   ? <Link href={`/project/${mine.lands_on.id}/award?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}>Award it afresh</Link>
                   : "Award it afresh from the job"}.
