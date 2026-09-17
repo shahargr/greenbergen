@@ -57,7 +57,9 @@ export type FinContract = {
   // sale days - what is left to pay by each, what has been paid, the
   // principal due. Null on every other contract, and null on a loan whose
   // house has no plan yet.
-  loan?: { terms: string | null; exit: LoanExit | null } | null;
+  // `autopay` (163): the lender draws each month itself; a draft whose day
+  // has passed is recorded paid by the nightly tick.
+  loan?: { terms: string | null; exit: LoanExit | null; autopay?: boolean } | null;
 };
 
 export type LoanExit = {

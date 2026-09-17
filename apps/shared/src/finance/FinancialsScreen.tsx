@@ -6,7 +6,7 @@ import { StageSheetButton } from "./StageSheet";
 import { LogPaymentButton } from "./LogPayment";
 import { TxEvidenceButton } from "./TxEvidence";
 import { TxEditButton } from "./TxEdit";
-import { changeTone, inCurrency, stageTone, usd, type FinContract, type FinEvidence, type Financials, type FinStage } from "./types";
+import { changeTone, inCurrency, stageTone, usd, type FinContract, type FinEvidence, type Financials, type FinStage, type FinTx } from "./types";
 
 // PROJECT MONEY - one screen for the payor, the payee, the investor and the
 // owner, each seeing what rulebook 70 lets them see (project_financials
@@ -134,6 +134,9 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
   const near = planned.slice(0, NEAR);
   const far = planned.slice(NEAR);
   const farUntil = far.length ? far.map((t) => t.paid_on ?? t.target_date).filter(Boolean).sort().at(-1) : null;
+  const plannedUntil = planned.length ? planned.map((t) => t.paid_on ?? t.target_date).filter(Boolean).sort().at(-1) : null;
+  const movedTotal = moved.reduce((n, t) => n + (t.amount ?? 0), 0);
+  const plannedTotal = planned.reduce((n, t) => n + (t.target_amount ?? t.amount ?? 0), 0);
   const stagesScheduled = c.stages.reduce((a, s) => a + (s.status === "Cancelled" ? 0 : (s.amount ?? 0)), 0);
 
   // The contract's OWN currency, not the app's assumption. c.currency has
@@ -261,47 +264,78 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
         <ChangeOrderButton contractId={c.id} contractTitle={c.title} projectId={projectId} mayRecord={me.may_record} />
       )}
 
-      {/* THE LEDGER */}
+      {/* THE LEDGER, IN TWO HALVES. Shahar (2026-09-17), on the mortgage:
+          "I would like to know what was paid, and then I would like to know
+          what is going to be paid." So: PAID, every row with its total; then
+          COMING, the next six with the rest counted to the last day, and its
+          total. One list used to run the two together under one heading. */}
       {(moved.length > 0 || planned.length > 0) && (
         <details className="fin-ledger">
           <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
-            Ledger · {moved.length} {moved.length === 1 ? "payment" : "payments"}{planned.length ? `, ${planned.length} planned` : ""}
+            Ledger · {moved.length} paid, {cur(movedTotal)}{planned.length ? ` · ${planned.length} coming, ${cur(plannedTotal)}` : ""}
           </summary>
-          <div className="kv-rows" style={{ marginTop: 6 }}>
-            {[...moved, ...near].map((t) => (
-              <div key={t.id}>
-                <span className="k" style={{ minWidth: 0 }}>
-                  <span style={{ display: "block", color: "var(--color-text)" }}>{t.description}{t.change_order ? " (change)" : ""}</span>
-                  <span className="tiny">
-                    {[t.paid_on ? shortDay(t.paid_on) : t.target_date ? `planned ${shortDay(t.target_date)}` : null, t.method, t.reference ? `#${t.reference}` : null, t.status].filter(Boolean).join(" · ")}
-                  </span>
-                  <Thumbs items={t.attachments} urls={urls} />
-                  {(me.may_record || c.payee) && (
-                    <span className="row" style={{ display: "flex", gap: 4, marginTop: 2 }}>
-                      <TxEvidenceButton txId={t.id} contractId={c.id} projectId={projectId} label={`${cur(t.moved ? t.amount : t.target_amount ?? t.amount)}${t.paid_on ? ` on ${shortDay(t.paid_on)}` : ""}`} />
-                      {/* A payment that was wrong, or came back (073). Only
-                          whoever may record one may correct one. */}
-                      {me.may_record && t.moved && <TxEditButton tx={t} methods={methods} />}
+          {c.loan?.autopay && (
+            <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>
+              Drawn by the lender automatically each month. A payment whose day has passed is recorded as paid that night; nothing to press.
+            </p>
+          )}
+          {moved.length > 0 && (
+            <>
+              <div className="ledger-head"><span>Paid · {moved.length}</span><span className="mono">{cur(movedTotal)}</span></div>
+              <div className="kv-rows">
+                {moved.map((t) => <LedgerRow key={t.id} t={t} c={c} me={me} methods={methods} urls={urls} projectId={projectId} cur={cur} />)}
+              </div>
+            </>
+          )}
+          {planned.length > 0 && (
+            <>
+              <div className="ledger-head"><span>Coming · {planned.length}{plannedUntil ? `, through ${shortDay(plannedUntil)}` : ""}</span><span className="mono">{cur(plannedTotal)}</span></div>
+              <div className="kv-rows">
+                {near.map((t) => <LedgerRow key={t.id} t={t} c={c} me={me} methods={methods} urls={urls} projectId={projectId} cur={cur} />)}
+                {far.length > 0 && (
+                  <div>
+                    <span className="k tiny">
+                      {far.length} more{farUntil ? `, through ${shortDay(farUntil)}` : ""}
                     </span>
-                  )}
-                </span>
-                <span className="mono" style={{ whiteSpace: "nowrap", color: t.moved ? undefined : "var(--muted)" }}>{cur(t.moved ? t.amount : t.target_amount ?? t.amount)}</span>
+                    <span className="mono tiny" style={{ whiteSpace: "nowrap", color: "var(--muted)" }}>
+                      {cur(far.reduce((n, t) => n + (t.target_amount ?? t.amount ?? 0), 0))}
+                    </span>
+                  </div>
+                )}
               </div>
-            ))}
-            {far.length > 0 && (
-              <div>
-                <span className="k tiny">
-                  {far.length} more planned{farUntil ? `, through ${shortDay(farUntil)}` : ""}
-                </span>
-                <span className="mono tiny" style={{ whiteSpace: "nowrap", color: "var(--muted)" }}>
-                  {cur(far.reduce((n, t) => n + (t.target_amount ?? t.amount ?? 0), 0))}
-                </span>
-              </div>
-            )}
-          </div>
+            </>
+          )}
         </details>
       )}
     </Card>
+  );
+}
+
+// One ledger line: what it was, when, how, and the buttons whoever may act
+// on it gets. Written once so the paid half and the coming half cannot drift.
+function LedgerRow({ t, c, me, methods, urls, projectId, cur }: {
+  t: FinTx; c: FinContract; me: Extract<Financials, { ok: true }>["me"]; methods: Extract<Financials, { ok: true }>["methods"];
+  urls: Record<string, string>; projectId: string; cur: (n: number | null | undefined) => string;
+}) {
+  return (
+    <div>
+      <span className="k" style={{ minWidth: 0 }}>
+        <span style={{ display: "block", color: "var(--color-text)" }}>{t.description}{t.change_order ? " (change)" : ""}</span>
+        <span className="tiny">
+          {[t.paid_on ? (t.moved ? shortDay(t.paid_on) : `due ${shortDay(t.paid_on)}`) : t.target_date ? `due ${shortDay(t.target_date)}` : null, t.method, t.reference ? `#${t.reference}` : null, t.status].filter(Boolean).join(" · ")}
+        </span>
+        <Thumbs items={t.attachments} urls={urls} />
+        {(me.may_record || c.payee) && (
+          <span className="row" style={{ display: "flex", gap: 4, marginTop: 2 }}>
+            <TxEvidenceButton txId={t.id} contractId={c.id} projectId={projectId} label={`${cur(t.moved ? t.amount : t.target_amount ?? t.amount)}${t.paid_on ? ` on ${shortDay(t.paid_on)}` : ""}`} />
+            {/* A payment that was wrong, or came back (073). Only whoever
+                may record one may correct one. */}
+            {me.may_record && t.moved && <TxEditButton tx={t} methods={methods} />}
+          </span>
+        )}
+      </span>
+      <span className="mono" style={{ whiteSpace: "nowrap", color: t.moved ? undefined : "var(--muted)" }}>{cur(t.moved ? t.amount : t.target_amount ?? t.amount)}</span>
+    </div>
   );
 }
 
