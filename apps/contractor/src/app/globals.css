@@ -646,6 +646,12 @@
 }
 .tp.idle.went .t, .tp.idle.went .f .say { color: var(--color-ok); }
 
+/* ADD A TRADE (migration 170): the last tile of a panel. A plus where the
+   drawing goes; the picker it opens spans the grid beneath the tiles. */
+.tp.add .art.plus { font-size: 24px; line-height: 26px; width: auto; font-weight: 300; opacity: .6; }
+.tp.add.asking .art.plus, .tp.add.asking .t, .tp.add.asking .st, .tp.add.asking .say { color: #fff; opacity: 1; }
+.spine-grid > .add-trade { grid-column: 1 / -1; }
+
 /* WHAT THE COLOURS MEAN. One line, read once, then never again. */
 .spine-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--muted); }
 .spine-key span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }

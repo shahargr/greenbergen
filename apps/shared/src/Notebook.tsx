@@ -76,6 +76,20 @@ type Targets = { projects: Job[]; tasks: Step[] };
 // Who can hold a to-do on a job (portal_compose_targets: the seats on it, `me` marked).
 type Person = { contact_id: string; name: string | null; seat: string | null; me?: boolean };
 type Crew = { project_id: string; people: Person[] };
+// THE KINDS OF TASK THAT REPEAT (migration 172). Shahar (2026-09-17): "i am
+// seeing myself creating similar tasks and go through the entire process
+// every time." A kind is a recipe: it says what the sheet asks for - two or
+// three things - and the database names the task, fills its columns and
+// says what closes it. "note" is the plain kind the sheet always had.
+type Kind = {
+  kind: string; label: string; sentence: string; hint: string | null;
+  asks: string[]; closes_with: string | null; follow: string | null;
+};
+type Stage = { stage: string; description: string | null };
+type Kinds = { kinds: Kind[]; stages: Stage[] };
+// The trade catalogue seen from the chosen job (migration 170): the trades
+// on the job first, the rest of the build behind them.
+type CatTrade = { trade: string; stage: string | null; panel: string; on_job: boolean };
 // One line of the phone book (migration 161).
 type Entry = {
   contact_id: string; name: string | null; company: string | null;
@@ -135,7 +149,11 @@ type Tab = NotebookTab | "book";
 
 const HINT = "Ask Javier whether the LVL at the landing needs a third jack stud — he said two on site, the plan shows three.";
 
-export function Notebook() {
+export function Notebook({ payPath = null }: {
+  /** Where "Pay" goes, with {job} standing for the job's id - the app that
+   *  has a payment screen says so; the one that does not shows no Pay. */
+  payPath?: string | null;
+}) {
   const path = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("note");
@@ -146,6 +164,17 @@ export function Notebook() {
   // select offers the seats on the chosen job.
   const [owner, setOwner] = useState("");
   const [jobTouched, setJobTouched] = useState(false);
+  // WHICH KIND OF THING. "note" is the plain one; the rest come from the
+  // database with what each asks for.
+  const [kind, setKind] = useState("note");
+  const [kinds, setKinds] = useState<Kinds>({ kinds: [], stages: [] });
+  const [cat, setCat] = useState<CatTrade[]>([]);
+  const [trade, setTrade] = useState("");
+  const [stage, setStage] = useState("");
+  const [gate, setGate] = useState(false);
+  const [cost, setCost] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [tradesPicked, setTradesPicked] = useState<string[]>([]);
   const [files, setFiles] = useState<Attached[]>([]);
   // Files taken before a job was picked, still in the browser (Evidence
   // holds them and sends them up when the job arrives).
@@ -181,22 +210,39 @@ export function Notebook() {
     let live = true;
     void (async () => {
       const c = createClient();
-      const [b, t, p] = await Promise.all([
+      const [b, t, p, k] = await Promise.all([
         c.rpc("portal_notes", { p_project: null, p_trade: null, p_show: "open", p_limit: 0 }),
         c.rpc("portal_capture_targets", { p_project: null }),
         c.rpc("portal_compose_targets"),
+        c.rpc("portal_task_kinds"),
       ]);
       if (!live) return;
       if (b.data) setBook((x) => x ?? (b.data as Book));
       if (t.data) setTargets(t.data as Targets);
       if (Array.isArray(p.data)) setCrews(p.data as Crew[]);
+      if (k.data && Array.isArray((k.data as Kinds).kinds)) setKinds(k.data as Kinds);
     })();
     return () => { live = false; };
   }, []);
 
   // The owner goes back to "me" with the job: a name from the last job is
-  // not a choice on this one.
-  useEffect(() => { setOwner(""); }, [job]);
+  // not a choice on this one. The trade picks go with it.
+  useEffect(() => { setOwner(""); setTrade(""); setTradesPicked([]); }, [job]);
+
+  // THE TRADES OF THE JOB, read once a kind that asks for one is chosen -
+  // the catalogue is seventy-odd rows and most notes never need it.
+  const recipe = kinds.kinds.find((k) => k.kind === kind) ?? null;
+  const asks = (f: string) => !!recipe && recipe.asks.includes(f);
+  const wantsTrades = asks("trade") || asks("trades");
+  useEffect(() => {
+    if (!open || !job || !wantsTrades) return;
+    let live = true;
+    void (async () => {
+      const { data } = await createClient().rpc("portal_trade_catalogue", { p_project: job });
+      if (live && Array.isArray(data)) setCat(data as CatTrade[]);
+    })();
+    return () => { live = false; };
+  }, [open, job, wantsTrades]);
 
   // THE PHONE BOOK follows the job too, and only when it is being looked at.
   useEffect(() => {
@@ -259,7 +305,15 @@ export function Notebook() {
 
   function clear(msg: string) {
     setBody(""); setDue(""); setFiles([]); setOwner(""); setSaid(msg); box.current?.focus();
+    setCost(""); setSupplier(""); setStage(""); setGate(false); setTradesPicked([]);
   }
+
+  // The trades the pickers offer: on the job first, then the rest of the
+  // build - and, standing on a trade, that one already chosen.
+  const onJob = cat.filter((t) => t.on_job);
+  const offJob = cat.filter((t) => !t.on_job);
+  const tradeChosen = trade || (here.trade && cat.some((t) => t.trade === here.trade) ? here.trade : "");
+  const payHref = payPath && job ? payPath.replace("{job}", job) : null;
 
   // ONE THING WRITTEN DOWN. With a job it is a task, now, on the job, held
   // by you unless you named somebody. Without one it is held as a capture
@@ -270,6 +324,34 @@ export function Notebook() {
     if (!text && ids.length === 0) return;
     setBusy(true); setErr("");
     const c = createClient();
+
+    // A KIND: the recipe writes the task (portal_task_from_kind, 172). Two
+    // or three answers here; the name, the columns and what closes it are
+    // the database's.
+    if (job && kind !== "note" && recipe) {
+      const { data, error } = await c.rpc("portal_task_from_kind", {
+        p_project: job,
+        p_kind: kind,
+        p_fields: {
+          what: (text.split("\n")[0] || "").slice(0, 300),
+          trade: asks("trade") ? tradeChosen || null : null,
+          trades: asks("trades") ? tradesPicked : null,
+          when: due || null,
+          who: owner || myself?.contact_id || null,
+          cost: asks("cost") && cost.trim() ? Number(cost.replace(/[^0-9.]/g, "")) : null,
+          supplier: asks("supplier") ? supplier.trim() || null : null,
+          stage: asks("stage") ? stage || null : null,
+          gate: asks("gate") ? gate : false,
+          file_ids: ids.length ? ids : null,
+        },
+      });
+      setBusy(false);
+      if (error) { setErr(friendly(error.message)); return; }
+      if (!data?.ok) { setErr(data?.reason ?? "That was not added."); return; }
+      const n = Number(data.children ?? 0);
+      clear(`${data.action ?? "Added"}${n > 0 ? ` — ${n} step${n === 1 ? "" : "s"} under it` : ""}${jobName ? ` — ${jobName}` : ""}.`);
+      return;
+    }
 
     if (job) {
       const { data, error } = await c.rpc("portal_task_quick", {
@@ -406,13 +488,98 @@ export function Notebook() {
                 floor so the sheet does not jump as you move between tabs. ── */}
             {!sweep && tab === "note" && (
               <div className="nb-body nb-capture">
+                {/* WHICH KIND. Note, then the recipes (migration 172); Pay is
+                    a link to the payment screen where the app has one. */}
+                {kinds.kinds.length > 0 && (
+                  <div className="nb-kinds" role="tablist" aria-label="What kind of thing">
+                    <button type="button" className={kind === "note" ? "on" : ""}
+                      onClick={() => { setKind("note"); setSaid(""); setErr(""); }}>Note</button>
+                    {kinds.kinds.filter((k) => k.kind !== "pay").map((k) => (
+                      <button key={k.kind} type="button" className={kind === k.kind ? "on" : ""}
+                        title={k.sentence}
+                        onClick={() => { setKind(k.kind); setSaid(""); setErr(""); box.current?.focus(); }}>
+                        {k.label}
+                      </button>
+                    ))}
+                    {payHref && <a className="pay" href={payHref}>Pay</a>}
+                  </div>
+                )}
+                {recipe && (
+                  <p className="nb-sentence">{recipe.sentence}{recipe.hint ? <span className="text-muted"> · {recipe.hint}</span> : null}</p>
+                )}
+
                 <textarea ref={box} className="input nb-text" value={body}
-                  rows={4} maxLength={4000}
+                  rows={recipe ? 2 : 4} maxLength={4000}
                   onChange={(e) => { setBody(e.target.value); setSaid(""); }}
                   onKeyDown={(e) => {
                     if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !busy) { e.preventDefault(); void keep(); }
                   }}
-                  placeholder={HINT} />
+                  placeholder={
+                    kind === "check" ? "What should be true on site — e.g. the shower niche is framed on both sides"
+                    : kind === "deliver" ? "What is coming — e.g. 40 stair treads, white oak"
+                    : kind === "document" ? "What to record — e.g. plumbing rough-in, master bath, before the walls close"
+                    : kind === "gather" ? "What to collect — e.g. warranties on labour and parts"
+                    : kind === "buy" ? "What to buy — e.g. a 75-gallon water heater"
+                    : HINT} />
+
+                {/* WHAT THE KIND ASKS, and nothing it does not. */}
+                {recipe && (asks("trade") || asks("stage") || asks("cost") || asks("supplier")) && (
+                  <div className="nb-two">
+                    {asks("trade") && (
+                      <label className="nb-fld">
+                        <span>Trade{kind === "check" ? " · whose work" : kind === "buy" || kind === "deliver" ? " (optional)" : ""}</span>
+                        <select className="input" value={tradeChosen} onChange={(e) => setTrade(e.target.value)} disabled={!job}>
+                          <option value="">{job ? (kind === "check" || kind === "document" ? "Choose a trade…" : "No trade") : "Pick a job first"}</option>
+                          {onJob.length > 0 && <optgroup label="On this job">{onJob.map((t) => <option key={t.trade} value={t.trade}>{t.trade}</option>)}</optgroup>}
+                          {offJob.length > 0 && <optgroup label="Elsewhere in the build">{offJob.map((t) => <option key={t.trade} value={t.trade}>{t.trade}</option>)}</optgroup>}
+                        </select>
+                      </label>
+                    )}
+                    {asks("stage") && (
+                      <label className="nb-fld">
+                        <span>Stage</span>
+                        <select className="input" value={stage} onChange={(e) => setStage(e.target.value)}>
+                          <option value="">Which stage…</option>
+                          {kinds.stages.map((s) => <option key={s.stage} value={s.stage} title={s.description ?? undefined}>{s.stage}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    {asks("cost") && (
+                      <label className="nb-fld">
+                        <span>About how much</span>
+                        <input className="input" inputMode="decimal" placeholder="$" value={cost} onChange={(e) => setCost(e.target.value)} />
+                      </label>
+                    )}
+                    {asks("supplier") && (
+                      <label className="nb-fld">
+                        <span>From whom</span>
+                        <input className="input" placeholder="Kuiken, Home Depot, …" value={supplier} onChange={(e) => setSupplier(e.target.value)} />
+                      </label>
+                    )}
+                  </div>
+                )}
+                {asks("gate") && (
+                  <label className="nb-tick">
+                    <input type="checkbox" checked={gate} onChange={(e) => setGate(e.target.checked)} />
+                    <span>Nothing closes over it until this exists{tradeChosen ? ` — holds ${tradeChosen.toLowerCase()}` : ""}</span>
+                  </label>
+                )}
+                {asks("trades") && job && (
+                  <div className="nb-fld">
+                    <span>From which trades</span>
+                    <div className="nb-chips">
+                      {(onJob.length > 0 ? onJob : offJob).map((t) => {
+                        const on = tradesPicked.includes(t.trade);
+                        return (
+                          <button key={t.trade} type="button" className={`tag ${on ? "" : "tag-neutral"}`}
+                            onClick={() => setTradesPicked((p) => on ? p.filter((x) => x !== t.trade) : [...p, t.trade])}>
+                            {t.trade}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="nb-two">
                   <label className="nb-fld">
@@ -462,17 +629,33 @@ export function Notebook() {
                   onChange={setFiles} onHeld={setHeldN} />
 
                 <p className="nb-at">
-                  {job
+                  {job && recipe
+                    ? <>
+                        {kind === "check" && <>A task to check it{tradeChosen ? <> on <strong>{tradeChosen}</strong></> : null}, held by {owner ? crew.find((p) => p.contact_id === owner)?.name ?? "them" : "you"}. It closes with a photo and a yes or no.</>}
+                        {kind === "deliver" && <>Tracked from ordered to on site, held by {owner ? crew.find((p) => p.contact_id === owner)?.name ?? "them" : "you"}. It closes with a photo of it there.</>}
+                        {kind === "document" && <>A record to take{stage ? <> at <strong>{stage.toLowerCase()}</strong></> : null}{tradeChosen ? <> on <strong>{tradeChosen}</strong></> : null}. It closes when the media is attached{gate ? ", and holds the trade until then" : ""}.</>}
+                        {kind === "gather" && <>One step per contract in {tradesPicked.length > 0 ? <strong>{tradesPicked.join(", ")}</strong> : "the trades you pick"}, each closing when its file is attached.</>}
+                        {kind === "buy" && <>A purchase to make{cost.trim() ? <>, about <strong>${cost.replace(/[^0-9.]/g, "")}</strong></> : null}. Log the payment against it; paid, a Deliver task follows by itself.</>}
+                      </>
+                    : job
                     ? <>Goes straight on the board{here.trade ? <> under <strong>{here.trade}</strong></> : null}, held by {owner ? crew.find((p) => p.contact_id === owner)?.name ?? "them" : "you"}. The people on the job can see it.</>
+                    : recipe
+                    ? <>Pick a job above — a {recipe.label.toLowerCase()} task belongs to one.</>
                     : heldN > 0
                       ? <>Pick a job above and {heldN === 1 ? "the file goes" : "the files go"} on it with this. Without a job there is nowhere to keep {heldN === 1 ? "it" : "them"}.</>
                       : <>No job yet, so it is held in your notebook and the end-of-day sweep asks which one.</>}
                 </p>
 
                 <button type="button" className="btn btn-primary"
-                  disabled={(!body.trim() && ids.length === 0) || busy || (!job && heldN > 0)}
+                  disabled={(!body.trim() && ids.length === 0) || busy || (!job && heldN > 0) || (!!recipe && !job)
+                    || (kind === "document" && !stage) || (kind === "gather" && tradesPicked.length === 0)}
                   onClick={() => { void keep(); }}>
-                  {busy ? "…" : !job && heldN > 0 ? "Pick a job first" : !job ? "Hold it for tonight" : "Add it"}
+                  {busy ? "…"
+                    : recipe && !job ? "Pick a job first"
+                    : kind === "document" && !stage ? "Pick a stage"
+                    : kind === "gather" && tradesPicked.length === 0 ? "Pick the trades"
+                    : recipe ? `Add the ${recipe.label.toLowerCase()} task`
+                    : !job && heldN > 0 ? "Pick a job first" : !job ? "Hold it for tonight" : "Add it"}
                 </button>
                 {said && <p className="nb-ok">{said} Still open — keep going.</p>}
                 {err && <p className="nb-err">{err}</p>}

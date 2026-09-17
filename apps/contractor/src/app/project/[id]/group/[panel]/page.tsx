@@ -6,6 +6,7 @@ import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { getBoard, runs } from "@/lib/board";
 import { TradeSpine, type Spine } from "@/components/TradeSpine";
+import { AddTrade, type CatalogueTrade, type JobChoice } from "@/components/AddTrade";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,10 @@ export const dynamic = "force-dynamic";
 // to - the trades inside it, four across in build order, each a door to the
 // trade's own screen. Nothing here is new: it is the tile grid the project
 // screen drew before, narrowed to one group.
+//
+// And the same day, on this screen: "i want to start another trade on the
+// job, roofing. how would i add it here?" The last tile answers that
+// (AddTrade, migration 170) - for whoever runs the job.
 export default async function PanelPage({
   params, searchParams,
 }: {
@@ -30,9 +35,10 @@ export default async function PanelPage({
 
   const w = stopwatch("/project/[id]/group/[panel]");
   const supabase = await createClient();
-  const [board, { data: spineData }] = await Promise.all([
+  const [board, { data: spineData }, { data: catData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("spine", () => rpc<Spine>(supabase, "portal_project_trades", { p_project: id })),
+    w.step("catalogue", () => rpc<CatalogueTrade[]>(supabase, "portal_trade_catalogue", { p_project: id })),
   ]);
   w.done();
   if (!board.signed_in) redirect(`/login?next=/project/${id}/group/${raw}`);
@@ -43,6 +49,23 @@ export default async function PanelPage({
     ? spineData : { trades: [], untagged: { open: 0, late: 0 } };
   const inPanel = spine.trades.filter((t) => (t.panel ?? t.stage ?? "Running the job") === panel);
   const here = `/project/${id}/group/${encodeURIComponent(panel)}?back=${encodeURIComponent(to)}`;
+
+  // WHERE A NEW TRADE LANDS. A property holds no work, its jobs do - so the
+  // picker offers the jobs beneath this row, defaulting to the one the
+  // panel's trades already sit on; a row with no jobs under it is itself the
+  // job, and the database says so if it is not.
+  const under: JobChoice[] = board.seats
+    .filter((s) => s.parent_project_id === id && !s.household && !s.archived)
+    .map((s) => ({ id: s.project_id, name: s.project_name }));
+  const jobs: JobChoice[] = under.length > 0 ? under : [{ id, name: seat.project_name }];
+  const tally = new Map<string, number>();
+  for (const t of inPanel) if (t.lands_on?.id) tally.set(t.lands_on.id, (tally.get(t.lands_on.id) ?? 0) + 1);
+  const usual = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const defaultJob = jobs.find((j) => j.id === usual)?.id ?? jobs[0]!.id;
+  const catalogue = Array.isArray(catData) ? catData : [];
+  const addTile = manages && catalogue.length > 0
+    ? <AddTrade panel={panel} catalogue={catalogue} jobs={jobs} defaultJob={defaultJob} back={here} />
+    : null;
 
   return (
     <Screen>
@@ -55,13 +78,17 @@ export default async function PanelPage({
       } />
       <div className="body">
         {inPanel.length === 0 ? (
-          <Card soft pad>
-            <div className="small">Nothing on this job sits under {panel} yet.</div>
-            <Link href={to} className="btn btn-ghost btn-block" style={{ marginTop: 10 }}>Go back</Link>
-          </Card>
+          <>
+            <Card soft pad>
+              <div className="small">Nothing on this job sits under {panel} yet.</div>
+              {!addTile && <Link href={to} className="btn btn-ghost btn-block" style={{ marginTop: 10 }}>Go back</Link>}
+            </Card>
+            {addTile && <div className="spine-grid">{addTile}</div>}
+          </>
         ) : (
           <TradeSpine projectId={id} spine={spine} manages={manages} mode="tiles" only={panel}
-            back={here} allTasksHref={`/tasks?project=${id}&back=${encodeURIComponent(here)}`} />
+            back={here} allTasksHref={`/tasks?project=${id}&back=${encodeURIComponent(here)}`}
+            tail={addTile} />
         )}
       </div>
     </Screen>

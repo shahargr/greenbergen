@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { TradeIllustration } from "@shared/Illustrations";
 
 // A JOB IS ITS TRADES, IN ORDER, ON ONE SCREEN - GROUPED INTO PANELS.
@@ -45,6 +46,8 @@ export type SpineTrade = {
   finished: boolean;
   who: string | null;
   now: { id: string; action: string; target_date: string | null }[];
+  /** The job this trade's work sits on, when the screen is a property above it. */
+  lands_on?: { id: string; name: string | null } | null;
 };
 
 export type Spine = {
@@ -91,7 +94,7 @@ const LOUD: SpineTrade["state"][] = ["working", "hiring", "loose", "appointed", 
 // name is on the tile's tooltip for anybody who wants it.
 const shortStage = (stage: string) => stage.split(/[\s&]+/)[0];
 
-export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode = "panels", only = null }: {
+export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode = "panels", only = null, tail = null }: {
   projectId: string;
   spine: Spine;
   /** Whether this person runs the job - only they are offered the idle trades. */
@@ -103,6 +106,9 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode
   mode?: "panels" | "tiles";
   /** In tiles mode, show only the trades of this panel. */
   only?: string | null;
+  /** In tiles mode, whatever sits after the last trade in the grid - the
+   *  "Add a trade" tile (migration 170). */
+  tail?: ReactNode;
 }) {
   // EVERY TILE IS A DOOR.
   //
@@ -235,6 +241,7 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode
               "the plumber has not been called yet" is a fact about THIS point in
               the build and belongs where the plumber belongs. */}
           {idle.map(tile)}
+          {tail}
         </div>
       )}
 

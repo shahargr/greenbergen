@@ -39,7 +39,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               whichever screen you happen to be reading. Notes are private to
               their author and hide themselves on the doors where there is
               nothing yet to take a note about. */}
-          <Notebook />
+          <Notebook payPath="/project/{job}/pay" />
         </div>
         {/* Vercel Web Analytics; records once switched on for the project. */}
         <Analytics />

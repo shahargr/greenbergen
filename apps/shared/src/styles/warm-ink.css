@@ -1329,6 +1329,22 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .nb-capture { min-height: 340px; align-content: start; }
 .nb-capture .nb-text { min-height: 84px; }
 
+/* THE KINDS OF TASK THAT REPEAT (migration 172): a row of small pills above
+   the box - Note, then the recipes, then Pay where there is a payment
+   screen - and one line saying what the chosen kind is for. */
+.nb-kinds { display: flex; flex-wrap: wrap; gap: 4px; }
+.nb-kinds button, .nb-kinds .pay {
+  border: 1.5px solid var(--color-divider-strong); background: transparent; cursor: pointer;
+  padding: 5px 10px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700;
+  color: var(--muted); text-decoration: none; line-height: 1.2;
+}
+.nb-kinds button.on { background: var(--color-text); border-color: var(--color-text); color: var(--color-bg); }
+.nb-kinds .pay { border-style: dashed; }
+.nb-sentence { margin: 0; font-size: 12.5px; font-weight: 700; }
+.nb-sentence .text-muted { font-weight: 500; }
+.nb-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.nb-chips .tag { cursor: pointer; border: 0; font: inherit; font-size: 11px; font-weight: 700; }
+
 /* AN ORDER IS A TICK, not a tab (2026-09-17). */
 .nb-tick { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .nb-tick input { width: 18px; height: 18px; margin: 0; accent-color: var(--color-text); }
