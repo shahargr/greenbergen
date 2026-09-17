@@ -8,9 +8,9 @@ import { Notebook } from "@shared/Notebook";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
-  title: { default: "Green Bergen Community", template: "%s · Green Bergen Community" },
-  description: "A real community, not just a marketplace. The safe way to meet contractors in our community.",
-  applicationName: "Green Bergen Community",
+  title: { default: "Green Bergen", template: "%s · Green Bergen" },
+  description: "The first home builder that runs like a software company. We build single-family homes in Bergen County on our own platform, so you see every decision, every cost and every deadline while there is still time to change them.",
+  applicationName: "Green Bergen",
   appleWebApp: { capable: true, title: "Green Bergen", statusBarStyle: "default" },
 };
 

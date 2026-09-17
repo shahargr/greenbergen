@@ -62,3 +62,27 @@
 a.seg-opt { text-decoration: none; color: var(--muted); }
 a.seg-opt:hover { color: var(--color-text); }
 a.seg-opt:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+/* THE FRONT DOOR'S PITCH (action a8d869ca, 2026-09-17): the headline and the
+   one sentence under the photograph, then the two ways in. Words under the
+   picture rather than on it, so they wrap on a phone and read at any
+   exposure. */
+.pitch { display: grid; gap: 10px; padding: 2px 0 0; }
+.pitch h1 {
+  margin: 0; font-family: var(--font-heading); font-weight: 800;
+  font-size: clamp(24px, 6.2vw, 34px); line-height: 1.08; letter-spacing: -0.02em; text-wrap: balance;
+}
+.pitch p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 60ch; }
+.pitch-cta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.pitch-cta .btn { flex: 1 1 200px; }
+
+/* THREE THINGS THE BUYER GETS. One column on a phone - each is a sentence,
+   not a label - and three across from a tablet up. */
+.pillars { display: grid; gap: 8px; }
+@media (min-width: 640px) { .pillars { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.pillars > div {
+  display: grid; gap: 4px; padding: 14px 16px;
+  background: var(--color-surface); border-radius: var(--radius-tile); box-shadow: var(--shadow-card);
+}
+.pillars strong { font-family: var(--font-heading); font-weight: 800; font-size: 15px; line-height: 1.2; letter-spacing: -0.01em; }
+.pillars span { font-size: 13px; line-height: 1.45; color: var(--muted); }

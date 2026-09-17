@@ -1455,3 +1455,19 @@ a.homepanel-alert:hover { text-decoration: underline; }
 .door-mask-row:hover { background: #f6f4f0; text-decoration: none; }
 .door-mask-row strong { display: block; font-size: 14px; }
 .door-mask-row span { display: block; font-size: 12px; color: #8a8378; }
+
+/* THE BUILD, BY DATE (action a8d869ca, 2026-09-17): a live house's
+   photographs as a dated timeline rather than a gallery. A rail down the
+   left, the date on each entry, the photograph under it. */
+.timeline { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--line, #e3e6e2); display: grid; gap: 18px; }
+.timeline li { position: relative; display: grid; gap: 8px; }
+.timeline li::before {
+  content: ""; position: absolute; left: -24px; top: 5px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--brand, #1f6f45); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line, #e3e6e2);
+}
+.tl-when { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.tl-date { font-weight: 800; font-size: 14px; }
+.tl-label { font-size: 14px; color: var(--muted, #6b716d); }
+.tl-now { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--brand, #1f6f45); }
+.tl-shot { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.tl-shot img { width: 100%; max-height: 460px; object-fit: cover; border-radius: 10px; display: block; }
