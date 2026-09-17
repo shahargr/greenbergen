@@ -6,7 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { money } from "@/lib/board";
-import { recordReply, negotiate, award, invite } from "./actions";
+import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,18 @@ type Bid = {
   round: number; rounds_run: number; notes: string | null;
 };
 type Member = { contact_id: string; name: string; trade: string | null };
+// The comparison (portal_bid_compare): the scope lines are the rows, the
+// bidders are the columns, and a cell says whether that line is in his price.
+// The database does the arithmetic - what a missing line costs is what the
+// others charge for it, so "normalised" is the number to compare.
+type Cell = { bid_id: string; included: boolean; price: number | null };
+type CmpItem = { scope_item_id: string; item: string; is_required: boolean; cells: Cell[] | null };
+type CmpBid = {
+  id: string; bidder: string | null; person: string | null; status: string;
+  amount: number | null; gaps: number; gap_cost: number; normalized: number;
+  terms_ok: boolean; insurance_ok: boolean;
+};
+type Cmp = { items: CmpItem[]; bids: CmpBid[] };
 type Pkg = {
   id: string; project_id: string; project_name: string | null;
   phase: string | null; category: string | null; trade: string | null; scope_summary: string | null;
@@ -56,19 +68,23 @@ export default async function BidPackagePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string; pkg: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; open?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; open?: string; held?: string }>;
 }) {
   const { id, pkg: pkgId } = await params;
-  const { ok, error, open } = await searchParams;
+  const { ok, error, open, held } = await searchParams;
   const w = stopwatch("/project/[id]/bids/[pkg]");
   const supabase = await createClient();
 
   const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/bids/${pkgId}`)}`);
 
-  const { data } = await w.step("package", () => rpc<Pkg>(supabase, "portal_bid_package", { p_pkg: pkgId }));
+  const [{ data }, { data: cmpData }] = await Promise.all([
+    w.step("package", () => rpc<Pkg>(supabase, "portal_bid_package", { p_pkg: pkgId })),
+    w.step("compare", () => rpc<Cmp>(supabase, "portal_bid_compare", { p_pkg: pkgId })),
+  ]);
   const p = (data ?? null) as Pkg | null;
   if (!p || p.project_id !== id) notFound();
+  const cmp = (cmpData ?? null) as Cmp | null;
 
   // Plans and photos bidders price from, each behind a signed URL.
   const docUrls = new Map<string, string>();
@@ -86,6 +102,12 @@ export default async function BidPackagePage({
   const closed = p.status === "closed" || !!p.awarded_bid_id;
   const canWrite = p.can_edit && !closed;
   const lowest = replied.reduce<number | null>((n, b) => (b.amount != null && (n == null || b.amount < n) ? b.amount : n), null);
+  // The cheapest LIKE FOR LIKE, which is not the cheapest number: a man who
+  // left half the job out is cheap until you price what he left out. A bid
+  // with no number at all is not in the running for it.
+  const best = (cmp?.bids ?? [])
+    .filter((b) => b.amount != null)
+    .reduce<CmpBid | null>((w, b) => (w == null || b.normalized < w.normalized ? b : w), null)?.id ?? null;
 
   return (
     <Screen>
@@ -98,6 +120,17 @@ export default async function BidPackagePage({
         {ok === "round" && <div className="banner-ok">Round recorded.</div>}
         {ok === "award" && <div className="banner-ok">Awarded. The package is closed and the others are marked.</div>}
         {ok === "invited" && <div className="banner-ok">Invited.</div>}
+        {ok === "added" && <div className="banner-ok">In the room. Write his number down when it comes in.</div>}
+        {ok === "already" && <div className="banner-ok">That firm was already in this room — nothing doubled up.</div>}
+        {ok === "opened" && <div className="banner-ok">Room opened. Put somebody in it.</div>}
+        {ok === "existed" && <div className="banner-ok">This room was already open.</div>}
+        {ok === "scope" && (
+          <div className="banner-ok">
+            Scope saved. Those lines are what every bid is judged against.
+            {held && ` Kept anyway, because somebody already priced them: ${held}.`}
+          </div>
+        )}
+        {ok === "lost" && <div className="banner-ok">Closed as lost. Nobody was awarded.</div>}
 
         <div className="kicker">
           <span className={`tag ${p.status === "open" ? "tag-accent" : tone(p.status)}`}>{p.status}</span>
@@ -124,6 +157,90 @@ export default async function BidPackagePage({
           </Card>
         )}
 
+        {/* SIDE BY SIDE. Shahar (2026-09-17): "a quick way to compare them
+            one to another. Table, showing cost, and things included or
+            missing." The rows are the scope lines, the columns are the
+            bidders, cheapest normalised first. Normalised is the honest
+            comparison: his number plus what the lines he left out cost,
+            priced at what the others charge for them. */}
+        {cmp && cmp.bids.length > 0 && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">Side by side · {cmp.bids.length} price{cmp.bids.length === 1 ? "" : "s"}</div>
+            <div className="cmp-scroll">
+              <table className="cmp">
+                <thead>
+                  <tr>
+                    <th className="cmp-lbl" scope="col">Line</th>
+                    {cmp.bids.map((b) => (
+                      <th key={b.id} scope="col">
+                        <span className="who">{b.bidder ?? "—"}</span>
+                        {b.person && b.person !== b.bidder && <span className="sub">{b.person}</span>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {cmp.items.map((it) => (
+                    <tr key={it.scope_item_id}>
+                      <th className="cmp-lbl" scope="row">
+                        {it.item}
+                        {!it.is_required && <span className="sub">optional</span>}
+                      </th>
+                      {cmp.bids.map((b) => {
+                        const c = (it.cells ?? []).find((x) => x.bid_id === b.id);
+                        const inc = c?.included ?? false;
+                        return (
+                          <td key={b.id} className={inc ? "yes" : it.is_required ? "no" : "meh"}>
+                            <span aria-hidden>{inc ? "✓" : "✕"}</span>
+                            <span className="sr-only">{inc ? "included" : "not included"}</span>
+                            {inc && c?.price != null && <span className="sub">{money(c.price)}</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th className="cmp-lbl" scope="row">His number</th>
+                    {cmp.bids.map((b) => (
+                      <td key={b.id} className="fig">{b.amount != null ? money(b.amount) : "—"}</td>
+                    ))}
+                  </tr>
+                  {/* With no scope lines there is nothing to be missing, and
+                      "like for like" would only repeat his number. */}
+                  {cmp.items.length > 0 && (
+                    <>
+                      <tr>
+                        <th className="cmp-lbl" scope="row">Missing</th>
+                        {cmp.bids.map((b) => (
+                          <td key={b.id} className={b.gaps > 0 ? "no" : "yes"}>
+                            {b.gaps === 0 ? "nothing" : `${b.gaps} line${b.gaps === 1 ? "" : "s"}`}
+                            {b.gaps > 0 && b.gap_cost > 0 && <span className="sub">+{money(b.gap_cost)}</span>}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr className="tot">
+                        <th className="cmp-lbl" scope="row">Like for like</th>
+                        {cmp.bids.map((b) => (
+                          <td key={b.id} className={b.id === best ? "fig best" : "fig"}>
+                            {b.amount == null ? "—" : money(b.normalized)}
+                          </td>
+                        ))}
+                      </tr>
+                    </>
+                  )}
+                </tfoot>
+              </table>
+            </div>
+            <p className="tiny text-muted" style={{ margin: 0 }}>
+              {cmp.items.length === 0
+                ? "No scope lines yet, so these are bare numbers — each man priced whatever he thought you meant. Write the scope below and the table fills in line by line."
+                : <><strong>Like for like</strong> is his number plus what the lines he left out cost — priced at what the others charge for them. It is the only column worth comparing straight across.</>}
+            </p>
+          </section>
+        )}
+
         {/* WHAT WAS ASKED FOR. A bidder prices these lines; a reply that
             leaves a required one out is a gap, and the database says so. */}
         <section className="stack" style={{ gap: 8 }}>
@@ -131,8 +248,8 @@ export default async function BidPackagePage({
             Scope · {p.items.length} line{p.items.length === 1 ? "" : "s"}{required.length > 0 ? ` · ${required.length} required` : ""}
           </div>
           {p.scope_summary && <Card soft pad><div className="small">{p.scope_summary}</div></Card>}
-          {p.items.length === 0 && (
-            <Card soft pad><div className="small">No scope lines on this package yet. Write the scope for this trade on the project, then add the lines from the portal.</div></Card>
+          {p.items.length === 0 && !canWrite && (
+            <Card soft pad><div className="small">No scope lines on this package yet.</div></Card>
           )}
           {p.items.map((i) => (
             <div className="home-row" key={i.id} style={{ cursor: "default", alignItems: "flex-start" }}>
@@ -143,6 +260,33 @@ export default async function BidPackagePage({
               {i.is_required && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>required</span>}
             </div>
           ))}
+
+          {/* THE SCOPE IS WRITTEN IN THE ROOM (Shahar's choice, 2026-09-17).
+              One line per line. These lines are the project's scope for the
+              trade, not a copy of it, and they are the rows of the table
+              above - so what you type here is what every bid is judged
+              against. Saving the box back is safe: a line already written is
+              matched, never written twice. */}
+          {canWrite && (
+            <details className="card pad" open={p.items.length === 0}>
+              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                {p.items.length === 0 ? "Write the scope" : "Change the scope"}
+              </summary>
+              <form action={setScope.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="scope-lines">One line per line</label>
+                  <textarea id="scope-lines" name="lines" className="input" rows={Math.max(6, p.items.length + 2)}
+                    defaultValue={p.items.map((i) => i.item).join("\n")}
+                    placeholder={"Tear off to deck\nIce and water at eaves and valleys\nArchitectural shingles, 30 year\nDrip edge all around\nHaul away and dumpster"} />
+                </div>
+                <button className="btn btn-secondary btn-block">Save the scope</button>
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  Every line counts as required. Taking a line out of the box leaves it on the job — it only
+                  stops being one of the rows here.
+                </p>
+              </form>
+            </details>
+          )}
         </section>
 
         {/* Terms worth knowing on site, when they are set. */}
@@ -184,7 +328,12 @@ export default async function BidPackagePage({
         <section className="stack" style={{ gap: 10 }}>
           <div className="divider-label">Bidders · {p.bids.length}</div>
           {p.bids.length === 0 && (
-            <Card soft pad><div className="small">Nobody invited yet.</div></Card>
+            <Card soft pad>
+              <div className="small">Nobody in the room yet.</div>
+              <div className="tiny text-muted" style={{ marginTop: 4 }}>
+                Put the man you met this morning in it — his firm and his name are enough.
+              </div>
+            </Card>
           )}
           {p.bids.map((b) => {
             const isAwarded = b.id === p.awarded_bid_id;
@@ -320,11 +469,64 @@ export default async function BidPackagePage({
                         <button className="btn btn-secondary btn-block">Award this package</button>
                       </form>
                     )}
+
+                    {/* OUT, WITHOUT ANYBODY WINNING. Shahar, on HVAC:
+                        "Jacob / Mario is closed as lost on the bidding." A
+                        bidder drops out, or never comes back with a number,
+                        long before the winner is picked. */}
+                    {b.status !== "not awarded" && !isAwarded && (
+                      <form action={markLost.bind(null, id, pkgId, b.id)} className="stack" style={{ gap: 8 }}>
+                        <div className="small" style={{ fontWeight: 700 }}>Or close {b.bidder ?? "him"} as lost</div>
+                        <div className="field" style={{ marginBottom: 0 }}>
+                          <label htmlFor={`lost-${b.id}`}>Why he is out</label>
+                          <input id={`lost-${b.id}`} name="reason" className="input" placeholder="Optional — never came back, too high, went quiet" />
+                        </div>
+                        <button className="btn btn-ghost btn-block">Close as lost</button>
+                      </form>
+                    )}
                   </div>
                 )}
               </Card>
             );
           })}
+
+          {/* ANYBODY, NOT JUST SOMEBODY ALREADY ON THE JOB. Shahar met Diego
+              about roofing this morning: Diego is in nothing, his firm is in
+              nothing, and going to a contacts screen first is a step nobody
+              takes in a driveway. Company first, person named - the database
+              creates whichever half is new, joins a second man from the same
+              firm to the row already there, and remembers the trade against
+              him for next time. */}
+          {canWrite && (
+            <details className="card pad" open={p.bids.length === 0}>
+              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>Put somebody in the room</summary>
+              <form action={addToRoom.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="co">Company</label>
+                  <input id="co" name="company_name" className="input" placeholder="Bergen Roofing" />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="pn">Who you spoke to</label>
+                  <input id="pn" name="person_name" className="input" placeholder="Diego" />
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <div className="field grow" style={{ marginBottom: 0 }}>
+                    <label htmlFor="ph">Phone</label>
+                    <input id="ph" name="phone" className="input" inputMode="tel" placeholder="201-555-0134" />
+                  </div>
+                  <div className="field grow" style={{ marginBottom: 0 }}>
+                    <label htmlFor="em">Email</label>
+                    <input id="em" name="email" className="input" inputMode="email" placeholder="Optional" />
+                  </div>
+                </div>
+                <button className="btn btn-primary btn-block">Put them in the room</button>
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  Either half will do — a firm on its own, or a name and a number. A second man from a firm
+                  already in here joins that row rather than opening a second price.
+                </p>
+              </form>
+            </details>
+          )}
         </section>
 
         {/* One more person on the package. They must already be on the
@@ -356,7 +558,8 @@ export default async function BidPackagePage({
 
         <p className="tiny text-muted" style={{ margin: 0 }}>
           Invited trades see the <strong>town</strong> until the job is awarded to them.
-          The full terms sheet, the line-by-line comparison and the AI review are on the desk version of this package.
+          Awarding closes the room, marks the rest, and puts the winner on the job — nobody else joins it.
+          The full terms sheet and the AI review are on the desk version of this package.
         </p>
       </div>
     </Screen>

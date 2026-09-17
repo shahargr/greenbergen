@@ -131,11 +131,11 @@ export function Panels({ projectId, trades, prefs, back, manages, fortnight }: {
   };
 
   // THE BIDS PANEL: every trade with a bid out, wherever it sits in the
-  // build. It opens the same tile screen, filtered to them.
+  // build. It opens the bid board - the one place that says where every
+  // trade got to, not a tile screen filtered to some of them.
   const bidsCard = (
     <div key={BIDS} className="sp-wrap">
-      <Link className="sp hiring"
-        href={`/project/${projectId}/group/${encodeURIComponent(BIDS)}?back=${encodeURIComponent(back)}`}
+      <Link className="sp hiring" href={`/project/${projectId}/bids`}
         title={bidding.map((t) => t.trade).join(" · ")}>
         <span className="h"><span className="t">Bids</span></span>
         <span className="f">
