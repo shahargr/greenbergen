@@ -2,14 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
-import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { getBoard, groupFamilies, money, runs } from "@/lib/board";
+import { getBoard, money, oneList, runs } from "@/lib/board";
 import type { SiteWeek } from "../../SiteWeek";
 import { QuickTask } from "./QuickTask";
 import { Engage } from "./Engage";
 import { GateMark } from "@/components/GateMark";
+import { DuePill, HighPill, UrgencyKey, rowClass } from "@/components/TaskRowBits";
 
 export const dynamic = "force-dynamic";
 
@@ -75,9 +75,10 @@ export default async function TradePage({
   const landsOn = [...lives.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? id;
   const done = all.filter((t) => t.state === "closed");
   const shown = show === "done" ? done : show === "all" ? all : open;
-  // Nested first, then sectioned (groupFamilies): a process and its steps
-  // stay together, in the section the soonest step puts them in.
-  const sections = groupFamilies(shown, "timing");
+  // One list, nested, coloured by urgency and weighted by importance
+  // (oneList): a process and its steps stay together, and the family sits
+  // where its soonest step puts it.
+  const rows = oneList(shown);
   const today = new Date().toISOString().slice(0, 10);
 
   const row = (weekData?.trades ?? []).find((t) => t.trade === trade) ?? null;
@@ -209,15 +210,17 @@ export default async function TradePage({
             </div></Card>
           )}
 
-          {sections.map((b) => (
-            <div key={b.key}>
-              <div className="bucket">
-                <span className={`h ${b.tone === "status" ? "late" : ""}`}>{b.label}</span>
-                <span className="n">{b.rows.length}</span>
-              </div>
+          {/* ONE PANEL. Shahar (2026-09-17): "instead of placing them in two
+              different panels, you can do one panel, with different colors
+              based on their importance and urgency." The rail and the date
+              pill are the urgency; the weight of the name is the importance;
+              a step sits under the thing it is a step of. */}
+          {rows.length > 0 && (
+            <>
+              <UrgencyKey />
               <div className="bucket-rows">
-                {b.rows.map(({ t, depth }) => (
-                  <Link key={t.id} className={[t.is_gate ? "gated" : null, depth > 0 ? "kid" : null].filter(Boolean).join(" ") || undefined}
+                {rows.map(({ t, depth, urgency, inherited, soonest }) => (
+                  <Link key={t.id} className={rowClass(t, depth, urgency)}
                     style={depth > 1 ? { paddingLeft: 18 + depth * 16 } : undefined}
                     href={`/task/${t.id}?back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}>
                     <span className="grow" style={{ minWidth: 0 }}>
@@ -238,19 +241,13 @@ export default async function TradePage({
                         {t.status_note?.trim() || "Status: empty"}
                       </span>
                     </span>
-                    {t.state === "open" && t.priority === "High" && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>High</span>}
-                    {t.state === "closed" ? (
-                      <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>{t.completed_on ? shortDate(t.completed_on) : "done"}</span>
-                    ) : t.target_date ? (
-                      <span className={`tag ${t.target_date < today ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
-                        {shortDate(t.target_date)}
-                      </span>
-                    ) : null}
+                    <HighPill t={t} />
+                    <DuePill t={t} urgency={urgency} inherited={inherited} soonest={soonest} />
                   </Link>
                 ))}
               </div>
-            </div>
-          ))}
+            </>
+          )}
         </section>
 
         {all.length === 0 && contracts.length === 0 && (

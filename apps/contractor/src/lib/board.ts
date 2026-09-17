@@ -498,42 +498,75 @@ export function nest(rows: Task[]): Twig[] {
 // parent. Same shape, no hierarchy claimed.
 export const flat = (rows: Task[]): Twig[] => rows.map((t) => ({ t, depth: 0 }));
 
-// A FAMILY STAYS TOGETHER ACROSS THE SECTIONS.
+// ONE LIST, COLOURED.
 //
 // Shahar (2026-09-17), on the Finance list: "add hierarchy to tasks
 // displayed on a project or parent task. is monthly under construction
-// loan? i ask as i cannot delete the construction loan task." It was - but
-// the list had put the process under "No date yet" and its monthly payment
-// under "Later", two sections apart, because sections were cut BEFORE the
-// steps were put under their parents. A parent with no date of its own and
-// a step due October 1 is due October 1.
+// loan?" - it was, but the list had put the process under "No date yet" and
+// its monthly payment under "Later", two sections apart, because sections
+// were cut BEFORE the steps were put under their parents. Then, the same
+// morning: "instead of placing them in two different panels, you can do one
+// panel, with different colors based on their importance and urgency."
 //
-// So: nest first, then section. Each root and everything under it is one
-// family; the family sits in the section its SOONEST open date puts it in
-// (a family with nothing dated stays in "No date yet"), and its rows are
-// handed back nested, depth and all.
-export type FamilySection = Omit<Section, "rows"> & { rows: Twig[]; families: number };
+// So the timing sections go, and what they said moves onto the row. URGENCY
+// is the colour down the left edge and on the date pill - late, this week,
+// waiting on someone, later, no date. IMPORTANCE is the weight of the name
+// and the High pill. Families stay together (nest), ordered by the most
+// urgent thing in them, and a parent with no date of its own wears its
+// family's urgency, because a process is as urgent as its next step.
+export type Urgency = TaskBucket | "done";
+export const URGENCY_KEY: { key: Urgency; label: string }[] = [
+  { key: "late", label: "Late" },
+  { key: "week", label: "This week" },
+  { key: "waiting", label: "Waiting on someone" },
+  { key: "later", label: "Later" },
+  { key: "undated", label: "No date" },
+];
+const URGENCY_RANK: Record<Urgency, number> = { late: 0, week: 1, waiting: 2, later: 3, undated: 4, done: 5 };
 
-export function groupFamilies(tasks: Task[], by: GroupKey, now = new Date()): FamilySection[] {
+export function urgencyOf(t: Task, now = new Date()): Urgency {
+  if (t.state === "closed") return "done";
+  const today = now.toISOString().slice(0, 10);
+  const weekEnd = new Date(now.getTime() + 7 * 86400_000).toISOString().slice(0, 10);
+  return taskBucket(t, today, weekEnd);
+}
+
+// `soonest` is the family's first open date, carried on every row of it so a
+// parent that borrowed its urgency can say which date it borrowed.
+export type ListRow = Twig & { urgency: Urgency; inherited: boolean; soonest: string | null };
+
+export function oneList(tasks: Task[], now = new Date()): ListRow[] {
   const twigs = nest(tasks);
   const families: { root: Task; twigs: Twig[] }[] = [];
   for (const tw of twigs) {
     if (tw.depth === 0 || families.length === 0) families.push({ root: tw.t, twigs: [tw] });
     else families[families.length - 1]!.twigs.push(tw);
   }
-  const byRoot = new Map(families.map((f) => [f.root.id, f]));
-  // The root stands for the family when the sections are cut: it borrows
-  // the family's soonest open date, and - where its own state is open -
-  // stays open. A closed parent with open steps is a data smell the gate
-  // forbids, so it does not arise.
-  const proxies: Task[] = families.map((f) => {
-    const dates = f.twigs.map((x) => x.t).filter((t) => t.state === "open" && !!t.target_date).map((t) => t.target_date!).sort();
-    return { ...f.root, target_date: dates[0] ?? f.root.target_date };
+  const own = new Map(tasks.map((t) => [t.id, urgencyOf(t, now)]));
+  const weighed = families.map((f) => {
+    const open = f.twigs.map((x) => x.t).filter((t) => t.state === "open");
+    const rank = open.length > 0
+      ? Math.min(...open.map((t) => URGENCY_RANK[own.get(t.id) ?? "undated"]))
+      : URGENCY_RANK.done;
+    const soonest = open.filter((t) => !!t.target_date).map((t) => t.target_date!).sort()[0] ?? null;
+    const ends = f.twigs.map((x) => x.t.completed_on ?? x.t.last_updated ?? "").sort();
+    return { ...f, rank, soonest, ended: ends[ends.length - 1] ?? "" };
   });
-  return groupTasks(proxies, by, now).map((s) => ({
-    ...s,
-    families: s.rows.length,
-    rows: s.rows.flatMap((p) => byRoot.get(p.id)?.twigs ?? []),
+  // Most urgent family first; inside a rank, the nearer date, then what
+  // matters more, then the sequence it came from. Finished families run
+  // newest first, the way a Done list reads.
+  weighed.sort((a, b) =>
+    a.rank - b.rank ||
+    (a.rank === URGENCY_RANK.done ? b.ended.localeCompare(a.ended) : 0) ||
+    (a.soonest ?? "9999").localeCompare(b.soonest ?? "9999") ||
+    priorityRank(a.root.priority) - priorityRank(b.root.priority) ||
+    (a.root.step_order ?? 9999) - (b.root.step_order ?? 9999) ||
+    a.root.action.localeCompare(b.root.action));
+  const keys = URGENCY_KEY.map((k) => k.key);
+  return weighed.flatMap((f) => f.twigs.map((tw) => {
+    const mine = own.get(tw.t.id) ?? "undated";
+    const inherit = tw.depth === 0 && mine === "undated" && f.rank < URGENCY_RANK.undated;
+    return { ...tw, urgency: inherit ? keys[f.rank]! : mine, inherited: inherit, soonest: f.soonest };
   }));
 }
 

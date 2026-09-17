@@ -6,7 +6,8 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { TradeIllustration } from "@shared/Illustrations";
-import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupFamilies, groupWork, money, nest, openBeneath, readMoney, runs, seatLabel, topLevels, type Group, type GroupKey, type Node, type Seat, type Task, type TaskMoney, type Twig } from "@/lib/board";
+import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupWork, money, nest, oneList, openBeneath, readMoney, runs, seatLabel, topLevels, urgencyOf, type Group, type GroupKey, type ListRow, type Node, type Seat, type Task, type TaskMoney, type Twig } from "@/lib/board";
+import { DuePill, HighPill, UrgencyKey, rowClass } from "@/components/TaskRowBits";
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
 import { ProjectTypeIcon } from "@/components/ProjectTypeIcon";
@@ -342,13 +343,14 @@ export default async function ProjectPage({
   // Sections. Timing by default - every task has one; trade, contract and
   // phase are a tap away and name what they cannot place. See groupTasks.
   //
-  // Timing stays a flat list of buckets: late first, this week next, and
-  // collapsing those would hide the two things the screen exists to say.
+  // Timing is ONE list (Shahar, 2026-09-17: "one panel, with different
+  // colors based on their importance and urgency"): late first, nested,
+  // with the urgency on the row rather than on a heading - see oneList.
   // The other three NEST and carry their money (Shahar, 2026-09-13: "build
   // hierarchy so i can see everything Frame related... and under each
   // category allow me to log a payment") - see groupWork.
   const taskMoney = readMoney(moneyData);
-  const sections = panel === "tasks" && by === "timing" ? groupFamilies(found, by) : [];
+  const listed = panel === "tasks" && by === "timing" ? oneList(found) : [];
   const groups = panel === "tasks" && by !== "timing" ? groupWork(found, by, taskMoney) : [];
 
   // Links that keep the rest of the view: changing the panel must not throw
@@ -418,11 +420,15 @@ export default async function ProjectPage({
   // it as one is what made the generator's list unreadable: twelve steps of
   // "Hire the generator installer" scattered through the list, in alphabetical
   // order, with their own parent buried among them.
-  const taskRow = (t: (typeof board.tasks)[number], depth = 0) => {
+  //
+  // `r` is the row as oneList coloured it; a nested arrangement hands only
+  // the task and the depth, and the row colours itself the same way.
+  const taskRow = (t: (typeof board.tasks)[number], depth = 0, r?: ListRow) => {
     const m = taskMoney.tasks[t.id];
+    const urgency = r?.urgency ?? urgencyOf(t);
     return (
       <Link key={t.id} href={`/task/${t.id}?back=${encodeURIComponent(viewHref({}))}`}
-        className={depth > 0 ? "kid" : undefined}>
+        className={rowClass(t, depth, urgency)}>
         <span className="grow" style={{ minWidth: 0 }}>
           <span className="t">{t.action}</span>
           <span className="m">
@@ -456,16 +462,8 @@ export default async function ProjectPage({
         {m && m.owed === 0 && m.spent > 0 && (
           <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>{money(m.spent)}</span>
         )}
-        {t.state === "open" && t.priority === "High" && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>High</span>}
-        {t.state === "closed" ? (
-          <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>
-            {t.completed_on ? shortDate(t.completed_on) : "done"}
-          </span>
-        ) : t.target_date ? (
-          <span className={`tag ${t.target_date < today ? "tag-status" : "tag-neutral"}`} style={{ whiteSpace: "nowrap" }}>
-            {shortDate(t.target_date)}
-          </span>
-        ) : null}
+        <HighPill t={t} />
+        <DuePill t={t} urgency={urgency} inherited={r?.inherited} soonest={r?.soonest} />
       </Link>
     );
   };
@@ -1097,18 +1095,18 @@ export default async function ProjectPage({
               <Card soft pad><div className="small">Nothing matches &ldquo;{query}&rdquo;.</div></Card>
             )}
 
-            {/* TIMING: flat buckets, exactly as they were. Late and This
-                week are the two things this screen exists to say, and a
-                bucket you have to open is a bucket you do not read. */}
-            {sections.map((b) => (
-              <div key={b.key}>
-                <div className="bucket">
-                  <span className={`h ${b.tone === "status" ? "late" : ""}`}>{b.label}</span>
-                  <span className="n">{b.rows.length}{b.late > 0 && b.tone !== "status" ? ` · ${b.late} late` : ""}</span>
+            {/* TIMING: one list. Late leads and This week follows, as the
+                buckets had it - but said by the colour of the row, not by a
+                heading, so a process and its steps are never split across
+                two panels (Shahar, 2026-09-17). */}
+            {listed.length > 0 && (
+              <>
+                <UrgencyKey />
+                <div className="bucket-rows">
+                  {listed.map((r) => taskRow(r.t, r.depth, r))}
                 </div>
-                <TaskRows rows={b.rows} row={taskRow} />
-              </div>
-            ))}
+              </>
+            )}
 
             {/* TRADE: TILES, THREE ACROSS. Shahar (2026-09-14): "Each trade
                 should be presented in a panel with the image of the trade and

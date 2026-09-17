@@ -707,6 +707,33 @@
 }
 .bucket-rows > a.kid .t { font-weight: 600; }
 
+/* ONE LIST, COLOURED (Shahar, 2026-09-17: "one panel, with different colors
+   based on their importance and urgency"). The rail down the left edge is
+   URGENCY, hottest first: late is the app's late colour, this week is amber,
+   waiting is a dashed grey (somebody else's move), later is a faint green,
+   no date is nothing at all. IMPORTANCE is the weight of the name: High is
+   bold, Low is quiet. Two axes, two different signals, so a bold row with no
+   rail and a plain row with a red rail read as two different things. */
+:root { --color-soon: #c9921e; --color-soon-soft: #f8edd3; }
+.bucket-rows > a { border-left: 4px solid transparent; }
+.bucket-rows > a.urg-late { border-left-color: var(--color-status); }
+.bucket-rows > a.urg-week { border-left-color: var(--color-soon); }
+.bucket-rows > a.urg-waiting { border-left-color: var(--color-divider-strong); border-left-style: dashed; }
+.bucket-rows > a.urg-later { border-left-color: color-mix(in srgb, var(--color-ok) 45%, transparent); }
+.bucket-rows > a.urg-done .t { color: var(--muted); font-weight: 500; }
+.bucket-rows > a.imp-high .t { font-weight: 800; }
+.bucket-rows > a.imp-low .t { color: var(--muted); }
+.tag-soon { background: var(--color-soon-soft); color: var(--color-soon); }
+.urg-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--muted); padding: 0 2px; }
+.urg-key .k { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.urg-key .k b { color: var(--color-text); font-weight: 800; }
+.urg-key .d { width: 9px; height: 9px; border-radius: 3px; background: var(--color-divider); border: 1px solid transparent; }
+.urg-key .urg-late .d { background: var(--color-status); }
+.urg-key .urg-week .d { background: var(--color-soon); }
+.urg-key .urg-waiting .d { background: transparent; border: 1px dashed var(--color-divider-strong); }
+.urg-key .urg-later .d { background: color-mix(in srgb, var(--color-ok) 45%, transparent); }
+.urg-key .urg-undated .d { background: transparent; border-color: var(--color-divider); }
+
 /* The tick that makes a gate. Bigger than a default checkbox because it is
    pressed on a phone with a glove on, and it says what it does rather than
    making you remember. */
