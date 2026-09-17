@@ -6,7 +6,9 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { money } from "@/lib/board";
-import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent, showPhoto, hidePhoto } from "./actions";
+import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent, showPhoto, hidePhoto,
+  attachUploads, attachExisting, detachDoc, shareDoc } from "./actions";
+import { BidPapers } from "@/components/BidPapers";
 import { BidLink } from "@/components/BidLink";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +45,13 @@ type Bid = {
   link_revoked: boolean; link_phone: string | null; link_email: string | null; link_message: string | null;
 };
 type Member = { contact_id: string; name: string; trade: string | null };
+// THE PAPERS (186). One copy in the file store, as many attachments as it
+// deserves: the room everybody prices from, the bid it came back with, the
+// deal once it is awarded - and everything else on the job, ready to attach.
+type Paper = { file_id: string; name: string | null; kind: string | null; bucket: string; path: string;
+  shared?: boolean; at: string | null; who?: string | null; bid_id?: string; project?: string | null };
+type Papers = { package_id: string; contract_id: string | null; q: string | null;
+  on_the_room: Paper[]; on_the_bids: Paper[]; on_the_deal: Paper[]; elsewhere: Paper[] };
 // The comparison (portal_bid_compare): the scope lines are the rows, the
 // bidders are the columns, and a cell says whether that line is in his price.
 // The database does the arithmetic - what a missing line costs is what the
@@ -78,19 +87,20 @@ export default async function BidPackagePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string; pkg: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; open?: string; held?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; open?: string; held?: string; docq?: string }>;
 }) {
   const { id, pkg: pkgId } = await params;
-  const { ok, error, open, held } = await searchParams;
+  const { ok, error, open, held, docq } = await searchParams;
   const w = stopwatch("/project/[id]/bids/[pkg]");
   const supabase = await createClient();
 
   const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/bids/${pkgId}`)}`);
 
-  const [{ data }, { data: cmpData }] = await Promise.all([
+  const [{ data }, { data: cmpData }, { data: docData }] = await Promise.all([
     w.step("package", () => rpc<Pkg>(supabase, "portal_bid_package", { p_pkg: pkgId })),
     w.step("compare", () => rpc<Cmp>(supabase, "portal_bid_compare", { p_pkg: pkgId })),
+    w.step("papers", () => rpc<Papers>(supabase, "portal_bid_docs", { p_package: pkgId, p_q: docq ?? null })),
   ]);
   const p = (data ?? null) as Pkg | null;
   // A ROOM IS OPENED FROM WHEREVER YOU ARE STANDING. This used to demand
@@ -105,12 +115,20 @@ export default async function BidPackagePage({
   // about where you would be, not a rule.
   if (!p) notFound();
   const cmp = (cmpData ?? null) as Cmp | null;
+  const papers = (docData ?? null) as Papers | null;
 
-  // Plans and photos bidders price from, each behind a signed URL.
+  // EVERY PAPER IS PRIVATE and needs signing to be opened from this screen -
+  // the room's own, each bidder's, the deal's, and the ones on the job you
+  // might attach. One call, all of them.
   const docUrls = new Map<string, string>();
-  if (p.docs.length > 0) {
+  const allPaths = [...new Set([
+    ...p.docs.map((d) => d.path),
+    ...(papers ? [...papers.on_the_room, ...papers.on_the_bids, ...papers.on_the_deal, ...papers.elsewhere]
+        .filter((d) => d.bucket === "project-media").map((d) => d.path) : []),
+  ])];
+  if (allPaths.length > 0) {
     const { data: signed } = await w.step("docs", () =>
-      supabase.storage.from("project-media").createSignedUrls(p.docs.map((d) => d.path), 3600));
+      supabase.storage.from("project-media").createSignedUrls(allPaths, 3600));
     for (const row of signed ?? []) if (row.path && row.signedUrl) docUrls.set(row.path, row.signedUrl);
   }
   // THE PHOTOGRAPHS. What is already shown to bidders is a public copy; what
@@ -413,21 +431,129 @@ export default async function BidPackagePage({
           </Card>
         )}
 
-        {p.docs.length > 0 && (
+        {/* THE PAPERS (migration 186). Shahar: "the user can upload as many
+            documents as needed, and attach them as needed to the bid, and or
+            to the awarded deal... access to other documents in the projects
+            should be possible as well, for access to survey or architect
+            plans."
+
+            One copy in the file store, as many attachments as it deserves.
+            Three places a paper can sit - the room everybody prices from, one
+            man's bid, the deal once it is awarded - and a fourth list of
+            everything already on the job, ready to be filed here without
+            being uploaded twice. */}
+        {papers && (
           <section className="stack" style={{ gap: 8 }}>
-            <div className="divider-label">Documents · {p.docs.length}</div>
-            {p.docs.map((d) => {
-              const u = docUrls.get(d.path);
-              return u ? (
-                <a key={d.id} className="home-row" href={u} target="_blank" rel="noreferrer">
-                  <span className="grow" style={{ minWidth: 0 }}>
-                    <span className="t">{d.kind === "photo" ? "🖼 " : "📄 "}{d.file_name}</span>
+            <div className="divider-label">
+              Papers · {papers.on_the_room.length} on the room
+              {papers.on_the_bids.length > 0 && ` · ${papers.on_the_bids.length} from bidders`}
+              {papers.on_the_deal.length > 0 && ` · ${papers.on_the_deal.length} on the deal`}
+            </div>
+
+            {papers.on_the_room.map((d) => (
+              <div className="home-row" key={d.file_id} style={{ cursor: "default", alignItems: "flex-start" }}>
+                <span className="grow" style={{ minWidth: 0 }}>
+                  {docUrls.get(d.path)
+                    ? <a className="t" href={docUrls.get(d.path)} target="_blank" rel="noreferrer">{d.name}</a>
+                    : <span className="t">{d.name}</span>}
+                  <span className="m" style={{ display: "block" }}>
+                    {d.shared ? "Bidders can open this one" : "Ours — bidders do not see it"}
                   </span>
-                </a>
-              ) : (
-                <div className="home-row" key={d.id} style={{ cursor: "default" }}><span className="t">{d.file_name}</span></div>
-              );
-            })}
+                </span>
+                {canWrite && !d.shared && (
+                  <form action={shareDoc.bind(null, id, pkgId)}>
+                    <input type="hidden" name="file_id" value={d.file_id} />
+                    <input type="hidden" name="bucket" value={d.bucket} />
+                    <input type="hidden" name="path" value={d.path} />
+                    <input type="hidden" name="name" value={d.name ?? ""} />
+                    <button className="btn btn-ghost small">Show bidders</button>
+                  </form>
+                )}
+                {canWrite && (
+                  <form action={detachDoc.bind(null, id, pkgId, d.file_id)}>
+                    <button className="btn btn-ghost small" aria-label="Take it off the room">×</button>
+                  </form>
+                )}
+              </div>
+            ))}
+
+            {papers.on_the_bids.length > 0 && (
+              <div className="stack" style={{ gap: 6 }}>
+                <div className="tiny text-muted" style={{ fontWeight: 800 }}>What came back</div>
+                {papers.on_the_bids.map((d) => (
+                  <div className="home-row" key={`${d.bid_id}-${d.file_id}`} style={{ cursor: "default" }}>
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      {docUrls.get(d.path)
+                        ? <a className="t" href={docUrls.get(d.path)} target="_blank" rel="noreferrer">{d.name}</a>
+                        : <span className="t">{d.name}</span>}
+                      <span className="m" style={{ display: "block" }}>{d.who ?? "a bidder"}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {papers.on_the_deal.length > 0 && (
+              <div className="stack" style={{ gap: 6 }}>
+                <div className="tiny text-muted" style={{ fontWeight: 800 }}>On the deal</div>
+                {papers.on_the_deal.map((d) => (
+                  <div className="home-row" key={`deal-${d.file_id}`} style={{ cursor: "default" }}>
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      {docUrls.get(d.path)
+                        ? <a className="t" href={docUrls.get(d.path)} target="_blank" rel="noreferrer">{d.name}</a>
+                        : <span className="t">{d.name}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canWrite && (
+              <details className="card pad">
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>Add papers</summary>
+                <div className="stack" style={{ gap: 14, marginTop: 10 }}>
+                  <div>
+                    <div className="small" style={{ fontWeight: 700, marginBottom: 6 }}>Upload</div>
+                    <BidPapers projectId={p.project_id} label="Bid paper"
+                      action={attachUploads.bind(null, id, pkgId)} />
+                  </div>
+
+                  {/* FROM THE JOB. The survey and the architect's plans are
+                      already here; attaching beats uploading them again. */}
+                  <div>
+                    <div className="small" style={{ fontWeight: 700, marginBottom: 6 }}>From this job</div>
+                    <form className="row" style={{ gap: 6, marginBottom: 8 }}>
+                      <input name="docq" className="input grow" defaultValue={docq ?? ""}
+                        placeholder="survey, plan, permit…" aria-label="Find a document" />
+                      <button className="btn btn-secondary small">Find</button>
+                    </form>
+                    <div className="stack" style={{ gap: 4 }}>
+                      {papers.elsewhere.length === 0 && (
+                        <p className="tiny text-muted" style={{ margin: 0 }}>
+                          {docq ? `Nothing on this job matches “${docq}”.` : "Nothing else on this job yet."}
+                        </p>
+                      )}
+                      {papers.elsewhere.map((d) => (
+                        <form key={d.file_id} action={attachExisting.bind(null, id, pkgId)} className="home-row"
+                          style={{ cursor: "default" }}>
+                          <input type="hidden" name="file_id" value={d.file_id} />
+                          <span className="grow" style={{ minWidth: 0 }}>
+                            <span className="t">{d.name}</span>
+                            <span className="m" style={{ display: "block" }}>{d.project}</span>
+                          </span>
+                          <button className="btn btn-ghost small">Attach</button>
+                        </form>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </details>
+            )}
+
+            <p className="tiny text-muted" style={{ margin: 0 }}>
+              Attaching files a paper here for us. <strong>Show bidders</strong> publishes a copy anybody with a
+              bid link can open — worth a thought on a survey or a plan, which usually carry the address.
+            </p>
           </section>
         )}
 
@@ -551,6 +677,16 @@ export default async function BidPackagePage({
                     message={b.link_message ?? "Here is the scope. You can put your price straight in, no login needed."}
                     sentAt={b.link_sent_at} openedAt={b.link_opened_at}
                     onSent={markLinkSent.bind(null, id, pkgId, b.id)} />
+                )}
+
+                {/* HIS PROPOSAL, filed against his bid - and once he wins, it
+                    follows him onto the deal on its own (186). */}
+                {canWrite && sheet && (
+                  <div style={{ marginTop: 10 }}>
+                    <div className="small" style={{ fontWeight: 700, marginBottom: 6 }}>His proposal</div>
+                    <BidPapers projectId={p.project_id} bidId={b.id} label="Proposal"
+                      action={attachUploads.bind(null, id, pkgId)} />
+                  </div>
                 )}
 
                 {canWrite && (

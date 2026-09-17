@@ -26,6 +26,7 @@ export const metadata = { title: "Your price", robots: { index: false, follow: f
 type Item = { scope_item_id: string; item: string; is_required: boolean; included: boolean };
 type Option = { scope_item_id: string; item: string; price: number | null };
 type Shot = { path: string; caption: string | null };
+type Paper = { path: string; name: string | null };
 type Said = { amount: number | null; valid_until: string | null; notes: string | null; on: string | null };
 type Bid = {
   open: boolean; settled: boolean;
@@ -35,6 +36,7 @@ type Bid = {
   terms: { deposit_pct: number | null; retainage_pct: number | null; net_days: number | null;
            workers_comp: boolean | null; coi: boolean | null };
   photos: Shot[];
+  documents: Paper[];
   items: Item[];
   options: Option[];
   said: Said | null;
@@ -155,6 +157,25 @@ export default async function BidByLink({
       {bid.scope_summary && (
         <div className="card" style={{ marginBottom: 14, padding: "16px 20px" }}>
           <p style={{ margin: 0, fontSize: 15, whiteSpace: "pre-line" }}>{bid.scope_summary}</p>
+        </div>
+      )}
+
+      {/* WHAT HE PRICES FROM (186). The survey, the plans, the permit - only
+          the ones somebody deliberately shared, published as copies because a
+          man with no account has nothing to sign a private file with. */}
+      {bid.documents?.length > 0 && (
+        <div className="card" style={{ marginBottom: 14, padding: "16px 20px" }}>
+          <h2 className="section-title" style={{ margin: "0 0 8px" }}>
+            Documents · {bid.documents.length}
+          </h2>
+          <div style={{ display: "grid", gap: 6 }}>
+            {bid.documents.map((d) => (
+              <a key={d.path} href={`${pub}/${d.path}`} target="_blank" rel="noreferrer"
+                style={{ fontWeight: 600, fontSize: 14 }}>
+                📄 {d.name ?? "Document"}
+              </a>
+            ))}
+          </div>
         </div>
       )}
 

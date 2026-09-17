@@ -225,3 +225,102 @@ export async function hidePhoto(projectId: string, pkgId: string, photoId: strin
   }
   redirect(here(projectId, pkgId, { ok: "photo-off" }));
 }
+
+// ---------------------------------------------------------------------------
+// THE PAPERS OF A BID (migration 186). Shahar: "the user can upload as many
+// documents as needed, and attach them as needed to the bid, and or to the
+// awarded deal... access to other documents in the projects should be possible
+// as well, for access to survey or architect plans."
+//
+// Nothing new is stored: file_links already reaches a package, a bid and a
+// contract. One copy of the survey, as many attachments as it deserves.
+
+// Files just uploaded here, filed against the room (or against one bid, when
+// it is a proposal that came back).
+export async function attachUploads(projectId: string, pkgId: string, formData: FormData) {
+  const ids = String(formData.get("file_ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const bidId = txt(formData.get("bid_id"));
+  if (ids.length === 0) redirect(here(projectId, pkgId, { error: "Nothing was uploaded." }));
+
+  const supabase = await createClient();
+  for (const fileId of ids) {
+    const { data, error } = await supabase.rpc("portal_bid_doc_attach", {
+      p_file_id: fileId, p_pkg: bidId ? null : pkgId, p_bid: bidId, p_contract: null, p_detach: false,
+    });
+    if (error || !data?.ok) {
+      redirect(here(projectId, pkgId, { error: data?.reason ?? "That did not file." }));
+    }
+  }
+  revalidatePath(here(projectId, pkgId));
+  redirect(here(projectId, pkgId, { ok: "filed" }));
+}
+
+// A paper that is already on the job - the survey, the architect's plans -
+// filed against this room without being uploaded twice.
+export async function attachExisting(projectId: string, pkgId: string, formData: FormData) {
+  const fileId = txt(formData.get("file_id"));
+  const bidId = txt(formData.get("bid_id"));
+  const toDeal = String(formData.get("to_deal") ?? "") === "1";
+  const contractId = txt(formData.get("contract_id"));
+  if (!fileId) redirect(here(projectId, pkgId, { error: "Pick a document." }));
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_doc_attach", {
+    p_file_id: fileId,
+    p_pkg: bidId || toDeal ? null : pkgId,
+    p_bid: bidId,
+    p_contract: toDeal ? contractId : null,
+    p_detach: false,
+  });
+  revalidatePath(here(projectId, pkgId));
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? "That did not file." }));
+  }
+  redirect(here(projectId, pkgId, { ok: "filed" }));
+}
+
+export async function detachDoc(projectId: string, pkgId: string, fileId: string, formData: FormData) {
+  const bidId = txt(formData.get("bid_id"));
+  const contractId = txt(formData.get("contract_id"));
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_doc_attach", {
+    p_file_id: fileId,
+    p_pkg: bidId || contractId ? null : pkgId,
+    p_bid: bidId, p_contract: contractId, p_detach: true,
+  });
+  revalidatePath(here(projectId, pkgId));
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? "That did not come off." }));
+  }
+  redirect(here(projectId, pkgId, { ok: "unfiled" }));
+}
+
+// SHOWING A PAPER TO BIDDERS IS A DIFFERENT ACT from filing it here: it
+// publishes a COPY that anybody holding a bid link can open. The copy is what
+// makes it readable without a session at all - and it is why this is one
+// deliberate press per document rather than a folder being visible.
+export async function shareDoc(projectId: string, pkgId: string, formData: FormData) {
+  const fileId = txt(formData.get("file_id"));
+  const bucket = txt(formData.get("bucket")) ?? "project-media";
+  const path = txt(formData.get("path"));
+  const name = txt(formData.get("name"));
+  if (!fileId || !path) redirect(here(projectId, pkgId, { error: "Pick a document." }));
+
+  const supabase = await createClient();
+  const { data: dest, error: pathErr } = await supabase.rpc("bid_photo_path", { p_package: pkgId, p_file: fileId });
+  if (pathErr || !dest) redirect(here(projectId, pkgId, { error: "That document has nowhere to go." }));
+
+  const copy = await supabase.storage.from(bucket).copy(path, dest as string, { destinationBucket: "public-media" });
+  if (copy.error && !/exist/i.test(copy.error.message ?? "")) {
+    redirect(here(projectId, pkgId, { error: `Could not share it: ${copy.error.message}` }));
+  }
+
+  const { data, error } = await supabase.rpc("portal_bid_photo_add", {
+    p_package: pkgId, p_file: fileId, p_public_path: dest as string, p_caption: name, p_kind: "document",
+  });
+  revalidatePath(here(projectId, pkgId));
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? "That did not go out." }));
+  }
+  redirect(here(projectId, pkgId, { ok: "shared" }));
+}

@@ -1,0 +1,49 @@
+-- 186: ONE PLACE FOR THE PAPERS OF A BID.
+--
+-- Shahar (2026-09-17): "in the bid room, the user can upload as many documents
+-- as needed, and attach them as needed to the bid, and or to the awarded deal.
+-- this way, all necessary documents are stored in one place. access to other
+-- documents in the projects should be possible as well, for access to survey
+-- or architect plans for example."
+--
+-- Applied as 186a-186d. What each one is for:
+--
+-- 186a NOTHING NEW IS STORED. file_links already reaches a package
+-- (bid_package_id), a bid (bid_id) and a contract (contract_id) - three
+-- columns that were there and only two of which anything used. So a document
+-- has ONE copy in the file store and as many attachments as it deserves: the
+-- survey hangs on the project AND on the room everybody prices from; a
+-- proposal hangs on the bid it came in with AND, once that bid wins, on the
+-- deal. portal_bid_doc_attach gains the contract, gains detach, refuses to
+-- file the same paper twice - and loses the anon grant it should never have
+-- had (rulebook 71: the grant is the boundary, not the guard inside).
+--
+-- 186b portal_bid_docs READS ALL OF IT IN ONE GO: what is on the room, what
+-- came back on each bid, what is filed against the deal, and - asked for by
+-- name - the project's OTHER papers, the survey and the architect's plans,
+-- ready to attach without being uploaded again. The whole family is in scope:
+-- a survey lives on the HOUSE while the room hangs under the job beneath it,
+-- and a document you cannot reach is a document somebody photographs twice.
+--
+-- SHOWING A PAPER TO BIDDERS IS A DIFFERENT ACT from filing it here.
+-- Attaching files it in the room for us; sharing publishes a COPY into the
+-- public bucket that anybody holding a bid link can open, because a man with
+-- no account has no session to sign a private file with.
+-- bid_package_photos already held exactly that shape - a public copy of a
+-- private file - so it holds documents too rather than growing a second table
+-- of the same shape, and carries a kind.
+--
+-- 186c WHEN A BID WINS, ITS PAPERS ARE THE DEAL'S PAPERS. The proposal you
+-- awarded on is the document the deal was struck on, and re-filing it by hand
+-- is the step everybody skips. A trigger rather than a line inside
+-- portal_bid_award, because two doors bind a contract to a winner and a rule
+-- living in one of them is a rule that half works. Everything else stays a
+-- deliberate attach - he said "as needed", and only this one is not a
+-- judgement call.
+--
+-- 186d SIXTY FILES IS NOT A PICKER. The first read of a real job's papers came
+-- back with the asbestos survey and the lumber quote sitting among nine voice
+-- notes, a pile of screenshots and a spreadsheet. A voice note is never a
+-- document to attach - it is a note somebody spoke on site - and the list
+-- takes a search term, because the fastest way to find "Asbestos" among sixty
+-- papers is to type it.
