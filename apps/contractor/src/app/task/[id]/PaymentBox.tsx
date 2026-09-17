@@ -5,6 +5,11 @@ import { Evidence, type Attached } from "@shared/Evidence";
 
 export type Method = { id: string; name: string; requires_reference: boolean };
 
+// WHAT A CONTRACT ALREADY KNOWS (migration 165): who gets paid, the account
+// the last payment left from, the rail it went on. Filled into the slots
+// when the task changes; editable after.
+export type PayDefaults = { payee: string | null; account: string | null; method: string | null };
+
 // WHAT THIS TASK COST. Shahar (2026-09-11): "just purchased this sign online
 // so i can add a payment directly from here."
 //
@@ -13,13 +18,16 @@ export type Method = { id: string; name: string; requires_reference: boolean };
 // being filled in, and it follows the payment method - a rail that needs a
 // reference (check number, Zelle confirmation) says so before the database
 // has to refuse the payment for the lack of one.
-export function PaymentBox({ projectId, methods, people, accounts = [] }: {
+export function PaymentBox({ projectId, methods, people, accounts = [], defaults = null, defaultsKey = "" }: {
   projectId: string | null;
   methods: Method[];
   people: { contact_id: string; name: string }[];
   // Every account this job has already been paid from (migration 075). No
   // list to maintain: it is the record, and it fills itself.
   accounts?: string[];
+  /** What the chosen task's contract knows (165). Applied whenever `defaultsKey` changes. */
+  defaults?: PayDefaults | null;
+  defaultsKey?: string;
 }) {
   const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
   const [amount, setAmount] = useState("");
@@ -51,8 +59,27 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
   // when working on it, but add an option to cancel so we are not blocked?"
   // This is that, without freezing the screen: finish it, or Clear it.
   const started = amount.trim().length > 0;
-  const ready = started && payee.trim().length > 0 && (!needsRef || reference.trim().length > 0);
+  // BOTH ENDS ARE REQUIRED (Shahar, 2026-09-17: "From account is mandatory,
+  // as well as to account is mandatory"). A payment with one end is a
+  // number nobody can reconcile.
+  const ready = started && payee.trim().length > 0 && account.trim().length > 0 && (!needsRef || reference.trim().length > 0);
   const clear = () => { setAmount(""); setPayee(""); setReference(""); setAccount(""); };
+
+  // THE CONTRACT FILLS THE SLOTS. When the task changes to one with a
+  // contract, its party lands in To, its last account in From, its last rail
+  // in How. Only on that change - what you type afterwards stays. Done as
+  // state adjusted during render (React's pattern for "a prop changed"),
+  // not in an effect, so there is no extra paint with the old values.
+  const [applied, setApplied] = useState(defaultsKey);
+  if (defaultsKey !== applied) {
+    setApplied(defaultsKey);
+    if (defaults?.payee) setPayee(defaults.payee);
+    if (defaults?.account) setAccount(defaults.account);
+    if (defaults?.method) {
+      const hit = methods.find((x) => x.name === defaults.method);
+      if (hit) setMethodId(hit.id);
+    }
+  }
 
   // FROM → TO, and the ORDER is the direction.
   //
@@ -74,7 +101,7 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
   const mine = (
     <label className="field" style={{ marginBottom: 0 }}>
       <span className="field-label">
-        {credit ? "To — your account" : "From — your account"} <span className="text-muted">(optional)</span>
+        {credit ? "To — your account" : "From — your account"}
       </span>
       {/* THE NAME OF THIS FIELD IS THE DIRECTION. Your account is the source
           when you paid and the destination when they paid you back, so the
@@ -82,14 +109,8 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
           database reads which way the money went off the two ends. There is
           no separate direction field left to disagree with it. */}
       <input className="input" name={credit ? "to_account" : "from_account"} list="task-account-list" autoComplete="off"
-        value={account} onChange={(e) => setAccount(e.target.value)}
+        value={account} onChange={(e) => setAccount(e.target.value)} required={started}
         placeholder={accounts[0] ? `${accounts[0]}, or a new one` : "Business card ·4821, checking, cash"} />
-      {accounts.length > 0 && (
-        <span className="hint">
-          {accounts.length} {accounts.length === 1 ? "account" : "accounts"} used on this job so far —
-          pick one, or type a new one and it joins the list.
-        </span>
-      )}
     </label>
   );
   const theirs = (
@@ -103,11 +124,6 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
       </datalist>
     </label>
   );
-  // What it will read as, in words, before it is saved.
-  const sentence = credit
-    ? `${payee.trim() || "They"} sent ${amount.trim() ? `$${amount.trim()}` : "money"} back${account.trim() ? ` into ${account.trim()}` : ""} — it comes off what this task has cost.`
-    : `You paid ${payee.trim() || "them"} ${amount.trim() ? `$${amount.trim()}` : ""}${account.trim() ? ` from ${account.trim()}` : ""}.`;
-
   return (
     <>
       {/* Its OWN name: the note box in the same form already uses file_ids,
@@ -118,19 +134,19 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
       {/* WHICH WAY THE MONEY WENT, said as where it came from and where it
           landed. Swap turns a payment into a credit and back; nothing else on
           the form has to change, because the slots keep their meanings. */}
+      {/* TRANSACTION, not "Money moves", and no sentence under it (Shahar,
+          2026-09-17: "the money move - comment is not necessary. change to
+          Transaction"). The two slots say it. */}
       <div className="stack" style={{ gap: 8 }}>
         <div className="between" style={{ alignItems: "baseline" }}>
-          <span className="divider-label" style={{ padding: 0 }}>Money moves</span>
+          <span className="divider-label" style={{ padding: 0 }}>Transaction</span>
           <button type="button" className="btn btn-ghost small" onClick={() => setDir(credit ? "out" : "in")}>
-            ⇄ {credit ? "No — I paid them" : "No — they paid me"}
+            ⇄ {credit ? "I paid them" : "They paid me"}
           </button>
         </div>
         {credit ? theirs : mine}
         <div className="tiny text-muted" style={{ textAlign: "center", margin: "-2px 0" }}>↓</div>
         {credit ? mine : theirs}
-        <p className="tiny text-muted" style={{ margin: 0 }}>
-          {sentence} A name that is not on file becomes a contact, so the next one finds it.
-        </p>
       </div>
 
       <div className="row" style={{ gap: 8 }}>
@@ -203,7 +219,9 @@ export function PaymentBox({ projectId, methods, people, accounts = [] }: {
               ? "This payment goes in with whichever Update you press — you do not have to use this button."
               : needsRef && !reference.trim()
                 ? `${m?.name ?? "This"} needs a reference — a payment without one cannot be reconciled later. Fill it in, or Clear this payment to leave without it.`
-                : "Say who you paid to finish it, or Clear this payment to leave without it."}
+                : !account.trim()
+                  ? "Say which account it moved through to finish it, or Clear this payment to leave without it."
+                  : "Say who is on the other side to finish it, or Clear this payment to leave without it."}
           </p>
         </>
       )}

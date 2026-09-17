@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
-import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
-import { getBoard, money, readMoney, type TaskMoney } from "@/lib/board";
-import { PaymentBox, type Method } from "../../../task/[id]/PaymentBox";
+import { getBoard, readMoney, type TaskMoney } from "@/lib/board";
+import type { Method } from "../../../task/[id]/PaymentBox";
+import { PayForm, type ContractDefault } from "./PayForm";
 import { logCategoryPayment } from "./actions";
 import type { Target } from "@shared/inbox/data";
 
@@ -39,11 +39,15 @@ export default async function CategoryPayPage({
 
   const w = stopwatch("/project/[id]/pay");
   const supabase = await createClient();
-  const [board, { data: moneyData }, { data: targetData }, { data: acctData }, { data: methodData }] = await Promise.all([
+  const [board, { data: moneyData }, { data: targetData }, { data: acctData }, { data: defaultData }, { data: methodData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("money", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id })),
     w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
     w.step("accounts", () => rpc<string[]>(supabase, "portal_payment_accounts", { p_project: id })),
+    // What each contract on the family already knows - who gets paid, from
+    // which account, on which rail (migration 165) - so choosing a task with
+    // a contract fills the transaction.
+    w.step("defaults", () => rpc<ContractDefault[]>(supabase, "portal_contract_defaults", { p_project: id })),
     // The rails a payment can be recorded on. The same list the task screen
     // gets from portal_task_detail: active, and settled by hand.
     // await, not the builder itself: a PostgREST builder is thenable but not
@@ -112,8 +116,16 @@ export default async function CategoryPayPage({
   const people = (Array.isArray(targetData) ? targetData : []).find((x) => x.project_id === id)?.people
     ?? (Array.isArray(targetData) ? targetData : []).flatMap((x) => x.people);
   const accounts = Array.isArray(acctData) ? acctData : [];
+  const defaults = Array.isArray(defaultData) ? defaultData : [];
   const methods = (methodData ?? []) as Method[];
   const nameOf = new Map(board.seats.map((s) => [s.project_id, s.project_name]));
+  // What the picker needs of each task: enough to find it in two moves and
+  // to hand its contract's defaults to the payment box.
+  const pick = choices.map((t) => ({
+    id: t.id, action: t.action,
+    project_id: t.project_id ?? id, project: (t.project_id ? nameOf.get(t.project_id) : null) ?? t.project ?? "This job",
+    owed: owedOf(t.id), due: t.target_date, contract_id: t.contract_id, contract: t.contract,
+  }));
   const here = `/project/${id}/pay?${new URLSearchParams({
     ...(trade ? { trade } : {}), ...(phase ? { phase } : {}), ...(owner ? { owner } : {}),
     ...(untagged ? { untagged } : {}), back: to,
@@ -150,32 +162,14 @@ export default async function CategoryPayPage({
             <input type="hidden" name="back" value={to} />
             <input type="hidden" name="here" value={here} />
 
-            <label className="field">
-              <span className="field-label">Which task</span>
-              <select className="input" name="action_id" required defaultValue={task ?? ""}>
-                <option value="" disabled>Choose the task this belongs to…</option>
-                {choices.map((t) => {
-                  const owed = owedOf(t.id);
-                  const on = t.project_id && t.project_id !== id ? nameOf.get(t.project_id) ?? t.project : null;
-                  return (
-                    <option key={t.id} value={t.id}>
-                      {t.action}
-                      {owed > 0 ? ` — ${money(owed)} to pay` : ""}
-                      {on ? ` · ${on}` : ""}
-                      {t.target_date ? ` · due ${shortDate(t.target_date)}` : ""}
-                    </option>
-                  );
-                })}
-              </select>
-              <span className="hint">
-                Anything already outstanding is at the top of the list. Nothing here fits?
-                Open the job and add the task first — a payment with no task is a payment
-                nobody can find again.
-              </span>
-            </label>
-
-            <PaymentBox projectId={id} methods={methods} accounts={accounts}
-              people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
+            {/* WHICH JOB, THEN WHICH TASK, with a search box - and the
+                contract filling the money (Shahar, 2026-09-17: "one list for
+                all is not possible to search... find the task in two clicks").
+                PayForm holds the pick and hands the payment box what the
+                task's contract knows. */}
+            <PayForm projectId={id} choices={pick} defaults={defaults} methods={methods} accounts={accounts}
+              people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))}
+              defaultTask={task ?? null} />
 
             <Link href={to} className="btn btn-ghost btn-block">Cancel</Link>
           </form>
