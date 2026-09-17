@@ -10,6 +10,7 @@ import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupTasks, g
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
 import { ProjectTypeIcon } from "@/components/ProjectTypeIcon";
+import { QuickActions } from "@/components/QuickActions";
 import { SearchBox } from "@/components/SearchBox";
 import { TaskTable } from "@/components/TaskTable";
 import { TradeSpine, type Spine } from "@/components/TradeSpine";
@@ -106,9 +107,10 @@ export default async function ProjectPage({
     // The week panel needs it too - that is where a working lens offers "log
     // a payment", and the offer must not appear for somebody the database
     // would refuse.
-    (!panelRaw || panelRaw === "tasks" || panelRaw === "week")
-      ? w.step("taskMoney", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id }))
-      : Promise.resolve({ data: null }),
+    // Every panel now: the QuickActions panel at the top offers "Log
+    // payment" only to somebody the database would let, whichever panel
+    // is open beneath it (2026-09-17).
+    w.step("taskMoney", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id })),
     // THE SPINE: this job as its trades, in build order, across the whole
     // family beneath it (migration 139). It is one read rather than a
     // grouping done here, because it also has to answer what the job NEEDS
@@ -599,30 +601,37 @@ export default async function ProjectPage({
         )}
         {ok === "cancelled-paid" && <div className="banner-ok">Cancelled — and money had already gone out on it. The ledger keeps that.</div>}
 
-        {/* WHAT IT IS, AND WHERE. Shahar (2026-09-15): "Split the top
-            differently, so on the left it shows an icon based on project type
-            (New build = construction), and on the right, status and address."
-
-            This replaces the photograph. The icon is drawn from what the
-            database already knows - the catalogue package first, then whether
-            this row has jobs under it, then the domain - so it costs nothing
-            to fetch and reads as "a build" faster than a photograph of a
-            house resolves into one. The address lives here now rather than in
-            the app bar's sub line, where it was a second copy of the name
-            half the time. */}
-        <div className="proj-head">
-          <ProjectTypeIcon seat={seat} hasChildren={kids.length > 0} />
-          <div className="grow" style={{ minWidth: 0 }}>
-            <div className="what">
-              {[
-                manages ? "You run this" : seatLabel(seat) ?? "Your seat",
-                seat.status,
-                seat.stage,
-              ].filter(Boolean).join(" · ")}
+        {/* THE DAY'S WORK, AT THE TOP. Shahar (2026-09-17): "replace this
+            panel with new panel, allowing to perform the most repeatable
+            tasks in a project: daily site visit, order something, todo
+            and/take note." The band that stood here (2026-09-15: the type
+            icon, "You run this · In Progress · Active", the address) said
+            what you knew and did nothing; its line is kept as the caption
+            and the panel under it does the day: site visit, to-do, order,
+            note, phone book - and for whoever runs the job, a full task, a
+            payment, an award. A folder (a development) has no site and no
+            notebook to speak of, so it keeps the quiet band. */}
+        {isFolder ? (
+          <div className="proj-head">
+            <ProjectTypeIcon seat={seat} hasChildren={kids.length > 0} />
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div className="what">
+                {[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
+              </div>
+              <div className="where">{seat.address ?? seat.parent_name ?? "No address on this job"}</div>
             </div>
-            <div className="where">{seat.address ?? seat.parent_name ?? "No address on this job"}</div>
           </div>
-        </div>
+        ) : (
+          <QuickActions projectId={id}
+            standing={[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
+            where={seat.address ?? seat.parent_name ?? null}
+            visitHref={offered.includes("visits") ? panelHref("visits") : null}
+            visitsToday={visitsToday}
+            addTaskHref={lens.rank >= 30
+              ? `/project/${id}/task/new?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
+            payHref={taskMoney.can_log ? `/project/${id}/pay?back=${encodeURIComponent(keepAs())}` : null}
+            awardHref={manages ? `/project/${id}/award?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null} />
+        )}
 
         {/* Everything you set ONCE - the photo, the scope, and how this job
             ends (Shahar, 2026-09-11: "move the cancel this job into the
@@ -796,47 +805,11 @@ export default async function ProjectPage({
           </section>
         )}
 
-        {/* THE TWO THINGS YOU DO STANDING HERE, and the one thing you look
-            for. Shahar (2026-09-14): "next, add Add task and Search window" /
-            "need quick access to site visit." */}
-        <section className="do-row">
-          {lens.rank >= 30 && (
-            <Link href={`/project/${id}/task/new?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}
-              className="do-btn primary">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 5v14M5 12h14" /></svg>
-              <span>Add task</span>
-            </Link>
-          )}
-          {offered.includes("visits") && (
-            <Link href={panelHref("visits")} className={`do-btn${panel === "visits" ? " on" : ""}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
-                strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" />
-              </svg>
-              <span>Site visit{visitsToday > 0 ? ` · ${visitsToday} today` : ""}</span>
-            </Link>
-          )}
-          {/* AWARDING WORK HAD NO DOOR. Shahar (2026-09-14): "as a GC i'd like
-              to award business. how do i do this?" - and then, once it had
-              been done for him once, "i need that screen, as i will award a
-              stairs guy soon."
-              It opens on the direct award, because a GC who already knows who
-              is doing the stairs should not have to run a bid round to say so;
-              the bid packages are one link down that screen for when he
-              doesn't know yet. Only for somebody who runs this job - the
-              database refuses the rest anyway (can_edit_project). */}
-          {manages && !isFolder && (
-            <Link href={`/project/${id}/award?back=${encodeURIComponent(keepAs(`/project/${id}`))}`}
-              className="do-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
-                strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" />
-              </svg>
-              <span>Award work</span>
-            </Link>
-          )}
-        </section>
+        {/* ADD TASK, SITE VISIT AND AWARD WORK (Shahar, 2026-09-14: "add Add
+            task and Search window" / "need quick access to site visit"; "as
+            a GC i'd like to award business") moved up into the QuickActions
+            panel at the top of the screen (2026-09-17), beside to-do, order,
+            note and the phone book. One panel, not a band and a row. */}
 
         {/* The search lives up here now, not buried above the list, because
             with 129 open tasks it is how most people find one. */}

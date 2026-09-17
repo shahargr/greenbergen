@@ -299,10 +299,50 @@
 .pnl.act { display: flex; flex-direction: column; justify-content: center; text-decoration: none; }
 .pnl.act .n { color: var(--muted); }
 
-/* THE TWO THINGS YOU DO STANDING ON SITE, and the one you look for.
-   Shahar (2026-09-14): "add Add task and Search window" / "need quick access
-   to site visit." Full-width targets, because this is a phone in a gloved
-   hand, not a toolbar. */
+/* THE DAY'S WORK, AT THE TOP OF A JOB (Shahar, 2026-09-17: "a new panel,
+   allowing to perform the most repeatable tasks in a project"). The caption
+   is what the old band said; the grid under it is what you do. Four across
+   on a phone, so eight fit on two rows under a gloved thumb; more on a
+   tablet. */
+.qa {
+  background: var(--color-surface); border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-card); padding: var(--space-3) var(--space-3) var(--space-3);
+  display: grid; gap: var(--space-2);
+}
+.qa-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 0 2px; }
+.qa-head .what {
+  font-family: var(--font-heading); font-weight: 800; font-size: 11.5px;
+  letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.3;
+}
+.qa-head .where { font-size: 12.5px; color: var(--muted); }
+.qa-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 768px) { .qa-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.qa-btn {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  min-height: 64px; padding: 8px 4px;
+  border-radius: var(--radius-input);
+  border: 1.5px solid var(--color-divider-strong);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: 700 11.5px/1.15 var(--font-body);
+  text-decoration: none; text-align: center; cursor: pointer;
+}
+.qa-btn > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-btn svg { width: 20px; height: 20px; flex: none; color: var(--muted); }
+.qa-btn:hover { border-color: var(--color-text); }
+.qa-btn:hover svg { color: var(--color-text); }
+.qa-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.qa-btn .n {
+  position: absolute; top: -6px; right: -4px;
+  font-size: 10px; font-weight: 800; padding: 1px 6px;
+  border-radius: var(--radius-pill); background: var(--color-text); color: var(--color-bg);
+}
+
+/* THE ROW THAT WAS UNDER THE BAND (Shahar, 2026-09-14: "add Add task and
+   Search window" / "need quick access to site visit"). Its three buttons
+   moved up into .qa on 2026-09-17; the classes stay for the trade screens
+   that still use them. */
 .do-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-2); }
 .do-btn {
   display: inline-flex;

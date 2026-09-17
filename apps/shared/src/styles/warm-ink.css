@@ -1316,6 +1316,43 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .nb-capture { min-height: 340px; align-content: start; }
 .nb-capture .nb-text { min-height: 84px; }
 
+/* AN ORDER IS A TICK, not a tab (2026-09-17). */
+.nb-tick { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.nb-tick input { width: 18px; height: 18px; margin: 0; accent-color: var(--color-text); }
+
+/* WHAT WAS KEPT, one line at the foot of the sheet - the Book tab folded
+   into it. It reads as a door, not as another button to press. */
+.nb-kept {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin-top: 2px; padding: 8px 0 0; border: 0; border-top: 1px solid var(--color-divider);
+  background: transparent; cursor: pointer; text-align: left;
+  font-size: 12.5px; font-weight: 700; color: var(--muted);
+}
+.nb-kept .grow { flex: auto; min-width: 0; }
+.nb-kept .go { flex: none; color: var(--color-text); }
+.nb-kept:hover { color: var(--color-text); }
+
+/* THE PHONE BOOK (migration 161): a name, what they are on the job, and the
+   ways to reach them as words a thumb can hit. */
+.nb-phone { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.nb-phone li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--radius-input);
+  background: var(--color-surface); border: 1px solid var(--color-divider);
+}
+.nb-phone li.me { background: var(--color-soft-2); }
+.nb-phone .who { flex: auto; min-width: 0; display: grid; gap: 1px; }
+.nb-phone .t { font-size: 13.5px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-phone .m { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb-phone .ways { flex: none; display: flex; gap: 4px; }
+.nb-phone .ways a, .nb-phone .ways .none {
+  display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px;
+  border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; text-decoration: none;
+}
+.nb-phone .ways a { border: 1.5px solid var(--color-divider-strong); color: var(--color-text); background: var(--color-bg); }
+.nb-phone .ways a:hover { border-color: var(--color-text); }
+.nb-phone .ways .none { color: var(--muted); font-weight: 600; padding: 0 4px; }
+
 /* THREE ACROSS (Shahar, 2026-09-16: "The three icons for adding evidence must
    fit one line"). Icon above a short word, so the cell can be narrow without
    the label clipping - which is what a horizontal icon+text button does first
