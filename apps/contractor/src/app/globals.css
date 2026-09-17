@@ -73,6 +73,30 @@
   .task-row-label { padding-top: 0; }
 }
 
+/* THREE ACROSS, ON EVERY SCREEN (Shahar, 2026-09-17): Stage · Priority ·
+   Completion target, and Assigned to · Payment · Steps. Each cell wears its
+   own label above it, so the row needs no label of its own on the left. On a
+   phone the three cells are narrow; the controls shrink their type and
+   padding rather than the row folding, which is what he chose. */
+.task-row-value.triple { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); align-items: end; }
+.task-row-value.triple .field { min-width: 0; }
+.task-row-value.triple .field-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-row-value.triple .input, .task-row-value.triple .btn { width: 100%; min-width: 0; }
+@media (max-width: 430px) {
+  .task-row-value.triple .input, .task-row-value.triple .btn { font-size: 13px; padding-left: 8px; padding-right: 6px; }
+  .task-row-value.triple input[type="date"] { font-size: 12px; padding-left: 6px; padding-right: 2px; }
+}
+
+/* PROJECT › TASK in the bar (Shahar, 2026-09-17: "use breadcrumbs format:
+   project name > task name"). The task name may run to two lines; a task
+   called by an ellipsis is a task you cannot tell from its neighbour. */
+.appbar .title .crumbs { display: block; white-space: normal; line-height: 1.25; font-size: 14px; }
+.appbar .title .crumbs a { color: var(--muted); font-weight: 600; text-decoration: none; }
+.appbar .title .crumbs .sep { color: var(--muted); margin: 0 6px; font-weight: 400; }
+.appbar .title .crumbs .leaf {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
 /* A PRICE HAS A DOLLAR SIGN ON IT. Shahar (2026-09-14): "a place to add $".
    The mark is part of the box rather than a word in the label, so the number
    you type sits where a number sits on a receipt. */

@@ -6,6 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, LongText, Notice, Screen } from "@shared/ui";
 import { TaskBar } from "./TaskBar";
+import { TaskActionsRow } from "./TaskActionsRow";
 import { saveTask, undoNote, editPayment, cancelTask, deleteTask, linkTask } from "./actions";
 import { NoteBox } from "./NoteBox";
 import { PaymentBox, type Method } from "./PaymentBox";
@@ -337,7 +338,19 @@ export default async function TaskPage({
 
   return (
     <Screen>
-      <AppBar back={to} title="Task" sub={t.project ?? undefined} />
+      {/* PROJECT › TASK. Shahar (2026-09-17): "instead of the top right where
+          it says Task, and under it, new build, use breadcrumbs format:
+          project name > task name." The word "Task" told you what kind of
+          screen you were on, which you knew; the crumb tells you which one. */}
+      <AppBar back={to} title={
+        <span className="crumbs">
+          {t.project_id
+            ? <Link href={`/project/${t.project_id}`}>{t.project ?? "Project"}</Link>
+            : <span style={{ color: "var(--muted)", fontWeight: 600 }}>{t.project ?? "Project"}</span>}
+          <span className="sep" aria-hidden>›</span>
+          <span className="leaf">{t.action}</span>
+        </span>
+      } />
 
       {/* SAVE, UNDO, EXIT - kept in view. Shahar (2026-09-16): "any change made
           in the form should check how save button shows, helping me understand
@@ -508,30 +521,11 @@ export default async function TaskPage({
           </section>
         )}
 
-        {/* A STEP UNDER THIS ONE. Shahar (2026-09-14): "inside each task, add
-            an option to create sub-task." The new-task screen has taken a
-            parent since it was built; there was simply no way in from the
-            task the step belongs to, so you had to open a blank one and find
-            this task again in a list of everything open on the site. */}
-        {!closed && t.can_edit && t.project_id && t.accepts_steps && (
-          <Link
-            href={`/project/${t.project_id}/task/new?parent=${t.id}&back=${encodeURIComponent(`/task/${t.id}?back=${encodeURIComponent(to)}`)}`}
-            className="btn btn-secondary btn-block"
-          >
-            ＋ Add a step under this
-          </Link>
-        )}
-
-        {/* A SIMPLE TASK SAYS SO. Shahar (2026-09-15): "Simple task is task
-            that you cannot have any child to." Offering a button the database
-            will refuse is worse than not offering it, and saying nothing at
-            all leaves a person hunting for a button that was never there. */}
-        {!closed && t.can_edit && !t.accepts_steps && (
-          <p className="tiny text-muted" style={{ margin: 0 }}>
-            A simple task — one line, no steps under it. Work that needs a scope, a contract or a
-            price is its own task rather than a step of this one.
-          </p>
-        )}
+        {/* A STEP UNDER THIS ONE (Shahar, 2026-09-14: "inside each task, add
+            an option to create sub-task") lives in the Assigned to · Payment ·
+            Steps row inside the form now (2026-09-17), where it can go quiet
+            while the form has unsaved edits. A simple task says so on the
+            same button rather than in a paragraph here. */}
 
         {/* HOW IT FITS. Shahar (2026-09-15): "allow to create dependencies
             between tasks : after ... or before ... / allow a task to point to
@@ -797,21 +791,13 @@ export default async function TaskPage({
 
               {t.can_edit && (
                 <>
-                  {/* ONE ROW (Shahar, 2026-09-16: "Stage and priority on one
-                      line"). They are two halves of the same judgement - where
-                      it stands and how much it matters - and each was taking a
-                      full row of a screen you scroll. The selects carry their
-                      own values, so which is which reads at a glance. */}
-                  {/* Each half wears its own name. "Stage and priority" on the
-                      left named the pair once, and the right-hand select then
-                      read as a value with no question - Shahar: "Next to stage
-                      is priority, but there is no text telling me that." */}
-                  <div className="task-row">
-                    <span className="task-row-label">
-                      Stage · Priority
-                      <span className="text-muted" style={{ display: "block", fontWeight: 400 }}>where it stands · how much it matters</span>
-                    </span>
-                    <div className="task-row-value pair">
+                  {/* THREE ACROSS (Shahar, 2026-09-16: "Stage and priority on
+                      one line"; 2026-09-17: "remove [the left label], it is
+                      listed already above the drop down. instead have 3 items
+                      in the same row, adding target completion date"). Each
+                      cell wears its own name; the row needs none. */}
+                  <div className="task-row" style={{ gridTemplateColumns: "1fr" }}>
+                    <div className="task-row-value triple">
                       <label className="field">
                         <span className="field-label">Stage</span>
                         <select className="input" name="status" defaultValue={stageShown}>
@@ -824,19 +810,34 @@ export default async function TaskPage({
                           {PRIORITIES.map((x) => <option key={x} value={x}>{x === "Missing" ? "Not set" : x}</option>)}
                         </select>
                       </label>
+                      <label className="field">
+                        <span className="field-label">Completion target</span>
+                        <input className="input" name="target_date" type="date" defaultValue={t.target_date ?? ""} />
+                      </label>
                     </div>
                   </div>
-                  <Row label="Assigned to">
+
+                  {/* WHO · PAYMENT · STEPS, one row; the payment box opens under
+                      it. The step button goes quiet while the form is dirty
+                      (TaskActionsRow). */}
+                  <TaskActionsRow formId="task-form"
+                    stepHref={!closed && t.project_id
+                      ? `/project/${t.project_id}/task/new?parent=${t.id}&back=${encodeURIComponent(`/task/${t.id}?back=${encodeURIComponent(to)}`)}`
+                      : null}
+                    acceptsSteps={t.accepts_steps}
+                    canLogPayment={t.can_log_payment && !setup}
+                    payOpen={money === "1"}
+                    payment={t.can_log_payment && !setup
+                      ? <PaymentBox projectId={t.project_id} methods={t.methods} accounts={accounts}
+                          people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
+                      : null}>
                     <select className="input" name="assignee" defaultValue={t.assignee?.id ?? ""}>
                       <option value="">Nobody yet</option>
                       {people.map((x) => (
                         <option key={x.contact_id} value={x.contact_id}>{x.me ? `${x.name} (me)` : x.name}{x.seat ? ` · ${x.seat}` : ""}</option>
                       ))}
                     </select>
-                  </Row>
-                  <Row label="Completion target">
-                    <input className="input" name="target_date" type="date" defaultValue={t.target_date ?? ""} />
-                  </Row>
+                  </TaskActionsRow>
                 </>
               )}
             </section>
@@ -869,24 +870,9 @@ export default async function TaskPage({
               <Link href={`/task/${t.id}?back=${encodeURIComponent(to)}`} className="btn btn-ghost grow">Cancel changes</Link>
             </div>
 
-            {/* WHAT IT COST (migration 065). Inside the same form, so logging
-                a purchase saves the lines above with it, and an amount in the
-                box goes in whichever button gets pressed. */}
-            {t.can_log_payment && !setup && (
-              <details className="home-panel" open={money === "1"}>
-                <summary className="home-row">
-                  <span className="grow" style={{ minWidth: 0 }}>
-                    <span className="t">Log a payment</span>
-                    <span className="m" style={{ display: "block" }}>Something you bought or paid for to get this done</span>
-                  </span>
-                  <span className="chev"><ChevronIcon /></span>
-                </summary>
-                <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-                  <PaymentBox projectId={t.project_id} methods={t.methods} accounts={accounts}
-                    people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))} />
-                </div>
-              </details>
-            )}
+            {/* WHAT IT COST (migration 065) is the payment box under the
+                Assigned to · Payment · Steps row above - still inside this
+                form, so an amount in it goes with whichever button is pressed. */}
           </form>
         )}
 

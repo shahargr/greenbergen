@@ -54,6 +54,29 @@ function differs(form: HTMLFormElement, was: Snap | null) {
   return false;
 }
 
+// IS THE FORM DIFFERENT FROM HOW IT ARRIVED. One answer, asked by two
+// things: the Save button (which lights up) and the Add-a-step button (which
+// goes quiet - Shahar, 2026-09-17: "add steps under this task be disabled
+// until the task is saved. show it on the button"). A step opened with
+// unsaved edits behind it would come back to a form that forgot them.
+export function useFormDirty(formId: string) {
+  const [dirty, setDirty] = useState(false);
+  const was = useRef<Snap | null>(null);
+  useEffect(() => {
+    const form = document.getElementById(formId) as HTMLFormElement | null;
+    if (!form) return;
+    was.current = snapshot(form);
+    const check = () => setDirty(differs(form, was.current));
+    form.addEventListener("input", check);
+    form.addEventListener("change", check);
+    return () => {
+      form.removeEventListener("input", check);
+      form.removeEventListener("change", check);
+    };
+  }, [formId]);
+  return { dirty, was };
+}
+
 export function TaskBar({ formId, taskId, exitHref, justSaved }: {
   formId: string;
   taskId: string;
@@ -61,20 +84,11 @@ export function TaskBar({ formId, taskId, exitHref, justSaved }: {
   /** The page came back from a save, so an undo has something to undo. */
   justSaved: boolean;
 }) {
-  const [dirty, setDirty] = useState(false);
+  const { dirty, was } = useFormDirty(formId);
   const [canUndo, setCanUndo] = useState(false);
-  const was = useRef<Snap | null>(null);
   const key = `task-undo:${taskId}`;
 
   useEffect(() => {
-    const form = document.getElementById(formId) as HTMLFormElement | null;
-    if (!form) return;
-    was.current = snapshot(form);
-
-    const check = () => setDirty(differs(form, was.current));
-    form.addEventListener("input", check);
-    form.addEventListener("change", check);
-
     // An undo offer is only good for the load that follows the save that
     // created it. Arriving any other way clears it, so the button can never
     // sit there offering to restore something from yesterday.
@@ -89,13 +103,8 @@ export function TaskBar({ formId, taskId, exitHref, justSaved }: {
         else sessionStorage.removeItem(key);
       } catch { /* private window, no storage - the bar works, minus undo */ }
     }, 0);
-
-    return () => {
-      clearTimeout(t);
-      form.removeEventListener("input", check);
-      form.removeEventListener("change", check);
-    };
-  }, [formId, key, justSaved]);
+    return () => clearTimeout(t);
+  }, [key, justSaved]);
 
   // Keep the pre-save values where the next page load can find them. Written
   // on the click rather than on submit so it lands before the navigation.
