@@ -158,3 +158,23 @@ export async function invite(projectId: string, pkgId: string, formData: FormDat
   }
   redirect(here(projectId, pkgId, { ok: "invited" }));
 }
+
+// THE LINK WENT OUT. Recording it is a separate act from making it: you can
+// copy a link and never send it, and the room should not claim otherwise.
+export async function markLinkSent(projectId: string, pkgId: string, bidId: string, how: string) {
+  const supabase = await createClient();
+  await supabase.rpc("portal_bid_link_sent", { p_bid: bidId, p_how: how });
+  revalidatePath(here(projectId, pkgId));
+}
+
+// A link that reached the wrong person, or a bidder who is out: kill it. The
+// next one minted is a different uuid, so the old text stops working.
+export async function revokeLink(projectId: string, pkgId: string, bidId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_link", { p_bid: bidId, p_revoke: true });
+  revalidatePath(here(projectId, pkgId));
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? "Could not stop that link." }));
+  }
+  redirect(here(projectId, pkgId, { ok: "revoked" }));
+}

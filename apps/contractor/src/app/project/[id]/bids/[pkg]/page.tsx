@@ -6,7 +6,8 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { money } from "@/lib/board";
-import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost } from "./actions";
+import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent } from "./actions";
+import { BidLink } from "@/components/BidLink";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,15 @@ export const dynamic = "force-dynamic";
 type Item = { id: string; scope_item_id: string; item: string; category: string | null; is_required: boolean; sort: number };
 type Doc = { id: string; file_name: string; kind: string | null; bucket: string; path: string };
 type Bid = {
-  id: string; bidder: string | null; bidder_contact_id: string; status: string;
+  id: string; bidder: string | null; person: string | null; bidder_contact_id: string; status: string;
   amount: number | null; received_on: string | null; valid_until: string | null;
   is_like_for_like: boolean | null; scope_gaps: string | null;
   round: number; rounds_run: number; notes: string | null;
+  // PATH 2 (migration 184): his own link, which prices the job with no
+  // account. Minted for every bid at birth; the token reaches only somebody
+  // who may run the bid.
+  link_token: string | null; link_sent_at: string | null; link_opened_at: string | null;
+  link_revoked: boolean; link_phone: string | null; link_email: string | null; link_message: string | null;
 };
 type Member = { contact_id: string; name: string; trade: string | null };
 // The comparison (portal_bid_compare): the scope lines are the rows, the
@@ -358,6 +364,7 @@ export default async function BidPackagePage({
                 <div className="between" style={{ alignItems: "flex-start" }}>
                   <div className="grow" style={{ minWidth: 0 }}>
                     <div className="card-title" style={{ fontSize: 15 }}>{b.bidder ?? "—"}</div>
+                    {b.person && b.person !== b.bidder && <div className="tiny text-muted">{b.person}</div>}
                     <div className="small text-muted">
                       {[
                         hasNumber ? money(b.amount) : "no number yet",
@@ -386,6 +393,17 @@ export default async function BidPackagePage({
                     <summary className="tiny text-muted" style={{ cursor: "pointer" }}>What was said</summary>
                     <div className="tiny" style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>{b.notes}</div>
                   </details>
+                )}
+
+                {/* PATH 2: his own link. It sits above the two buttons
+                    because sending it is what you do FIRST - writing his
+                    number down yourself (path 1) is what you do when he rings
+                    instead of tapping. A settled bid needs neither. */}
+                {canWrite && b.link_token && !b.link_revoked && !isAwarded && b.status !== "not awarded" && (
+                  <BidLink token={b.link_token} who={b.bidder} phone={b.link_phone} email={b.link_email}
+                    message={b.link_message ?? "Here is the scope. You can put your price straight in, no login needed."}
+                    sentAt={b.link_sent_at} openedAt={b.link_opened_at}
+                    onSent={markLinkSent.bind(null, id, pkgId, b.id)} />
                 )}
 
                 {canWrite && (
