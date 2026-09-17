@@ -773,3 +773,42 @@ the company there and the person on `contractor_id`; it now matches both).
 What it refuses, by name: a contract on another job, a receivable, a
 cancelled one, a person who is not the contract's party, a trade that
 contradicts a trade the contract already names.
+
+
+---
+
+## 18. The deploy budget: a push that produces no deployment at all
+
+The Hobby plan caps how many deployments the ACCOUNT may create in a
+rolling 24 hours (Vercel documents it as 100/day; the number is not
+visible from inside a build, the symptom is). One push to `main` fans
+out to THREE deployments, one per Vercel project, so the cap is roughly
+thirty pushes a day. On 2026-09-17 `main` took 44 commits and the cap
+was reached twice — first on `6632e73`, again on `32f9c77`.
+
+**What it looks like, and how it differs from §15.** A skipped build
+(§15) reports `CANCELED` against the commit, with no logs and an
+`errorLink`. Hitting the cap produces NOTHING: the commit is on GitHub,
+and the project simply has no deployment row for that sha. Checking
+"did it deploy" therefore means comparing the newest deployment's
+`githubCommitSha` against `git rev-parse HEAD`, not looking for a
+failure. A capped push is not lost — the next window builds the newest
+commit, and the ones behind it never build at all, which is fine
+because only the newest is wanted.
+
+**The lever is the push count, not the build.** Batch: one push per
+finished piece of work, not one per commit. Several commits in a push
+cost one round of deployments, not one each.
+
+Do NOT "fix" this by reinstating a path-based ignore rule (§15, twice
+burned). Beyond that history, a skipped build is still a deployment
+Vercel created, so skipping may not buy back any of the cap at all.
+
+**The usage card is a different meter.** Functions Storage and
+Deployment Storage on the usage panel are stockpiles, not rates: every
+deployment that is kept holds its own copy of every function bundle,
+and Hobby keeps deployments until they are deleted. Three apps of
+mostly dynamic (`ƒ`) routes at a few hundred retained deployments is
+several GB, and it only comes down by deleting old deployments. None of
+those meters is the thing that blocks a push; the daily deployment
+count is, and it is not on that card.
