@@ -32,9 +32,14 @@ export async function submitInquiry(input: {
   }
 
   const admin = process.env.MAIL_ADMIN ?? "shahar.greenberg@gmail.com";
+  // A buyer and a renter are not "a question", and the subject line is the
+  // only part of this that reaches a phone on a Saturday.
+  const said: Record<string, string> = {
+    site_visit: "site visit", more_info: "details", buy: "BUYER", rent: "RENTER", tour: "viewing",
+  };
   await sendMail(
     admin,
-    `New lead: ${input.kind === "site_visit" ? "site visit" : "question"} from ${input.name}`,
+    `New lead: ${said[input.kind] ?? "question"} from ${input.name}`,
     `A new inquiry just arrived and is waiting in your task list.\n\n` +
       `Name: ${input.name}\n` +
       (input.phone ? `Phone: ${input.phone}\n` : "") +

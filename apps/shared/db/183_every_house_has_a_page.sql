@@ -1,5 +1,9 @@
 -- 183: EVERY HOUSE HAS A PAGE, AND ITS OWNER DECIDES WHAT IS ON IT.
 --
+-- APPLIED AS 183a-183e: the fields and the page rows, the photos, the storage
+-- policies, the owner's writes, the public read. The split is only how it went
+-- up - this file is the whole of it.
+--
 -- Shahar (2026-09-17): "Every house created in the system should have a
 -- landing page with more info and a form collecting information about
 -- potential buyers / renters. this page should have carousel for photos, and
@@ -118,7 +122,7 @@ language sql stable security definer set search_path = public as $$
   select u.id from up u where public.is_house(u.id) limit 1;
 $$;
 revoke all on function public.house_of(uuid) from public, anon;
-grant execute on function public.house_of(uuid) to authenticated, anon;
+grant execute on function public.house_of(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- THE SLUG. The street line of the address, else the project name, with a
@@ -436,10 +440,10 @@ begin
   if v_house is null or not public.can_edit_project(v_house) then
     return jsonb_build_object('ok', false, 'reason', 'That house is not yours to publish.');
   end if;
-  select * into ap from public.project_about_pages where project_id = v_house;
+  select * into ap from public.project_about_pages a where a.project_id = v_house;
   select count(*) into v_photos from public.house_page_photos where project_id = v_house;
 
-  if p_on then
+  if coalesce(p_on, true) then
     if coalesce(nullif(btrim(ap.body), ''), nullif(btrim(ap.headline), '')) is null and v_photos = 0 then
       return jsonb_build_object('ok', false, 'code', 'EMPTY',
         'reason', 'Write a line about the house, or put a photograph on it, before it goes out.');
@@ -483,7 +487,7 @@ begin
           order by ph.kind, ph.sort) from public.house_page_photos ph where ph.project_id = p.id), '[]'::jsonb),
       -- Every photograph on this house and the jobs beneath it, newest first,
       -- with whether it is already on the page.
-      'pickable', coalesce((select jsonb_agg(x) from (
+      'pickable', coalesce((select jsonb_agg(q.x) from (
             select jsonb_build_object('file_id', f.id, 'name', f.file_name, 'caption', f.caption,
                      'bucket', f.bucket, 'path', f.path, 'taken_at', f.taken_at, 'kind', f.kind,
                      'on_page', exists (select 1 from public.house_page_photos ph

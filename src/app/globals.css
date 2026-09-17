@@ -1498,3 +1498,75 @@ a.homepanel-alert:hover { text-decoration: underline; }
 .bld-card .m { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
 .bld-card .m.dim { margin-top: 6px; color: color-mix(in srgb, var(--muted) 82%, transparent); }
 .bld-card code { font-size: 11px; background: var(--color-soft); padding: 1px 4px; border-radius: 4px; }
+
+/* ===== A HOUSE ON THE MARKET ============================================ */
+/* THE CAROUSEL. A scroll-snapping strip: a thumb drags it the way every
+   photo app works, the arrows are for a mouse. No autoplay - a house is
+   looked at, not watched. */
+.car { position: relative; margin: 8px 0 14px; }
+.car-strip {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  border-radius: 12px; background: var(--color-soft, #eae7e1);
+}
+.car-strip::-webkit-scrollbar { display: none; }
+.car-cell { flex: 0 0 100%; scroll-snap-align: start; margin: 0; position: relative; }
+.car-cell img {
+  display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: 12px; background: var(--color-soft, #eae7e1);
+}
+.car-cell figcaption {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 14px 10px;
+  font-size: 12.5px; color: #fff; border-radius: 0 0 12px 12px;
+  background: linear-gradient(to top, rgba(20, 24, 21, .72), rgba(20, 24, 21, 0));
+}
+.car-arm {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 38px; height: 38px; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; font-size: 22px; line-height: 1;
+  border: none; background: rgba(255, 255, 255, .92); color: #23261f;
+  box-shadow: 0 4px 14px rgba(20, 24, 21, .22);
+}
+.car-arm.left { left: 10px; }
+.car-arm.right { right: 10px; }
+.car-arm:disabled { opacity: 0; pointer-events: none; }
+.car-count {
+  position: absolute; right: 10px; bottom: 10px; padding: 3px 9px;
+  border-radius: 999px; background: rgba(20, 24, 21, .62); color: #fff;
+  font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+/* THE HEAD OF A LISTING: what it is, then the number, then the shape of it. */
+.lst-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lst-tag {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+}
+.lst-tag.sale { background: #e3f0e8; color: #2f7a55; }
+.lst-tag.rent { background: #f7ecd6; color: #9a6b12; }
+.lst-price {
+  margin: 4px 0 2px; font-size: clamp(22px, 3.6vw, 28px); font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.lst-facts { margin: 2px 0 0; font-size: 15px; }
+
+/* THE HOUSE PAGE EDITOR. A grid of photographs with their handles on them:
+   the order is the page's order, the cover is marked, and taking one off
+   deletes the public copy as well. */
+.hp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.hp-cell { position: relative; border: 1px solid var(--color-divider, #ddd8d0); border-radius: 10px; overflow: hidden; background: var(--color-surface, #fff); }
+.hp-cell.used { opacity: .72; }
+.hp-cell img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.hp-blank { display: grid; place-items: center; aspect-ratio: 4 / 3; padding: 8px; font-size: 10.5px; text-align: center; color: var(--muted, #6b6b66); }
+.hp-row { position: absolute; top: 6px; left: 6px; display: flex; gap: 4px; }
+.hp-flag { padding: 2px 7px; border-radius: 999px; background: rgba(20, 24, 21, .72); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.hp-flag.alt { background: rgba(154, 107, 18, .86); }
+.hp-acts { position: absolute; top: 50%; left: 6px; transform: translateY(-50%); }
+.hp-acts.b { left: auto; right: 6px; }
+.hp-btn { width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer; background: rgba(255, 255, 255, .9); font-size: 13px; line-height: 1; }
+.hp-btn:disabled { opacity: 0; pointer-events: none; }
+.hp-under { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 6px 8px; }
+.hp-link { background: none; border: none; padding: 0; cursor: pointer; font-size: 11.5px; font-weight: 700; color: inherit; text-decoration: underline; }
+.hp-link.danger { color: #b8432f; }
+.hp-pick { display: grid; gap: 6px; padding: 8px; }
+.hp-pick .input { font-size: 12px; padding: 5px 8px; }

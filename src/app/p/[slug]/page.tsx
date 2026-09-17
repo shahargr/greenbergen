@@ -6,6 +6,7 @@ import { BackButton } from "./BackButton";
 import { InquiryForm } from "./InquiryForm";
 import { Gallery } from "./Gallery";
 import { Timeline, type TimelineItem } from "./Timeline";
+import { Listing, type HousePage } from "./Listing";
 
 type About = {
   project: string;
@@ -84,7 +85,22 @@ export default async function ProjectPage({
 }) {
   const { slug } = await params;
   const supabase = await createClient();
-  const { data } = await supabase.rpc("public_showcase", { p_slug: slug });
+  const [{ data }, { data: houseData }] = await Promise.all([
+    supabase.rpc("public_showcase", { p_slug: slug }),
+    supabase.rpc("house_page", { p_slug: slug }),
+  ]);
+
+  // A HOUSE ON THE MARKET IS A DIFFERENT PAGE (Shahar, 2026-09-17, choosing
+  // "keep both, the mode decides"): for sale or for rent reads like a
+  // listing - carousel, price, facts, the buyer's form - while a live build
+  // keeps the follow-along record below, which is what proves we are
+  // transparent about how it is going. house_page() resolves a job's slug to
+  // the house above it, so /p/55-walnut-drive still lands here either way.
+  const house: HousePage | null = (houseData ?? null) as HousePage | null;
+  if (house?.on_market) {
+    const base = supabase.storage.from("public-media").getPublicUrl("").data.publicUrl.replace(/\/$/, "");
+    return <Listing house={house} base={base} />;
+  }
 
   const about: About | null = data?.about ?? null;
   if (!about) notFound();

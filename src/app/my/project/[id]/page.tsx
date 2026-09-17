@@ -997,6 +997,21 @@ export default async function ProjectPage({
           <PropertyPhotos projectId={project.id} photos={photos} isHome={isHome}
             canEdit={perms.rank >= 50 || perms.admin} canRemove={perms.rank >= 70 || perms.admin} />
         )}
+        {/* THE PUBLIC PAGE FOR THIS HOUSE (migration 183). Every house has
+            one, draft until its owner publishes it; the editor refuses any
+            project that is not a house, so the link is safe to offer here and
+            simply 404s on a job. */}
+        {tab === "setup" && isHome && (perms.rank >= 50 || perms.admin) && (
+          <div className="card" style={{ marginTop: 14, padding: "16px 20px" }}>
+            <h2 className="section-title" style={{ margin: 0 }}>The public page for this house</h2>
+            <p className="muted small" style={{ margin: "6px 0 10px" }}>
+              A page of its own — photographs, the description, the facts, and a form that collects
+              buyers and renters. It is a draft until you publish it, and nothing about the house is
+              public before that.
+            </p>
+            <Link href={`/my/house/${project.id}/public`} className="btn">Set up the page</Link>
+          </div>
+        )}
         {tab === "setup" && isHome && (perms.rank >= 70 || perms.admin) && (
           <HomeWorkstreams homeId={project.id} items={workstreams} />
         )}

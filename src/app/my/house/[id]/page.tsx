@@ -86,7 +86,13 @@ export default async function HousePage({ params }: { params: Promise<{ id: stri
                 <div>{fmt(house.purchase_date)}{house.purchase_amount ? ` · $${Number(house.purchase_amount).toLocaleString()}` : ""}</div></div>
             )}
           </div>
-          <div><Link className="btn ghost small" href={`/my/project/${house.id}`}>Open the house&apos;s own page →</Link></div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link className="btn ghost small" href={`/my/project/${house.id}`}>Open the house&apos;s own page →</Link>
+            {/* The PUBLIC page for this house (migration 183): photographs, a
+                description, the facts, and a form that collects buyers and
+                renters. A draft until its owner publishes it. */}
+            <Link className="btn ghost small" href={`/my/house/${house.id}/public`}>The public page →</Link>
+          </div>
         </div>
 
         <div className="card" style={{ display: "grid", gap: 6, overflowX: "auto" }}>

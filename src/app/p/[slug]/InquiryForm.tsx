@@ -5,11 +5,30 @@ import { submitInquiry } from "./actions";
 
 // Public inquiry form - submits through a server action that writes the lead
 // (about_inquire -> project_inquiries -> lead task) and emails the admin.
-export function InquiryForm({ projectId }: { projectId: string }) {
+//
+// WHICH BOXES IT OFFERS IS THE PAGE'S BUSINESS, NOT THIS FORM'S. A house for
+// sale asks whether you want to buy it; one for rent asks whether you want to
+// rent it; a page that is just a page asks whether you have a question. The
+// database decides the list (house_page().form.kinds) and hands it down, so
+// the words on the button and the kinds the database will accept cannot
+// drift apart.
+const SAY: Record<string, string> = {
+  question: "Ask a question",
+  more_info: "Ask for details",
+  site_visit: "Schedule site visit",
+  buy: "I am interested in buying",
+  rent: "I am interested in renting",
+  tour: "Come and see it",
+};
+// The two that mean somebody standing at the door on a given day.
+const DATED = ["site_visit", "tour"];
+
+export function InquiryForm({ projectId, kinds }: { projectId: string; kinds?: string[] }) {
+  const offer = (kinds ?? ["question", "site_visit"]).filter((k) => SAY[k]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [kind, setKind] = useState("question");
+  const [kind, setKind] = useState(offer[0] ?? "question");
   const [message, setMessage] = useState("");
   const [date, setDate] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,7 +50,7 @@ export function InquiryForm({ projectId }: { projectId: string }) {
       email: email.trim() || null,
       kind,
       message: message.trim() || null,
-      preferredDate: kind === "site_visit" && date ? date : null,
+      preferredDate: DATED.includes(kind) && date ? date : null,
     });
     setBusy(false);
     if (res?.error) {
@@ -68,27 +87,19 @@ export function InquiryForm({ projectId }: { projectId: string }) {
       <div role="radiogroup" aria-label="I'd like to">
         <div className="radio-legend">I&apos;d like to</div>
         <div className="radio-row">
-        <label className="radio-opt">
-          <input
-            type="radio"
-            name="inq-kind"
-            value="question"
-            checked={kind === "question"}
-            onChange={() => setKind("question")}
-          />
-          Ask a question
-        </label>
-        <label className="radio-opt">
-          <input
-            type="radio"
-            name="inq-kind"
-            value="site_visit"
-            checked={kind === "site_visit"}
-            onChange={() => setKind("site_visit")}
-          />
-          Schedule site visit
-        </label>
-          {kind === "site_visit" && (
+          {offer.map((k) => (
+            <label className="radio-opt" key={k}>
+              <input
+                type="radio"
+                name="inq-kind"
+                value={k}
+                checked={kind === k}
+                onChange={() => setKind(k)}
+              />
+              {SAY[k]}
+            </label>
+          ))}
+          {DATED.includes(kind) && (
             <input
               className="input date-inline"
               type="date"
