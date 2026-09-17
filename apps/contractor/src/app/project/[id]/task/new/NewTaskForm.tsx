@@ -66,7 +66,7 @@ type Contract = { id: string; label: string };
 // and carry on is the only way forward, and it costs nothing when there is
 // nothing to save: closing the app is the skip.
 export function NewTaskForm({
-  projectId, back, types, people, payees, trades, contracts, openTasks,
+  projectId, back, types, people, payees, trades, jobTrades = [], contracts, openTasks,
   defaultParent = null, defaultTrade = null,
 }: {
   projectId: string | null;
@@ -78,6 +78,9 @@ export function NewTaskForm({
   // here, because a supplier is almost never a member (migration 099).
   payees: { contact_id: string; name: string }[];
   trades: string[];
+  /** The trades already on this job (migration 164), in build order. They
+   *  lead the picker; the rest of `trades` sits under "add another trade". */
+  jobTrades?: string[];
   contracts: Contract[];
   // Everything still open on this site, for "part of". Shipped whole so the
   // search box can filter without a round trip per keystroke.
@@ -402,15 +405,33 @@ export function NewTaskForm({
               {/* The trade leads on a Build, because it is what files the work
                   under Framing on the project screen rather than under the
                   owner - which is the whole reason the kind exists. */}
+              {/* THE JOB'S TRADES FIRST (Shahar, 2026-09-17: "the trades you
+                  can assign the task are only the ones listed under the
+                  project... if you want to add a trade, it should be added
+                  also to the project level"). The rest of the catalogue is
+                  reachable under its own heading, and picking one there adds
+                  it to the job when the task is saved - the database keeps
+                  that rule (migration 164), not this screen. */}
               <label className="field">
                 <span className="field-label">Trade</span>
                 <select className="input" value={trade} onChange={(e) => setTrade(e.target.value)}>
                   <option value="">— not set —</option>
-                  {trades.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {jobTrades.length > 0 ? (
+                    <>
+                      <optgroup label="On this job">
+                        {jobTrades.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </optgroup>
+                      <optgroup label="Add another trade to this job">
+                        {trades.filter((t) => !jobTrades.includes(t)).map((t) => <option key={t} value={t}>{t}</option>)}
+                      </optgroup>
+                    </>
+                  ) : trades.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
                 <span className="hint">
-                  Which trade this sits under on the board. Left unset, it is taken from the contract,
-                  the scope line, or whoever holds it.
+                  {trade && jobTrades.length > 0 && !jobTrades.includes(trade)
+                    ? <><strong>{trade}</strong> is not on this job yet. Saving adds it to the job&apos;s trades.</>
+                    : <>Which trade this sits under on the board. Left unset, it is taken from the contract,
+                      the scope line, or whoever holds it.</>}
                 </span>
               </label>
               {/* STACKED, not side by side (Shahar, 2026-09-14): side by side,

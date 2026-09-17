@@ -70,7 +70,7 @@ export default async function NewTaskPage({
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/task/new`)}`);
 
   const [{ data: targetData }, { data: typeData }, { data: peopleData }, { data: payeeData }, { data: projectRows },
-         { data: tradeRows }, { data: contractRows }, board] = await Promise.all([
+         { data: tradeRows }, { data: jobTradeRows }, { data: contractRows }, board] = await Promise.all([
     // May a task live here at all, and if not, where could it? (migration 103)
     w.step("targets", () => rpc<Targets>(supabase, "portal_task_targets", { p_project: id })),
     w.step("types", () => rpc<TaskType[]>(supabase, "portal_task_types")),
@@ -86,6 +86,12 @@ export default async function NewTaskPage({
     w.step("trades", async () => await supabase.from("trades")
       .select("trade, sort_order, is_construction, is_worker_trade, is_supply, is_professional")
       .order("sort_order", { ascending: true, nullsFirst: false })),
+    // THE JOB'S OWN TRADES (migration 164). Shahar (2026-09-17): "the trades
+    // you can assign the task are only the ones listed under the project. if
+    // you want to add a trade, then it should be added also to the project
+    // level." These lead the picker; the rest of the catalogue sits under
+    // "add another trade", and naming one adds it to the job.
+    w.step("jobTrades", () => rpc<{ trade: string }[]>(supabase, "project_trade_list", { p_project: id })),
     w.step("contracts", async () => await supabase.from("contracts")
       .select("id, title, trade, status")
       .eq("project_id", id)
@@ -171,6 +177,7 @@ export default async function NewTaskPage({
 
   const types = typeData ?? [];
   const trades = (tradeRows ?? []).map((t) => t.trade);
+  const jobTrades = (Array.isArray(jobTradeRows) ? jobTradeRows : []).map((t) => t.trade).filter((t) => trades.includes(t));
   const openTasks = board.tasks
     .filter((t) => t.project_id === id && t.state === "open")
     .map((t) => ({ id: t.id, label: t.action }));
@@ -230,7 +237,7 @@ export default async function NewTaskPage({
             first one and the rest are patches onto it - which is not
             something a single posting form can do. */}
         <NewTaskForm projectId={id} back={to} types={types} people={people}
-          payees={payeeData ?? []} trades={trades} contracts={contracts} openTasks={openTasks}
+          payees={payeeData ?? []} trades={trades} jobTrades={jobTrades} contracts={contracts} openTasks={openTasks}
           defaultParent={parentOf ? parentId : null} defaultTrade={onTrade} />
       </div>
     </Screen>
