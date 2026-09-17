@@ -214,10 +214,10 @@ export default async function TaskPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string; setup?: string; info?: string; fit?: string; stage?: string; prio?: string }>;
+  searchParams: Promise<{ back?: string; error?: string; ok?: string; why?: string; undo?: string; money?: string; setup?: string; remove?: string; fit?: string; stage?: string; prio?: string }>;
 }) {
   const { id } = await params;
-  const { back, error, ok, why, undo, money, setup: setupQ, info: infoQ, fit: fitQ, stage: stageQ, prio: prioQ } = await searchParams;
+  const { back, error, ok, why, undo, money, setup: setupQ, remove: removeQ, fit: fitQ, stage: stageQ, prio: prioQ } = await searchParams;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : "/tasks";
 
   const w = stopwatch("/task/[id]");
@@ -325,7 +325,7 @@ export default async function TaskPage({
   // client toggle would have had to live outside the form or drag the whole
   // screen into a client component.
   const setup = setupQ === "1";
-  const info = infoQ === "1";
+  const remove = removeQ === "1";
   // HOW IT FITS. Same trick, one more flag - except this panel's forms post
   // to linkTask rather than to the page's own save, so they sit OUTSIDE the
   // big form (nested forms are not a thing) and are rendered before it.
@@ -385,16 +385,24 @@ export default async function TaskPage({
         {/* THE TASK LINE. Shahar (2026-09-13): "Task line, below expanded
             info about the task." */}
         <div className="hero">
+          {/* THE NAME, AND TWO WORDS ON ITS RIGHT. Shahar (2026-09-17): the
+              gear and the i "are really small... looking inside these two
+              icons, i cannot seem to find any new capability there, so maybe
+              remove them." Gone. What the gear held that still needs a door -
+              renaming, and what done looks like - is one word, "Edit"; what
+              he asked for next - "allow me to remove [tasks], but confirm
+              before deletion is done" - is the other. The i showed a sentence
+              that now simply sits under the name when it exists. */}
           <div className="task-title">
             <h1 style={{ fontSize: 24, margin: 0 }}>{t.action}</h1>
             {!closed && t.can_edit && (
-              <Link href={setup ? flag({}) : flag({ setup: "1" })} aria-label="Task set-up"
-                title="Task set-up — the name, what done looks like, cancelling and deleting"
-                className={`task-icon${setup ? " on" : ""}`}>⚙</Link>
+              <span className="task-acts">
+                <Link href={setup ? flag({}) : flag({ setup: "1" })}
+                  className={`task-act${setup ? " on" : ""}`}>{setup ? "Done editing" : "Edit"}</Link>
+                <Link href={remove ? flag({}) : flag({ remove: "1" })}
+                  className={`task-act danger${remove ? " on" : ""}`}>{remove ? "Keep it" : "Remove"}</Link>
+              </span>
             )}
-            <Link href={info ? flag({}) : flag({ info: "1" })} aria-label="What good looks like"
-              title="What good looks like on this task"
-              className={`task-icon${info ? " on" : ""}`}>i</Link>
           </div>
           <p className="lead">
             {[
@@ -412,6 +420,53 @@ export default async function TaskPage({
           <p className="small text-muted" style={{ margin: "-4px 0 0" }}>
             On <Link href={`/project/${t.project_id}`}>{t.project}</Link>.
           </p>
+        )}
+
+        {/* What done looks like, said where the name is, when somebody wrote
+            it. It used to hide behind the i. */}
+        {!closed && t.can_edit && t.desired_outcome && !setup && (
+          <p className="small" style={{ margin: "-4px 0 0" }}>
+            <span className="text-muted">Done looks like:</span> {t.desired_outcome}
+          </p>
+        )}
+
+        {/* REMOVE, WITH THE QUESTION ASKED FIRST. Shahar (2026-09-17): "there
+            are cases i can already see tasks are created but not required.
+            i'd like to remove them - allow me to do so, but confirm before
+            deletion is done." Two ways out, and the difference said plainly:
+            calling it off keeps the record with the reason; deleting pretends
+            it was never entered, and the database allows that only on a task
+            nothing hangs off. The tick is the confirmation; without it the
+            delete button does nothing but ask again. */}
+        {!closed && t.can_edit && remove && (
+          <form action={deleteTask} className="card pad stack" style={{ gap: 10, borderColor: "var(--color-danger)" }}>
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="back" value={to} />
+            <div>
+              <div className="small" style={{ fontWeight: 800 }}>Remove “{t.action}”?</div>
+              <div className="tiny text-muted" style={{ marginTop: 2 }}>
+                Nothing happens until you choose one of these. <Link href={flag({})}>Keep it</Link> puts this away.
+              </div>
+            </div>
+            <label className="field">
+              <span className="field-label">Why it will not happen <span className="text-muted">(optional, kept on the record if you call it off)</span></span>
+              <input className="input" name="cancel_reason" placeholder="Scope changed · done by someone else · not needed" />
+            </label>
+            <button formAction={cancelTask} formNoValidate className="btn btn-secondary btn-block">
+              Call it off — keep the record
+            </button>
+            <label className="gate-tick">
+              <input type="checkbox" name="delete_confirm" value="1" />
+              <span className="grow">
+                <span className="t">Delete it for good</span>
+                <span className="m">
+                  It was entered by mistake and there is nothing to keep. Refused once a note, a file, a step or a
+                  payment hangs off it — call it off instead.
+                </span>
+              </span>
+            </label>
+            <button formNoValidate className="btn btn-ghost btn-block btn-danger">Delete this task</button>
+          </form>
         )}
 
         {/* WHAT IS ATTACHED. Shahar (2026-09-15), opening a task he had just
@@ -656,21 +711,6 @@ export default async function TaskPage({
           <Notice kind="info" title="Where this stands">{t.status_note}</Notice>
         )}
 
-        {/* THE i. What good looks like, on demand - and honest when nobody
-            has said. Open to everyone, including a crew member who cannot
-            edit the task but has to know when they are finished. */}
-        {info && (
-          <Card soft pad>
-            <div className="kicker">Done looks like</div>
-            {t.desired_outcome
-              ? <LongText text={t.desired_outcome} lines={8} style={{ marginTop: 4 }} />
-              : <p className="small text-muted" style={{ margin: "4px 0 0" }}>
-                  Nobody has written what done looks like on this task yet.
-                  {t.can_edit && <> It goes in under the gear.</>}
-                </p>}
-          </Card>
-        )}
-
         {/* ONE FORM, TWO PARTS (Shahar, 2026-09-12 and 2026-09-13).
             The screen once had three forms, three save buttons, and pressing
             one silently threw away what had been typed in the other two. It
@@ -712,45 +752,8 @@ export default async function TaskPage({
                       <span className="field-label">Done looks like <span className="text-muted">(the end state, not the work)</span></span>
                       <textarea className="input" name="desired_outcome" rows={3} defaultValue={t.desired_outcome ?? ""} />
                     </label>
-
-                    {/* THE TWO WAYS A TASK ENDS. Calling it off keeps it as a
-                        record with the reason on it; deleting pretends it was
-                        never entered, and the database only allows that on a
-                        task nothing hangs off - no notes, no files, no
-                        subtasks, no money. Both skip the browser's validation:
-                        a half-filled payment below must not stand between
-                        somebody and calling a task off. */}
-                    <details className="home-panel">
-                      <summary className="home-row">
-                        <span className="grow" style={{ minWidth: 0 }}>
-                          <span className="t">Cancel or delete this task</span>
-                          <span className="m" style={{ display: "block" }}>Call it off, or remove one entered by mistake</span>
-                        </span>
-                        <span className="chev"><ChevronIcon /></span>
-                      </summary>
-                      <div className="drawer stack" style={{ gap: 10, paddingTop: 12 }}>
-                        <label className="field">
-                          <span className="field-label">Why it will not happen <span className="text-muted">(optional)</span></span>
-                          <input className="input" name="cancel_reason" placeholder="Scope changed · done by someone else · no longer needed" />
-                        </label>
-                        <button formAction={cancelTask} formNoValidate className="btn btn-secondary btn-block">
-                          Call this task off
-                        </button>
-                        <div className="stack" style={{ gap: 6 }}>
-                          <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
-                            <input type="checkbox" name="delete_confirm" value="1" style={{ marginTop: 3 }} />
-                            <span>Yes — delete it. It was entered by mistake and there is nothing to keep.</span>
-                          </label>
-                          <button formAction={deleteTask} formNoValidate className="btn btn-ghost btn-block btn-danger">
-                            Delete this task
-                          </button>
-                          <p className="tiny text-muted" style={{ margin: 0 }}>
-                            Deleting is refused once anything hangs off the task — a note, a file, a
-                            subtask or a payment. Those get cancelled instead, and the record stays.
-                          </p>
-                        </div>
-                      </div>
-                    </details>
+                    {/* Cancelling and deleting moved out from under the gear
+                        to the Remove card by the name (2026-09-17). */}
                   </section>
                 )}
               </>

@@ -2,39 +2,36 @@
    system itself (tokens, components, layout) is
    apps/shared/src/styles/warm-ink.css, shared with the homeowner app. */
 
-/* THE TASK SCREEN'S HEADING ROW. The name, then the gear that opens what the
-   task IS, then the i that says what good looks like. Shahar, 2026-09-14. */
+/* THE TASK SCREEN'S HEADING ROW. The name, and on its right - on the name's
+   first line, whatever the name wraps to - two words: Edit, Remove. They
+   replaced a gear and an i that Shahar (2026-09-17) found "really small"
+   and empty of anything new. Words, because a word is bigger than a glyph
+   and says what it does. */
 .task-title {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 .task-title h1 { flex: 1 1 auto; min-width: 0; }
+.task-acts { flex: 0 0 auto; display: inline-flex; gap: 6px; margin-top: 1px; }
 
-.task-icon {
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  margin-top: 2px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.task-act {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 36px; padding: 0 14px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--color-divider-strong);
+  border: 1.5px solid var(--color-divider-strong);
   background: var(--color-surface);
-  color: var(--color-muted);
-  font-size: 15px;
-  line-height: 1;
-  text-decoration: none;
+  color: var(--color-text);
+  font-size: 13px; font-weight: 700; line-height: 1;
+  text-decoration: none; white-space: nowrap;
 }
-.task-icon:hover { color: var(--color-text); border-color: var(--color-text); }
+.task-act:hover { border-color: var(--color-text); }
+.task-act.danger { color: var(--color-danger); }
+.task-act.danger:hover { border-color: var(--color-danger); }
 /* Open: the same button, filled, so it reads as a thing you can press again
    to put away rather than a decoration. */
-.task-icon.on {
-  background: var(--color-text);
-  border-color: var(--color-text);
-  color: var(--color-bg);
-}
+.task-act.on { background: var(--color-text); border-color: var(--color-text); color: var(--color-bg); }
+.task-act.danger.on { background: var(--color-danger); border-color: var(--color-danger); color: #fff; }
 
 /* ONE LINE PER THING: the label on the left, what you change on the right.
    Replaced the paired two-column fields, where Stage sat beside Priority and

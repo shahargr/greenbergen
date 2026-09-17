@@ -348,13 +348,14 @@ export async function cancelTask(formData: FormData) {
 export async function deleteTask(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const back = safeBack(formData.get("back"));
-  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, setup: "1", ...extra });
+  const here = (extra: Record<string, string>) => to(`/task/${id}`, { back, remove: "1", ...extra });
   if (!id) redirect(back);
   // Shahar (2026-09-14): "deleted nothing but an approval to make sure this
-  // does not happen accidently." The tick IS the approval - deleting sits one
-  // button away from cancelling, and the two are not undoable in the same way.
+  // does not happen accidently." And 2026-09-17: "confirm before deletion is
+  // done." The tick IS the approval - deleting sits one button away from
+  // cancelling, and the two are not undoable in the same way.
   if (String(formData.get("delete_confirm") ?? "") !== "1") {
-    redirect(here({ error: "Tick the box to confirm you want this task deleted. Calling it off keeps the record; deleting does not." }));
+    redirect(here({ error: "Tick “Delete it for good” to confirm. Calling it off keeps the record; deleting does not." }));
   }
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_task_delete", { p_action_id: id });
