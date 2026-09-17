@@ -25,12 +25,24 @@ export async function sendPrice(token: string, formData: FormData) {
   const amount = num(formData.get("amount"));
   if (amount == null) redirect(`${here}?error=${encodeURIComponent("Put your price in first.")}`);
 
+  // TWO KINDS OF LINE IN ONE ARRAY. A base line carries whether it is in his
+  // price; an OPTION carries a price of its own and nothing else - it is not
+  // part of the number, so "included" is meaningless on it and it can never
+  // count as a gap.
   const ids = String(formData.get("items") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const lineItems = ids.map((id) => ({
-    scope_item_id: id,
-    included: formData.get(`inc_${id}`) === "on",
-    price: null as number | null,
-  }));
+  const optIds = String(formData.get("options") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const lineItems = [
+    ...ids.map((id) => ({
+      scope_item_id: id,
+      included: formData.get(`inc_${id}`) === "on",
+      price: null as number | null,
+    })),
+    ...optIds.map((id) => ({
+      scope_item_id: id,
+      included: false,
+      price: num(formData.get(`opt_${id}`)),
+    })).filter((o) => o.price != null),
+  ];
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("bid_reply_by_token", {

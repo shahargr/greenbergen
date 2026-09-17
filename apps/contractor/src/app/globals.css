@@ -876,3 +876,19 @@
 .bl-acts .btn { min-height: 32px; padding: 4px 12px; font-size: 12px; }
 .bl-url { margin-top: 8px; font-size: 11px; padding: 6px 8px; background: var(--color-surface);
           color: var(--muted); }
+
+/* WHAT THE BIDDERS SEE (migration 185). A strip of what is published to them,
+   and the job's own photographs to pick from. */
+.bp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.bp-cell { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--color-divider);
+           background: var(--color-surface); margin: 0; }
+.bp-cell img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.bp-blank { display: grid; place-items: center; aspect-ratio: 4 / 3; padding: 6px; font-size: 10px;
+            text-align: center; color: var(--muted); }
+.bp-off { position: absolute; top: 4px; right: 4px; }
+.bp-btn { width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer; line-height: 1;
+          background: rgba(22, 21, 19, .66); color: #fff; font-size: 15px; }
+.bp-pick { width: 100%; border: none; border-top: 1px solid var(--color-divider); cursor: pointer;
+           background: var(--color-soft); font-size: 11px; font-weight: 800; padding: 5px 0; color: var(--color-text); }
+.cmp .cmp-sep th { background: var(--color-soft); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+                   text-align: left; color: var(--muted); }

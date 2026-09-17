@@ -1,0 +1,48 @@
+-- 185: A PHOTOGRAPH BEFORE THE PRICE, AND OPTIONS PRICED ON THEIR OWN LINE.
+--
+-- Shahar (2026-09-17): "bid. when i plan it i'd like to include a photo, and
+-- have the contractors see it before they plug in their number. also, there
+-- are options i'd like them to include in their bid, as separate line item."
+--
+-- APPLIED AS 185a-185e. The full text of each statement is in the migration
+-- log; what follows is why they are shaped this way.
+--
+-- 185a TWO LINES, TWO MEANINGS. A base line is part of the number: the bidder
+-- says whether it is in his price, and a required one he leaves out is a gap.
+-- An OPTION is not part of the number at all - it is a thing you may or may
+-- not buy, and what you want is what it would cost. So it carries a PRICE of
+-- its own and can never be a gap: a man who does not price the copper valley
+-- has not left a hole in his bid, he has declined to quote an extra.
+--
+-- The kind rides on bid_package_items rather than on the scope item, because
+-- the same line is base on one job and an option on another - "haul the old
+-- roof away" is in the price on 55 Walnut and an extra where the owner has a
+-- dumpster.
+--
+-- THE SCOPE BOX ONLY OWNS ITS OWN KIND. Migration 180 made the box the whole
+-- list: a line taken out is removed. With options in the same table that
+-- delete had to be fenced, or writing the scope would silently wipe the
+-- options. portal_bid_scope_set now takes p_kind and never reaches across.
+--
+-- 185b ONE FUNCTION, NOT TWO. Adding the argument created a second
+-- portal_bid_scope_set beside the old two-argument one, and PostgREST would
+-- have resolved by name to whichever it liked - one of which ignores options
+-- entirely. The old one was dropped.
+--
+-- 185c THE PHOTOGRAPH IS COPIED, NOT LINKED - the same wall as the house
+-- pages (183): the job's photographs are in the PRIVATE bucket and a bidder
+-- has no session, so there is nothing to sign a URL with. A picked photograph
+-- is copied into public-media under the package's own id, bid_package_photos
+-- records the copy, and a storage policy allows that path only to somebody
+-- who may run the bid. What a bidder sees is therefore never "whatever is in
+-- the job folder" - it is exactly what somebody chose to show him.
+--
+-- 185d THE BIDDER'S READ carries the photographs first and the options with
+-- a price each. Option prices ride in the SAME line_items array on the price
+-- field that was always there and never used, so nothing new is stored and
+-- one read answers both.
+--
+-- 185e THE COMPARISON keeps options OUT of the like-for-like sum and gives
+-- them their own rows. An option is not part of what was asked for, so it can
+-- neither be a gap nor be priced into one; what you want to see is simply what
+-- each man would charge, side by side.

@@ -6,7 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { money } from "@/lib/board";
-import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent } from "./actions";
+import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent, showPhoto, hidePhoto } from "./actions";
 import { BidLink } from "@/components/BidLink";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,10 @@ export const dynamic = "force-dynamic";
 //
 // Everything is portal_bid_package, one read; every write is a database
 // function that owns its own rule.
-type Item = { id: string; scope_item_id: string; item: string; category: string | null; is_required: boolean; sort: number };
+type Item = { id: string; scope_item_id: string; item: string; category: string | null; is_required: boolean; sort: number;
+  // base = part of the price; option = an extra he prices on its own line (185).
+  kind: "base" | "option" };
+type Shot = { id: string; path: string; caption: string | null; file_id: string | null; sort: number };
 type Doc = { id: string; file_name: string; kind: string | null; bucket: string; path: string };
 type Bid = {
   id: string; bidder: string | null; person: string | null; bidder_contact_id: string; status: string;
@@ -51,7 +54,8 @@ type CmpBid = {
   amount: number | null; gaps: number; gap_cost: number; normalized: number;
   terms_ok: boolean; insurance_ok: boolean;
 };
-type Cmp = { items: CmpItem[]; bids: CmpBid[] };
+type CmpOpt = { scope_item_id: string; item: string; cells: { bid_id: string; price: number | null }[] | null };
+type Cmp = { items: CmpItem[]; options: CmpOpt[]; bids: CmpBid[] };
 type Pkg = {
   id: string; project_id: string; project_name: string | null;
   phase: string | null; category: string | null; trade: string | null; scope_summary: string | null;
@@ -59,7 +63,7 @@ type Pkg = {
   deposit_pct: number | null; retainage_pct: number | null; net_days: number | null;
   insurance_workers_comp: boolean | null; coi_required: boolean | null;
   reply_by: string | null; status: string; awarded_bid_id: string | null; can_edit: boolean;
-  items: Item[]; docs: Doc[]; bids: Bid[]; members: Member[];
+  items: Item[]; photos: Shot[]; docs: Doc[]; bids: Bid[]; members: Member[];
 };
 
 // A reply that is in, whatever stage it reached.
@@ -109,11 +113,36 @@ export default async function BidPackagePage({
       supabase.storage.from("project-media").createSignedUrls(p.docs.map((d) => d.path), 3600));
     for (const row of signed ?? []) if (row.path && row.signedUrl) docUrls.set(row.path, row.signedUrl);
   }
+  // THE PHOTOGRAPHS. What is already shown to bidders is a public copy; what
+  // you can pick from is the job's own, private and signed for this screen.
+  const pub = supabase.storage.from("public-media").getPublicUrl("").data.publicUrl.replace(/\/$/, "");
+  const thumbs = new Map<string, string>();
+  let pickable: { id: string; file_name: string | null; bucket: string; path: string }[] = [];
+  if (p.can_edit && !p.awarded_bid_id) {
+    const { data: imgs } = await w.step("photos", async () => await supabase
+      .from("files")
+      .select("id, file_name, bucket, path, mime_type, taken_at, created_at")
+      .eq("project_id", p.project_id)
+      .like("mime_type", "image/%")
+      .order("created_at", { ascending: false })
+      .limit(24));
+    pickable = (imgs ?? []) as typeof pickable;
+    if (pickable.length > 0) {
+      const { data: signed } = await supabase.storage.from("project-media")
+        .createSignedUrls(pickable.filter((f) => f.bucket === "project-media").map((f) => f.path), 3600);
+      for (const row of signed ?? []) if (row.path && row.signedUrl) thumbs.set(row.path, row.signedUrl);
+    }
+  }
   w.done();
 
   const replied = p.bids.filter((b) => REPLIED.includes(b.status));
-  const required = p.items.filter((i) => i.is_required);
-  const itemIds = p.items.map((i) => i.scope_item_id).join(",");
+  // BASE LINES AND OPTIONS ARE TWO LISTS (185). The base lines are what the
+  // price covers and what a gap is measured against; an option is an extra,
+  // priced on its own and never a gap.
+  const base = p.items.filter((i) => i.kind !== "option");
+  const options = p.items.filter((i) => i.kind === "option");
+  const required = base.filter((i) => i.is_required);
+  const itemIds = base.map((i) => i.scope_item_id).join(",");
   const uninvited = p.members.filter((m) => !p.bids.some((b) => b.bidder_contact_id === m.contact_id));
   const closed = p.status === "closed" || !!p.awarded_bid_id;
   const canWrite = p.can_edit && !closed;
@@ -218,6 +247,30 @@ export default async function BidPackagePage({
                       })}
                     </tr>
                   ))}
+                  {/* OPTIONS, each on its own row with what each man would
+                      charge. They are outside the like-for-like sum on
+                      purpose: an extra nobody bought is not part of the price
+                      you are comparing. */}
+                  {(cmp.options ?? []).length > 0 && (
+                    <>
+                      <tr className="cmp-sep">
+                        <th className="cmp-lbl" scope="row" colSpan={cmp.bids.length + 1}>Options, priced separately</th>
+                      </tr>
+                      {(cmp.options ?? []).map((o) => (
+                        <tr key={o.scope_item_id}>
+                          <th className="cmp-lbl" scope="row">{o.item}</th>
+                          {cmp.bids.map((b) => {
+                            const c = (o.cells ?? []).find((x) => x.bid_id === b.id);
+                            return (
+                              <td key={b.id} className={c?.price != null ? "fig" : "meh"}>
+                                {c?.price != null ? money(c.price) : "not quoted"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </>
+                  )}
                 </tbody>
                 <tfoot>
                   <tr>
@@ -264,13 +317,13 @@ export default async function BidPackagePage({
             leaves a required one out is a gap, and the database says so. */}
         <section className="stack" style={{ gap: 8 }}>
           <div className="divider-label">
-            Scope · {p.items.length} line{p.items.length === 1 ? "" : "s"}{required.length > 0 ? ` · ${required.length} required` : ""}
+            Scope · {base.length} line{base.length === 1 ? "" : "s"}{required.length > 0 ? ` · ${required.length} required` : ""}
           </div>
           {p.scope_summary && <Card soft pad><div className="small">{p.scope_summary}</div></Card>}
-          {p.items.length === 0 && !canWrite && (
+          {base.length === 0 && !canWrite && (
             <Card soft pad><div className="small">No scope lines on this package yet.</div></Card>
           )}
-          {p.items.map((i) => (
+          {base.map((i) => (
             <div className="home-row" key={i.id} style={{ cursor: "default", alignItems: "flex-start" }}>
               <span className="grow" style={{ minWidth: 0 }}>
                 <span className="t" style={{ fontWeight: 600 }}>{i.item}</span>
@@ -287,15 +340,15 @@ export default async function BidPackagePage({
               against. Saving the box back is safe: a line already written is
               matched, never written twice. */}
           {canWrite && (
-            <details className="card pad" open={p.items.length === 0}>
+            <details className="card pad" open={base.length === 0}>
               <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
-                {p.items.length === 0 ? "Write the scope" : "Change the scope"}
+                {base.length === 0 ? "Write the scope" : "Change the scope"}
               </summary>
               <form action={setScope.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="scope-lines">One line per line</label>
-                  <textarea id="scope-lines" name="lines" className="input" rows={Math.max(6, p.items.length + 2)}
-                    defaultValue={p.items.map((i) => i.item).join("\n")}
+                  <textarea id="scope-lines" name="lines" className="input" rows={Math.max(6, base.length + 2)}
+                    defaultValue={base.map((i) => i.item).join("\n")}
                     placeholder={"Tear off to deck\nIce and water at eaves and valleys\nArchitectural shingles, 30 year\nDrip edge all around\nHaul away and dumpster"} />
                 </div>
                 <button className="btn btn-secondary btn-block">Save the scope</button>
@@ -305,6 +358,42 @@ export default async function BidPackagePage({
                 </p>
               </form>
             </details>
+          )}
+          {/* OPTIONS THEY PRICE SEPARATELY (Shahar, 2026-09-17: "there are
+              options i'd like them to include in their bid, as separate line
+              item"). Its own box, because an option is not scope: it is not
+              part of the number, it is never a gap, and every bidder is asked
+              what it would cost on top. */}
+          {canWrite && (
+            <details className="card pad" open={options.length > 0}>
+              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                Options they price separately{options.length > 0 ? ` · ${options.length}` : ""}
+              </summary>
+              <form action={setScope.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                <input type="hidden" name="kind" value="option" />
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="option-lines">One option per line</label>
+                  <textarea id="option-lines" name="lines" className="input" rows={Math.max(4, options.length + 2)}
+                    defaultValue={options.map((i) => i.item).join("\n")}
+                    placeholder={"Copper valley metal instead of galvanized\nStrip and replace the porch roof as well\nGutters and leaders"} />
+                </div>
+                <button className="btn btn-secondary btn-block">Save the options</button>
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  Each one gets a price box of its own on the bidder&apos;s page. Leaving one unpriced is a
+                  fair answer and never counts against him.
+                </p>
+              </form>
+            </details>
+          )}
+          {!canWrite && options.length > 0 && (
+            <div className="stack" style={{ gap: 6 }}>
+              <div className="divider-label">Options, priced separately · {options.length}</div>
+              {options.map((i) => (
+                <div className="home-row" key={i.id} style={{ cursor: "default" }}>
+                  <span className="t">{i.item}</span>
+                </div>
+              ))}
+            </div>
           )}
         </section>
 
@@ -339,6 +428,64 @@ export default async function BidPackagePage({
                 <div className="home-row" key={d.id} style={{ cursor: "default" }}><span className="t">{d.file_name}</span></div>
               );
             })}
+          </section>
+        )}
+
+        {/* WHAT THEY SEE BEFORE THEY PRICE (Shahar, 2026-09-17: "when i plan
+            it i'd like to include a photo, and have the contractors see it
+            before they plug in their number"). A man who has seen the roof
+            prices the roof; a man who has not is guessing, and the guess gets
+            revised upward once he is standing on it.
+
+            The job's photographs are private and a bidder has no session to
+            sign a URL with, so picking one COPIES it to the public bucket -
+            which is why this is a deliberate act per photograph rather than
+            "the folder is visible". */}
+        {(p.photos.length > 0 || (canWrite && pickable.length > 0)) && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">
+              What they see · {p.photos.length} photograph{p.photos.length === 1 ? "" : "s"}
+            </div>
+            {p.photos.length > 0 && (
+              <div className="bp-grid">
+                {p.photos.map((ph) => (
+                  <div className="bp-cell" key={ph.id}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`${pub}/${ph.path}`} alt={ph.caption ?? "On the job"} />
+                    {canWrite && (
+                      <form action={hidePhoto.bind(null, id, pkgId, ph.id)} className="bp-off">
+                        <button className="bp-btn" aria-label="Take it down">×</button>
+                      </form>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {canWrite && pickable.length > 0 && (
+              <details className="card pad">
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                  {p.photos.length > 0 ? "Show another" : "Show them a photograph"}
+                </summary>
+                <p className="tiny text-muted" style={{ margin: "8px 0" }}>
+                  From this job&apos;s own photographs. Picking one publishes a copy that anybody with the
+                  bid link can see — so pick what helps them price it, not what is private.
+                </p>
+                <div className="bp-grid">
+                  {pickable.filter((f) => !p.photos.some((ph) => ph.file_id === f.id)).map((f) => (
+                    <form key={f.id} action={showPhoto.bind(null, id, pkgId)} className="bp-cell">
+                      <input type="hidden" name="file_id" value={f.id} />
+                      <input type="hidden" name="bucket" value={f.bucket} />
+                      <input type="hidden" name="path" value={f.path} />
+                      {thumbs.get(f.path)
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={thumbs.get(f.path)} alt={f.file_name ?? "Photograph"} />
+                        : <div className="bp-blank">{f.file_name}</div>}
+                      <button className="bp-pick">Show it</button>
+                    </form>
+                  ))}
+                </div>
+              </details>
+            )}
           </section>
         )}
 
@@ -437,13 +584,13 @@ export default async function BidPackagePage({
                           <input id={`val-${b.id}`} name="valid_until" type="date" className="input" defaultValue={b.valid_until ?? ""} />
                         </div>
                       </div>
-                      {p.items.length > 0 && (
+                      {base.length > 0 && (
                         <details>
                           <summary className="tiny text-muted" style={{ cursor: "pointer" }}>
                             What his price covers — everything, unless you say otherwise
                           </summary>
                           <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-                            {p.items.map((i) => (
+                            {base.map((i) => (
                               <label key={i.id} className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
                                 <input type="checkbox" name={`inc_${i.scope_item_id}`} defaultChecked style={{ marginTop: 3 }} />
                                 <span className="grow" style={{ minWidth: 0 }}>

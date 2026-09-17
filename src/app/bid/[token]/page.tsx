@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { Carousel } from "@/app/p/[slug]/Carousel";
 import { sendPrice } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,8 @@ export const metadata = { title: "Your price", robots: { index: false, follow: f
 // database enforces all three in bid_by_token; this page could not leak them
 // if it tried.
 type Item = { scope_item_id: string; item: string; is_required: boolean; included: boolean };
+type Option = { scope_item_id: string; item: string; price: number | null };
+type Shot = { path: string; caption: string | null };
 type Said = { amount: number | null; valid_until: string | null; notes: string | null; on: string | null };
 type Bid = {
   open: boolean; settled: boolean;
@@ -31,7 +34,9 @@ type Bid = {
   reply_by: string | null; scope_summary: string | null;
   terms: { deposit_pct: number | null; retainage_pct: number | null; net_days: number | null;
            workers_comp: boolean | null; coi: boolean | null };
+  photos: Shot[];
   items: Item[];
+  options: Option[];
   said: Said | null;
 };
 
@@ -51,6 +56,9 @@ export default async function BidByLink({
   const supabase = await createClient();
   const { data } = await supabase.rpc("bid_by_token", { p_token: token });
   const bid = (data ?? null) as Bid | null;
+  // The photographs are copies in the public bucket (185): the private ones
+  // cannot be shown to somebody with no session to sign a URL with.
+  const pub = supabase.storage.from("public-media").getPublicUrl("").data.publicUrl.replace(/\/$/, "");
 
   // A dead link says so plainly and asks for nothing. No sign-in, no
   // "contact support", no form that cannot work.
@@ -80,6 +88,16 @@ export default async function BidByLink({
         {[bid.job, bid.town].filter(Boolean).join(" · ")}
         {bid.reply_by ? ` · reply by ${day(bid.reply_by)}` : ""}
       </p>
+
+      {/* THE PHOTOGRAPHS COME FIRST (Shahar, 2026-09-17: "have the contractors
+          see it before they plug in their number"). A man who has seen the
+          roof prices the roof; a man who has not is guessing, and a guess is
+          what gets revised upward once he is standing on it. */}
+      {bid.photos.length > 0 && (
+        <div style={{ margin: "0 0 14px" }}>
+          <Carousel shots={bid.photos} base={pub} alt={`${bid.trade ?? "The work"} — ${bid.town ?? ""}`} />
+        </div>
+      )}
 
       {error && <p className="error" style={{ margin: "0 0 12px" }}>{error}</p>}
       {ok === "sent" && (
@@ -166,8 +184,32 @@ export default async function BidByLink({
             </div>
           )}
 
+          {/* OPTIONS ARE NOT PART OF HIS NUMBER (Shahar: "there are options
+              i'd like them to include in their bid, as separate line item").
+              Each one gets a price of its own, and leaving one blank is a
+              perfectly good answer - it is an extra, not a hole in the bid. */}
+          {bid.options.length > 0 && (
+            <div>
+              <h2 className="section-title" style={{ margin: "0 0 6px" }}>Options, priced separately</h2>
+              <p className="muted small" style={{ margin: "0 0 8px" }}>
+                These are NOT in the price above. Put what each would cost on top; leave any blank
+                if you would rather not quote it.
+              </p>
+              <input type="hidden" name="options" value={bid.options.map((o) => o.scope_item_id).join(",")} />
+              <div style={{ display: "grid", gap: 8 }}>
+                {bid.options.map((o) => (
+                  <label key={o.scope_item_id} className="opt-row">
+                    <span>{o.item}</span>
+                    <input name={`opt_${o.scope_item_id}`} className="input" inputMode="decimal"
+                      defaultValue={o.price != null ? String(Math.round(o.price)) : ""} placeholder="$" />
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="amount">Your price</label>
+            <label htmlFor="amount">Your price{bid.options.length > 0 ? " for the work above" : ""}</label>
             <input id="amount" name="amount" className="input" inputMode="decimal" required
               defaultValue={said?.amount != null ? String(Math.round(said.amount)) : ""} placeholder="$" />
           </div>

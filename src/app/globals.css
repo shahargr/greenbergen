@@ -1570,3 +1570,9 @@ a.homepanel-alert:hover { text-decoration: underline; }
 .hp-link.danger { color: #b8432f; }
 .hp-pick { display: grid; gap: 6px; padding: 8px; }
 .hp-pick .input { font-size: 12px; padding: 5px 8px; }
+
+/* AN OPTION PRICED ON ITS OWN LINE (migration 185). The words on the left,
+   the box on the right, because that is how a man reads a quote. */
+.opt-row { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: center; font-size: 14px; }
+.opt-row .input { margin: 0; }
+@media (max-width: 420px) { .opt-row { grid-template-columns: 1fr 96px; } }
