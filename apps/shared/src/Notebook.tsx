@@ -111,13 +111,20 @@ const when = (iso: string) => {
 // typed with. The screen shows it as typed.
 const dial = (p: string) => p.replace(/[^\d+]/g, "");
 
-export type NotebookTab = "todo" | "note" | "phone";
+// ONE THING TO WRITE DOWN (Shahar, 2026-09-17: "merge todo and note. the
+// only difference is who should hold it, so make it optional. leave it on
+// logged user as default"). A note on a job is a task on the job, held by
+// you unless you name somebody; a note with no job is held in the notebook
+// until the evening sweep asks which job. "Under which task" is gone too -
+// "let's keep it to higher level - the project level" - and so is the order
+// tick, whose wording read as a purchase.
+export type NotebookTab = "note" | "phone";
 
 // OPENED FROM ELSEWHERE. The project screen's panel (2026-09-17) opens the
 // sheet on a tab with the job already chosen; a plain event keeps the two
 // apart - the panel is a server page with buttons, the sheet is this one
 // client component in the layout, and neither imports the other.
-export type NotebookOpen = { tab?: NotebookTab; job?: string; order?: boolean };
+export type NotebookOpen = { tab?: NotebookTab; job?: string };
 const OPEN_EVENT = "gb:notebook";
 export function openNotebook(detail: NotebookOpen = {}) {
   if (typeof window === "undefined") return;
@@ -126,22 +133,15 @@ export function openNotebook(detail: NotebookOpen = {}) {
 
 type Tab = NotebookTab | "book";
 
-const KIND: Record<"todo" | "note", { tab: string; verb: string; hint: string }> = {
-  todo: { tab: "To do", verb: "Add it",  hint: "Order the stair treads before Friday" },
-  note: { tab: "Note",  verb: "Keep it", hint: "Ask Javier whether the LVL at the landing needs a third jack stud — he said two on site, the plan shows three." },
-};
+const HINT = "Ask Javier whether the LVL at the landing needs a third jack stud — he said two on site, the plan shows three.";
 
 export function Notebook() {
   const path = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>("todo");
+  const [tab, setTab] = useState<Tab>("note");
   const [body, setBody] = useState("");
   const [due, setDue] = useState("");
   const [job, setJob] = useState("");
-  const [step, setStep] = useState("");
-  // AN ORDER IS A TO-DO WITH A TICK (Shahar, 2026-09-17: "remove order").
-  // actions.delivers = 'product' is the whole difference in the database.
-  const [order, setOrder] = useState(false);
   // WHO HOLDS IT. "me by default, but optional owner." Empty means me; the
   // select offers the seats on the chosen job.
   const [owner, setOwner] = useState("");
@@ -194,19 +194,9 @@ export function Notebook() {
     return () => { live = false; };
   }, []);
 
-  // The tasks belong to whichever job is selected, so they follow it rather
-  // than being fetched for a board nobody is looking at. The owner goes back
-  // to "me" with the job: a name from the last job is not a choice on this one.
-  useEffect(() => {
-    setOwner("");
-    if (!job) { setTargets((t) => ({ ...t, tasks: [] })); setStep(""); return; }
-    let live = true;
-    void (async () => {
-      const { data } = await createClient().rpc("portal_capture_targets", { p_project: job });
-      if (live && data) setTargets(data as Targets);
-    })();
-    return () => { live = false; };
-  }, [job]);
+  // The owner goes back to "me" with the job: a name from the last job is
+  // not a choice on this one.
+  useEffect(() => { setOwner(""); }, [job]);
 
   // THE PHONE BOOK follows the job too, and only when it is being looked at.
   useEffect(() => {
@@ -236,7 +226,7 @@ export function Notebook() {
   useEffect(() => {
     if (open && tab === "book" && !sweep) void read("open").then((b) => { if (b) setBook(b); });
   }, [open, tab, sweep, read]);
-  useEffect(() => { if (open && (tab === "todo" || tab === "note")) box.current?.focus(); }, [open, tab]);
+  useEffect(() => { if (open && tab === "note") box.current?.focus(); }, [open, tab]);
 
   useEffect(() => {
     if (!open) return;
@@ -245,14 +235,13 @@ export function Notebook() {
     return () => window.removeEventListener("keydown", esc);
   }, [open, sweep]);
 
-  // Opened by name from a screen (openNotebook): the tab, the job, and
-  // whether the to-do is an order, all set before the sheet appears.
+  // Opened by name from a screen (openNotebook): the tab and the job, set
+  // before the sheet appears.
   useEffect(() => {
     const on = (e: Event) => {
       const d = (e as CustomEvent<NotebookOpen>).detail ?? {};
       if (d.job) { setJob(d.job); setJobTouched(true); }
       if (d.tab) setTab(d.tab);
-      if (d.order !== undefined) setOrder(d.order);
       setSaid(""); setErr(""); setSweep(null);
       setOpen(true);
     };
@@ -263,34 +252,31 @@ export function Notebook() {
   if (hidden) return null;
 
   const jobs = targets.projects;
-  const steps = targets.tasks;
   const jobName = jobs.find((j) => j.id === job)?.name ?? null;
-  const kind = tab === "todo" || tab === "note" ? KIND[tab] : null;
   const ids = files.map((f) => f.id);
   const crew = crews.find((c) => c.project_id === job)?.people ?? [];
   const myself = crew.find((p) => p.me) ?? null;
 
   function clear(msg: string) {
-    setBody(""); setDue(""); setStep(""); setFiles([]); setOwner(""); setSaid(msg); box.current?.focus();
+    setBody(""); setDue(""); setFiles([]); setOwner(""); setSaid(msg); box.current?.focus();
   }
 
-  // A THING TO DO, or A THING TO ORDER. With a job it is a task, now, on the
-  // job. Without one it is held as a capture and comes back tonight, which
-  // beats refusing to write it down and beats guessing a job.
+  // ONE THING WRITTEN DOWN. With a job it is a task, now, on the job, held
+  // by you unless you named somebody. Without one it is held as a capture
+  // and comes back tonight, which beats refusing to write it down and beats
+  // guessing a job.
   async function keep() {
     const text = body.trim();
     if (!text && ids.length === 0) return;
     setBusy(true); setErr("");
     const c = createClient();
 
-    if (tab === "todo" && job) {
+    if (job) {
       const { data, error } = await c.rpc("portal_task_quick", {
         p_project: job,
         p_action: (text.split("\n")[0] || "Something to do").slice(0, 300),
         p_trade: here.trade ?? null,
         p_target_date: due || null,
-        p_parent: step || null,
-        p_delivers: order ? "product" : "work",
         // Me unless somebody else was named: the database reads "nobody
         // named" as the person logging it.
         p_assignee: owner || myself?.contact_id || null,
@@ -299,26 +285,24 @@ export function Notebook() {
       setBusy(false);
       if (error) { setErr(friendly(error.message)); return; }
       if (!data?.ok) { setErr(data?.reason ?? "That was not added."); return; }
-      clear(`${order ? "Ordered" : "On the board"}${jobName ? ` — ${jobName}` : ""}.`);
+      clear(`On the board${jobName ? ` — ${jobName}` : ""}.`);
       return;
     }
 
     const { data, error } = await c.rpc("portal_note_add", {
       p_body: text,
-      p_project: tab === "note" ? job || here.project || null : null,
+      p_project: null,
       p_trade: here.trade ?? null,
-      p_action: tab === "note" ? step || here.action || null : null,
+      p_action: null,
       p_screen: path,
-      p_intent: tab === "note" ? "note" : "task",
+      p_intent: "task",
       p_file_ids: ids.length ? ids : null,
     });
     setBusy(false);
     if (error) { setErr(friendly(error.message)); return; }
     if (!data?.ok) { setErr(data?.reason ?? "That was not written down."); return; }
     setBook((b) => (b ? { ...b, open: b.open + 1, to_sweep: b.to_sweep + 1 } : b));
-    clear(tab === "note"
-      ? (data.trade ? `Kept under ${data.trade}.` : data.project_id ? "Kept on this job." : "Kept.")
-      : "Held — you'll be asked which job tonight.");
+    clear("Held — you'll be asked which job tonight.");
   }
 
   async function act(fn: string, args: Record<string, unknown>) {
@@ -378,7 +362,7 @@ export function Notebook() {
     <>
       <button type="button" className={`nb-fab${open ? " on" : ""}`}
         aria-label={count > 0 ? `Notebook — ${count} kept` : "Write something down"}
-        onClick={() => { setOpen((o) => !o); setSaid(""); setErr(""); setSweep(null); if (tab === "book") setTab("todo"); }}>
+        onClick={() => { setOpen((o) => !o); setSaid(""); setErr(""); setSweep(null); if (tab === "book") setTab("note"); }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
           strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
@@ -401,15 +385,13 @@ export function Notebook() {
                 </>
               ) : tab === "book" ? (
                 <>
-                  <button type="button" className="nb-back" onClick={() => setTab("todo")}>‹ Back</button>
+                  <button type="button" className="nb-back" onClick={() => setTab("note")}>‹ Back</button>
                   <span className="nb-title">Kept{count > 0 ? ` · ${count}` : ""}</span>
                 </>
               ) : (
                 <div className="nb-tabs">
-                  {(["todo", "note"] as const).map((k) => (
-                    <button key={k} type="button" className={tab === k ? "on" : ""}
-                      onClick={() => { setTab(k); setSaid(""); setErr(""); }}>{KIND[k].tab}</button>
-                  ))}
+                  <button type="button" className={tab === "note" ? "on" : ""}
+                    onClick={() => { setTab("note"); setSaid(""); setErr(""); }}>Note</button>
                   <button type="button" className={tab === "phone" ? "on" : ""}
                     onClick={() => { setTab("phone"); setSaid(""); setErr(""); }}>
                     Phone book
@@ -422,39 +404,38 @@ export function Notebook() {
             {/* ── THE CAPTURE SHEET. One shape for both kinds, which is what
                 "have the same size of screen" asks for: the body keeps a
                 floor so the sheet does not jump as you move between tabs. ── */}
-            {!sweep && kind && (
+            {!sweep && tab === "note" && (
               <div className="nb-body nb-capture">
                 <textarea ref={box} className="input nb-text" value={body}
-                  rows={tab === "note" ? 4 : 3} maxLength={4000}
+                  rows={4} maxLength={4000}
                   onChange={(e) => { setBody(e.target.value); setSaid(""); }}
                   onKeyDown={(e) => {
                     if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !busy) { e.preventDefault(); void keep(); }
                   }}
-                  placeholder={tab === "todo" && order ? "40 oak stair treads, 11in × 42in, from Kuiken Brothers" : kind.hint} />
+                  placeholder={HINT} />
 
                 <div className="nb-two">
                   <label className="nb-fld">
                     <span>Which job</span>
                     <select className="input" value={job}
                       onChange={(e) => { setJob(e.target.value); setJobTouched(true); setSaid(""); }}>
-                      {jobOptions(tab === "todo")}
+                      {jobOptions(true)}
                     </select>
                   </label>
-                  {tab === "todo" && (
-                    <label className="nb-fld">
-                      <span>When</span>
-                      <input className="input" type="date" value={due}
-                        onChange={(e) => setDue(e.target.value)} disabled={!job} />
-                    </label>
-                  )}
+                  <label className="nb-fld">
+                    <span>When</span>
+                    <input className="input" type="date" value={due}
+                      onChange={(e) => setDue(e.target.value)} disabled={!job} />
+                  </label>
                 </div>
 
-                {/* WHO HOLDS IT (Shahar, 2026-09-17: "todo can have an
-                    optional owner. me by default"). The seats on the job,
-                    yours first and already chosen. */}
-                {tab === "todo" && job && crew.length > 0 && (
+                {/* WHO HOLDS IT (Shahar, 2026-09-17: "the only difference is
+                    who should hold it, so make it optional. leave it on
+                    logged user as default"). The seats on the job, yours
+                    first and already chosen. */}
+                {job && crew.length > 0 && (
                   <label className="nb-fld">
-                    <span>Who holds it</span>
+                    <span>Who holds it <span className="text-muted">(optional)</span></span>
                     <select className="input" value={owner} onChange={(e) => setOwner(e.target.value)}>
                       <option value="">{myself ? `${myself.name ?? "Me"} (me)` : "Me"}</option>
                       {crew.filter((p) => !p.me).map((p) => (
@@ -466,35 +447,9 @@ export function Notebook() {
                   </label>
                 )}
 
-                {/* GRANULARITY: "Job / Project / Task / etc". A job narrows to
-                    one of its tasks, and only the tasks the ladder lets you
-                    see are offered - a contract-bounded trade gets their own
-                    work and not the bidding. A simple task takes no steps, so
-                    it is offered to a note and refused to a to-do. */}
-                {job && steps.length > 0 && (
-                  <label className="nb-fld">
-                    <span>{tab === "note" ? "About which task" : "Under which task"} <span className="text-muted">(optional)</span></span>
-                    <select className="input" value={step} onChange={(e) => setStep(e.target.value)}>
-                      <option value="">Just the job</option>
-                      {steps
-                        .filter((s) => tab === "note" || s.accepts_steps)
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.trade ? `${s.trade} · ` : ""}{s.action.slice(0, 80)}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                )}
-
-                {/* AN ORDER, said with one tick. It used to be a tab; the
-                    only thing the tab changed was this. */}
-                {tab === "todo" && (
-                  <label className="nb-tick">
-                    <input type="checkbox" checked={order} onChange={(e) => setOrder(e.target.checked)} />
-                    <span>Something to order <span className="text-muted">— it arrives, rather than gets done</span></span>
-                  </label>
-                )}
+                {/* "Under which task" and the order tick are gone (Shahar,
+                    2026-09-17): a note lands on the job, and the language
+                    of ordering read as a purchase. */}
 
                 {/* CAMERA, FILE OR IMAGE, VOICE - the same three as on a
                     task. Evidence takes the file first and holds it in the
@@ -507,22 +462,17 @@ export function Notebook() {
                   onChange={setFiles} onHeld={setHeldN} />
 
                 <p className="nb-at">
-                  {tab === "note"
-                    ? <>Only you can read what you write here. Anything you <strong>attach</strong> lives on the
-                      job, the same as any site photo.</>
-                    : job
-                      ? <>Goes straight on the board{here.trade ? <> under <strong>{here.trade}</strong></> : null}
-                        {order ? " as something to arrive" : ""}. The people on the job can see it.</>
-                      : heldN > 0
-                        ? <>Pick a job above and {heldN === 1 ? "the file goes" : "the files go"} on it with this. Without a job there is nowhere to keep {heldN === 1 ? "it" : "them"}.</>
-                        : <>No job yet, so it is held in your notebook and the end-of-day sweep asks which one.</>}
+                  {job
+                    ? <>Goes straight on the board{here.trade ? <> under <strong>{here.trade}</strong></> : null}, held by {owner ? crew.find((p) => p.contact_id === owner)?.name ?? "them" : "you"}. The people on the job can see it.</>
+                    : heldN > 0
+                      ? <>Pick a job above and {heldN === 1 ? "the file goes" : "the files go"} on it with this. Without a job there is nowhere to keep {heldN === 1 ? "it" : "them"}.</>
+                      : <>No job yet, so it is held in your notebook and the end-of-day sweep asks which one.</>}
                 </p>
 
                 <button type="button" className="btn btn-primary"
                   disabled={(!body.trim() && ids.length === 0) || busy || (!job && heldN > 0)}
                   onClick={() => { void keep(); }}>
-                  {busy ? "…" : !job && heldN > 0 ? "Pick a job first" : tab === "todo" && !job ? "Hold it for tonight"
-                    : tab === "todo" && order ? "Order it" : kind.verb}
+                  {busy ? "…" : !job && heldN > 0 ? "Pick a job first" : !job ? "Hold it for tonight" : "Add it"}
                 </button>
                 {said && <p className="nb-ok">{said} Still open — keep going.</p>}
                 {err && <p className="nb-err">{err}</p>}

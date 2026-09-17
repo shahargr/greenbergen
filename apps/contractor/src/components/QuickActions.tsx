@@ -37,8 +37,6 @@ const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWi
   strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
 
 const Pin = () => <svg {...g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" /></svg>;
-const Tick = () => <svg {...g}><path d="M4 12.5l5 5L20 6.5" /></svg>;
-const Box = () => <svg {...g}><path d="M3 8l9-4 9 4v9l-9 4-9-4z" /><path d="M3 8l9 4 9-4M12 12v9" /></svg>;
 const Pen = () => <svg {...g}><path d="M4 20h4l10-10-4-4L4 16z" /><path d="M13 7l4 4" /></svg>;
 const Phone = () => <svg {...g}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
@@ -60,12 +58,8 @@ export function QuickActions({ projectId, standing, where, visitHref, visitsToda
             {visitsToday > 0 && <span className="n">{visitsToday} today</span>}
           </Link>
         )}
-        <button type="button" className="qa-btn" onClick={nb({ tab: "todo", order: false })}>
-          <Tick /><span>To do</span>
-        </button>
-        <button type="button" className="qa-btn" onClick={nb({ tab: "todo", order: true })}>
-          <Box /><span>Order</span>
-        </button>
+        {/* ONE NOTE, not to-do + order + note (Shahar, 2026-09-17: "merge
+            todo and note... the something to order is confusing"). */}
         <button type="button" className="qa-btn" onClick={nb({ tab: "note" })}>
           <Pen /><span>Note</span>
         </button>
