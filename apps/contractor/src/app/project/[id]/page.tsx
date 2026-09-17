@@ -499,6 +499,16 @@ export default async function ProjectPage({
   // project's face on the board, and still changed from behind the gear.
   const visitPaths = panel === "visits" ? visits.flatMap((v) => v.files.map((f) => f.path)) : [];
   const signed = await w.step("media", () => coverUrls(supabase, [...visitPaths, ...kids.map((k) => k.cover)]));
+  // WHEN THIS HOUSE SELLS (migration 162): the two planned days live on the
+  // PROPERTY - the top of its family - and the loans beneath count backwards
+  // from them. Read only there, only for whoever may set them.
+  const isProperty = onSite && !isFolder && topHere === id;
+  const { data: saleData } = isProperty && manages
+    ? await w.step("sale", () => rpc<{ good: string | null; bad: string | null }[]>(supabase, "project_sale_targets", { p_project: id }))
+    : { data: null };
+  const sale = isProperty && manages
+    ? { good: saleData?.[0]?.good ?? null, bad: saleData?.[0]?.bad ?? null }
+    : null;
   w.done();
 
   const jobRows = (list: Seat[], empty: string) => (
@@ -639,7 +649,7 @@ export default async function ProjectPage({
             only about the job running. */}
         <ProjectSetup projectId={id} own={seat.cover_own} stock={!!seat.cover_url} canEdit={manages}
           open={setupOpen} closeHref={keepAs()}
-          scopeLines={scopeLines} scopeTrades={scopeTrades}
+          scopeLines={scopeLines} scopeTrades={scopeTrades} sale={sale}
           lifecycle={manages ? (
             <Lifecycle projectId={id} status={seat.status} closed={closedAlready}
               owns={seat.rank >= 70} archived={seat.archived}

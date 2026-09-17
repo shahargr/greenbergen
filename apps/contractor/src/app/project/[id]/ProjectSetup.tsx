@@ -32,15 +32,37 @@ import { ChevronIcon } from "@shared/ui";
 // the gear button next to the Project name"). It is a link in the app bar
 // carrying ?setup=1, the way the task screen's gear already worked, so this
 // panel is opened by the server and `open` arrives as a prop.
-export function ProjectSetup({ projectId, own, stock, canEdit, open, closeHref, scopeLines, scopeTrades, lifecycle }: {
+export function ProjectSetup({ projectId, own, stock, canEdit, open, closeHref, scopeLines, scopeTrades, lifecycle, sale }: {
   projectId: string; own: boolean; stock: boolean; canEdit: boolean;
   open: boolean; closeHref: string;
   scopeLines: number; scopeTrades: number; lifecycle?: React.ReactNode;
+  /** WHEN THIS HOUSE SELLS (migration 162): the two planned days, offered
+   *  only on a property - the loans beneath count backwards from them. */
+  sale?: { good: string | null; bad: string | null } | null;
 }) {
   const router = useRouter();
   const pick = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [good, setGood] = useState(sale?.good ?? "");
+  const [bad, setBad] = useState(sale?.bad ?? "");
+  const [saleMsg, setSaleMsg] = useState("");
+  const saleDirty = (sale?.good ?? "") !== good || (sale?.bad ?? "") !== bad;
+
+  // Shahar (2026-09-17): "till I plan to sell so we can calculate backwards.
+  // End date should have good and bad scenario." Saved here, on the house;
+  // the database re-runs every loan's schedule beneath it (trigger).
+  async function saveSale() {
+    setErr(""); setSaleMsg(""); setBusy("Saving…");
+    const { data, error } = await createClient().rpc("portal_project_sale_targets", {
+      p_project: projectId, p_good: good || null, p_bad: bad || null,
+    });
+    setBusy("");
+    if (error) { setErr(friendly(error.message)); return; }
+    if (!data?.ok) { setErr(data?.reason ?? "That did not save."); return; }
+    setSaleMsg("Saved. The loans on this house now count to these days.");
+    router.refresh();
+  }
 
   async function upload(list: FileList | null) {
     const file = Array.from(list ?? []).find((f) => f.size > 0);
@@ -115,6 +137,35 @@ export function ProjectSetup({ projectId, own, stock, canEdit, open, closeHref, 
             </span>
             <ChevronIcon />
           </Link>
+
+          {/* WHEN THIS HOUSE SELLS. Two days, not one: the sale you plan for
+              and the sale you can live with. The loan's schedule runs to the
+              bad day and its card on the money screen says what each day
+              costs. Only on a property; a job beneath inherits. */}
+          {sale !== undefined && sale !== null && (
+            <div className="stack" style={{ gap: 8, marginTop: 4 }}>
+              <div className="divider-label">When this house sells</div>
+              <div className="task-row-value pair">
+                <label className="field" style={{ marginBottom: 0 }}>
+                  <span className="field-label">Good day</span>
+                  <input className="input" type="date" value={good} onChange={(e) => setGood(e.target.value)} />
+                </label>
+                <label className="field" style={{ marginBottom: 0 }}>
+                  <span className="field-label">Bad day</span>
+                  <input className="input" type="date" value={bad} min={good || undefined} onChange={(e) => setBad(e.target.value)} />
+                </label>
+              </div>
+              <div className="between" style={{ gap: 8, alignItems: "center" }}>
+                <span className="tiny text-muted grow" style={{ minWidth: 0 }}>
+                  {saleMsg || "The loans beneath count backwards from these: payments left, cost by each day. The schedule runs to the bad day."}
+                </span>
+                <button type="button" className="btn btn-secondary small" style={{ minHeight: 34, flex: "none" }}
+                  disabled={!saleDirty || !!busy} onClick={() => void saveSale()}>
+                  {saleDirty ? "Save the days" : "Saved"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* How it ends. Last, because it is the one thing here you do once
               and cannot take back. */}

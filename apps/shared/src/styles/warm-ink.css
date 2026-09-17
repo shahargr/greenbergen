@@ -1124,6 +1124,10 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
   background: #000; object-fit: cover; display: block;
 }
 
+/* THE LOAN, COUNTED BACKWARDS FROM THE SALE (migration 162): two lines on
+   the loan's card, one per planned day. */
+.loan-exit { display: grid; gap: 6px; margin-top: 6px; }
+
 /* A file taken before there was a job to file it under: shown like the
    rest, tagged, and sent up the moment a job is picked. */
 .attached.held { opacity: .85; }

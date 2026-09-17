@@ -164,6 +164,45 @@ function ContractCard({ c, me, methods, urls, projectId, showProject }: {
         </p>
       )}
 
+      {/* THE LOAN, COUNTED BACKWARDS FROM THE SALE (migration 162). Shahar:
+          "till I plan to sell so we can calculate backwards. End date
+          should have good and bad scenario." Two lines, one per day: how
+          many payments are left, what they add up to, and what the loan
+          will have cost in all by then - with the principal due on top, said
+          once, because on an interest-only note it is the same either way.
+          The days are set on the house, behind its gear. */}
+      {c.loan?.exit && (
+        <div className="loan-exit">
+          <div className="divider-label" style={{ padding: 0 }}>If the house sells</div>
+          {(["good", "bad"] as const).map((k) => {
+            const s = c.loan!.exit!.scenarios[k];
+            if (!s) return null;
+            return (
+              <div key={k} className="kv-rows" style={{ padding: 0 }}>
+                <div>
+                  <span className="k" style={{ minWidth: 0 }}>
+                    <span style={{ display: "block", color: "var(--color-text)" }}>
+                      {k === "good" ? "Good day" : "Bad day"} · {shortDay(s.date)}
+                    </span>
+                    <span className="tiny">
+                      {s.payments_left} more {s.payments_left === 1 ? "payment" : "payments"} · {cur(s.to_come)} to come
+                      {c.loan!.exit!.paid_so_far > 0 ? ` · ${cur(c.loan!.exit!.paid_so_far)} paid so far` : ""}
+                    </span>
+                  </span>
+                  <span className="mono" style={{ whiteSpace: "nowrap" }} title="What the loan will have cost by then, payments in all">
+                    {cur(s.total_cost)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          <p className="tiny text-muted" style={{ margin: 0 }}>
+            {c.loan.exit.payoff != null ? `Plus ${cur(c.loan.exit.payoff)} of principal at the closing, either day. ` : ""}
+            The days are set on {c.loan.exit.source.project}, under Set this project up.
+          </p>
+        </div>
+      )}
+
       {/* MILESTONES */}
       <div className="divider-label" style={{ marginTop: 6 }}>Milestones{c.stages.length ? ` · ${c.stages.length}` : ""}</div>
       {c.stages.length === 0 ? (

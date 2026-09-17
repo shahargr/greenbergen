@@ -52,6 +52,19 @@ export type FinContract = {
   stages: FinStage[];
   transactions: FinTx[];
   totals: { agreed: number; paid: number; retained: number; requested: number };
+  // A LOAN AND THE DAY THE HOUSE SELLS (migration 162). `terms` is the loan
+  // in one sentence; `exit` counts backwards from the house's two planned
+  // sale days - what is left to pay by each, what has been paid, the
+  // principal due. Null on every other contract, and null on a loan whose
+  // house has no plan yet.
+  loan?: { terms: string | null; exit: LoanExit | null } | null;
+};
+
+export type LoanExit = {
+  source: { project_id: string; project: string };
+  paid_so_far: number; paid_n: number;
+  payoff: number | null;
+  scenarios: Partial<Record<"good" | "bad", { date: string; payments_left: number; to_come: number; total_cost: number }>>;
 };
 
 export type FinUnassignedStage = {
