@@ -697,6 +697,16 @@
    is holding the rest" without every row needing the chip read. */
 .bucket-rows > a.gated, .tt-row.gated { border-left-color: var(--color-bid); }
 
+/* A STEP UNDER THE THING IT IS A STEP OF (Shahar, 2026-09-17: "add
+   hierarchy to tasks displayed on a project or parent task"). Indented,
+   with a rail down the left, so a process and its steps read as one thing
+   in every bucket that lists them. */
+.bucket-rows > a.kid { position: relative; padding-left: 34px; }
+.bucket-rows > a.kid::before {
+  content: ""; position: absolute; left: 19px; top: 0; bottom: 0; width: 2px; background: var(--color-divider);
+}
+.bucket-rows > a.kid .t { font-weight: 600; }
+
 /* The tick that makes a gate. Bigger than a default checkbox because it is
    pressed on a phone with a glove on, and it says what it does rather than
    making you remember. */

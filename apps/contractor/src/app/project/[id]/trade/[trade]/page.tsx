@@ -5,7 +5,7 @@ import { rpc } from "@shared/rpc";
 import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
-import { getBoard, groupTasks, money, runs } from "@/lib/board";
+import { getBoard, groupFamilies, money, runs } from "@/lib/board";
 import type { SiteWeek } from "../../SiteWeek";
 import { QuickTask } from "./QuickTask";
 import { Engage } from "./Engage";
@@ -75,7 +75,9 @@ export default async function TradePage({
   const landsOn = [...lives.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? id;
   const done = all.filter((t) => t.state === "closed");
   const shown = show === "done" ? done : show === "all" ? all : open;
-  const sections = groupTasks(shown, "timing");
+  // Nested first, then sectioned (groupFamilies): a process and its steps
+  // stay together, in the section the soonest step puts them in.
+  const sections = groupFamilies(shown, "timing");
   const today = new Date().toISOString().slice(0, 10);
 
   const row = (weekData?.trades ?? []).find((t) => t.trade === trade) ?? null;
@@ -214,8 +216,9 @@ export default async function TradePage({
                 <span className="n">{b.rows.length}</span>
               </div>
               <div className="bucket-rows">
-                {b.rows.map((t) => (
-                  <Link key={t.id} className={t.is_gate ? "gated" : undefined}
+                {b.rows.map(({ t, depth }) => (
+                  <Link key={t.id} className={[t.is_gate ? "gated" : null, depth > 0 ? "kid" : null].filter(Boolean).join(" ") || undefined}
+                    style={depth > 1 ? { paddingLeft: 18 + depth * 16 } : undefined}
                     href={`/task/${t.id}?back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}>
                     <span className="grow" style={{ minWidth: 0 }}>
                       <span className="t">

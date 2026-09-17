@@ -6,7 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { TradeIllustration } from "@shared/Illustrations";
-import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupTasks, groupWork, money, nest, openBeneath, readMoney, runs, seatLabel, topLevels, type Group, type GroupKey, type Node, type Seat, type Task, type TaskMoney } from "@/lib/board";
+import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupFamilies, groupWork, money, nest, openBeneath, readMoney, runs, seatLabel, topLevels, type Group, type GroupKey, type Node, type Seat, type Task, type TaskMoney, type Twig } from "@/lib/board";
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
 import { PropertyCard } from "@/components/PropertyCard";
 import { ProjectTypeIcon } from "@/components/ProjectTypeIcon";
@@ -348,7 +348,7 @@ export default async function ProjectPage({
   // hierarchy so i can see everything Frame related... and under each
   // category allow me to log a payment") - see groupWork.
   const taskMoney = readMoney(moneyData);
-  const sections = panel === "tasks" && by === "timing" ? groupTasks(found, by) : [];
+  const sections = panel === "tasks" && by === "timing" ? groupFamilies(found, by) : [];
   const groups = panel === "tasks" && by !== "timing" ? groupWork(found, by, taskMoney) : [];
 
   // Links that keep the rest of the view: changing the panel must not throw
@@ -1204,11 +1204,15 @@ function Panel({ href, on, n, label, sub, tone }: {
 // it sits. They stay DIRECT children of .bucket-rows - the hairlines and the
 // padding come from `> a` - so the indent is a class on the row, not a
 // wrapper around it.
+// The TIMING sections arrive already nested (groupFamilies, 2026-09-17: a
+// process and its steps stay in one section, the soonest step's); the
+// nested arrangements still hand a flat list to nest() here.
 function TaskRows({ rows, row }: {
-  rows: Task[];
+  rows: Task[] | Twig[];
   row: (t: Task, depth?: number) => React.ReactNode;
 }) {
-  return <div className="bucket-rows">{nest(rows).map(({ t, depth }) => row(t, depth))}</div>;
+  const twigs: Twig[] = rows.length > 0 && "depth" in rows[0]! ? (rows as Twig[]) : nest(rows as Task[]);
+  return <div className="bucket-rows">{twigs.map(({ t, depth }) => row(t, depth))}</div>;
 }
 
 function GroupBlock({ g, depth, row, payHref, canLog }: {

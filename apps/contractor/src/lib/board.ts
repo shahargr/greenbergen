@@ -498,6 +498,45 @@ export function nest(rows: Task[]): Twig[] {
 // parent. Same shape, no hierarchy claimed.
 export const flat = (rows: Task[]): Twig[] => rows.map((t) => ({ t, depth: 0 }));
 
+// A FAMILY STAYS TOGETHER ACROSS THE SECTIONS.
+//
+// Shahar (2026-09-17), on the Finance list: "add hierarchy to tasks
+// displayed on a project or parent task. is monthly under construction
+// loan? i ask as i cannot delete the construction loan task." It was - but
+// the list had put the process under "No date yet" and its monthly payment
+// under "Later", two sections apart, because sections were cut BEFORE the
+// steps were put under their parents. A parent with no date of its own and
+// a step due October 1 is due October 1.
+//
+// So: nest first, then section. Each root and everything under it is one
+// family; the family sits in the section its SOONEST open date puts it in
+// (a family with nothing dated stays in "No date yet"), and its rows are
+// handed back nested, depth and all.
+export type FamilySection = Omit<Section, "rows"> & { rows: Twig[]; families: number };
+
+export function groupFamilies(tasks: Task[], by: GroupKey, now = new Date()): FamilySection[] {
+  const twigs = nest(tasks);
+  const families: { root: Task; twigs: Twig[] }[] = [];
+  for (const tw of twigs) {
+    if (tw.depth === 0 || families.length === 0) families.push({ root: tw.t, twigs: [tw] });
+    else families[families.length - 1]!.twigs.push(tw);
+  }
+  const byRoot = new Map(families.map((f) => [f.root.id, f]));
+  // The root stands for the family when the sections are cut: it borrows
+  // the family's soonest open date, and - where its own state is open -
+  // stays open. A closed parent with open steps is a data smell the gate
+  // forbids, so it does not arise.
+  const proxies: Task[] = families.map((f) => {
+    const dates = f.twigs.map((x) => x.t).filter((t) => t.state === "open" && !!t.target_date).map((t) => t.target_date!).sort();
+    return { ...f.root, target_date: dates[0] ?? f.root.target_date };
+  });
+  return groupTasks(proxies, by, now).map((s) => ({
+    ...s,
+    families: s.rows.length,
+    rows: s.rows.flatMap((p) => byRoot.get(p.id)?.twigs ?? []),
+  }));
+}
+
 export function groupTasks(tasks: Task[], by: GroupKey, now = new Date()): Section[] {
   const today = now.toISOString().slice(0, 10);
   const isLate = (t: Task) => t.state === "open" && !!t.target_date && t.target_date < today;
