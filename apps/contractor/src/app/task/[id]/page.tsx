@@ -352,13 +352,12 @@ export default async function TaskPage({
         </span>
       } />
 
-      {/* SAVE, UNDO, EXIT - kept in view. Shahar (2026-09-16): "any change made
-          in the form should check how save button shows, helping me understand
-          if anything requires a save. undo shows only if save was clicked on."
-          The screen is long enough that both questions you have while scrolling
-          it - have I changed anything, how do I get out - needed a journey. */}
+      {/* SAVE AND UNDO, kept in view - and only in view when there is
+          something to save or take back (Shahar, 2026-09-17: "Hide both Save
+          and Nothing to save unless there are changes to the form"). Exit is
+          gone: it went where the back arrow goes. */}
       {!closed && t.can_edit && (
-        <TaskBar formId="task-form" taskId={id} exitHref={to} justSaved={!!ok} />
+        <TaskBar formId="task-form" taskId={id} justSaved={!!ok} />
       )}
       <div className="body">
         {error && <Notice kind="error" title="Not saved.">{error}</Notice>}
@@ -382,29 +381,18 @@ export default async function TaskPage({
           </div>
         )}
 
-        {/* THE TASK LINE. Shahar (2026-09-13): "Task line, below expanded
-            info about the task." */}
-        <div className="hero">
-          {/* THE NAME, AND TWO WORDS ON ITS RIGHT. Shahar (2026-09-17): the
-              gear and the i "are really small... looking inside these two
-              icons, i cannot seem to find any new capability there, so maybe
-              remove them." Gone. What the gear held that still needs a door -
-              renaming, and what done looks like - is one word, "Edit"; what
-              he asked for next - "allow me to remove [tasks], but confirm
-              before deletion is done" - is the other. The i showed a sentence
-              that now simply sits under the name when it exists. */}
-          <div className="task-title">
-            <h1 style={{ fontSize: 24, margin: 0 }}>{t.action}</h1>
-            {!closed && t.can_edit && (
-              <span className="task-acts">
-                <Link href={setup ? flag({}) : flag({ setup: "1" })}
-                  className={`task-act${setup ? " on" : ""}`}>{setup ? "Done editing" : "Edit"}</Link>
-                <Link href={remove ? flag({}) : flag({ remove: "1" })}
-                  className={`task-act danger${remove ? " on" : ""}`}>{remove ? "Keep it" : "Remove"}</Link>
-              </span>
-            )}
-          </div>
-          <p className="lead">
+        {/* THE TASK LINE - without the name. Shahar (2026-09-17): "the second
+            panel 'Keep the ...' is already listed on top, you can remove the
+            2nd panel text, keeping the task creator, priority and date." The
+            name is the crumb now, said once; what stays is the line under it -
+            who holds it, how much it matters, when it is due - and the two
+            words on its right: Edit, Remove. They replaced a gear and an i he
+            found "really small" and empty of anything new; what the gear held
+            that still needs a door is "Edit", what he asked for next -
+            "allow me to remove [tasks], but confirm before deletion is done"
+            - is "Remove". */}
+        <div className="hero task-lead">
+          <p className="lead grow">
             {[
               t.holder?.name
                 ? (t.holder.kind === "assistant" ? `${t.holder.name} · assistant` : t.holder.name)
@@ -413,14 +401,25 @@ export default async function TaskPage({
               t.target_date ? `${late ? "was due" : "due"} ${shortDate(t.target_date)}` : "no date",
               closed ? t.status : null,
             ].filter(Boolean).join(" · ")}
+            {/* Who opened it and when, where the opener was a person rather
+                than a blueprint or an import - the "creator" he asked to
+                keep. created_by is a free-text name (rulebook: the database
+                carries the words), so a system: prefix is the tell. */}
+            {t.created_by && !/^(system:|log_import)/.test(t.created_by) && (
+              <span className="opened">
+                opened by {t.created_by}{t.created_at ? ` · ${shortDate(t.created_at.slice(0, 10))}` : ""}
+              </span>
+            )}
           </p>
+          {!closed && t.can_edit && (
+            <span className="task-acts">
+              <Link href={setup ? flag({}) : flag({ setup: "1" })}
+                className={`task-act${setup ? " on" : ""}`}>{setup ? "Done editing" : "Edit"}</Link>
+              <Link href={remove ? flag({}) : flag({ remove: "1" })}
+                className={`task-act danger${remove ? " on" : ""}`}>{remove ? "Keep it" : "Remove"}</Link>
+            </span>
+          )}
         </div>
-
-        {t.project_id && (
-          <p className="small text-muted" style={{ margin: "-4px 0 0" }}>
-            On <Link href={`/project/${t.project_id}`}>{t.project}</Link>.
-          </p>
-        )}
 
         {/* What done looks like, said where the name is, when somebody wrote
             it. It used to hide behind the i. */}
@@ -784,12 +783,25 @@ export default async function TaskPage({
                 </Row>
               )}
 
-              {/* A div, not a label: Evidence carries buttons, and a click on
-                  a button inside a label goes to the label's control. */}
+              {/* LOG PROGRESS TAKES THE WHOLE WIDTH. Shahar (2026-09-17):
+                  "show the text above the window, but make the window all
+                  the width with 3 buttons under." A box you write a
+                  paragraph in was sharing its row with its own label; the
+                  label now sits above, and the box and the three ways to
+                  attach proof under it - camera, file or image, voice - run
+                  edge to edge. A div, not a label: Evidence carries buttons,
+                  and a click on a button inside a label goes to the label's
+                  control. */}
               {!setup && (
-                <Row label="Log progress" hint="posts to the record">
-                  <NoteBox projectId={t.project_id} />
-                </Row>
+                <div className="task-row stacked">
+                  <span className="task-row-label">
+                    Log progress
+                    <span className="text-muted" style={{ display: "inline", fontWeight: 400 }}> · posts to the record</span>
+                  </span>
+                  <div className="task-row-value">
+                    <NoteBox projectId={t.project_id} />
+                  </div>
+                </div>
               )}
 
               {t.can_edit && (
@@ -867,7 +879,9 @@ export default async function TaskPage({
                 correctly and can be removed." He was right on both. Marking
                 complete is Stage → Completed, which goes through the same
                 gate the button used to, so a second button only offered a
-                second way to do one thing. */}
+                second way to do one thing. Cancel changes stays and the
+                bar's Exit went (2026-09-17): the two were one thing, and
+                this is the one that says what it does to the form. */}
             <div className="row" style={{ gap: 8 }}>
               <button name="do" value="save" className="btn btn-primary grow">Commit updates</button>
               <Link href={`/task/${t.id}?back=${encodeURIComponent(to)}`} className="btn btn-ghost grow">Cancel changes</Link>

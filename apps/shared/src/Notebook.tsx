@@ -109,6 +109,9 @@ export function Notebook() {
   const [step, setStep] = useState("");
   const [jobTouched, setJobTouched] = useState(false);
   const [files, setFiles] = useState<Attached[]>([]);
+  // Files taken before a job was picked, still in the browser (Evidence
+  // holds them and sends them up when the job arrives).
+  const [heldN, setHeldN] = useState(0);
   const [book, setBook] = useState<Book | null>(null);
   const [targets, setTargets] = useState<Targets>({ projects: [], tasks: [] });
   const [busy, setBusy] = useState(false);
@@ -374,17 +377,19 @@ export function Notebook() {
                   </label>
                 )}
 
-                {/* A PHOTO, A FILE, A VOICE NOTE - and a drop zone on a
-                    computer. Evidence already does all four; it needs a job
-                    because record_project_file requires can_edit_project and
-                    stores under that job's media. */}
-                {job ? (
-                  <Evidence projectId={job} caption="Capture" folder="notes"
-                    accept="image/*,video/*,audio/*,application/pdf"
-                    onChange={setFiles} />
-                ) : (
-                  <p className="nb-at">Pick a job and you can add a photo, a file or a voice note.</p>
-                )}
+                {/* CAMERA, FILE OR IMAGE, VOICE - the same three as on a
+                    task (Shahar, 2026-09-17: "On the todo we are missing the
+                    same evidence logic as we have here"). They used to appear
+                    only once a job was picked, because record_project_file
+                    requires can_edit_project and stores under that job's
+                    media. Now Evidence takes the file first and holds it in
+                    the browser; the moment a job is chosen it goes up under
+                    that job. What it cannot do is keep a file with NO job -
+                    there is nowhere in the store for it - so a held file
+                    turns "Hold it for tonight" into a request for the job. */}
+                <Evidence projectId={job || null} caption="Capture" folder="notes"
+                  accept="image/*,video/*,audio/*,application/pdf"
+                  onChange={setFiles} onHeld={setHeldN} />
 
                 <p className="nb-at">
                   {tab === "note"
@@ -393,13 +398,15 @@ export function Notebook() {
                     : job
                       ? <>Goes straight on the board{here.trade ? <> under <strong>{here.trade}</strong></> : null}
                         {tab === "order" ? " as something to arrive" : ""}. The people on the job can see it.</>
-                      : <>No job yet, so it is held in your notebook and the end-of-day sweep asks which one.</>}
+                      : heldN > 0
+                        ? <>Pick a job above and {heldN === 1 ? "the file goes" : "the files go"} on it with this. Without a job there is nowhere to keep {heldN === 1 ? "it" : "them"}.</>
+                        : <>No job yet, so it is held in your notebook and the end-of-day sweep asks which one.</>}
                 </p>
 
                 <button type="button" className="btn btn-primary"
-                  disabled={(!body.trim() && ids.length === 0) || busy}
+                  disabled={(!body.trim() && ids.length === 0) || busy || (!job && heldN > 0)}
                   onClick={() => { void keep(); }}>
-                  {busy ? "…" : tab !== "note" && !job ? "Hold it for tonight" : kind.verb}
+                  {busy ? "…" : !job && heldN > 0 ? "Pick a job first" : tab !== "note" && !job ? "Hold it for tonight" : kind.verb}
                 </button>
                 {said && <p className="nb-ok">{said} Still open — keep going.</p>}
                 {err && <p className="nb-err">{err}</p>}

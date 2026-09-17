@@ -2,17 +2,20 @@
    system itself (tokens, components, layout) is
    apps/shared/src/styles/warm-ink.css, shared with the homeowner app. */
 
-/* THE TASK SCREEN'S HEADING ROW. The name, and on its right - on the name's
-   first line, whatever the name wraps to - two words: Edit, Remove. They
-   replaced a gear and an i that Shahar (2026-09-17) found "really small"
-   and empty of anything new. Words, because a word is bigger than a glyph
-   and says what it does. */
-.task-title {
+/* THE TASK SCREEN'S LEAD ROW. The name lives in the bar's crumb (Shahar,
+   2026-09-17: "the second panel is already listed on top, you can remove the
+   2nd panel text, keeping the task creator, priority and date"), so this row
+   is the line under it - who holds it · priority · due, and who opened it -
+   with two words on its right: Edit, Remove. They replaced a gear and an i
+   he found "really small" and empty of anything new. Words, because a word
+   is bigger than a glyph and says what it does. */
+.task-lead {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
 }
-.task-title h1 { flex: 1 1 auto; min-width: 0; }
+.task-lead .lead { flex: 1 1 auto; min-width: 0; line-height: 1.4; }
+.task-lead .lead .opened { display: block; font-size: 12.5px; margin-top: 2px; }
 .task-acts { flex: 0 0 auto; display: inline-flex; gap: 6px; margin-top: 1px; }
 
 .task-act {
@@ -69,6 +72,12 @@
   .task-row { grid-template-columns: 1fr; gap: var(--space-1); }
   .task-row-label { padding-top: 0; }
 }
+
+/* LABEL ABOVE, FULL WIDTH BELOW (Shahar, 2026-09-17, on Log progress: "show
+   the text above the window, but make the window all the width"). A box you
+   write a paragraph in should not share its row with its own name. */
+.task-row.stacked { grid-template-columns: 1fr; gap: var(--space-1); }
+.task-row.stacked .task-row-label { padding-top: 0; }
 
 /* THREE ACROSS, ON EVERY SCREEN (Shahar, 2026-09-17): Stage · Priority ·
    Completion target, and Assigned to · Payment · Steps. Each cell wears its

@@ -1105,20 +1105,29 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 /* DROP IT STRAIGHT ON. Shahar (2026-09-15): "allow to drop an image here." At
    a desk the file is already under the cursor - a drawing, a quote, a
    photograph somebody emailed - and a file picker to find what you are
-   already holding is a step for nothing. Desks only: on a phone this is a
-   rectangle that does nothing, taking the room the buttons need. */
-.drop-zone {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 16px 12px; border-radius: var(--radius-tile);
-  border: 1.5px dashed var(--color-divider-strong);
-  color: var(--muted); font-size: 12.5px; font-weight: 600;
-  transition: border-color .12s ease, background .12s ease, color .12s ease;
-}
-.drop-zone svg { flex: none; }
-/* Lit up the moment something is over the whole block, not just this box -
-   the target is everything, the box is only where it is announced. */
-.drop-zone.on { border-color: var(--color-text); border-style: solid; background: var(--color-soft); color: var(--color-text); }
+   already holding is a step for nothing. The whole evidence box is the
+   target; the File / image button is where it is announced (2026-09-17:
+   "File/Image (attach/drop)") - it goes dashed and lit while something is
+   over the box, and the other two step back. */
 .stack.dropping .proof-btn { opacity: .5; }
+.stack.dropping .proof-btn.drop-on {
+  opacity: 1; border-style: dashed; border-color: var(--color-text);
+  background: var(--color-soft); color: var(--color-text);
+}
+.stack.dropping .proof-btn.drop-on svg { color: var(--color-text); }
+
+/* THE WEBCAM, AT A DESK. A phone's Camera button opens the camera app; a
+   laptop's opens this: the live view and one button to take the frame. */
+.cam-panel { display: grid; gap: 8px; }
+.cam-panel video {
+  width: 100%; max-height: 320px; border-radius: var(--radius-tile);
+  background: #000; object-fit: cover; display: block;
+}
+
+/* A file taken before there was a job to file it under: shown like the
+   rest, tagged, and sent up the moment a job is picked. */
+.attached.held { opacity: .85; }
+.attached.held .attached-head .tag { flex: none; }
 
 /* WHAT IS ATTACHED TO THE TASK (Shahar, 2026-09-15: "when it was created a
    photo was uploaded. why don't you show it here on the task?"). Two across,
@@ -1306,21 +1315,17 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
    grow. */
 .nb-capture { min-height: 340px; align-content: start; }
 .nb-capture .nb-text { min-height: 84px; }
-/* Evidence brings its own spacing; inside the sheet it is one more row. */
-.nb-capture .drop-zone { margin: 0; }
 
 /* THREE ACROSS (Shahar, 2026-09-16: "The three icons for adding evidence must
    fit one line"). Icon above a short word, so the cell can be narrow without
    the label clipping - which is what a horizontal icon+text button does first
    when there is no room. */
 .proof-row.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.proof-row.three .proof-btn,
-.proof-row.three .drop-zone {
+.proof-row.three .proof-btn {
   flex-direction: column; justify-content: center; gap: 4px;
   min-height: 62px; padding: 8px 6px; margin: 0; width: auto; text-align: center;
 }
-.proof-row.three .proof-btn span,
-.proof-row.three .drop-zone span {
+.proof-row.three .proof-btn span {
   font-size: 11.5px; font-weight: 700; line-height: 1.15;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
 }

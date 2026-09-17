@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 
-// SAVE, UNDO, EXIT - AND A SAVE BUTTON THAT ADMITS WHETHER IT HAS ANYTHING TO DO.
+// SAVE AND UNDO - A BAR THAT IS ONLY THERE WHEN IT HAS SOMETHING TO SAY.
 //
 // Shahar (2026-09-16): "Keep a top bar with : save, undo, exit. any change made
 // in the form should check how save button shows, helping me understand if
 // anything requires a save. undo shows only if save was clicked on."
 //
+// And then (2026-09-17): "Hide both Save and Nothing to save unless there are
+// changes to the form and than you can show save. Is there a difference
+// between < arrow next to New build and the button Exit? If no, let's remove
+// the button Exit." There was none - both went to the same place - so Exit is
+// gone, and a bar whose only remaining job is Save has nothing to show until
+// there is something to save. It appears, sticky, the moment the form differs
+// from how it arrived, and goes away again when it does not.
+//
 // The task screen is long - stage, priority, who holds it, where it stands,
-// money, evidence - and the only Save was at the bottom of it. So the two
-// questions you actually have while scrolling, "have I changed anything" and
-// "how do I get out", both needed a journey to answer.
+// money, evidence - and the only Save was at the bottom of it. "Have I
+// changed anything" is the question you have while scrolling; the bar
+// appearing IS the answer.
 //
 // WHAT DIRTY MEANS HERE. Not "has anything been typed" but "is the form
 // different from how it arrived": type a word and delete it again and the
@@ -77,10 +84,9 @@ export function useFormDirty(formId: string) {
   return { dirty, was };
 }
 
-export function TaskBar({ formId, taskId, exitHref, justSaved }: {
+export function TaskBar({ formId, taskId, justSaved }: {
   formId: string;
   taskId: string;
-  exitHref: string;
   /** The page came back from a save, so an undo has something to undo. */
   justSaved: boolean;
 }) {
@@ -133,10 +139,12 @@ export function TaskBar({ formId, taskId, exitHref, justSaved }: {
     form.requestSubmit();
   }
 
+  // Nothing to say, nothing shown. An empty sticky strip with a border is a
+  // question mark, not a quiet bar.
+  if (!dirty && !canUndo) return null;
+
   return (
     <div className="task-bar">
-      <Link href={exitHref} className="tb-btn">Exit</Link>
-
       {/* UNDO IS NOT ALWAYS THERE, which is the point: a button that is always
           available teaches you nothing, and this one is a statement that a save
           just happened and can still be taken back. */}
@@ -146,14 +154,15 @@ export function TaskBar({ formId, taskId, exitHref, justSaved }: {
 
       <span className="grow" />
 
-      <span className={`tb-state${dirty ? " on" : ""}`}>
-        {dirty ? "Unsaved changes" : "Nothing to save"}
-      </span>
-      <button type="submit" form={formId} name="do" value="save"
-        className={`tb-btn save${dirty ? " on" : ""}`}
-        onClick={remember} disabled={!dirty}>
-        Save
-      </button>
+      {dirty && (
+        <>
+          <span className="tb-state on">Unsaved changes</span>
+          <button type="submit" form={formId} name="do" value="save"
+            className="tb-btn save on" onClick={remember}>
+            Save
+          </button>
+        </>
+      )}
     </div>
   );
 }
