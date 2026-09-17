@@ -689,7 +689,7 @@ export default async function ProjectPage({
             as a chip with one move on it, which is the other half of what he
             asked for ("you need to start an engagement"). */}
         {!isFolder && (
-          <TradeSpine projectId={id} spine={spine} manages={manages}
+          <TradeSpine projectId={id} spine={spine} manages={manages} mode="panels"
             back={keepAs(`/project/${id}`)} allTasksHref={allTasksHref} />
         )}
 

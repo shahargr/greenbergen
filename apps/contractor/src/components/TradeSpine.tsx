@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TradeIllustration } from "@shared/Illustrations";
 
-// A JOB IS ITS TRADES, IN ORDER, ON ONE SCREEN.
+// A JOB IS ITS TRADES, IN ORDER, ON ONE SCREEN - GROUPED INTO PANELS.
 //
 // Shahar (2026-09-15): "I would like to start by seeing all the trades, the
 // panels for all the different trades and what is currently being worked
@@ -12,19 +12,23 @@ import { TradeIllustration } from "@shared/Illustrations";
 // 4 by 4 panels, allowing to present 16 trades on one screen. color will help
 // me see which are active, which has not started, and which requires a bid."
 //
-// He is right, and the reason is worth writing down: a row is the right shape
-// for a list you READ and the wrong shape for a board you SCAN. Twenty-three
-// trades as rows is a page and a half of scrolling to answer "where is this
-// house". Twenty-three trades as a four-wide grid is one screen, and the
-// answer arrives before you have read a single word - because the state is
-// carried by colour and only confirmed by the label.
+// And then (2026-09-17), at twenty-seven tiles: "can we do one category
+// finance & insurance. similar, we can club all rough trades under rough,
+// and finish trades under finish. this will reduce the number of panels
+// significantly."
 //
-// So: no stage headings breaking the grid into nine stubby rows. The sequence
-// is the ORDER, which is what a sequence is; the stage is an eyebrow on each
-// tile, so every tile still says where in the build it sits.
+// So the project screen shows PANELS - Finance & insurance, Inspections,
+// Site, Rough, Finish, Outdoor, Suppliers, Running the job - one per group of
+// stages (trade_stages.panel, migration 168), in build order, each carrying
+// what is on the job inside it. A panel opens to its trades as the four-wide
+// TILES the first version drew, and a tile opens the trade. The state is
+// still carried by colour first and confirmed by the label second.
 export type SpineTrade = {
   trade: string;
   stage: string | null;
+  /** The panel the stage sits in (168), and where that panel falls in the build. */
+  panel?: string | null;
+  panel_order?: number | null;
   art: string | null;
   open: number;
   late: number;
@@ -69,6 +73,12 @@ const SAY: Record<SpineTrade["state"], string> = {
   idle: "not started",
 };
 
+// The state a PANEL wears is the loudest state inside it: work under way
+// beats a bid out beats loose work beats an appointment beats done beats
+// nothing started. A panel with a plumber on site is green whatever the
+// roofer is doing.
+const LOUD: SpineTrade["state"][] = ["working", "hiring", "loose", "appointed", "done", "idle"];
+
 // A STAGE NAME HAS TO FIT IN EIGHTY PIXELS OR IT IS NOT A LABEL.
 //
 // The first cut put the whole stage on the tile and every one of them
@@ -81,13 +91,18 @@ const SAY: Record<SpineTrade["state"], string> = {
 // name is on the tile's tooltip for anybody who wants it.
 const shortStage = (stage: string) => stage.split(/[\s&]+/)[0];
 
-export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
+export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode = "panels", only = null }: {
   projectId: string;
   spine: Spine;
   /** Whether this person runs the job - only they are offered the idle trades. */
   manages: boolean;
   back: string;
   allTasksHref: string;
+  /** panels = one card per group of stages (the project screen); tiles = one
+   *  tile per trade (a panel's own screen, or the old whole-board view). */
+  mode?: "panels" | "tiles";
+  /** In tiles mode, show only the trades of this panel. */
+  only?: string | null;
 }) {
   // EVERY TILE IS A DOOR.
   //
@@ -103,12 +118,14 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
   // create the work. Every tile is a link now, whatever state it is in, and
   // starting the engagement moved inside where there is room to offer both
   // ways of doing it.
-  const live = spine.trades.filter((t) => t.state !== "idle");
-  const idle = manages ? spine.trades.filter((t) => t.state === "idle") : [];
-  if (live.length === 0 && idle.length === 0 && spine.untagged.open === 0) return null;
+  const panelOf = (t: SpineTrade) => t.panel ?? t.stage ?? "Running the job";
+  const inScope = only ? spine.trades.filter((t) => panelOf(t) === only) : spine.trades;
+  const live = inScope.filter((t) => t.state !== "idle");
+  const idle = manages ? inScope.filter((t) => t.state === "idle") : [];
+  if (live.length === 0 && idle.length === 0 && (only || spine.untagged.open === 0)) return null;
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const totalLate = live.reduce((n, t) => n + t.late, 0) + spine.untagged.late;
+  const totalLate = live.reduce((n, t) => n + t.late, 0) + (only ? 0 : spine.untagged.late);
   const count = (k: SpineTrade["state"]) => live.filter((t) => t.state === k).length;
 
   const face = (t: SpineTrade) => (
@@ -137,11 +154,58 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
     </Link>
   );
 
+  // THE PANELS. Each group of stages, in build order, wearing the loudest
+  // state inside it, its open and late counts, and the trades in it by name -
+  // the ones with something going on first.
+  type Panel = { name: string; order: number; trades: SpineTrade[] };
+  const panels: Panel[] = [];
+  if (mode === "panels") {
+    const by = new Map<string, Panel>();
+    for (const t of [...live, ...idle]) {
+      const name = panelOf(t);
+      const p = by.get(name) ?? { name, order: t.panel_order ?? 999, trades: [] };
+      p.order = Math.min(p.order, t.panel_order ?? 999);
+      p.trades.push(t);
+      by.set(name, p);
+    }
+    panels.push(...[...by.values()].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)));
+  }
+
+  const card = (p: Panel) => {
+    const open = p.trades.reduce((n, t) => n + t.open, 0);
+    const late = p.trades.reduce((n, t) => n + t.late, 0);
+    const state = LOUD.find((k) => p.trades.some((t) => t.state === k)) ?? "idle";
+    const active = p.trades.filter((t) => t.state !== "idle");
+    const named = (active.length > 0 ? active : p.trades).slice(0, 3).map((t) => t.trade);
+    const more = p.trades.length - named.length;
+    const who = [...new Set(active.map((t) => t.who).filter(Boolean))] as string[];
+    return (
+      <Link key={p.name} className={`sp ${state}${late > 0 ? " late" : ""}`}
+        href={`/project/${projectId}/group/${encodeURIComponent(p.name)}?back=${encodeURIComponent(back)}`}
+        title={[p.name, ...p.trades.map((t) => `${t.trade}: ${SAY[t.state]}`)].join(" · ")}>
+        <span className="h">
+          <span className="t">{p.name}</span>
+          {late > 0 && <span className="pip" title={`${late} past its date`}>{late}</span>}
+        </span>
+        <span className="f">
+          {open > 0 && <span className="n">{open}</span>}
+          <span className="say">
+            {open > 0 ? `open · ` : ""}{active.length > 0
+              ? `${active.length} of ${p.trades.length} ${p.trades.length === 1 ? "trade" : "trades"} ${SAY[state]}`
+              : `${p.trades.length} ${p.trades.length === 1 ? "trade" : "trades"} not started`}
+          </span>
+        </span>
+        <span className="m">{named.join(" · ")}{more > 0 ? ` · +${more}` : ""}</span>
+        {who.length > 0 && <span className="w">{who.slice(0, 2).join(", ")}{who.length > 2 ? ` +${who.length - 2}` : ""}</span>}
+      </Link>
+    );
+  };
+
   return (
     <section className="stack" style={{ gap: 10 }}>
       <div className="between" style={{ alignItems: "baseline", gap: 10 }}>
         <div className="divider-label" style={{ padding: 0 }}>
-          The trades · {spine.trades.length}
+          {mode === "panels" ? `The work · ${inScope.length} trades in ${panels.length} panels` : `The trades · ${inScope.length}`}
           {totalLate > 0 && (
             <span style={{ fontWeight: 700, color: "var(--color-status)" }}> · {totalLate} late</span>
           )}
@@ -161,16 +225,20 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
         {idle.length > 0 && <span><i className="sw idle" />not started · {idle.length}</span>}
       </div>
 
-      <div className="spine-grid">
-        {live.map(tile)}
-        {/* The trades the job needs and nobody has started, in their own place
-            in the sequence rather than exiled to a strip below it - because
-            "the plumber has not been called yet" is a fact about THIS point in
-            the build and belongs where the plumber belongs. */}
-        {idle.map(tile)}
-      </div>
+      {mode === "panels" ? (
+        <div className="sp-grid">{panels.map(card)}</div>
+      ) : (
+        <div className="spine-grid">
+          {live.map(tile)}
+          {/* The trades the job needs and nobody has started, in their own place
+              in the sequence rather than exiled to a strip below it - because
+              "the plumber has not been called yet" is a fact about THIS point in
+              the build and belongs where the plumber belongs. */}
+          {idle.map(tile)}
+        </div>
+      )}
 
-      {manages && idle.length > 0 && (
+      {manages && idle.length > 0 && mode === "tiles" && (
         <p className="tiny text-muted" style={{ margin: 0 }}>
           A dashed tile is a trade this job needs and nobody has started. Open it to log the first
           task, run a bid, or award it straight to somebody you have already picked.
@@ -179,7 +247,7 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref }: {
 
       {/* Whatever the spine could not place. Never folded into a trade that
           does not own it, never hidden - counted, named, and one tap away. */}
-      {spine.untagged.open > 0 && (
+      {!only && spine.untagged.open > 0 && (
         <Link href={allTasksHref} className="home-row">
           <span className="grow" style={{ minWidth: 0 }}>
             <span className="t">Not filed under a trade</span>

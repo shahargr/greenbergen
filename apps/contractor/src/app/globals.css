@@ -508,6 +508,43 @@
    order, and the state arrives as colour before a word has been read. Three
    columns below 380px, because four 70px tiles is not a grid, it is a
    rumour. */
+/* THE PANELS (migration 168; Shahar, 2026-09-17: "club all rough trades
+   under rough, and finish trades under finish. this will reduce the number
+   of panels significantly"). One card per group of stages, two across on a
+   phone, four on a tablet, wearing the loudest state inside it in the same
+   colours as the tiles. */
+.sp-grid { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 768px) { .sp-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.sp {
+  position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  padding: 10px 12px 11px; text-decoration: none; color: inherit;
+  border-radius: var(--radius-tile); border: 1.5px solid var(--color-divider-strong);
+  background: var(--color-surface);
+}
+.sp:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.sp .h { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+.sp .t { font-family: var(--font-heading); font-weight: 800; font-size: 14.5px; letter-spacing: -0.01em; line-height: 1.2; min-width: 0; }
+.sp .f { display: flex; align-items: baseline; gap: 6px; min-width: 0; margin-top: 2px; }
+.sp .f .n { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.sp .f .say { font-size: 11px; font-weight: 700; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp .m { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 3px; }
+.sp .w { font-size: 11px; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp .pip {
+  flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-pill);
+  background: var(--color-status); color: #fff; font-size: 10.5px; font-weight: 800; line-height: 18px; text-align: center;
+}
+.sp.working { background: var(--color-ok-soft); border-color: color-mix(in srgb, var(--color-ok) 34%, transparent); }
+.sp.working .f .n, .sp.working .f .say { color: var(--color-ok); }
+.sp.hiring { background: var(--color-bid-soft); border-color: color-mix(in srgb, var(--color-bid) 38%, transparent); }
+.sp.hiring .f .n, .sp.hiring .f .say { color: var(--color-bid); }
+.sp.appointed { border-color: color-mix(in srgb, var(--color-ok) 60%, transparent); }
+.sp.appointed .f .say { color: var(--color-ok); }
+.sp.done .t { color: var(--muted); }
+.sp.done .f .say { color: var(--color-ok); }
+.sp.idle { background: var(--color-soft-2); border-style: dashed; }
+.sp.idle .t { color: var(--muted); }
+.sp:hover { border-color: var(--color-text); }
+
 .spine-grid {
   display: grid; gap: 6px; grid-template-columns: repeat(4, minmax(0, 1fr));
 }
