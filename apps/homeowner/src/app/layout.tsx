@@ -5,6 +5,7 @@ import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
 import { NavOrigin } from "@shared/BackButton";
 import { Notebook } from "@shared/Notebook";
+import { BuildState } from "@shared/BuildState";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
@@ -37,6 +38,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               their author and hide themselves on the doors where there is
               nothing yet to take a note about. */}
           <Notebook />
+          {/* IS THIS THE LATEST CODE. Nothing at all unless this deployment
+              is behind main AND you are the one who can do something about
+              it - a homeowner cannot make a deployment happen. */}
+          <BuildState running={process.env.VERCEL_GIT_COMMIT_SHA} />
         </div>
         {/* Vercel Web Analytics; records once switched on for the project. */}
         <Analytics />

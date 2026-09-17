@@ -5,6 +5,7 @@ import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
 import { NavOrigin } from "@shared/BackButton";
 import { Notebook } from "@shared/Notebook";
+import { BuildState } from "@shared/BuildState";
 import { Analytics } from "@vercel/analytics/next";
 
 // The same shell as the homeowner app, deliberately. A contractor and a
@@ -40,6 +41,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               their author and hide themselves on the doors where there is
               nothing yet to take a note about. */}
           <Notebook payPath="/project/{job}/pay" />
+          {/* IS THIS THE LATEST CODE. Nothing at all unless this deployment
+              is behind main AND you are the one who can do something about
+              it (Shahar, 2026-09-17: "add to every screen if vercel code is
+              the latest by comparing versions running to the last one
+              available on git"). */}
+          <BuildState running={process.env.VERCEL_GIT_COMMIT_SHA} />
         </div>
         {/* Vercel Web Analytics; records once switched on for the project. */}
         <Analytics />
