@@ -83,7 +83,17 @@ export default async function BidPackagePage({
     w.step("compare", () => rpc<Cmp>(supabase, "portal_bid_compare", { p_pkg: pkgId })),
   ]);
   const p = (data ?? null) as Pkg | null;
-  if (!p || p.project_id !== id) notFound();
+  // A ROOM IS OPENED FROM WHEREVER YOU ARE STANDING. This used to demand
+  // p.project_id === id and 404ed on the true case: the bid board opened on
+  // 55 Walnut Drive (the house) lists the rooms of the New build beneath it,
+  // because portal_bid_board reads the whole family - so every link out of it
+  // named the house and every room belonged to the job. Membership already
+  // reaches downward through projects.parent_project_id, and
+  // portal_bid_package returns nothing at all to somebody who is not a member
+  // of the package's own project, so the function is the boundary and the
+  // path is just a path. Requiring them to be the same project was a guess
+  // about where you would be, not a rule.
+  if (!p) notFound();
   const cmp = (cmpData ?? null) as Cmp | null;
 
   // Plans and photos bidders price from, each behind a signed URL.
@@ -111,7 +121,10 @@ export default async function BidPackagePage({
 
   return (
     <Screen>
-      <AppBar back={`/project/${id}`} title={p.category ?? p.trade ?? "Bid package"}
+      {/* Back to the board, because that is where you came from. The sub line
+          names the job the room belongs to, which is not always the project
+          in the path. */}
+      <AppBar back={`/project/${id}/bids`} title={p.category ?? p.trade ?? "Bid package"}
         sub={[p.project_name, p.phase].filter(Boolean).join(" · ") || undefined} />
       <div className="body">
         {error && <Notice kind="error">{error}</Notice>}
