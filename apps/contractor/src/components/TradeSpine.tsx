@@ -1,6 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { TradeIllustration } from "@shared/Illustrations";
+import { Panels, type PanelPrefs } from "./Panels";
+
+/** The synthetic panel: every trade with a bid out, wherever it sits. */
+export const BIDS_PANEL = "Bids";
 
 // A JOB IS ITS TRADES, IN ORDER, ON ONE SCREEN - GROUPED INTO PANELS.
 //
@@ -94,7 +98,7 @@ const LOUD: SpineTrade["state"][] = ["working", "hiring", "loose", "appointed", 
 // name is on the tile's tooltip for anybody who wants it.
 const shortStage = (stage: string) => stage.split(/[\s&]+/)[0];
 
-export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode = "panels", only = null, tail = null }: {
+export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode = "panels", only = null, tail = null, prefs = null }: {
   projectId: string;
   spine: Spine;
   /** Whether this person runs the job - only they are offered the idle trades. */
@@ -109,6 +113,8 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode
   /** In tiles mode, whatever sits after the last trade in the grid - the
    *  "Add a trade" tile (migration 170). */
   tail?: ReactNode;
+  /** In panels mode, what this person pulled up or folded away (173). */
+  prefs?: PanelPrefs | null;
 }) {
   // EVERY TILE IS A DOOR.
   //
@@ -125,12 +131,16 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode
   // starting the engagement moved inside where there is room to offer both
   // ways of doing it.
   const panelOf = (t: SpineTrade) => t.panel ?? t.stage ?? "Running the job";
-  const inScope = only ? spine.trades.filter((t) => panelOf(t) === only) : spine.trades;
+  // The Bids panel is every trade with a bid out, wherever it sits (173).
+  const inScope = only === BIDS_PANEL ? spine.trades.filter((t) => t.state === "hiring")
+    : only ? spine.trades.filter((t) => panelOf(t) === only) : spine.trades;
   const live = inScope.filter((t) => t.state !== "idle");
   const idle = manages ? inScope.filter((t) => t.state === "idle") : [];
   if (live.length === 0 && idle.length === 0 && (only || spine.untagged.open === 0)) return null;
 
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const soon = new Date(); soon.setDate(soon.getDate() + 14);
+  const fortnight = soon.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const totalLate = live.reduce((n, t) => n + t.late, 0) + (only ? 0 : spine.untagged.late);
   const count = (k: SpineTrade["state"]) => live.filter((t) => t.state === k).length;
 
@@ -231,8 +241,13 @@ export function TradeSpine({ projectId, spine, manages, back, allTasksHref, mode
         {idle.length > 0 && <span><i className="sw idle" />not started · {idle.length}</span>}
       </div>
 
+      {/* FOUR PANELS IF POSSIBLE (Shahar, 2026-09-17). The rule that picks
+          them, the Bids panel and the "Also" line are Panels; the cards it
+          draws are the ones below, kept here for the whole-board view. */}
       {mode === "panels" ? (
-        <div className="sp-grid">{panels.map(card)}</div>
+        prefs
+          ? <Panels projectId={projectId} trades={[...live, ...idle]} prefs={prefs} back={back} manages={manages} fortnight={fortnight} />
+          : <div className="sp-grid">{panels.map(card)}</div>
       ) : (
         <div className="spine-grid">
           {live.map(tile)}

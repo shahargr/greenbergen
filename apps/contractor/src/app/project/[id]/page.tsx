@@ -15,6 +15,7 @@ import { QuickActions } from "@/components/QuickActions";
 import { SearchBox } from "@/components/SearchBox";
 import { TaskTable } from "@/components/TaskTable";
 import { TradeSpine, type Spine } from "@/components/TradeSpine";
+import type { PanelPrefs } from "@/components/Panels";
 import { matchesQuery } from "@/lib/search";
 import { ProjectSetup } from "./ProjectSetup";
 import { SiteVisits, type Visit } from "./SiteVisits";
@@ -93,7 +94,7 @@ export default async function ProjectPage({
   // the domain, and this screen wants the whole property anyway (see below),
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
-  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }] = await Promise.all([
+  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }, { data: prefsData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
@@ -117,8 +118,12 @@ export default async function ProjectPage({
     // grouping done here, because it also has to answer what the job NEEDS
     // and has not started - which no list of tasks can say.
     w.step("spine", () => rpc<Spine>(supabase, "portal_project_trades", { p_project: id })),
+    // Which panels this person pulled up or folded away here (migration 173).
+    w.step("prefs", () => rpc<PanelPrefs>(supabase, "portal_panel_prefs", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}`);
+  const prefs: PanelPrefs = prefsData && Array.isArray(prefsData.shown)
+    ? prefsData : { shown: [], hidden: [] };
 
   const seat = board.seats.find((s) => s.project_id === id);
   if (!seat) notFound();
@@ -630,11 +635,13 @@ export default async function ProjectPage({
             </div>
           </div>
         ) : (
-          <QuickActions projectId={id}
+          <QuickActions
             standing={[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
             where={seat.address ?? seat.parent_name ?? null}
             visitHref={offered.includes("visits") ? panelHref("visits") : null}
             visitsToday={visitsToday}
+            tidyHref={manages ? `/project/${id}/tidy?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
+            tidyCount={spine.untagged.open}
             addTaskHref={lens.rank >= 30
               ? `/project/${id}/task/new?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
             payHref={taskMoney.can_log ? `/project/${id}/pay?back=${encodeURIComponent(keepAs())}` : null}
@@ -687,7 +694,7 @@ export default async function ProjectPage({
             as a chip with one move on it, which is the other half of what he
             asked for ("you need to start an engagement"). */}
         {!isFolder && (
-          <TradeSpine projectId={id} spine={spine} manages={manages} mode="panels"
+          <TradeSpine projectId={id} spine={spine} manages={manages} mode="panels" prefs={prefs}
             back={keepAs(`/project/${id}`)} allTasksHref={allTasksHref} />
         )}
 

@@ -5,7 +5,7 @@ import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { getBoard, runs } from "@/lib/board";
-import { TradeSpine, type Spine } from "@/components/TradeSpine";
+import { BIDS_PANEL, TradeSpine, type Spine } from "@/components/TradeSpine";
 import { AddTrade, type CatalogueTrade, type JobChoice } from "@/components/AddTrade";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,12 @@ export default async function PanelPage({
   const manages = runs(seat);
   const spine: Spine = spineData && Array.isArray(spineData.trades)
     ? spineData : { trades: [], untagged: { open: 0, late: 0 } };
-  const inPanel = spine.trades.filter((t) => (t.panel ?? t.stage ?? "Running the job") === panel);
+  // Bids is every trade with a bid out, wherever it sits (173); nothing is
+  // added to it here, since a bid is started from the trade.
+  const isBids = panel === BIDS_PANEL;
+  const inPanel = isBids
+    ? spine.trades.filter((t) => t.state === "hiring")
+    : spine.trades.filter((t) => (t.panel ?? t.stage ?? "Running the job") === panel);
   const here = `/project/${id}/group/${encodeURIComponent(panel)}?back=${encodeURIComponent(to)}`;
 
   // WHERE A NEW TRADE LANDS. A property holds no work, its jobs do - so the
@@ -63,7 +68,7 @@ export default async function PanelPage({
   const usual = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   const defaultJob = jobs.find((j) => j.id === usual)?.id ?? jobs[0]!.id;
   const catalogue = Array.isArray(catData) ? catData : [];
-  const addTile = manages && catalogue.length > 0
+  const addTile = manages && !isBids && catalogue.length > 0
     ? <AddTrade panel={panel} catalogue={catalogue} jobs={jobs} defaultJob={defaultJob} back={here} />
     : null;
 

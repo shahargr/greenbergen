@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { openNotebook } from "@shared/Notebook";
 
 // THE THINGS YOU DO ON A JOB MOST DAYS, in one panel at the top of it.
 //
@@ -16,18 +15,21 @@ import { openNotebook } from "@shared/Notebook";
 // a payment, an award. Each is one tap. The status line the band carried is
 // kept as a caption, small, because it is still true and costs one line.
 //
-// The first five open the notebook sheet on the right tab with this job
-// already chosen (openNotebook); the rest are the screens that already exist.
-// Nothing here is new capability - it is the existing capability at the
-// distance it should have been at.
+// Then (2026-09-17, later): "the note and phone book on top is redundant to
+// the floating icon. instead, add an AI button that will start a process
+// that takes tasks without trade or assignee, one by one to fix and sort."
+// So: Site visit, Tidy up, Full task, Log payment, Award work. The notebook
+// button floats over every screen and does the note and the phone book.
 type Props = {
-  projectId: string;
   /** "You run this · In Progress · Active" - what the band used to say. */
   standing: string;
   /** The address, or the parent's name, or nothing. */
   where: string | null;
   visitHref: string | null;
   visitsToday: number;
+  /** The tidy-up process (migration 173), and how many tasks wait in it. */
+  tidyHref: string | null;
+  tidyCount: number;
   addTaskHref: string | null;
   payHref: string | null;
   awardHref: string | null;
@@ -37,14 +39,13 @@ const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWi
   strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
 
 const Pin = () => <svg {...g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" /></svg>;
-const Pen = () => <svg {...g}><path d="M4 20h4l10-10-4-4L4 16z" /><path d="M13 7l4 4" /></svg>;
-const Phone = () => <svg {...g}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg>;
+// The tidy-up: a sparkle, the sign every phone uses for "let it sort this".
+const Sparkle = () => <svg {...g}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
 const Dollar = () => <svg {...g}><path d="M12 3v18M16.5 7.5a3.5 3.5 0 0 0-3.5-2h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3.5 3.5 0 0 1-3.5-2" /></svg>;
 const Award = () => <svg {...g}><path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" /></svg>;
 
-export function QuickActions({ projectId, standing, where, visitHref, visitsToday, addTaskHref, payHref, awardHref }: Props) {
-  const nb = (detail: Parameters<typeof openNotebook>[0]) => () => openNotebook({ job: projectId, ...detail });
+export function QuickActions({ standing, where, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref }: Props) {
   return (
     <section className="qa">
       <div className="qa-head">
@@ -58,14 +59,15 @@ export function QuickActions({ projectId, standing, where, visitHref, visitsToda
             {visitsToday > 0 && <span className="n">{visitsToday} today</span>}
           </Link>
         )}
-        {/* ONE NOTE, not to-do + order + note (Shahar, 2026-09-17: "merge
-            todo and note... the something to order is confusing"). */}
-        <button type="button" className="qa-btn" onClick={nb({ tab: "note" })}>
-          <Pen /><span>Note</span>
-        </button>
-        <button type="button" className="qa-btn" onClick={nb({ tab: "phone" })}>
-          <Phone /><span>Phone book</span>
-        </button>
+        {/* THE TIDY-UP. One task at a time, of the ones with no trade or no
+            holder, with a guess to accept (migration 173). The count is the
+            pile; it is the button's reason to exist. */}
+        {tidyHref && (
+          <Link href={tidyHref} className="qa-btn">
+            <Sparkle /><span>Tidy up</span>
+            {tidyCount > 0 && <span className="n">{tidyCount}</span>}
+          </Link>
+        )}
         {addTaskHref && (
           <Link href={addTaskHref} className="qa-btn">
             <Plus /><span>Full task</span>

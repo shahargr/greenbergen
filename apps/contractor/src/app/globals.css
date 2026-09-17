@@ -646,6 +646,35 @@
 }
 .tp.idle.went .t, .tp.idle.went .f .say { color: var(--color-ok); }
 
+/* FOUR PANELS IF POSSIBLE (migration 173). A card can be folded away with
+   the x in its corner; the folded ones wait on the "Also" line as chips and
+   come back with a tap. The stage the build is in wears a heavier edge. */
+.sp-wrap { position: relative; min-width: 0; display: grid; }
+.sp-wrap > .sp { min-width: 0; }
+.sp-x {
+  position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
+  border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1;
+  cursor: pointer; opacity: .55;
+}
+.sp-x:hover { opacity: 1; background: rgba(22, 21, 19, 0.08); color: var(--color-text); }
+.sp.stage { border-width: 2px; }
+.sp-also { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.sp-also .lbl { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.sp-also .chip {
+  border: 1.5px solid var(--color-divider-strong); background: transparent; cursor: pointer;
+  padding: 5px 10px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; color: var(--color-text);
+}
+.sp-also .chip:hover { border-color: var(--color-text); }
+.sp-also .chip.late { color: var(--color-status); border-color: color-mix(in srgb, var(--color-status) 45%, transparent); }
+.sp-also .chip.ghost { border-color: transparent; color: var(--muted); }
+
+/* TIDY UP (migration 173): one task, one card, a guess above the fields. */
+.tidy-guess {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px;
+  padding: 8px 10px; border-radius: var(--radius-input); background: var(--color-soft-2);
+}
+.btn-sm { min-height: 30px; padding: 4px 10px; font-size: 12px; }
+
 /* ADD A TRADE (migration 170): the last tile of a panel. A plus where the
    drawing goes; the picker it opens spans the grid beneath the tiles. */
 .tp.add .art.plus { font-size: 24px; line-height: 26px; width: auto; font-weight: 300; opacity: .6; }
