@@ -163,3 +163,25 @@ begin
   if out_ = src then raise exception 'fn_members_ensure_contract has drifted - values line not found'; end if;
   execute out_;
 end $patch$;
+
+-- ---------------------------------------------------------------------------
+-- 174c, applied as its own step. The seat trigger names the placeholder for
+-- the FIRST trade role the person has - Shahar's is "Bill Negotiator" - and
+-- the award then kept it (coalesce). A placeholder the award itself just
+-- made takes the trade that was awarded, title and all. The one contract
+-- written the wrong way is corrected by id.
+do $patch$
+declare src text; out_ text;
+begin
+  src := pg_get_functiondef('public.portal_award_trade(uuid, uuid, text, text, uuid, boolean)'::regprocedure);
+  out_ := replace(src,
+    E'  elsif v_trade is not null then\n    update public.contracts\n       set trade = coalesce(trade, v_trade),\n',
+    E'  elsif v_trade is not null then\n    update public.contracts\n'
+ || E'       set trade = case when v_made then v_trade else coalesce(trade, v_trade) end,\n'
+ || E'           title = case when v_made and status = ''placeholder'' and trade is distinct from v_trade\n'
+ || E'                        then regexp_replace(title, '' - [^(]+ \\(placeholder\\)$'', '' - '' || v_trade || '' (placeholder)'')\n'
+ || E'                        else title end,\n');
+  if out_ = src then raise exception 'portal_award_trade has drifted - trade update not found'; end if;
+  execute out_;
+end $patch$;
+-- Data: contract d19c94fa (Net Positive LLC on New build) set to General Contractor.
