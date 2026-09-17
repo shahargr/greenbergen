@@ -143,3 +143,23 @@ where not exists (select 1 from public.help h where h.title like 'Paying one of 
 
 update public.config set schema_version = schema_version + 1, schema_updated_at = now()
  where id = (select c.id from public.config c limit 1);
+
+-- ---------------------------------------------------------------------------
+-- 174b, applied as its own step. chk_contracts_one_counterparty: a contract
+-- names a company OR a contact as counterparty, never both. The first cut
+-- of the placeholder named both once a person had a company. Now: the
+-- company when there is one, the person otherwise; the person is always on
+-- contractor_id.
+do $patch$
+declare src text; out_ text;
+begin
+  src := pg_get_functiondef('public.fn_members_ensure_contract()'::regprocedure);
+  out_ := replace(src,
+    E'        v_entity, coalesce(new.company_id, (select ct3.company_id from public.contacts ct3 where ct3.id = new.contact_id)), new.contact_id, new.contact_id,\n',
+    E'        v_entity,\n'
+ || E'        coalesce(new.company_id, (select ct3.company_id from public.contacts ct3 where ct3.id = new.contact_id)),\n'
+ || E'        case when coalesce(new.company_id, (select ct4.company_id from public.contacts ct4 where ct4.id = new.contact_id)) is null then new.contact_id end,\n'
+ || E'        new.contact_id,\n');
+  if out_ = src then raise exception 'fn_members_ensure_contract has drifted - values line not found'; end if;
+  execute out_;
+end $patch$;
