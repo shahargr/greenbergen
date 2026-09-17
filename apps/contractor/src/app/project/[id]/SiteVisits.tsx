@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { Evidence, type Attached } from "@shared/Evidence";
 import { shortDate } from "@shared/format";
+import { MapLink } from "@shared/MapLink";
 import { logVisit, editVisit, deleteVisit } from "./actions";
+
+const NavIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 11l18-8-8 18-2-8z" />
+  </svg>
+);
 
 export type Visit = {
   id: string; on_date: string; at: string; note: string | null;
@@ -24,12 +32,15 @@ export type Visit = {
 // it is a single collapsed line underneath: enough to know when someone was
 // last here, one tap to read it, no space when you do not care. Everything
 // older is behind a second line.
-export function SiteVisits({ projectId, visits, urls, canLog, today }: {
+export function SiteVisits({ projectId, visits, urls, canLog, today, address }: {
   projectId: string;
   visits: Visit[];
   urls: Record<string, string>;
   canLog: boolean;
   today: string;
+  /** The job's address, when this person may see it - the panel's first row
+      takes you there (Shahar, 2026-09-17). */
+  address?: string | null;
 }) {
   const mine = visits.filter((v) => v.on_date === today && v.mine);
   const todays = mine[0] ?? visits.find((v) => v.on_date === today) ?? null;
@@ -41,6 +52,18 @@ export function SiteVisits({ projectId, visits, urls, canLog, today }: {
 
   return (
     <section className="stack" style={{ gap: 8 }}>
+      {/* THE WAY THERE, before the record of being there. One tap hands the
+          address to the phone's own map application. */}
+      {address && (
+        <MapLink address={address} className="home-row nav-row">
+          <span className="grow" style={{ minWidth: 0 }}>
+            <span className="t">Take me there</span>
+            <span className="m" style={{ display: "block" }}>{address}</span>
+          </span>
+          <NavIcon />
+        </MapLink>
+      )}
+
       <div className="divider-label">Today · {shortDate(today)}</div>
 
       {/* TODAY. The box you write in, or what you wrote. */}

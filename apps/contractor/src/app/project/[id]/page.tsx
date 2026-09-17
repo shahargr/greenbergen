@@ -6,6 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { TradeIllustration } from "@shared/Illustrations";
+import { MapLink } from "@shared/MapLink";
 import { GROUPINGS, buildTree, coverUrls, faceUrl, flat, getBoard, groupWork, money, nest, oneList, openBeneath, readMoney, runs, seatLabel, topLevels, urgencyOf, type Group, type GroupKey, type ListRow, type Node, type Seat, type Task, type TaskMoney, type Twig } from "@/lib/board";
 import { DuePill, HighPill, UrgencyKey, rowClass } from "@/components/TaskRowBits";
 import { lensOf, lensesFor, readLens, type Lens, type PanelKey } from "@/lib/lens";
@@ -631,13 +632,18 @@ export default async function ProjectPage({
               <div className="what">
                 {[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
               </div>
-              <div className="where">{seat.address ?? seat.parent_name ?? "No address on this job"}</div>
+              <div className="where">
+                {seat.address
+                  ? <MapLink address={seat.address} className="nav">{seat.address}</MapLink>
+                  : (seat.parent_name ?? "No address on this job")}
+              </div>
             </div>
           </div>
         ) : (
           <QuickActions
             standing={[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
             where={seat.address ?? seat.parent_name ?? null}
+            address={seat.address ?? null}
             visitHref={offered.includes("visits") ? panelHref("visits") : null}
             visitsToday={visitsToday}
             tidyHref={manages ? `/project/${id}/tidy?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
@@ -897,7 +903,7 @@ export default async function ProjectPage({
              correct or remove. Today's is the one you write in; the one before
              it is a line until you open it. */
           <SiteVisits projectId={id} visits={visits} urls={signed}
-            canLog={!!board.me?.contact_id} today={today} />
+            canLog={!!board.me?.contact_id} today={today} address={seat.address ?? null} />
         )}
 
         {panel === "money" && (

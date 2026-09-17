@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MapLink } from "@shared/MapLink";
 
 // THE THINGS YOU DO ON A JOB MOST DAYS, in one panel at the top of it.
 //
@@ -25,6 +26,9 @@ type Props = {
   standing: string;
   /** The address, or the parent's name, or nothing. */
   where: string | null;
+  /** The address ALONE, when there is one and it is this person's to see -
+      what a map application can be handed. */
+  address: string | null;
   visitHref: string | null;
   visitsToday: number;
   /** The tidy-up process (migration 173), and how many tasks wait in it. */
@@ -41,16 +45,22 @@ const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWi
 const Pin = () => <svg {...g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" /></svg>;
 // The tidy-up: a sparkle, the sign every phone uses for "let it sort this".
 const Sparkle = () => <svg {...g}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" /></svg>;
+// Navigation: the arrowhead every map application uses for "go".
+const Nav = () => <svg {...g}><path d="M3 11l18-8-8 18-2-8z" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
 const Dollar = () => <svg {...g}><path d="M12 3v18M16.5 7.5a3.5 3.5 0 0 0-3.5-2h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3.5 3.5 0 0 1-3.5-2" /></svg>;
 const Award = () => <svg {...g}><path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" /></svg>;
 
-export function QuickActions({ standing, where, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref }: Props) {
+export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref }: Props) {
   return (
     <section className="qa">
       <div className="qa-head">
         <span className="what">{standing}</span>
-        {where && <span className="where">{where}</span>}
+        {/* The address is the thing you read on the way there, so it is also
+            the thing you tap to be taken there. */}
+        {where && (address
+          ? <MapLink address={address} className="where nav">{where}</MapLink>
+          : <span className="where">{where}</span>)}
       </div>
       <div className="qa-grid">
         {visitHref && (
@@ -58,6 +68,18 @@ export function QuickActions({ standing, where, visitHref, visitsToday, tidyHref
             <Pin /><span>Site visit</span>
             {visitsToday > 0 && <span className="n">{visitsToday} today</span>}
           </Link>
+        )}
+        {/* TAKE ME THERE (Shahar, 2026-09-17: "when clicking on site visit,
+            open URL with device map application to navigate there"). Its own
+            tile rather than the Site visit tile's job, because those are two
+            different moments: one is before you drive, the other is when you
+            are standing there with a photograph to log. It only exists when
+            the job has an address this person is allowed to see - a bidder
+            sees the town until the work is awarded (migration 008). */}
+        {address && (
+          <MapLink address={address} className="qa-btn" title={`Navigate to ${address}`}>
+            <Nav /><span>Take me there</span>
+          </MapLink>
         )}
         {/* THE TIDY-UP. One task at a time, of the ones with no trade or no
             holder, with a guess to accept (migration 173). The count is the

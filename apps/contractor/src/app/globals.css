@@ -857,3 +857,11 @@
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
+
+/* TAKE ME THERE. The address is a link that hands the job to the phone's own
+   map application, so it is allowed to look like one - and the row version
+   carries the arrowhead every map app uses for "go". */
+.qa-head .where.nav { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.qa-head .where.nav:hover { color: var(--color-text); }
+.home-row.nav-row { color: inherit; text-decoration: none; }
+.home-row.nav-row .t { color: var(--color-bid); }
