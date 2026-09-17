@@ -668,7 +668,13 @@
 .sp-also .chip.late { color: var(--color-status); border-color: color-mix(in srgb, var(--color-status) 45%, transparent); }
 .sp-also .chip.ghost { border-color: transparent; color: var(--muted); }
 
-/* TIDY UP (migration 173): one task, one card, a guess above the fields. */
+/* TIDY UP (migration 173): one task, one card, a guess above the fields.
+   Two boxes of EQUAL width per row - the notebook's 1fr/auto pair squeezed
+   the trade select to nothing beside the holder select. */
+.tidy-two { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+.tidy-two .nb-fld { min-width: 0; }
+.tidy-two .nb-fld > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 400px) { .tidy-two { grid-template-columns: 1fr; } }
 .tidy-guess {
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px;
   padding: 8px 10px; border-radius: var(--radius-input); background: var(--color-soft-2);

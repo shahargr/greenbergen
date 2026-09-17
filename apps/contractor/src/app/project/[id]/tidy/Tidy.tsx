@@ -173,14 +173,14 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
 
         {suggested && (
           <div className="tidy-guess">
-            Looks like <strong>{task.guess}</strong>{task.why ? <span className="text-muted"> — {task.why}</span> : null}.
+            <span>Looks like <strong>{task.guess}</strong>{task.why ? <span className="text-muted"> — {task.why}</span> : null}.</span>
             {trade !== task.guess && (
               <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={() => setTrade(task.guess!)}>Use it</button>
             )}
           </div>
         )}
 
-        <div className="nb-two">
+        <div className="tidy-two">
           <label className="nb-fld">
             <span>Trade{!task.trade ? " · missing" : ""}</span>
             <select className="input" value={trade} onChange={(e) => setTrade(e.target.value)}>
@@ -199,7 +199,7 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
             </select>
           </label>
         </div>
-        <div className="nb-two">
+        <div className="tidy-two">
           <label className="nb-fld">
             <span>When</span>
             <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
