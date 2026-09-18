@@ -36,13 +36,19 @@ import { GateMark } from "@/components/GateMark";
 // for writing. One row now, and inside it the same three-across proof row
 // every other writing surface has (Evidence): drop / attach / voice at a
 // desk, photo / file / voice on a phone. The line you type is the note.
-export function QuickTask({ projectId, projectName, trade, elsewhere }: {
+export function QuickTask({ projectId, projectName, trade, elsewhere, methods = [], accounts = [] }: {
   /** The job the task lands on - a property holds no work, its jobs do. */
   projectId: string;
   projectName: string | null;
   trade: string;
   /** Said only when the job is not the one whose screen this is. */
   elsewhere: boolean;
+  /** THE RAILS MONEY CAN BE LOGGED ON (189). Active and settled by hand -
+   *  a processor method is collected in the app, not written down here. No
+   *  methods means no payment fold: the box stays what it was. */
+  methods?: { id: string; name: string; requires_reference: boolean }[];
+  /** Accounts this job has already been paid from; the list fills itself. */
+  accounts?: string[];
 }) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -56,25 +62,66 @@ export function QuickTask({ projectId, projectName, trade, elsewhere }: {
   // Bumped after each add so the Evidence block remounts empty: its
   // attachments belong to the task just written, not the next one.
   const [round, setRound] = useState(0);
+  // AND I PAID FOR IT (189). Shahar, standing on site having just handed the
+  // framer a check: "When I'm logging a task for an activity I wanna be able
+  // to log a payment as well." It was two screens and five steps - log the
+  // task, leave, open the pay screen, pick the category, find the task you
+  // just made. Folded, because most tasks are not payments.
+  const [paying, setPaying] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
+  const [payee, setPayee] = useState("");
+  const [account, setAccount] = useState("");
+  const [reference, setReference] = useState("");
+  const method = methods.find((m) => m.id === methodId);
+  const needsRef = !!method?.requires_reference;
+  const money = Number(amount.replace(/[$,\s]/g, ""));
 
-  const ready = name.trim().length > 0;
+  const ready = name.trim().length > 0 && (!paying || (
+    Number.isFinite(money) && money > 0
+    && payee.trim().length > 0 && account.trim().length > 0
+    && (!needsRef || reference.trim().length > 0)));
 
   async function add() {
     if (!ready) return;
     setBusy(true); setErr("");
-    const { data, error } = await createClient().rpc("portal_task_quick", {
-      p_project: projectId,
-      p_action: name.trim(),
-      p_trade: trade,
-      p_target_date: due || null,
-      p_is_gate: gate,
-      p_file_ids: files.length > 0 ? files.map((f) => f.id) : null,
-    });
+    const ids = files.length > 0 ? files.map((f) => f.id) : null;
+    // ONE CALL EITHER WAY. With money it is portal_task_quick_paid, which
+    // makes the task and logs the payment together and removes the task
+    // again if the payment is refused - so a rejected amount never leaves a
+    // stray task behind for you to trip over on the retry.
+    const { data, error } = paying
+      ? await createClient().rpc("portal_task_quick_paid", {
+          p_project: projectId,
+          p_action: name.trim(),
+          p_amount: money,
+          p_method: methodId,
+          p_trade: trade,
+          p_target_date: due || null,
+          p_file_ids: ids,
+          p_payee_name: payee.trim(),
+          p_from_account: account.trim(),
+          p_reference: reference.trim() || null,
+          // The proof is the receipt when this is a payment: the same files,
+          // filed against the money as well as the task.
+          p_receipt_ids: ids,
+        })
+      : await createClient().rpc("portal_task_quick", {
+          p_project: projectId,
+          p_action: name.trim(),
+          p_trade: trade,
+          p_target_date: due || null,
+          p_is_gate: gate,
+          p_file_ids: ids,
+        });
     setBusy(false);
     if (error) { setErr(friendly(error.message)); return; }
     if (!data?.ok) { setErr(data?.reason ?? "That was not added."); return; }
     setAdded((list) => [...list, data.action as string]);
     setName(""); setDue(""); setGate(false); setFiles([]); setRound((n) => n + 1);
+    // The payee and the account are the two you type again and again on a
+    // run of receipts, so they stay; the amount and the reference never do.
+    setAmount(""); setReference("");
     router.refresh();
   }
 
@@ -98,7 +145,7 @@ export function QuickTask({ projectId, projectName, trade, elsewhere }: {
             placeholder={`Call the framer about the landing`} aria-label={`A ${trade.toLowerCase()} task`} />
           <button type="button" className="btn btn-primary" style={{ flex: "none", minHeight: 44 }}
             disabled={!ready || busy} onClick={() => { void add(); }}>
-            {busy ? "…" : "Add"}
+            {busy ? "…" : paying ? "Add & pay" : "Add"}
           </button>
         </div>
 
@@ -113,6 +160,82 @@ export function QuickTask({ projectId, projectName, trade, elsewhere }: {
             to the task (migration 145). */}
         <Evidence key={round} projectId={projectId} caption={`${trade} task`} onChange={setFiles} />
 
+        {/* AND I PAID FOR IT (189). Shahar, 2026-09-18: "When I'm logging a
+            task for an activity I wanna be able to log a payment as well."
+
+            The kinds of task were built (action_types, seven of them, two
+            carrying needs_money) and the ledger write was built
+            (task_payment_log). Nobody had joined them: a payment meant
+            logging the task here, leaving, opening the pay screen, choosing
+            the category and finding the task you had just made.
+
+            Folded, because most tasks are not payments. Open it and the line
+            you typed becomes a financial transaction with the money already
+            against it - one act, and the database undoes the whole thing if
+            the payment is refused. */}
+        {methods.length > 0 && (
+          <>
+            <label className="gate-tick">
+              <input type="checkbox" checked={paying}
+                onChange={(e) => { setPaying(e.target.checked); if (e.target.checked) setGate(false); }} />
+              <span className="grow">
+                <span className="t">…and I paid for it</span>
+                <span className="m">
+                  Logs the money against this task as you write it down. The photo above becomes the receipt.
+                </span>
+              </span>
+            </label>
+
+            {paying && (
+              <div className="stack qt-pay" style={{ gap: 8 }}>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  <label className="nb-fld" style={{ flex: "1 1 120px" }}>
+                    <span>What it cost</span>
+                    <input className="input" inputMode="decimal" value={amount} placeholder="$"
+                      onChange={(e) => setAmount(e.target.value)} />
+                  </label>
+                  <label className="nb-fld" style={{ flex: "1 1 140px" }}>
+                    <span>How you paid</span>
+                    <select className="input" value={methodId} onChange={(e) => setMethodId(e.target.value)}>
+                      {methods.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  <label className="nb-fld" style={{ flex: "1 1 140px" }}>
+                    <span>Who you paid</span>
+                    <input className="input" value={payee} placeholder="Javier Rivera"
+                      onChange={(e) => setPayee(e.target.value)} />
+                  </label>
+                  {/* BOTH ENDS OF THE MONEY, because one end is a number
+                      nobody can reconcile later. The list is what this job has
+                      already been paid from, and it fills itself. */}
+                  <label className="nb-fld" style={{ flex: "1 1 140px" }}>
+                    <span>From which account</span>
+                    <input className="input" value={account} placeholder="Operating" list="qt-accounts"
+                      onChange={(e) => setAccount(e.target.value)} />
+                    <datalist id="qt-accounts">
+                      {accounts.map((a) => <option key={a} value={a} />)}
+                    </datalist>
+                  </label>
+                </div>
+                {needsRef && (
+                  <label className="nb-fld">
+                    <span>{method?.name} reference</span>
+                    <input className="input" value={reference} placeholder="Check number, confirmation"
+                      onChange={(e) => setReference(e.target.value)} />
+                  </label>
+                )}
+                <p className="tiny text-muted" style={{ margin: 0 }}>
+                  It lands as a financial transaction on <strong>{trade}</strong>, with the payment against it.
+                  Everything else about the money — the date, a credit coming back, more receipts — is on the task
+                  afterwards.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
         {/* A GATE, IN ONE TICK RATHER THAN FOUR VISITS.
             Shahar (2026-09-16): "allow me to check a box stating this must come
             first for the rest to resume, with high priority. so this task become
@@ -124,8 +247,9 @@ export function QuickTask({ projectId, projectName, trade, elsewhere }: {
             says the same thing in one tick: everything in this trade waits on
             me. High priority comes with it rather than being a second decision -
             a thing the rest of the job is waiting on IS the urgent one. */}
-        <label className="gate-tick">
-          <input type="checkbox" checked={gate} onChange={(e) => setGate(e.target.checked)} />
+        <label className="gate-tick" style={paying ? { opacity: 0.45 } : undefined}>
+          <input type="checkbox" checked={gate} disabled={paying}
+            onChange={(e) => setGate(e.target.checked)} />
           <span className="grow">
             <span className="t">This must come first</span>
             <span className="m">

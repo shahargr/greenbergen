@@ -36,7 +36,7 @@ export default async function TradePage({
 
   const w = stopwatch("/project/[id]/trade/[trade]");
   const supabase = await createClient();
-  const [board, { data: weekData }, { data: spineData }] = await Promise.all([
+  const [board, { data: weekData }, { data: spineData }, { data: methodData }, { data: acctData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
     // WHO IS APPOINTED, asked of the one thing that knows. This page's own
@@ -45,12 +45,27 @@ export default async function TradePage({
     // are in when you arrive here to start it off.
     w.step("spine", () => rpc<{ trades: { trade: string; state: string; awarded: boolean; finished: boolean; who: string | null; lands_on: { id: string; name: string | null } | null }[] }>(
       supabase, "portal_project_trades", { p_project: id })),
+    // WHAT A PAYMENT NEEDS (189). The rails money can be recorded on - active,
+    // and settled by hand; a processor method is collected in the app and
+    // cannot be logged from here. Same list the task screen and the pay
+    // screen use, so the three cannot drift.
+    // await, not the builder: a PostgREST builder is thenable but not a
+    // Promise, and Promise.all types it as unknown.
+    w.step("methods", async () => await supabase.from("payment_methods")
+      .select("id, name, requires_reference")
+      .eq("is_active", true).eq("settlement_type", "manual")
+      .order("display_order", { ascending: true, nullsFirst: false })),
+    // Every account this job has already been paid from. No list to
+    // maintain: it is the record, and it fills itself.
+    w.step("accounts", () => rpc<string[]>(supabase, "portal_payment_accounts", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}/trade/${raw}`);
   const seat = board.seats.find((s) => s.project_id === id);
   if (!seat) notFound();
   const manages = runs(seat);
   const mine = (spineData?.trades ?? []).find((x) => x.trade === trade) ?? null;
+  const methods = (methodData ?? []) as { id: string; name: string; requires_reference: boolean }[];
+  const accounts = Array.isArray(acctData) ? acctData : [];
 
   // Everything at or beneath this project, the same family the project
   // screen uses - the work lives on the jobs, not on the container.
@@ -196,7 +211,8 @@ export default async function TradePage({
 
           {manages && (
             <QuickTask projectId={landsOn} projectName={nameOf.get(landsOn) ?? null}
-              trade={trade} elsewhere={landsOn !== id} />
+              trade={trade} elsewhere={landsOn !== id}
+              methods={methods} accounts={accounts} />
           )}
           <nav className="chips" aria-label="Which tasks">
             <Chip href={`/project/${id}/trade/${raw}`} on={!show} label={`Open · ${open.length}`} />

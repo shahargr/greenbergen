@@ -928,3 +928,11 @@
 @media (max-width: 420px) {
   .meas-item { flex-basis: 100%; }
 }
+
+/* …AND I PAID FOR IT (189). The payment half of the quick-log box, set off
+   from the task half so it reads as a second thing you opted into rather
+   than four more fields on one form. */
+.qt-pay {
+  padding: 10px; border-radius: var(--radius-md);
+  background: var(--color-soft); border: 1px solid var(--color-divider-strong);
+}
