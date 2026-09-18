@@ -339,6 +339,44 @@ export default async function AwardPage({
               </div>
             </div>
 
+            {/* HOW IT WAS LET (191). Asked at the moment of awarding, because
+                nobody ever comes back later to write down why they picked
+                somebody — and this is the row an owner, a lender or an
+                insurer eventually asks about. A direct award with the reason
+                written down is a decision; the same award with nothing beside
+                it is a hole in the record.
+
+                A bid room never reaches this screen: winning a room IS the
+                route and the contract stamps itself, so the only two offered
+                here are the two a person has to say out loud. */}
+            <div className="task-row">
+              <div className="task-row-label">
+                How it was let
+                <div className="text-muted">Said once, here, or never</div>
+              </div>
+              <div className="task-row-value stack" style={{ gap: 6 }}>
+                <label className="radio-opt" style={{ marginBottom: 0 }}>
+                  <input type="radio" name="award_route" value="direct" defaultChecked />
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">Straight to somebody we use</span>
+                    <span className="m" style={{ display: "block" }}>
+                      We know them and we already have their price. Ordinary, and the usual answer.
+                    </span>
+                  </span>
+                </label>
+                <label className="radio-opt" style={{ marginBottom: 0 }}>
+                  <input type="radio" name="award_route" value="sole_source" />
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">Nobody else could have done it</span>
+                    <span className="m" style={{ display: "block" }}>
+                      The only firm with the licence, the manufacturer&apos;s own installer, the utility. Needs a
+                      reason in the note below — that is the whole difference from the one above.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <div className="task-row">
               <div className="task-row-label">
                 Note

@@ -61,6 +61,33 @@ export async function awardTrade(projectId: string, formData: FormData) {
   }
   if (data?.ok === false) redirect(here({ error: data.reason ?? "That award did not go through.", trade: trade ?? "" }));
 
+  // HOW IT WAS LET (191). Recorded the moment the award is made, because
+  // nobody comes back later to write down why they picked somebody - and
+  // "direct" with a reason is a decision, while "direct" with nothing is a
+  // hole in the record an owner or a lender will eventually ask about.
+  //
+  // A bid room stamps itself (portal_bid_award), so this path only ever
+  // hears about the two routes a person has to say out loud. It never fails
+  // the award: the work IS awarded by now, and a route that did not save is
+  // a fact still missing, not a reason to unwind somebody's contract.
+  const route = txt(formData.get("award_route"));
+  const awarded = (data?.contract_id ?? null) as string | null;
+  if (route && awarded) {
+    const { data: r } = await supabase.rpc("portal_award_route_set", {
+      // The same sentence serves both: "why them, what was said" IS the
+      // route's reason, and asking for it twice on one screen is how it gets
+      // filled in neither time.
+      p_contract: awarded, p_route: route, p_note: note,
+    });
+    if (r?.ok === false) {
+      revalidatePath(`/project/${projectId}/award`);
+      redirect(here({
+        error: `${data?.who ?? "They"} have the work. But the route did not save — ${r.reason}`,
+        trade: trade ?? "",
+      }));
+    }
+  }
+
   revalidatePath(`/project/${projectId}/award`);
   revalidatePath(`/project/${projectId}`);
   revalidatePath(`/project/${projectId}/money`);
