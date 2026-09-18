@@ -11,6 +11,17 @@ import { Engage } from "./Engage";
 import { GateMark } from "@/components/GateMark";
 import { DuePill, HighPill, UrgencyKey, rowClass } from "@/components/TaskRowBits";
 
+// A PAYMENT GATE (portal_my_milestones, widened in 190). What it is worth,
+// what has to be true before it can be claimed, and whether the claim needs a
+// photograph. Ready means claimable today.
+type Gate = {
+  id: string; name: string; sequence_no: number | null; amount: number | null;
+  percent_of_contract: number | null; trigger: string | null; due_on: string | null;
+  status: string; requires_photo: boolean; paid_at: string | null;
+  settlement_status: string | null; contract_title: string | null;
+  contract_id: string | null; trade: string | null;
+};
+
 export const dynamic = "force-dynamic";
 
 // ONE TRADE ON ONE SITE. Shahar (2026-09-11): "show a panel for every trade
@@ -36,7 +47,7 @@ export default async function TradePage({
 
   const w = stopwatch("/project/[id]/trade/[trade]");
   const supabase = await createClient();
-  const [board, { data: weekData }, { data: spineData }, { data: methodData }, { data: acctData }] = await Promise.all([
+  const [board, { data: weekData }, { data: spineData }, { data: methodData }, { data: acctData }, { data: gateData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
     // WHO IS APPOINTED, asked of the one thing that knows. This page's own
@@ -58,6 +69,10 @@ export default async function TradePage({
     // Every account this job has already been paid from. No list to
     // maintain: it is the record, and it fills itself.
     w.step("accounts", () => rpc<string[]>(supabase, "portal_payment_accounts", { p_project: id })),
+    // THE PAYMENT GATES (190). What each one is worth, what has to be true to
+    // claim it, and whether it needs a photograph. Family-aware, because the
+    // stages live on the JOB and this screen is usually opened on the HOUSE.
+    w.step("gates", () => rpc<Gate[]>(supabase, "portal_my_milestones", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}/trade/${raw}`);
   const seat = board.seats.find((s) => s.project_id === id);
@@ -66,6 +81,13 @@ export default async function TradePage({
   const mine = (spineData?.trades ?? []).find((x) => x.trade === trade) ?? null;
   const methods = (methodData ?? []) as { id: string; name: string; requires_reference: boolean }[];
   const accounts = Array.isArray(acctData) ? acctData : [];
+  // THIS TRADE'S GATES, in the order a PM cares about them: what can be
+  // claimed today, then what is coming. Paid ones are history and fold away.
+  const allGates = (Array.isArray(gateData) ? gateData : []).filter((g) => g.trade === trade);
+  const ready = allGates.filter((g) => g.status === "Ready");
+  const ahead = allGates.filter((g) => g.status !== "Ready" && g.status !== "Paid");
+  const settled = allGates.filter((g) => g.status === "Paid");
+  const readyMoney = ready.reduce((n, g) => n + (g.amount ?? 0), 0);
 
   // Everything at or beneath this project, the same family the project
   // screen uses - the work lives on the jobs, not on the container.
@@ -108,21 +130,94 @@ export default async function TradePage({
       <div className="body">
         {row?.phase && <div className="kicker">{row.phase}</div>}
 
+        {/* WHAT YOU CAME FOR (Shahar, 2026-09-18: "Got into the Framing
+            section to see how much money is left, what are the next payment
+            gates"). It opened with open / late / due this week - three task
+            counts - and answered neither question. The money was on the page
+            but below the fold, under who was on site this week.
+
+            Money leads now when there is any to lead with, and "due this
+            week" gives up its tile: it was the least-asked of the three and
+            it is one tap away in the work list below. */}
         <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+          {contracts.length > 0
+            ? <Stat n={money(agreed - paid) ?? "—"} label="left to pay"
+                tone={agreed - paid > 0 ? "bid" : undefined} />
+            : <Stat n={String(row?.due_this_week ?? 0)} label="due this week" />}
           <Stat n={String(open.length)} label="open" />
           <Stat n={String(row?.late ?? open.filter((t) => t.target_date && t.target_date < today).length)}
             label="late" tone={(row?.late ?? 0) > 0 ? "status" : undefined} />
-          <Stat n={String(row?.due_this_week ?? 0)} label="due this week" />
         </div>
 
-        {/* Who has been here this week, out of the roster. */}
-        {(row?.people?.length ?? 0) > 0 && (
-          <Card soft pad>
-            <div className="small" style={{ fontWeight: 700 }}>
-              On site this week{row!.days_on_site > 0 ? ` · ${row!.days_on_site} ${row!.days_on_site === 1 ? "day" : "days"}` : ""}
+        {/* THE NEXT PAYMENT GATES. Ready first, because those are the ones you
+            can claim standing here; then what is coming, so you know what to
+            walk the site looking for. Each says what has to be TRUE - that
+            sentence is the whole value of a gate, and it was written down
+            when the contract was made. */}
+        {allGates.length > 0 && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">
+              Payment gates
+              {ready.length > 0 && <span style={{ fontWeight: 700 }}>&nbsp;· {money(readyMoney)} ready to claim</span>}
             </div>
-            <div className="tiny text-muted" style={{ marginTop: 4 }}>
-              {row!.people.map((p) => p.name).join(" · ")}
+
+            {ready.map((g) => (
+              <div key={g.id} className="card pad gate-ready stack" style={{ gap: 6 }}>
+                <div className="between" style={{ gap: 10, alignItems: "baseline" }}>
+                  <span className="small" style={{ fontWeight: 800, minWidth: 0 }}>{g.name}</span>
+                  <span className="mono" style={{ fontWeight: 800, flex: "none" }}>{money(g.amount) ?? "—"}</span>
+                </div>
+                {g.trigger && <p className="tiny text-muted" style={{ margin: 0 }}>{g.trigger}</p>}
+                <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <span className="tag tag-accent">ready to claim</span>
+                  {g.requires_photo && <span className="tag tag-outline">needs a photo</span>}
+                </div>
+                {/* Straight to the payment, with the amount the gate is worth
+                    already in the box - the gate knows what it is worth, so
+                    nobody should be typing it again from memory. */}
+                <Link href={`/project/${landsOn}/pay?trade=${encodeURIComponent(trade)}&gate=${g.id}&amount=${Math.round(g.amount ?? 0)}&back=${encodeURIComponent(`/project/${id}/trade/${raw}`)}`}
+                  className="btn btn-primary btn-block">
+                  Pay this gate — {money(g.amount) ?? "set the amount"}
+                </Link>
+              </div>
+            ))}
+
+            {ahead.length > 0 && (
+              <div className="bucket-rows">
+                {ahead.map((g) => (
+                  <div key={g.id} className="home-row" style={{ cursor: "default", alignItems: "flex-start" }}>
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t">{g.name}</span>
+                      <span className="m" style={{ display: "block" }}>
+                        {g.trigger ?? "No trigger written"}
+                      </span>
+                    </span>
+                    <span className="tiny text-muted" style={{ flex: "none", whiteSpace: "nowrap" }}>
+                      {money(g.amount) ?? "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {settled.length > 0 && (
+              <p className="tiny text-muted" style={{ margin: 0 }}>
+                {settled.length} gate{settled.length === 1 ? "" : "s"} already paid
+                {money(settled.reduce((n, g) => n + (g.amount ?? 0), 0))
+                  ? ` · ${money(settled.reduce((n, g) => n + (g.amount ?? 0), 0))}` : ""}.
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* A trade with a contract and no gates written is worth saying out
+            loud: it means nobody agreed when this man gets paid. */}
+        {allGates.length === 0 && contracts.length > 0 && (
+          <Card soft pad>
+            <div className="small" style={{ fontWeight: 700 }}>No payment gates on this trade.</div>
+            <div className="tiny text-muted" style={{ marginTop: 3 }}>
+              There is a contract but nobody wrote down when he gets paid, so every payment here is a judgement call
+              on the day. <Link href={`/project/${landsOn}/money`}>Set the schedule</Link>.
             </div>
           </Card>
         )}
@@ -152,6 +247,19 @@ export default async function TradePage({
             </Link>
           </section>
         )}
+
+        {/* Who has been here this week, out of the roster. */}
+        {(row?.people?.length ?? 0) > 0 && (
+          <Card soft pad>
+            <div className="small" style={{ fontWeight: 700 }}>
+              On site this week{row!.days_on_site > 0 ? ` · ${row!.days_on_site} ${row!.days_on_site === 1 ? "day" : "days"}` : ""}
+            </div>
+            <div className="tiny text-muted" style={{ marginTop: 4 }}>
+              {row!.people.map((p) => p.name).join(" · ")}
+            </div>
+          </Card>
+        )}
+
 
         {/* THE WORK. */}
         <section className="stack" style={{ gap: 14 }}>
@@ -298,10 +406,11 @@ function Chip({ href, on, label }: { href: string; on: boolean; label: string })
   );
 }
 
-function Stat({ n, label, tone }: { n: string; label: string; tone?: "status" }) {
+function Stat({ n, label, tone }: { n: string; label: string; tone?: "status" | "bid" }) {
   return (
     <div className="tile" style={{ minHeight: 0, alignItems: "flex-start", textAlign: "left", gap: 2, padding: "12px 12px 10px" }}>
-      <div className="mono" style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22, color: tone === "status" ? "var(--color-status)" : undefined }}>{n}</div>
+      <div className="mono" style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22,
+        color: tone === "status" ? "var(--color-status)" : tone === "bid" ? "var(--color-bid)" : undefined }}>{n}</div>
       <div className="tiny text-muted">{label}</div>
     </div>
   );

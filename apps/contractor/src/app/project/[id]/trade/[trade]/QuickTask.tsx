@@ -141,9 +141,12 @@ export function QuickTask({ projectId, projectName, trade, elsewhere, methods = 
     <details className="home-panel">
       <summary className="home-row">
         <span className="grow" style={{ minWidth: 0 }}>
-          <span className="t">Log a {trade.toLowerCase()} task</span>
+          {/* It does two things now (189), so it says two things. */}
+          <span className="t">Log a {trade.toLowerCase()} task{methods.length > 0 ? " or payment" : ""}</span>
           <span className="m" style={{ display: "block" }}>
-            One line, a date if you know it, a photo or a voice note if you have one
+            {methods.length > 0
+              ? "One line, a date if you know it, a photo — and what it cost, if you just paid for it"
+              : "One line, a date if you know it, a photo or a voice note if you have one"}
           </span>
         </span>
         <span className="chev"><ChevronIcon /></span>

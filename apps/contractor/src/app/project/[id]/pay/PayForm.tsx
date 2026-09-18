@@ -32,14 +32,16 @@ export type ContractDefault = {
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const shortDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-export function PayForm({ projectId, choices, defaults, methods, accounts, people, defaultTask }: {
+export function PayForm({ projectId, choices, defaults, methods, accounts, people, defaultTask, startAmount = null }: {
   projectId: string;
+  /** Arrived from a payment gate that already knows what it is worth (190). */
   choices: PayChoice[];
   defaults: ContractDefault[];
   methods: Method[];
   accounts: string[];
   people: { contact_id: string; name: string }[];
   defaultTask: string | null;
+  startAmount?: string | null;
 }) {
   // The jobs that have something open, in the order they first appear
   // (owed first, so the busiest job leads).
@@ -111,9 +113,13 @@ export function PayForm({ projectId, choices, defaults, methods, accounts, peopl
         </span>
       </label>
 
+      {/* The gate's amount rides in on the FIRST render (its own key), so
+          picking a task afterwards still applies that contract's payee and
+          account without wiping the number you came here to pay. */}
       <PaymentBox projectId={projectId} methods={methods} accounts={accounts} people={people}
-        defaults={d ? { payee: d.party, account: d.account, method: d.method } : null}
-        defaultsKey={picked?.contract_id ?? ""} />
+        defaults={{ payee: d?.party ?? null, account: d?.account ?? null, method: d?.method ?? null,
+          amount: picked ? null : startAmount }}
+        defaultsKey={`${picked?.contract_id ?? ""}|${startAmount ?? ""}`} />
     </>
   );
 }

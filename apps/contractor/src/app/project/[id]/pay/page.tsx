@@ -31,10 +31,14 @@ export default async function CategoryPayPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ trade?: string; phase?: string; owner?: string; untagged?: string; back?: string; error?: string; task?: string }>;
+  searchParams: Promise<{ trade?: string; phase?: string; owner?: string; untagged?: string; back?: string; error?: string; task?: string; amount?: string; gate?: string }>;
 }) {
   const { id } = await params;
-  const { trade, phase, owner, untagged, back, error, task } = await searchParams;
+  const { trade, phase, owner, untagged, back, error, task, amount } = await searchParams;
+  // ARRIVED FROM A PAYMENT GATE (190), which already knows what it is worth.
+  // Digits only: it comes off a URL, so it is read as a number here rather
+  // than trusted into the form.
+  const startAmount = /^\d+(\.\d{1,2})?$/.test(String(amount ?? "")) ? String(amount) : null;
   const to = back && back.startsWith("/") && !back.startsWith("//") ? back : `/project/${id}`;
 
   const w = stopwatch("/project/[id]/pay");
@@ -167,7 +171,7 @@ export default async function CategoryPayPage({
                 all is not possible to search... find the task in two clicks").
                 PayForm holds the pick and hands the payment box what the
                 task's contract knows. */}
-            <PayForm projectId={id} choices={pick} defaults={defaults} methods={methods} accounts={accounts}
+            <PayForm projectId={id} choices={pick} defaults={defaults} methods={methods} accounts={accounts} startAmount={startAmount}
               people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))}
               defaultTask={task ?? null} />
 

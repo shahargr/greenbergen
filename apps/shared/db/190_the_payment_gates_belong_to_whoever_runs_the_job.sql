@@ -48,3 +48,32 @@ comment on function public.portal_my_milestones(uuid) is
 
 update public.config set schema_version = schema_version + 1, schema_updated_at = now()
  where id = (select c.id from public.config c limit 1);
+
+-- ---------------------------------------------------------------------------
+-- 190b  Gates are found from the house, not only the job
+-- ---------------------------------------------------------------------------
+-- portal_my_milestones matched ps.project_id = p_project exactly. But a
+-- payment stage lives on the JOB that the contract is on - all six of 55
+-- Walnut's plumbing gates sit on "New build" - while the screens people
+-- actually stand in front of are opened on the HOUSE. Asked about 55 Walnut
+-- it returned nothing, and the answer looked like "no gates written" rather
+-- than "wrong question".
+--
+-- The family, the same way every other roll-up on these screens reads it
+-- (portal_bid_board, the project screen's task counts): at or beneath the
+-- project you asked about. The guard stays on the project you asked about -
+-- membership and the money ladder are still answered for that one - so this
+-- widens what is FOUND, never who may see it.
+do $patch$
+declare src text; out_ text;
+begin
+  src := pg_get_functiondef('public.portal_my_milestones(uuid)'::regprocedure);
+  out_ := replace(src,
+    $old$    where ps.project_id = p_project$old$,
+    $new$    where ps.project_id in (select f.id from public.project_ancestry_down(p_project) f)$new$);
+  if out_ = src then raise exception 'portal_my_milestones has drifted - the project_id filter was not found.'; end if;
+  execute out_;
+end $patch$;
+
+update public.config set schema_version = schema_version + 1, schema_updated_at = now()
+ where id = (select c.id from public.config c limit 1);

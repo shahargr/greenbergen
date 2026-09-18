@@ -8,7 +8,13 @@ export type Method = { id: string; name: string; requires_reference: boolean };
 // WHAT A CONTRACT ALREADY KNOWS (migration 165): who gets paid, the account
 // the last payment left from, the rail it went on. Filled into the slots
 // when the task changes; editable after.
-export type PayDefaults = { payee: string | null; account: string | null; method: string | null };
+export type PayDefaults = {
+  payee: string | null; account: string | null; method: string | null;
+  /** WHAT THE GATE IS WORTH (190). A payment stage already says what it pays;
+   *  nobody should be typing that number again from memory while standing in
+   *  front of the work it settles. */
+  amount?: string | null;
+};
 
 // WHAT THIS TASK COST. Shahar (2026-09-11): "just purchased this sign online
 // so i can add a payment directly from here."
@@ -75,6 +81,7 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
     setApplied(defaultsKey);
     if (defaults?.payee) setPayee(defaults.payee);
     if (defaults?.account) setAccount(defaults.account);
+    if (defaults?.amount) setAmount(defaults.amount);
     if (defaults?.method) {
       const hit = methods.find((x) => x.name === defaults.method);
       if (hit) setMethodId(hit.id);
