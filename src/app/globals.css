@@ -1426,6 +1426,31 @@ a.homepanel-alert:hover { text-decoration: underline; }
   .pk-f.full { flex-basis: 100%; }
 }
 
+/* Activities (admin/activities/[id]) - a process, step by step. Every step
+   is a fold: the line says where it sits, who does it and what it turns on;
+   open it to change it. Ten steps of a generator have to be readable before
+   they are editable. */
+.act-step { border-top: 1px solid #eee; padding: 4px 0; }
+.act-step > summary {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  cursor: pointer; padding: 8px 0; list-style: none;
+}
+.act-step > summary::-webkit-details-marker { display: none; }
+.act-step > summary::before { content: "▸"; color: var(--muted); font-size: 12px; }
+.act-step[open] > summary::before { content: "▾"; }
+.act-n { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 26px; }
+.act-name { font-weight: 600; flex: 1 1 200px; min-width: 0; }
+.act-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip {
+  display: inline-block; font-size: 11px; line-height: 1.6; padding: 0 7px;
+  border-radius: 999px; background: #eef2ee; color: #45604c; white-space: nowrap;
+}
+.chip.warn { background: #fdf1e3; color: #8a5a1b; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
 /* Admin > Usage */
 .usage-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .usage-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }

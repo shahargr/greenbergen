@@ -246,6 +246,32 @@ export async function loadPackageProducts(code: string): Promise<PackageProduct[
   return Array.isArray(rows) ? rows : [];
 }
 
+// HOW THE WORK ACTUALLY GOES (migration 187). The same steps the office
+// follows, in the same order, minus the ones marked ours only - so a
+// homeowner can read the whole job before deciding, and do it themselves if
+// they want to. Every step names the trade whose hand it needs, which is the
+// honest answer to "can I do this myself": the generator needs a licensed
+// plumber and a licensed electrician whoever is running it.
+//
+// Cached like the rest of the catalogue: it is the same for every visitor and
+// changes when we change the process, not per request. Null when the package
+// has no process written for it - the screen says so rather than inventing one.
+export type ProcessTrade = { trade: string; need: "required" | "optional"; note: string | null };
+export type ProcessStep = {
+  n: number; step: string; why: string | null; asks: string | null; photo: string | null;
+  trade: string | null; is_gate: boolean; decides: string | null;
+  answers: string[] | null; only_if: Record<string, string> | null;
+};
+export type PackageProcess = {
+  package: string; name: string; process: string;
+  trades: ProcessTrade[]; steps: ProcessStep[];
+};
+
+export async function loadPackageProcess(code: string): Promise<PackageProcess | null> {
+  const row = await catalogueRpc<PackageProcess | null>("homeowner_package_process", { p_code: code });
+  return row && typeof row === "object" && Array.isArray(row.steps) && row.steps.length > 0 ? row : null;
+}
+
 export async function loadPackage(code: string): Promise<{ pkg: Package | null; source: "database" | "static" }> {
   const row = await catalogueRpc<Package | null>("homeowner_package", { p_code: code });
   if (row && typeof row === "object" && row.code) return { pkg: row, source: "database" };

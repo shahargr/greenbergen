@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { decodeSelections, isHardware, loadCovered, loadPackage, loadPackageProducts, type Package } from "@shared/catalogue";
+import { decodeSelections, isHardware, loadCovered, loadPackage, loadPackageProcess, loadPackageProducts, type Package } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
@@ -91,6 +92,9 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   // different clock from the package itself.
   const covered = await loadCovered(pkg.trade);
   const sections = pkg.sections ?? [];
+  // The step-by-step, when one is written (187). Cached with the rest of the
+  // catalogue, so this costs the page nothing on a warm render.
+  const process = await loadPackageProcess(pkg.code);
 
   // Coming soon used to 404 from here, because the tile that led to it was a
   // dead <div>. It is a link now, and a member who taps it deserves to read
@@ -146,6 +150,23 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   const story = (
     <>
       <Claims sections={sections} />
+
+      {/* HOW IT ACTUALLY GOES (187). The same list our office works from,
+          offered before the price rather than after the booking: a homeowner
+          who wants to run it themselves should be able to read the whole job,
+          and one who doesn't should see what they are handing over. */}
+      {process && (
+        <Card pad>
+          <h6 style={{ marginBottom: 2 }}>How this one goes</h6>
+          <p className="small text-muted" style={{ margin: "0 0 10px" }}>
+            {process.steps.length} steps, in the order they actually happen — the same list we work from.
+            It names the trades the job needs and what each one signs.
+          </p>
+          <Link className="btn btn-soft btn-block" href={`/packages/${pkg.code}/how`}>
+            Read the step-by-step
+          </Link>
+        </Card>
+      )}
 
       <Card pad>
         <h6 style={{ marginBottom: 6 }}>What&apos;s included</h6>

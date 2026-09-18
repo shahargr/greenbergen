@@ -43,6 +43,13 @@ const SECTIONS = [
     icon: <svg {...I}><path d="M21 8 12 3 3 8l9 5 9-5Z" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" /></svg>,
   },
   {
+    // A branch of its own (Shahar, 2026-09-18: "move this entire branch of
+    // activities under admin top level for faster access") - a process
+    // outlives the package that points at it.
+    href: "/admin/activities", label: "Activities",
+    icon: <svg {...I}><path d="M9 6h11" /><path d="M9 12h11" /><path d="M9 18h11" /><path d="m3.5 6 1.3 1.3L7.2 4.9" /><path d="m3.5 12 1.3 1.3 2.4-2.4" /><path d="m3.5 18 1.3 1.3 2.4-2.4" /></svg>,
+  },
+  {
     href: "/admin/projects", label: "Projects",
     icon: <svg {...I}><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg>,
   },

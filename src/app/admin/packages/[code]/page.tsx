@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { deleteRow, savePackage, saveRows } from "../actions";
+import {deleteRow, savePackage, saveRows, savePackageTrade, removePackageTrade } from "../actions";
 import { PackagePhoto } from "./PackagePhoto";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,9 @@ type Option = { id: string; key: string; label: string; chip: string | null; pri
 type Lever = { id: string; key: string; label: string; control: string; question: string | null; sort_order: number; options: Option[] };
 type Photo = { id: string; key: string; label: string; hint: string | null; sort_order: number };
 type Milestone = { id: string; key: string; kind: string; name: string; sequence_no: number; percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null };
+// The trades a package needs (187). Equals, not a chain: each is hired and
+// paid on its own while we run the sequence between them.
+type PkgTrade = { id: string; trade: string; need: "required" | "optional"; note: string | null; sort_order: number };
 type Server = { contact_id: string; name: string; status: string; price_cents: number | null; note: string | null; updated_at: string };
 type Video = { id: string; label: string; url: string; sort_order: number; is_active: boolean; shown: number; plays: number; completes: number; booked: number };
 type Pkg = {
@@ -28,7 +31,7 @@ type Pkg = {
   permit_deposit_pct: number | null; instant_book: boolean; approval_note: string | null; illustration: string | null;
   description: string | null; sort_order: number; is_active: boolean; category: string | null; season_months: number[] | null;
   photo_url: string | null; promote: boolean;
-  covered: boolean; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[]; videos: Video[];
+  covered: boolean; trades: PkgTrade[]; trade_choices: string[]; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[]; videos: Video[];
 };
 
 const dollars = (c: number | null | undefined) => (c == null ? "" : (c / 100).toFixed(c % 100 === 0 ? 0 : 2));
@@ -285,7 +288,75 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         </form>
       </div>
 
-      {/* 6. WHO SERVES IT */}
+      {/* 6. THE TRADES THE WORK NEEDS (187).
+          Shahar (2026-09-18): "i would like to be able to store more than one
+          trade on a project. in this case, we need plumber, electrician, and
+          optional project manager / GC."
+
+          The package row still carries ONE trade - it is the word on the tile
+          - but the work is the list below. They are equals: each hired and
+          paid on its own while we run the sequence between them, which is why
+          none of them is anybody's sub. Booking the package opens a bid room
+          per required trade. */}
+      <div className="card" id="trades" style={{ marginTop: 14 }}>
+        <h2 className="section-title">The trades this work needs · {p.trades.length}</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Equals, not a chain. A <strong>required</strong> trade is one the job cannot happen without;
+          an <strong>optional</strong> one is a hand the owner may or may not want — a project manager
+          running it, say. Each gets its own bid room when the package is booked.
+        </p>
+
+        {p.trades.length === 0 && <p className="muted small">None yet — the tile trade alone.</p>}
+        {p.trades.length > 0 && (
+          <div style={{ display: "grid", gap: 8 }}>
+            {p.trades.map((t) => (
+              <form key={t.id} action={savePackageTrade} className="pk-row">
+                <input type="hidden" name="code" value={p.code} />
+                <input type="hidden" name="trade" value={t.trade} />
+                <F label="Trade" span={4}><input className="input" value={t.trade} readOnly /></F>
+                <F label="Need" span={3}>
+                  <select className="input" name="need" defaultValue={t.need}>
+                    <option value="required">Required</option>
+                    <option value="optional">Optional</option>
+                  </select>
+                </F>
+                <F label="What this trade does here" span={12}>
+                  <input className="input" name="note" defaultValue={t.note ?? ""}
+                    placeholder="Gas line, the meter, the mechanical permit" />
+                </F>
+                <div className="pk-acts">
+                  <button className="btn small">Save</button>
+                  <button className="btn ghost small" formAction={removePackageTrade}>Remove</button>
+                </div>
+              </form>
+            ))}
+          </div>
+        )}
+
+        <form action={savePackageTrade} className="pk-row" style={{ marginTop: 10 }}>
+          <input type="hidden" name="code" value={p.code} />
+          <F label="Add a trade" span={5}>
+            <select className="input" name="trade" required defaultValue="">
+              <option value="" disabled>Pick one</option>
+              {p.trade_choices.filter((t) => !p.trades.some((x) => x.trade === t)).map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </F>
+          <F label="Need" span={3}>
+            <select className="input" name="need" defaultValue="required">
+              <option value="required">Required</option>
+              <option value="optional">Optional</option>
+            </select>
+          </F>
+          <F label="What it does here" span={8}>
+            <input className="input" name="note" placeholder="Optional — one line" />
+          </F>
+          <div className="pk-acts"><button className="btn small">Add it</button></div>
+        </form>
+      </div>
+
+      {/* 7. WHO SERVES IT */}
       <div className="card" id="servers" style={{ marginTop: 14 }}>
         <h2 className="section-title">Contractors serving this package · {p.contractors.filter((c) => c.status === "active").length}</h2>
         <p className="muted small" style={{ marginTop: 0 }}>Who has signed up from the Professionals app, and the price they call for the basic setup when it differs from the community price. The lowest call below the community price gets first refusal on new jobs for the window set in config (first_refusal_hours); the homeowner always pays the community price.</p>

@@ -153,3 +153,36 @@ export async function setPackagePhoto(code: string, url: string): Promise<{ ok?:
   revalidatePath(`/admin/packages/${code}`);
   return { ok: true };
 }
+
+// THE TRADES A PACKAGE NEEDS (187). Equals, not a chain: each is hired and
+// paid on its own while we run the sequence between them. The database checks
+// the trade is one we know and that the catalogue is yours to change.
+export async function savePackageTrade(formData: FormData) {
+  const supabase = await createClient();
+  const code = String(formData.get("code") ?? "").trim();
+  const trade = String(formData.get("trade") ?? "").trim();
+  const need = String(formData.get("need") ?? "required") === "optional" ? "optional" : "required";
+  const note = String(formData.get("note") ?? "").trim() || null;
+  if (!code || !trade) redirect(`/admin/packages/${code}?error=${encodeURIComponent("Pick a trade.")}`);
+
+  const { data, error } = await supabase.rpc("admin_package_trade_save", {
+    p_code: code, p_trade: trade, p_need: need, p_note: note,
+  });
+  revalidatePath(`/admin/packages/${code}`);
+  if (error || !data?.ok) {
+    redirect(`/admin/packages/${code}?error=${encodeURIComponent(data?.reason ?? "That trade did not save.")}`);
+  }
+  redirect(`/admin/packages/${code}#trades`);
+}
+
+export async function removePackageTrade(formData: FormData) {
+  const supabase = await createClient();
+  const code = String(formData.get("code") ?? "").trim();
+  const trade = String(formData.get("trade") ?? "").trim();
+  const { data, error } = await supabase.rpc("admin_package_trade_remove", { p_code: code, p_trade: trade });
+  revalidatePath(`/admin/packages/${code}`);
+  if (error || !data?.ok) {
+    redirect(`/admin/packages/${code}?error=${encodeURIComponent(data?.reason ?? "That did not come off.")}`);
+  }
+  redirect(`/admin/packages/${code}#trades`);
+}
