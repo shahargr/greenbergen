@@ -1646,3 +1646,14 @@ a.homepanel-alert:hover { text-decoration: underline; }
 .admin-index a:hover { border-color: var(--brand); text-decoration: none; }
 .admin-index strong { display: block; font-size: 14px; }
 .admin-index span { display: block; font-size: 12px; color: var(--muted); line-height: 1.35; margin-top: 2px; }
+
+/* A PRICE AGAINST EVERY LINE (188), on the bidder's own page. The tick stays
+   - what he is NOT doing still matters - and the price sits at the end of
+   the row where a number belongs. */
+.line-row { display: flex; gap: 9px; align-items: flex-start; line-height: 1.35; }
+.line-what { flex: 1 1 auto; min-width: 0; }
+.input.line-price { flex: 0 0 96px; min-height: 38px; }
+@media (max-width: 420px) {
+  .line-row { flex-wrap: wrap; }
+  .input.line-price { flex-basis: 100%; }
+}

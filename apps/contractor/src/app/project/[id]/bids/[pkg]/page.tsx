@@ -7,9 +7,12 @@ import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { money } from "@/lib/board";
 import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent, showPhoto, hidePhoto,
-  attachUploads, attachExisting, detachDoc, shareDoc } from "./actions";
+  attachUploads, attachExisting, detachDoc, shareDoc,
+  removeBidder, editBidder, addKnownToRoom, setTemplate, setMeasures } from "./actions";
 import { BidPapers } from "@/components/BidPapers";
 import { BidLink } from "@/components/BidLink";
+import { BidRowMenu } from "@/components/BidRowMenu";
+import { RoomPeople } from "@/components/RoomPeople";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +33,11 @@ export const dynamic = "force-dynamic";
 // function that owns its own rule.
 type Item = { id: string; scope_item_id: string; item: string; category: string | null; is_required: boolean; sort: number;
   // base = part of the price; option = an extra he prices on its own line (185).
-  kind: "base" | "option" };
+  kind: "base" | "option";
+  // THE MEASUREMENT (188). How much of this line there is, in the trade's own
+  // word - 32 squares, 140 linear feet. Shown to every bidder so they all
+  // price the same quantity, and what turns three quotes into a rate.
+  qty: number | null; unit: string | null };
 type Shot = { id: string; path: string; caption: string | null; file_id: string | null; sort: number };
 type Doc = { id: string; file_name: string; kind: string | null; bucket: string; path: string };
 type Bid = {
@@ -57,11 +64,15 @@ type Papers = { package_id: string; contract_id: string | null; q: string | null
 // The database does the arithmetic - what a missing line costs is what the
 // others charge for it, so "normalised" is the number to compare.
 type Cell = { bid_id: string; included: boolean; price: number | null };
-type CmpItem = { scope_item_id: string; item: string; is_required: boolean; cells: Cell[] | null };
+type CmpItem = { scope_item_id: string; item: string; is_required: boolean; qty: number | null; unit: string | null; cells: Cell[] | null };
 type CmpBid = {
   id: string; bidder: string | null; person: string | null; status: string;
   amount: number | null; gaps: number; gap_cost: number; normalized: number;
   terms_ok: boolean; insurance_ok: boolean;
+  // What his LINES add up to, when the room asked for a price on each (188).
+  // Kept apart from the number he wrote at the bottom on purpose: when the
+  // two disagree, that is the thing worth seeing.
+  lines_total: number | null; lines_priced: number;
 };
 type CmpOpt = { scope_item_id: string; item: string; cells: { bid_id: string; price: number | null }[] | null };
 type Cmp = { items: CmpItem[]; options: CmpOpt[]; bids: CmpBid[] };
@@ -72,6 +83,8 @@ type Pkg = {
   deposit_pct: number | null; retainage_pct: number | null; net_days: number | null;
   insurance_workers_comp: boolean | null; coi_required: boolean | null;
   reply_by: string | null; status: string; awarded_bid_id: string | null; can_edit: boolean;
+  // The room asks for a price against every line rather than one lump sum (188).
+  price_per_line: boolean;
   items: Item[]; photos: Shot[]; docs: Doc[]; bids: Bid[]; members: Member[];
 };
 
@@ -87,10 +100,10 @@ export default async function BidPackagePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string; pkg: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; open?: string; held?: string; docq?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; open?: string; held?: string; docq?: string; who?: string; n?: string }>;
 }) {
   const { id, pkg: pkgId } = await params;
-  const { ok, error, open, held, docq } = await searchParams;
+  const { ok, error, open, held, docq, who, n } = await searchParams;
   const w = stopwatch("/project/[id]/bids/[pkg]");
   const supabase = await createClient();
 
@@ -161,6 +174,14 @@ export default async function BidPackagePage({
   const options = p.items.filter((i) => i.kind === "option");
   const required = base.filter((i) => i.is_required);
   const itemIds = base.map((i) => i.scope_item_id).join(",");
+  const optionIds = options.map((i) => i.scope_item_id).join(",");
+  // What this bidder last put against one line, read out of the comparison -
+  // so reopening the sheet to change one number does not blank the rest.
+  const priceOf = (b: Bid, scopeItemId: string): number | null => {
+    const row = cmp?.items.find((i) => i.scope_item_id === scopeItemId)
+      ?? cmp?.options.find((i) => i.scope_item_id === scopeItemId);
+    return row?.cells?.find((c) => c.bid_id === b.id)?.price ?? null;
+  };
   const uninvited = p.members.filter((m) => !p.bids.some((b) => b.bidder_contact_id === m.contact_id));
   const closed = p.status === "closed" || !!p.awarded_bid_id;
   const canWrite = p.can_edit && !closed;
@@ -190,6 +211,11 @@ export default async function BidPackagePage({
         {ok === "already" && <div className="banner-ok">That firm was already in this room — nothing doubled up.</div>}
         {ok === "opened" && <div className="banner-ok">Room opened. Put somebody in it.</div>}
         {ok === "existed" && <div className="banner-ok">This room was already open.</div>}
+        {ok === "removed" && <div className="banner-ok">{who || "They"} came out of the room. They stay in the address book.</div>}
+        {ok === "edited" && <div className="banner-ok">Corrected — in the address book, so it is right everywhere now.</div>}
+        {ok === "perline" && <div className="banner-ok">They will be asked for a price against every line. Anybody who already priced keeps what they said.</div>}
+        {ok === "lumpsum" && <div className="banner-ok">Back to one number for the job.</div>}
+        {ok === "measured" && <div className="banner-ok">{n ? `${n} line${n === "1" ? "" : "s"} measured.` : "Measurements saved."} Every bidder sees them.</div>}
         {ok === "scope" && (
           <div className="banner-ok">
             Scope saved. Those lines are what every bid is judged against.
@@ -221,6 +247,112 @@ export default async function BidPackagePage({
               {p.budget_visible ? "Bidders can see this number." : "Yours only — bidders do not see it."}
             </div>
           </Card>
+        )}
+
+        {/* THE ROOM, AS A TABLE, AT THE TOP (Shahar, 2026-09-18: "people in the
+            room should be listed in a table on top, with their pricing").
+
+            The comparison below only holds people who have REPLIED, so a room
+            where nobody has priced yet showed a wall of cards and no table at
+            all - which is exactly the moment you most want to see who was
+            asked and whether the link was ever opened. This is the roster:
+            everybody in the room, replied or not, what they said, and the
+            three things you do to a row - open their sheet, correct them,
+            take them out.
+
+            The line-by-line grid stays below. This says WHO, that says WHAT. */}
+        {p.bids.length > 0 && (
+          <section className="stack" style={{ gap: 8 }}>
+            <div className="divider-label">
+              In the room · {p.bids.length}
+              {replied.length > 0 && <span style={{ fontWeight: 700 }}>&nbsp;· {replied.length} priced</span>}
+            </div>
+            <div className="cmp-scroll">
+              <table className="cmp roster">
+                <thead>
+                  <tr>
+                    <th className="cmp-lbl" scope="col">Who</th>
+                    <th scope="col">Their number</th>
+                    {p.price_per_line && <th scope="col">Lines</th>}
+                    <th scope="col">Missing</th>
+                    <th scope="col">Like for like</th>
+                    <th scope="col">Where it got to</th>
+                    {canWrite && <th scope="col"><span className="sr-only">Actions</span></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.bids.map((b) => {
+                    const c = cmp?.bids.find((x) => x.id === b.id) ?? null;
+                    const isAwarded = b.id === p.awarded_bid_id;
+                    // Where the link got to, in the order it actually happens.
+                    const linkState = b.link_revoked ? "link pulled"
+                      : b.link_opened_at ? `opened ${shortDate(b.link_opened_at)}`
+                      : b.link_sent_at ? `sent ${shortDate(b.link_sent_at)}`
+                      : b.link_token ? "link not sent"
+                      : "no link";
+                    return (
+                      <tr key={b.id} className={isAwarded ? "tot" : undefined}>
+                        <th className="cmp-lbl" scope="row">
+                          <a href={`#${b.id}`}>{b.bidder ?? "Somebody"}</a>
+                          {b.person && b.person !== b.bidder && <span className="sub">{b.person}</span>}
+                        </th>
+                        <td className={b.amount != null ? "fig" : "meh"}>
+                          {b.amount != null ? money(b.amount) : "—"}
+                          {b.valid_until && <span className="sub">good to {shortDate(b.valid_until)}</span>}
+                        </td>
+                        {p.price_per_line && (
+                          <td className={c?.lines_total != null ? "fig" : "meh"}>
+                            {c?.lines_total != null ? money(c.lines_total) : "—"}
+                            {/* The one thing worth shouting about: he priced
+                                every line and the two numbers do not agree. */}
+                            {c?.lines_total != null && b.amount != null && Math.round(c.lines_total) !== Math.round(b.amount) && (
+                              <span className="sub" style={{ color: "var(--color-status)" }}>
+                                {money(Math.abs(c.lines_total - b.amount))} off his total
+                              </span>
+                            )}
+                            {c != null && c.lines_priced > 0 && c.lines_priced < base.length && (
+                              <span className="sub">{c.lines_priced} of {base.length}</span>
+                            )}
+                          </td>
+                        )}
+                        <td className={c == null ? "meh" : c.gaps > 0 ? "no" : "yes"}>
+                          {c == null ? "—" : c.gaps === 0 ? "nothing" : `${c.gaps} line${c.gaps === 1 ? "" : "s"}`}
+                          {c != null && c.gap_cost > 0 && <span className="sub">+{money(c.gap_cost)}</span>}
+                        </td>
+                        <td className={c?.id === best ? "fig best" : c != null ? "fig" : "meh"}>
+                          {c != null && b.amount != null ? money(c.normalized) : "—"}
+                        </td>
+                        <td>
+                          <span className={`tag ${tone(isAwarded ? "awarded" : b.status)}`}>
+                            {isAwarded ? "awarded" : b.status}
+                          </span>
+                          <span className="sub">{linkState}</span>
+                        </td>
+                        {canWrite && (
+                          <td className="roster-acts">
+                            <Link href={`/project/${id}/bids/${pkgId}?open=${b.id}#${b.id}`} scroll={false}
+                              className="btn btn-ghost small">{b.amount != null ? "Edit" : "Price"}</Link>
+                            {!isAwarded && (
+                              <BidRowMenu who={b.bidder ?? "them"} person={b.person}
+                                phone={b.link_phone} email={b.link_email}
+                                priced={b.amount != null}
+                                onEdit={editBidder.bind(null, id, pkgId, b.id)}
+                                onRemove={removeBidder.bind(null, id, pkgId, b.id)} />
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="tiny text-muted" style={{ margin: 0 }}>
+              Like for like is his number plus what the lines he left out cost, priced at what the others charge for
+              them{p.price_per_line ? " — and Lines is what his own line prices add up to" : ""}. It is the column to
+              read, not the one he wrote.
+            </p>
+          </section>
         )}
 
         {/* SIDE BY SIDE. Shahar (2026-09-17): "a quick way to compare them
@@ -377,6 +509,66 @@ export default async function BidPackagePage({
               </form>
             </details>
           )}
+          {/* THE SHEET THEY FILL IN (188b). Shahar (2026-09-18): "when asking
+              for pricing i would like to create the template the vendors will
+              complete so it is easier to compare them."
+
+              A base line used to be a TICK - in or out - and the whole job one
+              lump sum. Three roofers come back with 41,000 / 38,500 / 44,000
+              and the only honest thing you can say is which is smaller. Where
+              the money went is the question, and nobody could ask it.
+
+              Two halves, and the second is what makes it a bid sheet rather
+              than a wish: ask for a price on every line, and say HOW MUCH of
+              each line there is. Thirteen prices are comparable; thirteen
+              prices against 32 squares and 140 linear feet are a rate. */}
+          {canWrite && base.length > 0 && (
+            <details className="card pad" open={p.price_per_line}>
+              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                What they fill in{p.price_per_line ? " · a price on every line" : " · one number"}
+              </summary>
+
+              <form action={setTemplate.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                <label className="radio-opt" style={{ marginBottom: 0 }}>
+                  <input type="checkbox" name="price_per_line" defaultChecked={p.price_per_line} />
+                  <span className="grow" style={{ minWidth: 0 }}>
+                    <span className="t">Ask for a price against every line</span>
+                    <span className="m" style={{ display: "block" }}>
+                      Their page gets {base.length} price boxes instead of {base.length} ticks, and their total is the
+                      sum of the lines. The side-by-side then compares line against line.
+                    </span>
+                  </span>
+                </label>
+                <button className="btn btn-secondary btn-block">
+                  {p.price_per_line ? "Save — or go back to one number" : "Ask for a price per line"}
+                </button>
+              </form>
+
+              {/* The measurement. Offered whichever way the room is asking,
+                  because a quantity is worth stating even against a lump sum:
+                  it is how you know everybody priced the same roof. */}
+              <div className="divider-label" style={{ marginTop: 14 }}>How much of each line</div>
+              <p className="tiny text-muted" style={{ margin: "0 0 8px" }}>
+                Optional, and shown to every bidder. Leave a line blank where you genuinely do not know — a stale
+                number is worse than none.
+              </p>
+              <form action={setMeasures.bind(null, id, pkgId)} className="stack" style={{ gap: 6 }}>
+                {base.map((i) => (
+                  <div key={i.id} className="meas-row">
+                    <span className="meas-item">{i.item}</span>
+                    <input className="input meas-qty" name={`qty__${i.id}`} inputMode="decimal"
+                      defaultValue={i.qty != null ? String(i.qty) : ""} placeholder="—"
+                      aria-label={`How much: ${i.item}`} />
+                    <input className="input meas-unit" name={`unit__${i.id}`}
+                      defaultValue={i.unit ?? ""} placeholder="squares"
+                      aria-label={`Counted in: ${i.item}`} />
+                  </div>
+                ))}
+                <button className="btn btn-secondary btn-block">Save the measurements</button>
+              </form>
+            </details>
+          )}
+
           {/* OPTIONS THEY PRICE SEPARATELY (Shahar, 2026-09-17: "there are
               options i'd like them to include in their bid, as separate line
               item"). Its own box, because an option is not scope: it is not
@@ -718,10 +910,13 @@ export default async function BidPackagePage({
                   <div id={b.id} className="stack" style={{ gap: 14, marginTop: 12 }}>
                     <form action={recordReply.bind(null, id, pkgId, b.id)} className="stack" style={{ gap: 8 }}>
                       <input type="hidden" name="items" value={itemIds} />
+                      <input type="hidden" name="options" value={optionIds} />
                       <div className="small" style={{ fontWeight: 700 }}>His number</div>
                       <div className="row" style={{ gap: 8 }}>
                         <div className="field grow" style={{ marginBottom: 0 }}>
-                          <label htmlFor={`amt-${b.id}`}>Amount ($)</label>
+                          <label htmlFor={`amt-${b.id}`}>
+                            {p.price_per_line ? "Total ($) — or leave it and the lines add up" : "Amount ($)"}
+                          </label>
                           <input id={`amt-${b.id}`} name="amount" className="input" inputMode="decimal"
                             defaultValue={b.amount != null ? String(Math.round(b.amount)) : ""} placeholder="14,000" />
                         </div>
@@ -730,20 +925,59 @@ export default async function BidPackagePage({
                           <input id={`val-${b.id}`} name="valid_until" type="date" className="input" defaultValue={b.valid_until ?? ""} />
                         </div>
                       </div>
+                      {/* THE SAME SHEET FROM EITHER SIDE (188). A room asking
+                          for a price per line asks for it here too - a bid
+                          taken over the phone has to be comparable with one
+                          that came in through the link, and it never was. */}
                       {base.length > 0 && (
-                        <details>
+                        <details open={p.price_per_line}>
                           <summary className="tiny text-muted" style={{ cursor: "pointer" }}>
-                            What his price covers — everything, unless you say otherwise
+                            {p.price_per_line
+                              ? `What he put against each line · ${base.length}`
+                              : "What his price covers — everything, unless you say otherwise"}
                           </summary>
                           <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-                            {base.map((i) => (
-                              <label key={i.id} className="row small" style={{ gap: 8, alignItems: "flex-start" }}>
-                                <input type="checkbox" name={`inc_${i.scope_item_id}`} defaultChecked style={{ marginTop: 3 }} />
-                                <span className="grow" style={{ minWidth: 0 }}>
-                                  {i.item}{i.is_required ? "" : " (optional)"}
-                                </span>
-                              </label>
-                            ))}
+                            {base.map((i) => {
+                              const said = priceOf(b, i.scope_item_id);
+                              return (
+                                <label key={i.id} className={p.price_per_line ? "meas-row" : "row small"}
+                                  style={p.price_per_line ? undefined : { gap: 8, alignItems: "flex-start" }}>
+                                  <input type="checkbox" name={`inc_${i.scope_item_id}`} defaultChecked style={{ marginTop: 3 }} />
+                                  <span className="grow meas-item" style={{ minWidth: 0 }}>
+                                    {i.item}{i.is_required ? "" : " (optional)"}
+                                    {i.qty != null && <span className="tiny text-muted"> · {i.qty}{i.unit ? ` ${i.unit}` : ""}</span>}
+                                  </span>
+                                  {p.price_per_line && (
+                                    <input className="input meas-qty" name={`price_${i.scope_item_id}`} inputMode="decimal"
+                                      defaultValue={said != null ? String(Math.round(said)) : ""} placeholder="$"
+                                      aria-label={`His price for ${i.item}`} />
+                                  )}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      )}
+                      {/* The options, priced on their own. They were only ever
+                          collectable through his link; a manager writing the
+                          bid down could not record them at all. */}
+                      {options.length > 0 && (
+                        <details>
+                          <summary className="tiny text-muted" style={{ cursor: "pointer" }}>
+                            Options, priced separately · {options.length}
+                          </summary>
+                          <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+                            {options.map((i) => {
+                              const said = priceOf(b, i.scope_item_id);
+                              return (
+                                <label key={i.id} className="meas-row">
+                                  <span className="meas-item">{i.item}</span>
+                                  <input className="input meas-qty" name={`opt_${i.scope_item_id}`} inputMode="decimal"
+                                    defaultValue={said != null ? String(Math.round(said)) : ""} placeholder="$"
+                                    aria-label={`His price for ${i.item}`} />
+                                </label>
+                              );
+                            })}
                           </div>
                         </details>
                       )}
@@ -824,7 +1058,19 @@ export default async function BidPackagePage({
           {canWrite && (
             <details className="card pad" open={p.bids.length === 0}>
               <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>Put somebody in the room</summary>
-              <form action={addToRoom.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+
+              {/* WHO DOES THIS TRADE (188c). The trade is the question, not
+                  "who happens to be a member of this project" - which was the
+                  old list, and on a real job is the surveyor, the insurance
+                  broker and the portable toilet company. A name search still
+                  reaches every contact, because you are often standing in
+                  front of somebody whose trade nobody has recorded yet. */}
+              <div style={{ marginTop: 10 }}>
+                <RoomPeople pkgId={pkgId} roomTrade={p.trade} action={addKnownToRoom.bind(null, id, pkgId)} />
+              </div>
+
+              <div className="divider-label" style={{ marginTop: 14 }}>Somebody new</div>
+              <form action={addToRoom.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 6 }}>
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="co">Company</label>
                   <input id="co" name="company_name" className="input" placeholder="Bergen Roofing" />

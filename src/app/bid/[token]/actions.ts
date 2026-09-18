@@ -22,9 +22,6 @@ const txt = (v: FormDataEntryValue | null) => { const s = String(v ?? "").trim()
 
 export async function sendPrice(token: string, formData: FormData) {
   const here = `/bid/${token}`;
-  const amount = num(formData.get("amount"));
-  if (amount == null) redirect(`${here}?error=${encodeURIComponent("Put your price in first.")}`);
-
   // TWO KINDS OF LINE IN ONE ARRAY. A base line carries whether it is in his
   // price; an OPTION carries a price of its own and nothing else - it is not
   // part of the number, so "included" is meaningless on it and it can never
@@ -32,10 +29,13 @@ export async function sendPrice(token: string, formData: FormData) {
   const ids = String(formData.get("items") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const optIds = String(formData.get("options") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const lineItems = [
+    // A PRICE PER LINE when the room asked for one (188), in price_<id>. A
+    // room asking for one lump sum sends nothing and the line stays a plain
+    // tick, exactly as it was.
     ...ids.map((id) => ({
       scope_item_id: id,
       included: formData.get(`inc_${id}`) === "on",
-      price: null as number | null,
+      price: num(formData.get(`price_${id}`)),
     })),
     ...optIds.map((id) => ({
       scope_item_id: id,
@@ -43,6 +43,20 @@ export async function sendPrice(token: string, formData: FormData) {
       price: num(formData.get(`opt_${id}`)),
     })).filter((o) => o.price != null),
   ];
+
+  // THE TOTAL. A per-line room does not make him type it again - the lines
+  // ARE the bid, and asking for both is how the two end up disagreeing. He
+  // may still write one, and then it is his number that counts.
+  const lineSum = lineItems
+    .filter((l) => l.included && l.price != null)
+    .reduce((n, l) => n + (l.price as number), 0);
+  const amount = num(formData.get("amount")) ?? (lineSum > 0 ? lineSum : null);
+  if (amount == null) {
+    redirect(`${here}?error=${encodeURIComponent(
+      lineItems.some((l) => l.included) && ids.length > 0
+        ? "Put your price in — either the total, or a price on the lines."
+        : "Put your price in first.")}`);
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("bid_reply_by_token", {

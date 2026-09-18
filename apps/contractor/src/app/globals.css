@@ -892,3 +892,39 @@
            background: var(--color-soft); font-size: 11px; font-weight: 800; padding: 5px 0; color: var(--color-text); }
 .cmp .cmp-sep th { background: var(--color-soft); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
                    text-align: left; color: var(--muted); }
+
+/* THE ROSTER (188). Who is in the room, as a table, above everything -
+   because the comparison below only holds people who have already replied,
+   and the moment you most want to see the room is before anybody has. */
+.cmp.roster th.cmp-lbl a { color: inherit; font-weight: 700; }
+.cmp.roster td { white-space: nowrap; }
+.cmp.roster .sub { display: block; font-weight: 400; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.roster-acts { display: flex; gap: 4px; align-items: center; justify-content: flex-end; }
+
+/* Correct them / take them out: rare and destructive, so neither stands open
+   in a table row. The panel hangs off the row and is wide enough to read. */
+.rowmenu { position: relative; display: inline-flex; }
+.rowmenu-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
+  width: min(86vw, 320px); padding: 12px; text-align: left; white-space: normal;
+  background: var(--color-surface); border: 1.5px solid var(--color-divider-strong);
+  border-radius: var(--radius-md); box-shadow: 0 12px 32px rgba(22, 21, 19, .2);
+}
+.rowmenu-tabs { display: flex; gap: 4px; align-items: center; margin-bottom: 10px; }
+.rowmenu-tabs button {
+  border: 0; background: none; font: inherit; font-size: 12px; font-weight: 700;
+  color: var(--muted); cursor: pointer; padding: 3px 6px; border-radius: var(--radius-pill);
+}
+.rowmenu-tabs button.on { background: var(--color-soft); color: var(--color-text); }
+.rowmenu-tabs button.x { margin-left: auto; font-size: 14px; }
+
+/* The sheet they fill in: one line, its measurement, and a price box. Used
+   by the template editor and by the reply sheet, so the two read as the
+   same object seen from either side. */
+.meas-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.meas-item { flex: 1 1 180px; min-width: 0; font-size: 13px; line-height: 1.35; }
+.input.meas-qty { flex: 0 0 82px; min-height: 36px; font-size: 13px; }
+.input.meas-unit { flex: 0 0 104px; min-height: 36px; font-size: 13px; }
+@media (max-width: 420px) {
+  .meas-item { flex-basis: 100%; }
+}

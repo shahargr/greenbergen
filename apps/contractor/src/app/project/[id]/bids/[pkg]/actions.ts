@@ -35,13 +35,37 @@ const here = (projectId: string, pkgId: string, params: Record<string, string> =
 export async function recordReply(projectId: string, pkgId: string, bidId: string, formData: FormData) {
   const supabase = await createClient();
   const itemIds = String(formData.get("items") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const lineItems = itemIds.map((id) => ({
-    scope_item_id: id,
-    included: formData.get(`inc_${id}`) === "on",
-    price: null as number | null,
-  }));
-  const amount = num(formData.get("amount"));
-  if (amount == null) redirect(here(projectId, pkgId, { error: "Put their number in first." }));
+  const optIds = String(formData.get("options") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  // THE SAME SHEET FROM EITHER SIDE (188). The bidder's own page has always
+  // sent a price per line and a price per option; this one, where the manager
+  // writes a number down on his behalf, sent price: null for every line and
+  // ignored options entirely - so a bid taken over the phone could never be
+  // compared line against line with one that came in through the link.
+  const lineItems = [
+    ...itemIds.map((id) => ({
+      scope_item_id: id,
+      included: formData.get(`inc_${id}`) === "on",
+      price: num(formData.get(`price_${id}`)),
+    })),
+    ...optIds
+      .map((id) => ({ scope_item_id: id, included: false, price: num(formData.get(`opt_${id}`)) }))
+      .filter((o) => o.price != null),
+  ];
+  // WHERE THE TOTAL COMES FROM. When the room asked for a price per line, the
+  // lines ARE the bid and the total is their sum - typing it a second time is
+  // how the two end up disagreeing. A lump-sum room still asks for it.
+  const lineSum = lineItems
+    .filter((l) => l.included && l.price != null)
+    .reduce((n, l) => n + (l.price as number), 0);
+  const typed = num(formData.get("amount"));
+  const amount = typed ?? (lineSum > 0 ? lineSum : null);
+  if (amount == null) {
+    redirect(here(projectId, pkgId, {
+      error: lineItems.length > 0
+        ? "Put their number in — either the total, or a price on the lines."
+        : "Put their number in first.",
+    }));
+  }
 
   const { data, error } = await supabase.rpc("portal_bid_reply", {
     p_bid: bidId, p_line_items: lineItems, p_terms_reply: {}, p_insurance_reply: {},
@@ -323,4 +347,121 @@ export async function shareDoc(projectId: string, pkgId: string, formData: FormD
     redirect(here(projectId, pkgId, { error: data?.reason ?? "That did not go out." }));
   }
   redirect(here(projectId, pkgId, { ok: "shared" }));
+}
+
+// ----------------------------------------------------------------------
+// THE ROSTER IS EDITABLE (migration 188). Shahar (2026-09-18): "edit the
+// bidding room capability is lacking. edit / remove people for example is
+// needed."
+// ----------------------------------------------------------------------
+
+// OUT OF THE ROOM. The contact and the company stay - they are the address
+// book, not this room - and only their place in it goes. The database
+// refuses the awarded bid, a closed room, and a bidder who has already given
+// you a number unless the screen says so twice (p_even_if_priced), because
+// "mark them lost" keeps the price on the record and this throws it away.
+export async function removeBidder(projectId: string, pkgId: string, bidId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_room_remove", {
+    p_bid: bidId, p_even_if_priced: formData.get("even_if_priced") === "on",
+  });
+  revalidatePath(here(projectId, pkgId));
+  revalidatePath(`/project/${projectId}/bids`);
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "They did not come out.") }));
+  }
+  redirect(here(projectId, pkgId, { ok: "removed", who: String(data.who ?? "") }));
+}
+
+// CORRECTING WHO THEY ARE. This edits the PARTY - the company and the contact
+// - not the bid, so a phone number typed wrong is right everywhere
+// afterwards, which is the point of having one address book.
+export async function editBidder(projectId: string, pkgId: string, bidId: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_room_edit", {
+    p_bid: bidId,
+    p_company_name: txt(formData.get("company_name")),
+    p_person_name: txt(formData.get("person_name")),
+    p_phone: txt(formData.get("phone")),
+    p_email: txt(formData.get("email")),
+  });
+  revalidatePath(here(projectId, pkgId));
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "That did not save.") }));
+  }
+  redirect(here(projectId, pkgId, { ok: "edited" }));
+}
+
+// SOMEBODY OUT OF THE ADDRESS BOOK, found by the trade this room is for
+// (188c). The picker sends the contact and the company it already knows, so
+// nothing is created twice.
+export async function addKnownToRoom(projectId: string, pkgId: string, formData: FormData) {
+  const contacts = formData.getAll("contact").map(String).filter(Boolean);
+  if (contacts.length === 0) redirect(here(projectId, pkgId, { error: "Pick somebody first." }));
+
+  const supabase = await createClient();
+  let added = 0;
+  const problems: string[] = [];
+  for (const contact of contacts) {
+    const { data, error } = await supabase.rpc("portal_bid_room_add", {
+      p_package: pkgId, p_company: null, p_contact: contact,
+      p_company_name: null, p_person_name: null, p_phone: null, p_email: null,
+    });
+    if (error || !data?.ok) problems.push(data?.reason ?? friendly(error?.message, "one did not go in"));
+    else if (!data.existed) added++;
+  }
+  revalidatePath(here(projectId, pkgId));
+  revalidatePath(`/project/${projectId}/bids`);
+  if (problems.length > 0) redirect(here(projectId, pkgId, { error: problems.join(" · ") }));
+  redirect(here(projectId, pkgId, { ok: added > 0 ? "added" : "already" }));
+}
+
+// ----------------------------------------------------------------------
+// THE SHEET THEY FILL IN (migration 188b). Shahar: "when asking for pricing
+// i would like to create the template the vendors will complete so it is
+// easier to compare them."
+// ----------------------------------------------------------------------
+
+// The room's own switch: one lump sum, or a price against every line.
+export async function setTemplate(projectId: string, pkgId: string, formData: FormData) {
+  const supabase = await createClient();
+  const on = formData.get("price_per_line") === "on";
+  const { data, error } = await supabase.rpc("portal_bid_template_set", {
+    p_package: pkgId, p_price_per_line: on,
+  });
+  revalidatePath(here(projectId, pkgId));
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "That did not save.") }));
+  }
+  redirect(here(projectId, pkgId, { ok: on ? "perline" : "lumpsum" }));
+}
+
+// HOW MUCH OF EACH LINE THERE IS. Saved a whole sheet at a time: the fields
+// are named qty__<itemId> and unit__<itemId>, and only the rows that changed
+// are written. A blank quantity clears it - "we do not know yet" is an
+// answer, and a stale 32 squares is worse than none.
+export async function setMeasures(projectId: string, pkgId: string, formData: FormData) {
+  const supabase = await createClient();
+  const rows = new Map<string, { qty?: string; unit?: string }>();
+  for (const [k, v] of formData.entries()) {
+    const m = k.match(/^(qty|unit)__(.+)$/);
+    if (!m || typeof v !== "string") continue;
+    const row = rows.get(m[2]!) ?? {};
+    row[m[1] as "qty" | "unit"] = v.trim();
+    rows.set(m[2]!, row);
+  }
+  const problems: string[] = [];
+  let saved = 0;
+  for (const [itemId, r] of rows) {
+    const qty = num(r.qty ?? null);
+    if ((r.qty ?? "") !== "" && qty == null) { problems.push(`"${r.qty}" is not a number`); continue; }
+    const { data, error } = await supabase.rpc("portal_bid_item_measure", {
+      p_item: itemId, p_qty: qty, p_unit: r.unit || null,
+    });
+    if (error || !data?.ok) problems.push(data?.reason ?? friendly(error?.message, "one line did not save"));
+    else saved++;
+  }
+  revalidatePath(here(projectId, pkgId));
+  if (problems.length > 0) redirect(here(projectId, pkgId, { error: problems.join(" · ") }));
+  redirect(here(projectId, pkgId, { ok: "measured", n: String(saved) }));
 }

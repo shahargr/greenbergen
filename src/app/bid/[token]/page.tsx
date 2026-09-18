@@ -23,7 +23,11 @@ export const metadata = { title: "Your price", robots: { index: false, follow: f
 // town until the work is awarded), the budget, and any other bidder. The
 // database enforces all three in bid_by_token; this page could not leak them
 // if it tried.
-type Item = { scope_item_id: string; item: string; is_required: boolean; included: boolean };
+type Item = { scope_item_id: string; item: string; is_required: boolean; included: boolean;
+  // THE SHEET (188). When the room asks for a price per line, each line
+  // carries how much of it there is - 32 squares, 140 linear feet - so every
+  // bidder prices the same quantity, and whatever you last put against it.
+  qty: number | null; unit: string | null; price: number | null };
 type Option = { scope_item_id: string; item: string; price: number | null };
 type Shot = { path: string; caption: string | null };
 type Paper = { path: string; name: string | null };
@@ -32,7 +36,8 @@ type Bid = {
   open: boolean; settled: boolean;
   you: string | null; person: string | null; from: string | null; from_company: string | null;
   job: string | null; town: string | null; trade: string | null;
-  reply_by: string | null; scope_summary: string | null;
+  reply_by: string | null;
+  price_per_line?: boolean; scope_summary: string | null;
   terms: { deposit_pct: number | null; retainage_pct: number | null; net_days: number | null;
            workers_comp: boolean | null; coi: boolean | null };
   photos: Shot[];
@@ -78,6 +83,9 @@ export default async function BidByLink({
   const said = bid.said;
   const answered = said?.amount != null;
   const showForm = bid.open && (!answered || again === "1");
+  // THE ROOM DECIDES WHAT IT IS ASKING FOR (188): one number for the job, or
+  // a price against every line.
+  const perLine = bid.price_per_line === true;
 
   return (
     <Shell>
@@ -186,19 +194,34 @@ export default async function BidByLink({
           {bid.items.length > 0 && (
             <div>
               <h2 className="section-title" style={{ margin: "0 0 6px" }}>
-                What the price covers · {bid.items.length} line{bid.items.length === 1 ? "" : "s"}
+                {perLine
+                  ? `Your price, line by line · ${bid.items.length}`
+                  : `What the price covers · ${bid.items.length} line${bid.items.length === 1 ? "" : "s"}`}
               </h2>
               <p className="muted small" style={{ margin: "0 0 8px" }}>
-                Everything is ticked. Untick anything you are NOT including — it costs you nothing to be
-                straight about it, and a price that says what it leaves out is worth more than one that does not.
+                {perLine
+                  ? "Put a price against each line. It takes longer than one number and it is why you get compared fairly — a lump sum next to an itemised one always loses the argument about what was left out. Untick anything you are NOT doing."
+                  : "Everything is ticked. Untick anything you are NOT including — it costs you nothing to be straight about it, and a price that says what it leaves out is worth more than one that does not."}
               </p>
               <div style={{ display: "grid", gap: 7 }}>
                 {bid.items.map((i) => (
-                  <label key={i.scope_item_id} className="radio-opt"
-                    style={{ display: "flex", gap: 9, alignItems: "flex-start", lineHeight: 1.35 }}>
+                  <label key={i.scope_item_id} className={perLine ? "line-row" : "radio-opt"}
+                    style={perLine ? undefined : { display: "flex", gap: 9, alignItems: "flex-start", lineHeight: 1.35 }}>
                     <input type="checkbox" name={`inc_${i.scope_item_id}`} defaultChecked={i.included}
                       style={{ marginTop: 3 }} />
-                    <span>{i.item}{!i.is_required && <span className="muted"> (optional)</span>}</span>
+                    <span className="line-what">
+                      {i.item}{!i.is_required && <span className="muted"> (optional)</span>}
+                      {i.qty != null && (
+                        <span className="muted" style={{ display: "block", fontSize: 12 }}>
+                          {i.qty}{i.unit ? ` ${i.unit}` : ""}
+                        </span>
+                      )}
+                    </span>
+                    {perLine && (
+                      <input name={`price_${i.scope_item_id}`} className="input line-price" inputMode="decimal"
+                        defaultValue={i.price != null ? String(Math.round(i.price)) : ""} placeholder="$"
+                        aria-label={`Your price for ${i.item}`} />
+                    )}
                   </label>
                 ))}
               </div>
@@ -230,8 +253,12 @@ export default async function BidByLink({
           )}
 
           <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor="amount">Your price{bid.options.length > 0 ? " for the work above" : ""}</label>
-            <input id="amount" name="amount" className="input" inputMode="decimal" required
+            <label htmlFor="amount">
+              {perLine
+                ? "Your total — leave it blank and we add the lines up"
+                : `Your price${bid.options.length > 0 ? " for the work above" : ""}`}
+            </label>
+            <input id="amount" name="amount" className="input" inputMode="decimal" required={!perLine}
               defaultValue={said?.amount != null ? String(Math.round(said.amount)) : ""} placeholder="$" />
           </div>
           <div className="field" style={{ marginBottom: 0 }}>

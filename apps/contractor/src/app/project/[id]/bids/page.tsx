@@ -6,7 +6,7 @@ import { shortDate } from "@shared/format";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
 import { getBoard, money, runs } from "@/lib/board";
-import { openRoom } from "./actions";
+import { openRoom, dropTrade } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -39,16 +39,19 @@ type Row = {
   invited: number;
   replied: number;
   scope_lines: number;
+  // Every project_bid_needs row behind this trade, across the family - a
+  // trade the job needs twice is two rows, and dropping it has to take both.
+  need_ids: string[] | null;
 };
 
 export default async function BidBoardPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; add?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; add?: string; drop?: string; who?: string }>;
 }) {
   const { id } = await params;
-  const { ok, error, add } = await searchParams;
+  const { ok, error, add, drop, who } = await searchParams;
 
   const w = stopwatch("/project/[id]/bids");
   const supabase = await createClient();
@@ -83,6 +86,7 @@ export default async function BidBoardPage({
       <div className="body">
         {error && <Notice kind="error">{error}</Notice>}
         {ok === "opened" && <div className="banner-ok">Room opened. Put somebody in it.</div>}
+        {ok === "dropped" && <div className="banner-ok">{who || "That trade"} is off this job&apos;s board.</div>}
 
         <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
           <Stat n={String(open.length)} label="out to bid" tone={open.length > 0 ? "bid" : undefined} />
@@ -129,9 +133,29 @@ export default async function BidBoardPage({
             <div className="divider-label">Not started · {none.length}</div>
             {none.map((r) => {
               const opening = add === r.trade;
+              const dropping = drop === r.trade;
               return (
-                <div key={r.trade} className={opening ? "card pad stack" : undefined} style={opening ? { gap: 10 } : undefined}>
-                  {!opening && (
+                <div key={r.trade} className={opening || dropping ? "card pad stack" : undefined}
+                  style={opening || dropping ? { gap: 10 } : undefined}>
+                  {dropping && (
+                    <form action={dropTrade.bind(null, id)} className="stack" style={{ gap: 8 }}>
+                      <input type="hidden" name="trade" value={r.trade} />
+                      <div className="small" style={{ fontWeight: 800 }}>Take {r.trade} off this board?</div>
+                      <p className="tiny text-muted" style={{ margin: 0 }}>
+                        The job stops saying it needs {r.trade.toLowerCase()}.
+                        {r.scope_lines > 0
+                          ? ` The ${r.scope_lines} scope line${r.scope_lines === 1 ? "" : "s"} written for it stay on the job — this is the bid board, not the scope.`
+                          : " Nothing else is touched."}
+                        {" "}Nobody has been approached and nothing has been let, so there is no price to lose. Add it
+                        back any time.
+                      </p>
+                      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <button className="btn btn-secondary" style={{ flex: "1 1 auto" }}>Take it off</button>
+                        <Link href={`/project/${id}/bids`} className="btn btn-ghost" scroll={false}>Keep it</Link>
+                      </div>
+                    </form>
+                  )}
+                  {!opening && !dropping && (
                     <div className="home-row" style={{ cursor: "default" }}>
                       <span className="grow" style={{ minWidth: 0 }}>
                         <span className="t">{r.trade}</span>
@@ -142,11 +166,21 @@ export default async function BidBoardPage({
                         </span>
                       </span>
                       {manages && (
-                        <Link href={`/project/${id}/bids?add=${encodeURIComponent(r.trade)}`}
-                          className="btn btn-secondary" style={{ minHeight: 34, padding: "4px 12px", fontSize: 12 }}
-                          scroll={false}>
-                          Open a room
-                        </Link>
+                        <span className="row" style={{ gap: 6, flex: "none" }}>
+                          <Link href={`/project/${id}/bids?add=${encodeURIComponent(r.trade)}`}
+                            className="btn btn-secondary" style={{ minHeight: 34, padding: "4px 12px", fontSize: 12 }}
+                            scroll={false}>
+                            Open a room
+                          </Link>
+                          {/* OFF THE BOARD (188d). A trade nobody has been
+                              approached about and nothing was let on is a line
+                              somebody typed, not work - and it asks to be
+                              acted on forever until it can be taken off. */}
+                          <Link href={`/project/${id}/bids?drop=${encodeURIComponent(r.trade)}`}
+                            className="btn btn-ghost" style={{ minHeight: 34, padding: "4px 10px", fontSize: 12 }}
+                            title={`Take ${r.trade} off this board`} aria-label={`Take ${r.trade} off this board`}
+                            scroll={false}>✕</Link>
+                        </span>
                       )}
                     </div>
                   )}
