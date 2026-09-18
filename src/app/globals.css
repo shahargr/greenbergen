@@ -348,6 +348,24 @@ a.book-card:hover { text-decoration: none; transform: translateY(-2px); box-shad
 /* The brand block gives way; the icons never do. Without min-width:0 the
    wordmark and the role line refuse to shrink and push the icon cluster off
    the right edge of a phone. */
+/* THE ADMIN DOOR ANNOUNCES ITSELF (Shahar, 2026-09-18: "i need to know i am
+   running in admin mode, but want to keep a similar UI and navigation bar to
+   other profiles"). Nothing moves - same lockup, same icons, same spacing -
+   the bar itself goes dark, in the same maroon the acting-as banner has
+   always used, so the two read as one family of "you are not an ordinary
+   user right now". */
+.topnav-admin { background: #2e1a1d; border-bottom-color: #2e1a1d; color: #f6f1ea; }
+.topnav-admin .wordmark,
+.topnav-admin .topnav-right a,
+.topnav-admin .iconlink,
+.topnav-admin button.iconlink { color: #f6f1ea; }
+.topnav-admin .wordmark .wm-green,
+.topnav-admin .wordmark .wm-house { color: #8fc79b; }
+.topnav-admin .topnav-right a:hover,
+.topnav-admin .iconlink:hover,
+.topnav-admin button.iconlink:hover { color: #fff; }
+.topnav-admin .wordmark .wm-door { color: #f0c9ce; font-weight: 800; }
+
 .topnav-left { min-width: 0; flex: 1 1 auto; overflow: hidden; }
 .topnav-right { display: flex; gap: 18px; align-items: center; flex: 0 0 auto; }
 .topnav-right a { color: var(--body, var(--ink)); }
@@ -518,6 +536,21 @@ a.book-card:hover { text-decoration: none; transform: translateY(-2px); box-shad
   border-left-color: var(--brand);
   box-shadow: 0 1px 4px rgba(27, 31, 28, 0.06);
 }
+/* The sidebar is three groups now, not ten equal shouts. A group title is
+   quiet - it names the shelf, it is not a destination - and a row may carry a
+   second line saying what the label means in our words (DIY · step by step). */
+.admin-side-group { display: grid; gap: 2px; margin-bottom: 14px; }
+.admin-side-title {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); padding: 0 12px 4px; opacity: .8;
+}
+.admin-side-text { display: grid; line-height: 1.25; min-width: 0; }
+.admin-side-note { font-size: 11px; color: var(--muted); font-weight: 400; }
+.admin-side-item.active .admin-side-note { font-weight: 400; }
+.admin-more > summary { list-style: none; cursor: pointer; }
+.admin-more > summary::-webkit-details-marker { display: none; }
+.admin-more[open] > summary { color: var(--ink); }
+
 .admin-main { flex: 1; min-width: 0; }
 .admin-main .wrap { margin-left: 0; padding-left: 0; padding-right: 0; }
 .admin-sectionmenu { display: none; }
@@ -1601,3 +1634,15 @@ a.homepanel-alert:hover { text-decoration: underline; }
 .opt-row { display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: center; font-size: 14px; }
 .opt-row .input { margin: 0; }
 @media (max-width: 420px) { .opt-row { grid-template-columns: 1fr 96px; } }
+
+/* Admin > Console: the index of everything that came off the sidebar. Each
+   row says what it is for, because a bare word in a list of seven is exactly
+   how the old sidebar stopped being readable. */
+.admin-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.admin-index a {
+  display: block; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+  color: inherit; text-decoration: none; background: #fff;
+}
+.admin-index a:hover { border-color: var(--brand); text-decoration: none; }
+.admin-index strong { display: block; font-size: 14px; }
+.admin-index span { display: block; font-size: 12px; color: var(--muted); line-height: 1.35; margin-top: 2px; }

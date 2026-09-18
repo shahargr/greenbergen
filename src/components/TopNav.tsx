@@ -122,7 +122,11 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   // The people an administrator can become: everyone holding a seat with a
   // login, once each, with their highest seat as the hint.
   type Target = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
-  const { data: targetData } = realAdmin ? await supabase.rpc("admin_view_targets") : { data: null };
+  // ON THE ADMIN DOOR the mask lives in the console, not the bar (Shahar,
+  // 2026-09-18: "move the mask with acting as into the gear screen"), so this
+  // read - the most expensive thing in the header - is not made at all here.
+  const onAdminDoor = role === "Admin";
+  const { data: targetData } = realAdmin && !onAdminDoor ? await supabase.rpc("admin_view_targets") : { data: null };
   const people: Person[] = [];
   {
     const best = new Map<string, { name: string; rank: number; hint: string }>();
@@ -138,7 +142,12 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   }
 
   return (
-    <header className="topnav">
+    // THE BAR SAYS WHICH DOOR YOU ARE IN (Shahar, 2026-09-18: "i need to know
+    // i am running in admin mode, but want to keep a similar UI and
+    // navigation bar to other profiles"). Same layout, same icons, same
+    // lockup - the bar itself takes the admin tint, so it is unmistakable at
+    // a glance without moving anything a person has already learned.
+    <header className={onAdminDoor ? "topnav topnav-admin" : "topnav"}>
       <nav className="wrap topnav-inner">
         <div className="topnav-left">
           {/* The seat you hold IS the line under the logo now - MY HOME,
@@ -146,7 +155,9 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
               lockup. Name, email and "(N roles)" moved to the tooltip. */}
           <span className="brandstack" title={me?.email ? `${firstName} · ${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}` : undefined}>
             <Wordmark small href={ROLE_HOME[role]}
-              door={me?.email
+              door={onAdminDoor
+                ? "Admin mode"
+                : me?.email
                 // A trade with no project seat yet is still a contractor, not a visitor.
                 ? <NavRole appUserId={me?.app_user_id ?? null} ranks={ranksObj} admin={isAdmin}
                     fallback={seatNames.length === 0 && tradeNames.length > 0 && !isAdmin ? "Contractor" : seatLabel(seatNames, ranksObj, isAdmin)} />
@@ -154,7 +165,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           </span>
         </div>
         <div className="topnav-right">
-          {realAdmin && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined}
+          {realAdmin && !onAdminDoor && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined}
             people={people} borrowed={borrowed ? { id: String(borrowed), canAct } : null} here={here} selfId={realId} />}
           <BackNav />
           {/* One inbox for the person; ?door=admin keeps this door's chrome
@@ -173,13 +184,22 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
             )}
           </Link>
           <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
-          <Link href="/my/settings" className="iconlink" title="Settings" aria-label="Settings"><SettingsIcon /></Link>
+          {/* THE GEAR OPENS THE CONSOLE on the admin door, not the account
+              settings - the console used to be a link buried inside those
+              settings (Shahar, 2026-09-18: "we need the Admin console on the
+              Admin bar instead of find it under the gear icon"). It is a
+              screen, not a dropdown, and it carries the mask and the door
+              switch that used to sit out here. */}
+          <Link href={onAdminDoor ? "/admin/console" : "/my/settings"} className="iconlink"
+            title={onAdminDoor ? "Admin console" : "Settings"} aria-label={onAdminDoor ? "Admin console" : "Settings"}>
+            <SettingsIcon />
+          </Link>
           {/* Switch door: the mask, opened right here. The picker screen it
               used to go to is gone (Shahar, 2026-09-12) - every sign-in lands
               in a door now, and this is how you cross to another one. Next to
               Sign out because they are the two ways to stop being here as
-              this hat. */}
-          <DoorMask current="admin" />
+              this hat. On the admin door it lives in the console instead. */}
+          {!onAdminDoor && <DoorMask current="admin" />}
           <form action={signOut} style={{ display: "inline-flex" }}>
             <button className="iconlink" title="Sign out" aria-label="Sign out"><SignOutIcon /></button>
           </form>
