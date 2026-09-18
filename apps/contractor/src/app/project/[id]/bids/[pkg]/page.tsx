@@ -508,8 +508,12 @@ export default async function BidPackagePage({
               </div>
             )}
 
+            {/* Held OPEN while a search is running: the search box submits the
+                page, and a panel that closes on reload throws the results away
+                behind another tap - the opposite of "faster to find the
+                necessary documents". */}
             {canWrite && (
-              <details className="card pad">
+              <details className="card pad" open={!!docq}>
                 <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>Add papers</summary>
                 <div className="stack" style={{ gap: 14, marginTop: 10 }}>
                   <div>
@@ -531,6 +535,12 @@ export default async function BidPackagePage({
                       {papers.elsewhere.length === 0 && (
                         <p className="tiny text-muted" style={{ margin: 0 }}>
                           {docq ? `Nothing on this job matches “${docq}”.` : "Nothing else on this job yet."}
+                        </p>
+                      )}
+                      {docq && papers.elsewhere.length > 0 && (
+                        <p className="tiny text-muted" style={{ margin: "0 0 2px" }}>
+                          {papers.elsewhere.length} match{papers.elsewhere.length === 1 ? "" : "es"} for “{docq}”
+                          {" · "}<a href={`/project/${id}/bids/${pkgId}`}>show the recent ones</a>
                         </p>
                       )}
                       {papers.elsewhere.map((d) => (
