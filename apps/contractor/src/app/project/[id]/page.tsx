@@ -18,15 +18,8 @@ import { TaskTable } from "@/components/TaskTable";
 import { TradeSpine, type Spine } from "@/components/TradeSpine";
 import type { PanelPrefs } from "@/components/Panels";
 import { matchesQuery } from "@/lib/search";
-import { ProjectSetup } from "./ProjectSetup";
 import { SiteVisits, type Visit } from "./SiteVisits";
 import { SiteWeekTrades, weekDay, type SiteWeek } from "./SiteWeek";
-// Cancelling was greyed out for everybody on 2026-09-13 ("this is too
-// risky"). It is back on 2026-09-14 - "as the owner of a project, I need to
-// be able to cancel and archive it" - for the OWNER only; a site manager
-// still sees the greyed row. The database has always allowed rank 50 here;
-// the screen being stricter than the database is the safe direction.
-import { archiveProject, cancelProject, closeProject, reopenProject } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +42,6 @@ type Rollup = {
   approved?: number | null; stages?: number | null; open_stages?: number | null;
 } | null;
 
-type ScopeTrade = { trade: string; chosen: boolean; scope_lines: number };
 
 // portal_bid_packages names the counts n_invited / n_received - this screen
 // asked for "invited" and "received", which are not keys the function
@@ -72,6 +64,10 @@ export default async function ProjectPage({
 }) {
   const { id } = await params;
   const { ok, error, q, by: byRaw, show, panel: panelRaw, as: asRaw, who, setup: setupQ } = await searchParams;
+  // SET-UP MOVED OFF THIS SCREEN (2026-09-18). It used to open in place on
+  // ?setup=1; it is its own page now. Links and bookmarks that still carry
+  // the flag land where the panel used to put them.
+  if (setupQ === "1") redirect(`/project/${id}/setup`);
   // TRADE IS THE DEFAULT ARRANGEMENT NOW. Shahar (2026-09-13), looking at
   // one bucket holding almost everything: "where there are tasks open, club
   // them by trade. anything you don't know club under the owner." Timing is
@@ -95,11 +91,10 @@ export default async function ProjectPage({
   // the domain, and this screen wants the whole property anyway (see below),
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
-  const [board, { data: pkgData }, { data: rollupData }, { data: scopeData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }, { data: prefsData }] = await Promise.all([
+  const [board, { data: pkgData }, { data: rollupData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }, { data: prefsData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
-    w.step("scope", () => rpc<ScopeTrade[]>(supabase, "portal_scope_trades", { p_project: id })),
     // Who is on site this week, and the record of who has been (migration 068).
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
     w.step("visits", () => rpc<Visit[]>(supabase, "portal_site_visits", { p_project: id, p_limit: 20 })),
@@ -133,8 +128,6 @@ export default async function ProjectPage({
   // What sits beneath this project, and where "back" goes - both come out of
   // the board read we already have, so neither costs a query.
   const kids = board.seats.filter((s) => s.parent_project_id === id);
-  // What still stands in the way of closing this one (migration 069).
-  const liveKids = kids.filter((s) => !s.status.startsWith("Closed")).length;
   const parent = seat.parent_project_id && board.seats.some((s) => s.project_id === seat.parent_project_id)
     ? seat.parent_project_id : null;
   // Open work at or beneath each of them. Counting the rows ON a child is
@@ -148,13 +141,10 @@ export default async function ProjectPage({
   const packages = pkgData ?? [];
   const roll = rollupData ?? null;
   const owed = roll?.owed ?? seat.owed ?? 0;
-  const scopeLines = (scopeData ?? []).reduce((n, t) => n + t.scope_lines, 0);
-  const scopeTrades = (scopeData ?? []).filter((t) => t.chosen).length;
   const week = (weekData ?? null) as SiteWeek | null;
   const spine: Spine = spineData && Array.isArray(spineData.trades)
     ? spineData : { trades: [], untagged: { open: 0, late: 0 } };
   const visits = Array.isArray(visitData) ? visitData : [];
-  const closedAlready = seat.status.startsWith("Closed");
   const onSite = !!seat.address;
 
   // A FOLDER, NOT A SITE.
@@ -377,10 +367,6 @@ export default async function ProjectPage({
   // "jimmy" has no meaning on the money panel, and carrying it there only
   // makes the back button lie. The lens is not view state, it is who you are
   // standing as, so it survives every hop on this screen.
-  // The set-up panel is opened by the gear on the name, as a query flag
-  // rather than client state - the same way the task screen's gear works, and
-  // the only way a server-rendered panel can be opened from the app bar.
-  const setupOpen = setupQ === "1";
   const keepAs = (extra = "") => {
     const p = new URLSearchParams(extra);
     if (asParam) p.set("as", asParam);
@@ -503,16 +489,9 @@ export default async function ProjectPage({
   // project's face on the board, and still changed from behind the gear.
   const visitPaths = panel === "visits" ? visits.flatMap((v) => v.files.map((f) => f.path)) : [];
   const signed = await w.step("media", () => coverUrls(supabase, [...visitPaths, ...kids.map((k) => k.cover)]));
-  // WHEN THIS HOUSE SELLS (migration 162): the two planned days live on the
-  // PROPERTY - the top of its family - and the loans beneath count backwards
-  // from them. Read only there, only for whoever may set them.
-  const isProperty = onSite && !isFolder && topHere === id;
-  const { data: saleData } = isProperty && manages
-    ? await w.step("sale", () => rpc<{ good: string | null; bad: string | null }[]>(supabase, "project_sale_targets", { p_project: id }))
-    : { data: null };
-  const sale = isProperty && manages
-    ? { good: saleData?.[0]?.good ?? null, bad: saleData?.[0]?.bad ?? null }
-    : null;
+  // The scope summary and the sale days are read on the set-up screen now,
+  // where the only things that use them live - two reads this screen made on
+  // every open for a panel almost nobody had unfolded.
   w.done();
 
   const jobRows = (list: Seat[], empty: string) => (
@@ -551,10 +530,15 @@ export default async function ProjectPage({
           Up here it is one word, and the list is behind it. */}
       {/* THE GEAR SITS ON THE NAME. Shahar (2026-09-15): "Place the gear
           button next to the Project name." It was floating on the corner of
-          the photograph, which has gone. A link carrying ?setup=1 rather than
-          client state, the way the task screen's gear already works - and the
-          address has come out of the sub line, because it is now said once,
-          properly, in the head row below. */}
+          the photograph, which has gone - and the address has come out of the
+          sub line, because it is now said once, properly, in the head row
+          below.
+
+          IT NAVIGATES (Shahar, 2026-09-18: "when inside a project, the gear
+          button should move us into a new setting page rather than add a
+          panel"). The panel it used to unfold pushed the whole running screen
+          down and had to invent a "Done" link to stand in for a back button;
+          a screen has one already. */}
       <AppBar back={parent ? `/project/${parent}` : "/"}
         title={
           <span className="row" style={{ gap: 6, alignItems: "center", minWidth: 0 }}>
@@ -562,8 +546,8 @@ export default async function ProjectPage({
               {seat.project_name}
             </span>
             {manages && (
-              <Link href={setupOpen ? keepAs() : keepAs("setup=1")} scroll={false}
-                className={`name-gear${setupOpen ? " on" : ""}`} aria-label="Set this project up"
+              <Link href={`/project/${id}/setup`}
+                className="name-gear" aria-label="Set this project up"
                 title="Set this project up — the photo, the scope, and how it ends">
                 <GearIcon />
               </Link>
@@ -654,19 +638,11 @@ export default async function ProjectPage({
             awardHref={manages ? `/project/${id}/award?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null} />
         )}
 
-        {/* Everything you set ONCE - the photo, the scope, and how this job
-            ends (Shahar, 2026-09-11: "move the cancel this job into the
-            setting of it"). Behind the gear on the name; the screen below is
-            only about the job running. */}
-        <ProjectSetup projectId={id} own={seat.cover_own} stock={!!seat.cover_url} canEdit={manages}
-          open={setupOpen} closeHref={keepAs()}
-          scopeLines={scopeLines} scopeTrades={scopeTrades} sale={sale}
-          lifecycle={manages ? (
-            <Lifecycle projectId={id} status={seat.status} closed={closedAlready}
-              owns={seat.rank >= 70} archived={seat.archived}
-              open={openHere.length} liveKids={liveKids} owed={owed} paid={roll?.paid ?? 0}
-              superadmin={!!board.me?.is_superadmin} />
-          ) : null} />
+        {/* Everything you set ONCE - the photo, the scope, when the house
+            sells, and how this job ends (Shahar, 2026-09-11: "move the cancel
+            this job into the setting of it") - is behind the gear on the
+            name, at /project/<id>/setup. It is not rendered here: this screen
+            is only about the job running. */}
 
         {/* VIEWING AS. Shahar (2026-09-13): "allow me to log in as GC /
             Professional / home owner / investor / viewer. This currently does
@@ -1295,179 +1271,5 @@ function Chip({ href, on, label }: { href: string; on: boolean; label: string })
       style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }} scroll={false}>
       {label}
     </Link>
-  );
-}
-
-// HOW THIS JOB ENDS (migrations 069, 070), behind the gear.
-//
-// Shahar first: "The scope was complete / no place to close it as complete
-// from inside?" - there was not; the only door was the portal's Setup tab.
-// Then: "move the cancel this job into the setting of it" - so both endings
-// sit with the other things you do to a job rather than to the work on it.
-//
-// The rules are the database's and they are old: complete needs zero open
-// tasks anywhere in the family and no live job beneath it; cancelled needs a
-// reason and takes the open work down with it; both FREEZE the record. So
-// this says which of those is in the way rather than offering a button that
-// will be refused.
-function Lifecycle({ projectId, status, closed, owns, archived, open, liveKids, owed, paid, superadmin }: {
-  projectId: string; status: string; closed: boolean;
-  // The asset owner (rank 70). Ending a job and deciding what stays on the
-  // board are theirs; running it day to day is not the same authority.
-  owns: boolean; archived: boolean;
-  open: number; liveKids: number; owed: number; paid: number; superadmin: boolean;
-}) {
-  if (closed) {
-    return (
-      <div className="stack" style={{ gap: 8 }}>
-        <Card soft pad>
-          <div className="small">
-            This job is {status.replace("Closed - ", "").toLowerCase()}. Its tasks, contracts and
-            payments are frozen — work that comes back belongs in a new job beneath the property.
-          </div>
-        </Card>
-
-        {/* PUTTING IT AWAY (migration 115). The ending froze the record; this
-            only decides whether the owner keeps looking at it. Nothing is
-            deleted and the same button brings it back. */}
-        {owns && (
-          <form action={archiveProject.bind(null, projectId, !archived)}>
-            <button className="btn btn-secondary btn-block">
-              {archived ? "Bring it back onto the board" : "Put this job away"}
-            </button>
-            <p className="tiny text-muted" style={{ margin: "6px 0 0", textAlign: "center" }}>
-              {archived
-                ? "It is off your board. Nothing was deleted."
-                : "It comes off your board. Nothing is deleted, and this button brings it back."}
-            </p>
-          </form>
-        )}
-        {superadmin && (
-          <details className="home-panel">
-            <summary className="home-row">
-              <span className="grow" style={{ minWidth: 0 }}>
-                <span className="t">Reopen it</span>
-                <span className="m" style={{ display: "block" }}>Superadmin only — it unfreezes everything</span>
-              </span>
-              <span className="chev"><ChevronIcon /></span>
-            </summary>
-            <form action={reopenProject.bind(null, projectId)} className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
-              <label className="field" style={{ marginBottom: 0 }}>
-                <span className="field-label">Why it is opening again</span>
-                <input className="input" name="reason" placeholder="The motor failed again · a bill arrived late" />
-              </label>
-              <button className="btn btn-secondary btn-block">Reopen this job</button>
-            </form>
-          </details>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="stack" style={{ gap: 8 }}>
-      <details className="home-panel">
-        <summary className="home-row">
-          <span className="grow" style={{ minWidth: 0 }}>
-            <span className="t">Finish this job</span>
-            <span className="m" style={{ display: "block" }}>
-              {open > 0 ? `${open} ${open === 1 ? "task is" : "tasks are"} still open`
-                : liveKids > 0 ? `${liveKids} ${liveKids === 1 ? "job beneath it is" : "jobs beneath it are"} still open`
-                : "Nothing is open — it can close as complete"}
-            </span>
-          </span>
-          <span className="chev"><ChevronIcon /></span>
-        </summary>
-        <div className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
-          {open > 0 ? (
-            <p className="small text-muted" style={{ margin: 0 }}>
-              A job closes as complete only when there is nothing left on it — finish or cancel
-              {open === 1 ? " that task" : " those tasks"} and this turns into a button.
-            </p>
-          ) : liveKids > 0 ? (
-            <p className="small text-muted" style={{ margin: 0 }}>
-              Close {liveKids === 1 ? "the job" : "the jobs"} beneath this one first.
-            </p>
-          ) : (
-            <form action={closeProject.bind(null, projectId)} className="stack" style={{ gap: 8 }}>
-              <p className="small text-muted" style={{ margin: 0 }}>
-                Closing it freezes the record — tasks, contracts and payments can no longer be
-                written — and sends the surveys.
-              </p>
-              {owed > 0 && (
-                <p className="tiny" style={{ color: "var(--color-status)", margin: 0 }}>
-                  {money(owed)} is still outstanding. That does not stop you — a finished job with a
-                  bill left to pay is normal — but the ledger keeps it after the freeze.
-                </p>
-              )}
-              <label className="field" style={{ marginBottom: 0 }}>
-                <span className="field-label">How it ended <span className="text-muted">(optional)</span></span>
-                <input className="input" name="note" placeholder="Shade fixed and tested, homeowner happy" />
-              </label>
-              <button className="btn btn-primary btn-block">Close this job as complete</button>
-            </form>
-          )}
-        </div>
-      </details>
-
-      {/* THE OTHER ENDING (migration 070). Greyed out for everybody on
-          2026-09-13 - "this is too risky" - and back on 2026-09-14 for the
-          person who owns the job: "as the owner of a project, I need to be
-          able to cancel and archive it."
-
-          It is still the heaviest button on the screen: it ends the work and
-          takes every open task down with it. So it stays folded, it asks for
-          a reason in the person's own words (the database refuses fewer than
-          four characters), and it says the count out loud before the press.
-          Below rank 70 the row stays greyed and says whose call it is. */}
-      {owns ? (
-        <details className="home-panel">
-          <summary className="home-row">
-            <span className="grow" style={{ minWidth: 0 }}>
-              <span className="t">Cancel this job</span>
-              <span className="m" style={{ display: "block" }}>
-                It will not happen — this ends it and takes
-                {open > 0 ? ` ${open} open ${open === 1 ? "task" : "tasks"}` : " anything open"} with it
-              </span>
-            </span>
-            <span className="chev"><ChevronIcon /></span>
-          </summary>
-          <form action={cancelProject.bind(null, projectId)} className="drawer stack" style={{ gap: 8, paddingTop: 12 }}>
-            <p className="small text-muted" style={{ margin: 0 }}>
-              Everything still open here is cancelled with it and the record freezes — the reason
-              you give is written onto the job and onto every task that goes with it.
-            </p>
-            {paid > 0 && (
-              <p className="tiny" style={{ color: "var(--color-status)", margin: 0 }}>
-                {money(paid)} has already been paid on this one. Cancelling does not unspend it; the
-                ledger keeps it.
-              </p>
-            )}
-            <label className="field" style={{ marginBottom: 0 }}>
-              <span className="field-label">Why it is being cancelled</span>
-              <input className="input" name="reason" required minLength={4}
-                placeholder="Duplicate of the other generator job · homeowner changed their mind" />
-            </label>
-            <button className="btn btn-secondary btn-block">Cancel this job</button>
-          </form>
-        </details>
-      ) : (
-        <div className="home-row" aria-disabled="true"
-          style={{ cursor: "not-allowed", opacity: 0.45, alignItems: "flex-start" }}>
-          <span className="grow" style={{ minWidth: 0 }}>
-            <span className="t">Cancel this job</span>
-            <span className="m" style={{ display: "block" }}>
-              The owner&apos;s call — it would end the work and take
-              {open > 0 ? ` ${open} open ${open === 1 ? "task" : "tasks"}` : " anything open"} with it
-            </span>
-          </span>
-        </div>
-      )}
-      <p className="tiny text-muted" style={{ margin: 0 }}>
-        Either ending freezes the record. Once it has ended you can put it away, which takes it off
-        your board without deleting anything.
-        {paid > 0 ? ` ${money(paid)} has already been paid on this one.` : ""}
-      </p>
-    </div>
   );
 }

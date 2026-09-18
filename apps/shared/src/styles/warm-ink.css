@@ -364,7 +364,6 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
   border-radius: 50%; color: var(--muted); text-decoration: none;
 }
 .name-gear:hover { background: var(--color-soft); color: var(--color-text); }
-.name-gear.on { background: var(--color-text); color: var(--color-bg); }
 
 /* WHAT IT IS, AND WHERE - the band that replaced the photograph. A drawing of
    the job's type on the left, and on the right the two lines a photograph

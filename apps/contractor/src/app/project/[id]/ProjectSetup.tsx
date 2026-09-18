@@ -29,12 +29,16 @@ import { ChevronIcon } from "@shared/ui";
 // things you set once belong - the screen simply no longer shows the result.
 //
 // And the gear itself has left this component (Shahar, same message: "Place
-// the gear button next to the Project name"). It is a link in the app bar
-// carrying ?setup=1, the way the task screen's gear already worked, so this
-// panel is opened by the server and `open` arrives as a prop.
-export function ProjectSetup({ projectId, own, stock, canEdit, open, closeHref, scopeLines, scopeTrades, lifecycle, sale }: {
+// the gear button next to the Project name"). It is a link in the app bar.
+//
+// IT IS A SCREEN NOW, not a panel on top of the running one (Shahar,
+// 2026-09-18: "when inside a project, the gear button should move us into a
+// new setting page rather than add a panel"). The gear navigates to
+// /project/<id>/setup, the app bar's back arrow is the way out, and this
+// component is simply what that page renders - so `open` and the "Done" link
+// that stood in for a back button are both gone.
+export function ProjectSetup({ projectId, own, stock, canEdit, scopeLines, scopeTrades, lifecycle, sale }: {
   projectId: string; own: boolean; stock: boolean; canEdit: boolean;
-  open: boolean; closeHref: string;
   scopeLines: number; scopeTrades: number; lifecycle?: React.ReactNode;
   /** WHEN THIS HOUSE SELLS (migration 162): the two planned days, offered
    *  only on a property - the loans beneath count backwards from them. */
@@ -96,19 +100,19 @@ export function ProjectSetup({ projectId, own, stock, canEdit, open, closeHref, 
       onChange={(e) => { void upload(e.target.files); e.target.value = ""; }} />
   );
 
-  if (!canEdit || !open) return null;
+  if (!canEdit) return null;
 
   return (
     <div className="stack" style={{ gap: 6 }}>
       {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
 
-      {/* Set-up, not running: opened from the gear, shut the rest of the time. */}
+      {/* Set-up, not running. The heading stays even though the screen's app
+          bar says "Set up" too: it names what the card holds, and the line
+          under it is the one thing a person needs to know before touching
+          anything here. */}
       {(
         <div className="card pad stack" style={{ gap: 8 }}>
-          <div className="between">
-            <span className="small" style={{ fontWeight: 700 }}>Set this project up</span>
-            <Link href={closeHref} className="btn btn-ghost small" scroll={false}>Done</Link>
-          </div>
+          <span className="small" style={{ fontWeight: 700 }}>Set this project up</span>
           <p className="tiny text-muted" style={{ margin: 0 }}>
             The things you set once, usually when the job is created.
           </p>
