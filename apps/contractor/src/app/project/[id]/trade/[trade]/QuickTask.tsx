@@ -77,10 +77,22 @@ export function QuickTask({ projectId, projectName, trade, elsewhere, methods = 
   const needsRef = !!method?.requires_reference;
   const money = Number(amount.replace(/[$,\s]/g, ""));
 
-  const ready = name.trim().length > 0 && (!paying || (
-    Number.isFinite(money) && money > 0
-    && payee.trim().length > 0 && account.trim().length > 0
-    && (!needsRef || reference.trim().length > 0)));
+  // WHAT IS STILL MISSING, IN WORDS. A disabled button that will not say why
+  // is the worst thing you can hand somebody standing in a driveway: Shahar
+  // filled five fields, pressed it, nothing happened, and read that as "error
+  // saving the payment". There was no error - Check needs a reference, and
+  // nothing on the screen said so. Now the button is never silent.
+  const missing: string[] = [];
+  if (name.trim().length === 0) missing.push("what it was");
+  if (paying) {
+    if (!(Number.isFinite(money) && money > 0)) missing.push("what it cost");
+    if (payee.trim().length === 0) missing.push("who you paid");
+    if (account.trim().length === 0) missing.push("which account it came from");
+    if (needsRef && reference.trim().length === 0) {
+      missing.push(`the ${(method?.name ?? "payment").toLowerCase()} reference`);
+    }
+  }
+  const ready = missing.length === 0;
 
   async function add() {
     if (!ready) return;
@@ -148,6 +160,14 @@ export function QuickTask({ projectId, projectName, trade, elsewhere, methods = 
             {busy ? "…" : paying ? "Add & pay" : "Add"}
           </button>
         </div>
+
+        {/* Never a mute button. If it will not go, this is why - and it names
+            the field rather than saying "check the form". */}
+        {missing.length > 0 && name.trim().length > 0 && (
+          <p className="tiny qt-missing" style={{ margin: 0 }}>
+            Still needs {missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`}.
+          </p>
+        )}
 
         <div className="row" style={{ gap: 8, alignItems: "center" }}>
           <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)}
@@ -219,10 +239,13 @@ export function QuickTask({ projectId, projectName, trade, elsewhere, methods = 
                     </datalist>
                   </label>
                 </div>
+                {/* A method that cannot be reconciled without a reference says
+                    so on the field, not only when the button refuses to move. */}
                 {needsRef && (
                   <label className="nb-fld">
-                    <span>{method?.name} reference</span>
+                    <span>{method?.name} reference — needed</span>
                     <input className="input" value={reference} placeholder="Check number, confirmation"
+                      required aria-required
                       onChange={(e) => setReference(e.target.value)} />
                   </label>
                 )}

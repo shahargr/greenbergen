@@ -936,3 +936,4 @@
   padding: 10px; border-radius: var(--radius-md);
   background: var(--color-soft); border: 1px solid var(--color-divider-strong);
 }
+.qt-missing { color: var(--color-status); font-weight: 700; }
