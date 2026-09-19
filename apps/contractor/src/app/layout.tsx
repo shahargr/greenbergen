@@ -5,6 +5,7 @@ import { fontClassName } from "@shared/fonts";
 import { OfflineBanner } from "@shared/OfflineBanner";
 import { NavOrigin } from "@shared/BackButton";
 import { Notebook } from "@shared/Notebook";
+import { DoorSwitchFab } from "@shared/DoorSwitchFab";
 import { BuildState } from "@shared/BuildState";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -46,6 +47,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               it (Shahar, 2026-09-17: "add to every screen if vercel code is
               the latest by comparing versions running to the last one
               available on git"). */}
+          {/* THE DOOR SWITCH FLOATS TOO (2026-09-19). Shahar, testing
+              three seats: "so i don't need to go back all the way every
+              time i need to change the seat i'm logged under." Nothing
+              at all for somebody who holds one door. */}
+          <DoorSwitchFab current="expert" />
           <BuildState running={process.env.VERCEL_GIT_COMMIT_SHA} />
         </div>
         {/* Vercel Web Analytics; records once switched on for the project. */}

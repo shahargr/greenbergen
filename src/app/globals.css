@@ -1657,3 +1657,22 @@ a.homepanel-alert:hover { text-decoration: underline; }
   .line-row { flex-wrap: wrap; }
   .input.line-price { flex-basis: 100%; }
 }
+
+/* THE DOOR SWITCH, FLOATING (2026-09-19). Shahar, testing three seats at
+   once: "place this icon as a floating icon so i don't need to go back all
+   the way every time i need to change the seat i'm logged under." Bottom
+   right, above the safe area, and its panel opens UPWARD because there is
+   nothing below it to open into. */
+.door-fab { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; }
+.door-fab > summary {
+  list-style: none; cursor: pointer;
+  width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: #fff; color: #1a1a1a;
+  border: 1.5px solid #d8d4cc;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .18);
+}
+.door-fab > summary::-webkit-details-marker { display: none; }
+.door-fab > summary:hover { border-color: #1a1a1a; }
+.door-fab[open] > summary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.door-fab .door-fab-panel { top: auto; bottom: calc(100% + 8px); right: 0; }

@@ -1444,3 +1444,25 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .how-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
 .how-why { margin: 10px 0 0; line-height: 1.55; white-space: pre-wrap; }
 .how-photo { display: block; width: 100%; border-radius: var(--radius-md); margin-top: 10px; }
+
+/* THE DOOR SWITCH, FLOATING (2026-09-19). Shahar, testing three seats at
+   once: "place this icon as a floating icon so i don't need to go back all
+   the way every time i need to change the seat i'm logged under."
+
+   It stacks directly above the notebook - same corner, same size, same
+   quietness - and its menu opens UPWARD, because there is nothing below it
+   to open into. */
+.door-fab { position: fixed; right: 16px; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); z-index: 60; }
+.door-fab > summary {
+  list-style: none; cursor: pointer;
+  width: 52px; height: 52px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--color-surface); color: var(--color-text);
+  border: 1.5px solid var(--color-divider-strong);
+  box-shadow: 0 10px 28px rgba(22, 21, 19, .18);
+}
+.door-fab > summary::-webkit-details-marker { display: none; }
+.door-fab > summary:hover { border-color: var(--color-text); }
+.door-fab > summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.door-fab[open] > summary { background: var(--color-text); color: var(--color-bg); border-color: var(--color-text); }
+.door-fab .door-menu { right: 0; top: auto; bottom: calc(100% + 8px); }
