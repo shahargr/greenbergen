@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { getMe, targetWindowLabel, type BookingSummary, type ProjectSummary } from "@/lib/me";
+import { getMe } from "@/lib/me";
 import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
-import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { unreadForShell } from "@shared/unread";
-import { Illustration } from "@shared/Illustrations";
 import { Scene, SceneMore } from "@/components/Scene";
 import { BobSearch } from "@/components/BobSearch";
+import { rowsFor } from "@/components/ProjectRows";
 import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
@@ -19,85 +18,23 @@ export const metadata = { title: "Green Bergen" };
 //
 //   1. Ask Bob          the sentence they already have in their head
 //   2. Promoted         community negotiated packages
-//   3. Their own work   open jobs, or - signed out - the way in
+//   3. Their own work   how much of it, and the way to it
 //
-// WHAT CAME OFF, and it was most of the screen: the bookings photo banner,
-// the DIY rail, the hero photograph, the "nothing bookable today" notice, the
-// "start your new project" card, the filter chips and the Done section. Each
-// earned its place at the time; together they had turned the first screen of
-// the app into a page you scroll rather than a page you use. Nothing is lost
-// - /packages still carries every package, finished work is still on its own
-// project page, and the ledger and the timeline still have all of it.
+// AND THE THIRD IS A LINE, NOT A LIST (Shahar, same day): "These and the list
+// of projects can be removed from the home page. If user has existing project
+// allow him to know this and click to see them and manage them." The list
+// moved to /projects, where it is fuller than it was here. A home screen
+// answers "what now"; a list answers "where is everything", and only the
+// first belongs on the first screen.
 //
-// CANCELLED WAS ALREADY OFF and stays off. Shahar (2026-09-12): "the
-// cancelled section at the bottom of the page is a pointing finger to
-// negative experience likely - should not be here."
-type Bucket = "offers" | "going" | "done";
-// TWO GROUPS, AND THE SPLIT IS WHO YOU ARE WAITING FOR. Shahar
-// (2026-09-15): "Change under way to on-going (DIY or Awarded) / Change
-// lining up to pending offers / Remove done, keeping all."
-//
-//   Pending offers          somebody has been ASKED and has not answered.
-//   On-going (DIY or        nobody is being waited on: either a contractor
-//   Awarded)                has it, or you do.
-//
-// The tabs are gone with everything else - the screen shows OPEN work, which
-// is these two and nothing else. Done keeps no heading here now: finished
-// work is not something you go looking for on a home screen, and it is still
-// on its own project page.
-const OPEN: Exclude<Bucket, "done">[] = ["going", "offers"];
-const SECTION: Record<Exclude<Bucket, "done">, string> = {
-  going: "On-going (DIY or Awarded)",
-  offers: "Pending offers",
-};
+// WHAT CAME OFF ALTOGETHER: the bookings photo banner, the DIY rail, the hero
+// photograph, the "nothing bookable today" notice, the "start your new
+// project" card, the filter chips and the Done section. Each earned its place
+// at the time; together they had turned the first screen of the app into a
+// page you scroll rather than a page you use.
 
-// ONE ROW PER JOB, booked or not (migration 116). Shahar, with two
-// screenshots: "as professional i see both Ran and My own generator project.
-// as home owner, i see none." He was right and it was worse than it looked -
-// under his two homes there are ten jobs and this screen was showing zero,
-// for two reasons at once. It listed BOOKINGS, and six of the ten never came
-// through the booking wizard. And it read a booking's state as the job's, so
-// the other four - all with closed bookings, two of them live with open tasks
-// and a contractor - were filed as "cancelled" and hidden.
-type Row =
-  | { kind: "booking"; project_id: string; b: BookingSummary; p: ProjectSummary }
-  | { kind: "project"; project_id: string; p: ProjectSummary };
-
-// WHERE IT STANDS, decided once in the database and only read here. Shahar
-// (2026-09-14): "tells me the generator is in progress while in fact it
-// isn't." It was: this screen bucketed by projects.status, which is the value
-// a project is BORN with. project_progress reads the stage AND checks it
-// against the record - people, contracts, money, bids, finished work - and
-// says the smaller true thing when the claim is not supported.
-// It keys off project_progress's KEY rather than its order, because the
-// question is no longer "how far along" - it is "is anybody being waited on",
-// and the three keys that mean yes do not sit together on the ladder.
-const bucketOf = (r: Row): Bucket | "cancelled" => {
-  const k = r.p.progress_label?.key;
-  if (k === "cancelled") return "cancelled";
-  if (k === "done") return "done";
-  // bid     - the scope is out, no prices back yet
-  // finding - posted to the community, nobody has taken it
-  // compare - prices are in and none of them is accepted
-  // Everything else is either running or sitting on your own list, and both
-  // of those are on-going: a job with a contractor on it, and a job you have
-  // not asked anybody about, are the same in the one way that matters here -
-  // nobody owes you an answer.
-  return k === "bid" || k === "finding" || k === "compare" ? "offers" : "going";
-};
-
-// Semantic colour, not decoration: finished is good, somebody working is
-// live, waiting on you is a flag, and everything else is quiet.
-const tagFor = (key?: string) =>
-  key === "done" ? "tag tag-ok"
-  : key === "active" ? "tag tag-status"
-  : key === "delivered" || key === "verification" ? "tag tag-status"
-  : key === "cancelled" ? "tag tag-neutral"
-  : "tag tag-outline";
-
-
-export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; home?: string }> }) {
-  const { ok, home } = await searchParams;
+export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string }> }) {
+  const { ok } = await searchParams;
   const w = stopwatch("/project");
   // The catalogue is template data behind a shared cache and it is read with
   // the ANON key, so it answers for a visitor with no session exactly as it
@@ -117,6 +54,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // comes after them.
   const signedIn = me.signed_in;
   const unread = signedIn ? await unreadForShell() : 0;
+  const counts = signedIn ? rowsFor(me).counts : null;
 
   const scenes = featured(tiles);
 
@@ -158,8 +96,9 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </section>
         )}
 
-        {/* 3. THEIR OWN WORK - or, with no session, the way in. */}
-        {signedIn ? <OpenWork me={me} home={home} /> : <JoinIn />}
+        {/* 3. THEIR OWN WORK - one line - or, with no session, the way in. */}
+        {!signedIn && <JoinIn />}
+        {signedIn && counts && counts.all > 0 && <YourWork counts={counts} />}
       </div>
     </Screen>
   );
@@ -181,62 +120,22 @@ function JoinIn() {
   );
 }
 
-// OPEN WORK ONLY. The ?home= filter is kept - links elsewhere in the app
-// carry it - but it shows nothing of itself on the bare /project URL.
-function OpenWork({ me, home }: { me: Extract<Awaited<ReturnType<typeof getMe>>, { signed_in: true }>; home?: string }) {
-  const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
-  // The projects are the spine: every job under a home the member owns. A
-  // booking, where there is one, is what dresses the row.
-  const booked = new Map(me.bookings.map((b) => [b.project_id, b]));
-  const all: Row[] = me.projects.map((p) => {
-    const b = booked.get(p.project_id);
-    return b ? { kind: "booking" as const, project_id: p.project_id, b, p } : { kind: "project" as const, project_id: p.project_id, p };
-  });
-  const mine = onlyHome ? all.filter((r) => r.p.home_project_id === onlyHome.project_id) : all;
-  const open = mine.filter((r) => { const k = bucketOf(r); return k === "going" || k === "offers"; });
-  const manyHomes = me.homes.length > 1;
-
-  if (open.length === 0) {
-    return (
-      <Card soft pad>
-        <div className="small">Nothing open on your list — tap a package above to start one. Your home is added the first time a project needs it.</div>
-      </Card>
-    );
-  }
-
+// YOU HAVE WORK, AND HERE IS THE DOOR TO IT. Only shown when there is some -
+// a member with nothing yet is looking at the packages above, and a row
+// saying "0 projects" would be a worse answer than no row at all.
+//
+// It counts OPEN work in the headline because that is what is actionable, and
+// names the split only when both halves have something in them: "3 on-going ·
+// 1 pending offer" says more than "4", and "4 on-going" says nothing "4"
+// did not.
+function YourWork({ counts }: { counts: Record<"all" | "going" | "offers" | "done", number> }) {
+  const open = counts.going + counts.offers;
+  const parts = [
+    counts.going > 0 ? `${counts.going} on-going` : null,
+    counts.offers > 0 ? `${counts.offers} pending ${counts.offers === 1 ? "offer" : "offers"}` : null,
+  ].filter(Boolean);
   return (
-    <>
-      <div className="divider-label" style={{ marginTop: 6 }}>
-        {onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : "Your projects"}
-      </div>
-      {onlyHome && (
-        <Link href="/project" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }}>← All homes</Link>
-      )}
-      {OPEN.map((k) => {
-        const rows = open.filter((r) => bucketOf(r) === k);
-        if (rows.length === 0) return null;
-        return (
-          <section className="stack" style={{ gap: 10 }} key={k}>
-            <div className="divider-label">{SECTION[k]}</div>
-            {rows.map((r) => r.kind === "booking"
-              ? <BookingRow key={r.project_id} b={r.b} showHome={manyHomes && !onlyHome} />
-              : <ProjectRow key={r.project_id} p={r.p} showHome={manyHomes && !onlyHome} />)}
-          </section>
-        );
-      })}
-    </>
-  );
-}
-
-
-// A JOB NOBODY BOOKED. No package, no price, no wizard answers - a name,
-// what is open on it, and the way in. Everything the booking row shows comes
-// from a booking, and inventing any of it here would be a lie with a number
-// in it.
-function ProjectRow({ p, showHome }: { p: ProjectSummary; showHome: boolean }) {
-  const st = p.progress_label;
-  return (
-    <Link href={`/project/${p.project_id}`} className="home-row">
+    <Link href="/projects" className="home-row" style={{ marginTop: 6 }}>
       <span className="ic" aria-hidden>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -244,41 +143,14 @@ function ProjectRow({ p, showHome }: { p: ProjectSummary; showHome: boolean }) {
         </svg>
       </span>
       <span className="grow">
-        <span className="t">{p.name}{p.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{p.unread}</span>}</span>
+        <span className="t">Your projects</span>
         <span className="m" style={{ display: "block" }}>
-          {[showHome && p.home_name ? p.home_name : null, st?.detail].filter(Boolean).join(" · ")}
+          {open > 0
+            ? `${parts.join(" · ")} — see them and manage them`
+            : `${counts.done} finished — see them and manage them`}
         </span>
       </span>
-      {st && <span className={tagFor(st.key)}>{st.label}</span>}
-    </Link>
-  );
-}
-
-function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boolean }) {
-  // The same rule as every other row (migration 119). What a booking adds is
-  // the money: a reference price while it is a plan, what it went out at
-  // while it is looking, what it came to when it is finished.
-  const st = b.progress_label;
-  const money =
-    st?.key === "planned" ? `${dollars(b.price_cents)} reference${b.config_label ? ` · ${b.config_label}` : ""}`
-    : st?.key === "finding" ? `${dollars(b.price_cents)} · posted ${shortDate(b.posted_at)}`
-    : st?.key === "done" && b.price_cents > 0 ? `${dollars(b.price_cents)} · ${shortDate(b.done_at)}`
-    : null;
-  const line = [
-    showHome && b.address ? b.address.split(",")[0] : null,
-    b.contractor?.name ?? null,
-    money ?? st?.detail ?? null,
-  ].filter(Boolean).join(" · ");
-  return (
-    <Link href={`/project/${b.project_id}`} className="home-row">
-      <span className="ic"><Illustration name={b.illustration} /></span>
-      <span className="grow">
-        <span className="t">{b.name}{b.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{b.unread}</span>}</span>
-        <span className="m" style={{ display: "block" }}>{line}</span>
-      </span>
-      {st
-        ? <span className={tagFor(st.key)}>{st.key === "planned" ? targetWindowLabel(b.target_window) : st.label}</span>
-        : null}
+      <ChevronIcon />
     </Link>
   );
 }
