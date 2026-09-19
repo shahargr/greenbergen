@@ -353,11 +353,19 @@ export const decodeSelections = (pkg: Package, raw: string | undefined | null): 
 // Cached exactly like the catalogue and for the same reason: it is identical
 // for every visitor and changes when someone edits it, not per request. Up to
 // five minutes between an edit and every deployment seeing it.
-export type PublicSettings = { tagline: string | null; hero: string | null; taglineShown: boolean };
+// bobHero is the photograph behind Ask Bob (migration 193) - its own field,
+// because the landing photograph is a couple in front of a finished house and
+// this one is somebody who knows how to do the work.
+export type PublicSettings = { tagline: string | null; hero: string | null; bobHero: string | null; taglineShown: boolean };
 
 export async function loadPublicSettings(): Promise<PublicSettings> {
-  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null; tagline_shown?: boolean }>("public_settings");
-  return { tagline: row?.tagline ?? null, hero: row?.hero ?? null, taglineShown: row?.tagline_shown ?? false };
+  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null; bob_hero?: string | null; tagline_shown?: boolean }>("public_settings");
+  return {
+    tagline: row?.tagline ?? null,
+    hero: row?.hero ?? null,
+    bobHero: row?.bob_hero ?? null,
+    taglineShown: row?.tagline_shown ?? false,
+  };
 }
 
 export async function loadTagline(): Promise<string | null> {

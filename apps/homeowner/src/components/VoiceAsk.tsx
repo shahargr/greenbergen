@@ -31,7 +31,29 @@ const STASH = "gb_voice_ask";
 const ELSEWHERE = "__elsewhere__";
 const CODE = "general_contractor";
 
-export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signedIn: boolean; autoOpen?: boolean; resume?: boolean }) {
+// TWO WAYS TO SHOW SOMEBODY (2026-09-19). Shahar wanted the home screen to
+// lead with Ask Bob "like a search screen with audio / video recording
+// option". Saying it and SHOWING it are the same errand with the same tail -
+// who you are, which house, file it, send it to a person - so this component
+// grew a second front end rather than a twin:
+//
+//   voice  the recorder that was always here
+//   clip   the phone's own camera, through a file input with capture. Not a
+//          second recorder: on a phone that opens the camera app, which
+//          handles the light, the focus and the codec better than anything
+//          written here, and on a laptop it is a file picker, which is the
+//          right answer there too.
+export type AskMode = "voice" | "clip";
+
+export function VoiceAsk({
+  signedIn, autoOpen = false, resume = false, mode = "voice", trigger = "block",
+}: {
+  signedIn: boolean; autoOpen?: boolean; resume?: boolean;
+  mode?: AskMode;
+  /** "block" is the full-width button; "icon" is the round one that sits
+   *  inside the search bar. */
+  trigger?: "block" | "icon";
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(autoOpen);
   const [step, setStep] = useState<Step>("record");
@@ -52,6 +74,13 @@ export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signe
   const rec = useRef<MediaRecorder | null>(null);
   const chunks = useRef<BlobPart[]>([]);
   const started = useRef(0);
+  const file = useRef<HTMLInputElement>(null);
+
+  // What was captured decides the preview, the file name and the kind the
+  // store is told - read off the blob rather than off the mode, because a
+  // phone camera can hand back either a video or a still.
+  const isVideo = (blob?.type ?? "").startsWith("video/");
+  const isImage = (blob?.type ?? "").startsWith("image/");
 
   // Back from Google: the recording waits in session storage.
   useEffect(() => {
@@ -148,21 +177,33 @@ export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signe
       }
       if (!project) { setBusy(""); setErr("The home was added but not found again. Try once more."); return; }
     }
-    const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
-    const path = `${project}/notes/voice-ask-${Date.now()}.${ext}`;
-    setBusy("Saving the recording…");
+    const ext = isVideo ? (blob.type.includes("quicktime") ? "mov" : blob.type.includes("webm") ? "webm" : "mp4")
+      : isImage ? (blob.type.includes("png") ? "png" : "jpg")
+      : blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+    const clip = isVideo || isImage;
+    const path = `${project}/notes/${clip ? "ask-clip" : "voice-ask"}-${Date.now()}.${ext}`;
+    setBusy(clip ? "Saving what you sent…" : "Saving the recording…");
     const { error: upErr } = await supabase.storage.from("project-media").upload(path, blob, { contentType: blob.type || undefined });
     if (upErr) { setBusy(""); setErr(`The recording did not upload: ${upErr.message}`); return; }
     const { data: fid, error: recErr } = await supabase.rpc("record_project_file", {
-      p_project_id: project, p_path: path, p_file_name: `voice-note.${ext}`, p_mime: blob.type || null, p_size: blob.size,
-      p_caption: "What I would like to do in the house (voice note from the front door)", p_kind: "audio",
+      p_project_id: project, p_path: path,
+      p_file_name: `${clip ? "what-i-mean" : "voice-note"}.${ext}`,
+      p_mime: blob.type || null, p_size: blob.size,
+      p_caption: clip
+        ? "What I would like to do in the house (sent from the front door)"
+        : "What I would like to do in the house (voice note from the front door)",
+      p_kind: isVideo ? "video" : isImage ? "image" : "audio",
     });
     if (recErr) { setBusy(""); setErr(friendly(recErr.message)); return; }
     const fileId = (typeof fid === "string" ? fid : fid?.file_id ?? fid?.id ?? null) as string | null;
     setBusy("Sending it to a person…");
     const { data, error } = await supabase.rpc("homeowner_quote_request", {
       p_code: CODE,
-      p_note: `Voice note from the front door (${secs}s): "what I would like to do in the house". Listen to the recording attached to this task.`,
+      p_note: isVideo
+        ? `Video from the front door: "what I would like to do in the house". Watch the clip attached to this task.`
+        : isImage
+        ? `Photo from the front door: "what I would like to do in the house". See the picture attached to this task.`
+        : `Voice note from the front door (${secs}s): "what I would like to do in the house". Listen to the recording attached to this task.`,
       p_address: addr || null, p_reach: "email", p_phone: null, p_file_ids: fileId ? [fileId] : null,
     });
     setBusy("");
@@ -176,30 +217,74 @@ export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signe
 
   return (
     <>
-      <button type="button" className="btn btn-ghost btn-block" style={{ gap: 8 }} onClick={() => { setOpen(true); setErr(""); }}>
-        <MicIcon /> Tell me what you would like to do in the house
-      </button>
+      {trigger === "icon" ? (
+        <button type="button" className="ask-ic" aria-label={mode === "clip" ? "Show us instead" : "Say it instead"}
+          title={mode === "clip" ? "Show us — video or photo" : "Say it out loud"}
+          onClick={() => { setOpen(true); setErr(""); }}>
+          {mode === "clip" ? <CamIcon /> : <MicIcon />}
+        </button>
+      ) : (
+        <button type="button" className="btn btn-ghost btn-block" style={{ gap: 8 }} onClick={() => { setOpen(true); setErr(""); }}>
+          {mode === "clip" ? <CamIcon /> : <MicIcon />}
+          {mode === "clip" ? " Show us what you mean" : " Tell me what you would like to do in the house"}
+        </button>
+      )}
 
       {open && (
-        <Sheet title={step === "done" ? "Sent" : "What would you like to do in the house?"} onClose={() => { if (recording) stopRec(); setOpen(false); }}>
+        <Sheet title={step === "done" ? "Sent" : mode === "clip" ? "Show us what you mean" : "What would you like to do in the house?"}
+          onClose={() => { if (recording) stopRec(); setOpen(false); }}>
           {step === "record" && (
             <div className="stack" style={{ gap: 12 }}>
               <p className="small text-muted" style={{ margin: 0 }}>
-                Say it the way you would to a neighbour: the room, what bothers you, what you have in mind. A person listens and comes back to you. Nothing is charged.
+                {mode === "clip"
+                  ? "Point the camera at it. A ten-second pan of the panel, the leak, the wall — a person watches it and comes back to you. Nothing is charged."
+                  : "Say it the way you would to a neighbour: the room, what bothers you, what you have in mind. A person listens and comes back to you. Nothing is charged."}
               </p>
-              <MicPicker mics={mics} micId={micId} setMicId={setMicId} micName={micName} recording={recording} />
 
-              {!blob && !recording && (
-                <button type="button" className="btn btn-primary btn-block" onClick={() => void startRec()}><MicIcon /> Start recording</button>
+              {/* THE CAMERA IS THE PHONE'S OWN. capture opens it directly;
+                  on a laptop the same input is a file picker, which is the
+                  right thing there. */}
+              {mode === "clip" ? (
+                <>
+                  {!blob && (
+                    <button type="button" className="btn btn-primary btn-block" onClick={() => file.current?.click()}>
+                      <CamIcon /> Take a video or photo
+                    </button>
+                  )}
+                  <input ref={file} type="file" accept="video/*,image/*" capture="environment" hidden
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      // 60 MB is about a minute of phone video. Past that the
+                      // upload is the thing that fails, and it fails slowly.
+                      if (f.size > 60 * 1024 * 1024) { setErr("That clip is too big to send. A shorter one — ten seconds is plenty."); return; }
+                      setErr(""); setBlob(f); setUrl(URL.createObjectURL(f)); setSecs(0);
+                    }} />
+                </>
+              ) : (
+                <>
+                  <MicPicker mics={mics} micId={micId} setMicId={setMicId} micName={micName} recording={recording} />
+                  {!blob && !recording && (
+                    <button type="button" className="btn btn-primary btn-block" onClick={() => void startRec()}><MicIcon /> Start recording</button>
+                  )}
+                  {recording && (
+                    <button type="button" className="btn btn-status btn-block" onClick={stopRec}><span className="rec-dot" aria-hidden /> Stop · {mm}</button>
+                  )}
+                </>
               )}
-              {recording && (
-                <button type="button" className="btn btn-status btn-block" onClick={stopRec}><span className="rec-dot" aria-hidden /> Stop · {mm}</button>
-              )}
+
               {blob && !recording && (
                 <>
-                  <audio controls src={url} style={{ width: "100%" }} />
+                  {isVideo ? <video controls src={url} style={{ width: "100%", borderRadius: 10, maxHeight: 280 }} />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    : isImage ? <img src={url} alt="" style={{ width: "100%", borderRadius: 10, maxHeight: 280, objectFit: "cover" }} />
+                    : <audio controls src={url} style={{ width: "100%" }} />}
                   <div className="row" style={{ gap: 8 }}>
-                    <button type="button" className="btn btn-ghost small" onClick={() => { setBlob(null); setUrl(""); setSecs(0); }}>Record again</button>
+                    <button type="button" className="btn btn-ghost small"
+                      onClick={() => { setBlob(null); setUrl(""); setSecs(0); }}>
+                      {mode === "clip" ? "Take another" : "Record again"}
+                    </button>
                     <button type="button" className="btn btn-primary grow" onClick={() => setStep(authed ? "home" : "join")}>Continue</button>
                   </div>
                 </>
@@ -266,5 +351,15 @@ export function VoiceAsk({ signedIn, autoOpen = false, resume = false }: { signe
 const MicIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><path d="M12 18v3" />
+  </svg>
+);
+
+// A camera, for "show us what you mean". The lens and the body, nothing else:
+// a video-camera glyph would promise recording, and what this opens is the
+// phone's own camera, which may come back with a still.
+const CamIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 8.5A2 2 0 0 1 5 6.5h2.2l1-1.7a1 1 0 0 1 .9-.5h5.8a1 1 0 0 1 .9.5l1 1.7H19a2 2 0 0 1 2 2v8A2 2 0 0 1 19 19H5a2 2 0 0 1-2-2z" />
+    <circle cx="12" cy="12.5" r="3.2" />
   </svg>
 );

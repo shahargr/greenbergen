@@ -1488,3 +1488,80 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 @media (prefers-reduced-motion: reduce) {
   .load-bar > span { animation: none; width: 100%; opacity: .5; }
 }
+
+/* ASK BOB, AS THE TOP OF THE SCREEN (2026-09-19). Shahar: "This page should
+   lead with Ask Bob, like a search screen with audio / video recording
+   option. In a background of knowledge handyman."
+
+   A band the width of the body, a photograph behind it, and the box sitting
+   on the dark half of it. The wash is heavier at the bottom than the top
+   because that is where the type is: a face stays a face, and white words on
+   it still read. */
+.bob-hero {
+  position: relative; isolation: isolate; overflow: hidden;
+  border-radius: var(--radius-lg, 18px);
+  padding: 20px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  min-height: 210px; display: flex; flex-direction: column; justify-content: flex-end;
+  background: var(--color-text);
+  color: #fff;
+}
+.bob-hero .bob-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+  z-index: -2;
+}
+.bob-hero::after {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(180deg, rgba(22, 21, 19, .30) 0%, rgba(22, 21, 19, .58) 52%, rgba(22, 21, 19, .82) 100%);
+}
+/* With no photograph on file the band is not broken, it is just quieter:
+   the ink ground with a warm sweep across it. */
+.bob-hero.drawn { background: radial-gradient(120% 130% at 12% 0%, #2f3a33 0%, var(--color-text) 62%); }
+.bob-hero.drawn::after { background: none; }
+.bob-inner { display: grid; gap: 8px; }
+.bob-eyebrow {
+  margin: 0; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .78);
+}
+.bob-line { margin: 0; font-size: 23px; line-height: 1.15; letter-spacing: -.01em; text-wrap: balance; }
+
+/* THE BOX. One row: the field grows, the three ways sit at its right end and
+   never wrap under it, because a search bar that becomes two rows on a phone
+   stops looking like a search bar. */
+.bob-box {
+  display: flex; align-items: center; gap: 6px; margin-top: 4px;
+  padding: 5px 6px 5px 14px; border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface); color: var(--color-text);
+  box-shadow: 0 8px 24px rgba(22, 21, 19, .26);
+}
+.bob-q {
+  flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: none;
+  font: inherit; font-size: 15px; color: inherit; padding: 9px 0;
+}
+.bob-q::placeholder { color: var(--muted); }
+.bob-q::-webkit-search-cancel-button { display: none; }
+.bob-ways { display: flex; align-items: center; gap: 4px; flex: none; }
+.ask-ic, .bob-go {
+  width: 38px; height: 38px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; padding: 0;
+  background: var(--color-soft); color: var(--color-text);
+}
+.ask-ic:hover, .bob-go:hover { background: var(--color-soft-2); }
+.ask-ic:focus-visible, .bob-go:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.bob-go { background: var(--color-text); color: var(--color-bg); }
+.bob-go:hover { background: var(--color-text); opacity: .88; }
+.bob-sub { margin: 2px 0 0; font-size: 12px; line-height: 1.45; color: rgba(255, 255, 255, .82); }
+.bob-sub a { color: #fff; text-decoration: underline; text-underline-offset: 2px; }
+@media (min-width: 560px) {
+  .bob-hero { min-height: 250px; padding: 26px 22px 22px; }
+  .bob-line { font-size: 27px; }
+}
+
+/* The DIY rail's corner flag. It has to say "this is the walkthrough, not the
+   price" at a glance, because the two rails are the same shape. */
+.diy-flag {
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  padding: 3px 8px; border-radius: var(--radius-pill, 999px);
+  font-size: 10px; font-weight: 800; letter-spacing: .08em;
+  background: rgba(22, 21, 19, .72); color: #fff;
+}
+.scene-pic { position: relative; }

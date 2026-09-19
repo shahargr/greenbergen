@@ -9,8 +9,9 @@ import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { Scene, SceneMore } from "@/components/Scene";
 import { HomeHero } from "@/components/HomeHero";
+import { BobSearch } from "@/components/BobSearch";
+import { DiyRail, diyTiles } from "@/components/DiyRail";
 import { PhotoBanner } from "@/components/PhotoBanner";
-import { VoiceAsk } from "@/components/VoiceAsk";
 import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
@@ -148,6 +149,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // yet, plus the group purchases, and the tail of the rail is how you get
   // there. It is one tap where it used to be a scroll.
   const scenes = featured(tiles);
+  const diy = diyTiles(tiles);
   const noneLive = !tiles.some(isOpen);
 
   const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
@@ -192,6 +194,21 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
             And the paragraph under the old headline went with it - "not sure
             why this text is necessary". It was three sentences explaining a
             shelf that explains itself. */}
+        {/* BOB LEADS (Shahar, 2026-09-19): "This page should lead with Ask
+            Bob, like a search screen with audio / video recording option. In
+            a background of knowledge handyman."
+
+            The photograph used to open the screen and the shelf came second,
+            which asked a member to recognise the name of their problem before
+            they could say it. A search box takes the sentence they already
+            have. The picture is still here - it is just not the first thing
+            asked of them. */}
+        <BobSearch photo={settings.bobHero} signedIn />
+
+        {/* DIY, straight under him: what we are pushing this season, as a
+            walkthrough rather than a price. */}
+        <DiyRail tiles={diy} />
+
         <HomeHero photo={settings.hero} line={settings.taglineShown ? settings.tagline : null} />
         {scenes.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>
@@ -226,20 +243,11 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </Card>
         )}
 
-        {/* THE WAY IN, the member's own: ask Bob, pick a package, or just say
-            it. Bob is first (2026-09-19) because a member arrives with a
-            SITUATION - "the power keeps going out" - and the catalogue asks
-            them to already know the name of the answer. */}
+        {/* THE OTHER WAY IN. Bob is at the top of the screen now, so this is
+            the one for somebody who already knows what they want and would
+            rather go straight to the shelf. */}
         <Card soft pad>
-          <div className="stack" style={{ gap: 8 }}>
-            <Link href="/ask" className="btn btn-primary btn-block">Ask Bob</Link>
-            <p className="small text-muted" style={{ margin: 0 }}>
-              Your replica for anything house related. Today he is good at generators, water heaters, EV chargers
-              and home internet — and he says so when something is not his.
-            </p>
-            <Link href="/packages" className="btn btn-soft btn-block">Start your new project today</Link>
-            <VoiceAsk signedIn />
-          </div>
+          <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
         </Card>
 
         {/* THE CONTRACTOR DIRECTORY IS NOT HERE YET. Shahar

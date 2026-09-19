@@ -21,8 +21,11 @@ const EXAMPLES = [
   "wifi dies at the far end of the house",
 ];
 
-export function AskBob({ tiles }: { tiles: BobTile[] }) {
-  const [text, setText] = useState("");
+export function AskBob({ tiles, initial = "" }: { tiles: BobTile[]; initial?: string }) {
+  // What was typed into the home screen's search box, handed over in ?q= and
+  // answered on arrival - so the box up there is a real search box and not a
+  // link wearing one.
+  const [text, setText] = useState(initial);
   const answer = useMemo(() => read(text, tiles), [text, tiles]);
   const typed = text.trim().length > 0;
 

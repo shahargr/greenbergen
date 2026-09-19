@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { shrink } from "@/lib/shrink";
-import { setLandingHero } from "./actions";
+import { setBobHero, setLandingHero } from "./actions";
 
 // THE PHOTOGRAPH AT THE TOP OF THE HOMEOWNER LANDING PAGE.
 //
@@ -16,7 +16,20 @@ import { setLandingHero } from "./actions";
 // landing_hero_set, which refuses an address that is not one of ours. Until a
 // photograph is uploaded the landing draws the house instead, so the page is
 // never broken waiting for it.
-export function LandingPhoto({ url }: { url: string | null }) {
+// TWO PHOTOGRAPHS, ONE ROAD (2026-09-19). Bob's backdrop arrived (migration
+// 193) and it wants exactly this: shrink, write to public-media, record the
+// address through a function that refuses an address from anywhere else. What
+// differs is the field it lands in and the sentence describing the picture -
+// so those are arguments, rather than a second copy of the uploader that will
+// drift from this one.
+export function LandingPhoto({
+  url, which = "landing", hint, removed,
+}: {
+  url: string | null;
+  which?: "landing" | "bob";
+  hint?: string;
+  removed?: string;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<string | null>(url);
   const [note, setNote] = useState("");
@@ -29,11 +42,11 @@ export function LandingPhoto({ url }: { url: string | null }) {
     const supabase = createClient();
     // A new name per upload, so a replaced photo is a new URL and no cache
     // anywhere keeps showing the old one.
-    const path = `landing/hero-${Date.now().toString(36)}${ext}`;
+    const path = `landing/${which === "bob" ? "bob" : "hero"}-${Date.now().toString(36)}${ext}`;
     const { error } = await supabase.storage.from("public-media").upload(path, blob, { upsert: true, contentType: type });
     if (error) { setBusy(false); setNote(`Upload failed: ${error.message}`); return; }
     const publicUrl = supabase.storage.from("public-media").getPublicUrl(path).data.publicUrl;
-    const res = await setLandingHero(publicUrl);
+    const res = which === "bob" ? await setBobHero(publicUrl) : await setLandingHero(publicUrl);
     setBusy(false);
     if (res?.error) { setNote(res.error); return; }
     setCurrent(publicUrl);
@@ -42,11 +55,11 @@ export function LandingPhoto({ url }: { url: string | null }) {
 
   async function remove() {
     setBusy(true); setNote("Removing…");
-    const res = await setLandingHero("");
+    const res = which === "bob" ? await setBobHero("") : await setLandingHero("");
     setBusy(false);
     if (res?.error) { setNote(res.error); return; }
     setCurrent(null);
-    setNote("Removed. The landing page draws the house again.");
+    setNote(removed ?? "Removed. The landing page draws the house again.");
   }
 
   return (
@@ -57,9 +70,7 @@ export function LandingPhoto({ url }: { url: string | null }) {
         : <div className="muted small" style={{ width: 176, height: 108, borderRadius: 10, border: "1.5px dashed #ccc", display: "grid", placeItems: "center" }}>no photo</div>}
       <div style={{ display: "grid", gap: 6 }}>
         <span className="muted small">
-          A couple in front of their house, pleased with what just got finished. It fills the top
-          third of the homeowner landing page, cropped to the middle — so leave room around the
-          faces and keep them away from the edges. Landscape, and the wider the better.
+          {hint ?? "A couple in front of their house, pleased with what just got finished. It fills the top third of the homeowner landing page, cropped to the middle — so leave room around the faces and keep them away from the edges. Landscape, and the wider the better."}
         </span>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" className="btn" disabled={busy} onClick={() => input.current?.click()}>

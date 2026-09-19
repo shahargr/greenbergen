@@ -21,7 +21,7 @@ export default async function AdminHome() {
   const supabase = await createClient();
   const { data: me } = await supabase.rpc("me");
   const godOn = (await cookies()).get("gb_god")?.value === "1";
-  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url, public_tagline, public_tagline_shown, landing_hero_url").maybeSingle();
+  const { data: cfgRow } = await supabase.from("config").select("trash_retention_days, welcome_video_url, public_tagline, public_tagline_shown, landing_hero_url, bob_hero_url").maybeSingle();
   const trashDays = cfgRow?.trash_retention_days ?? 14;
   const { data: bannerRows } = await supabase
     .from("community_banners")
@@ -98,6 +98,19 @@ export default async function AdminHome() {
         </p>
         <LandingPhoto url={(cfgRow?.landing_hero_url as string | null) ?? null} />
 
+      </div>
+
+      <div className="card" style={{ display: "grid", gap: 8 }}>
+        <h2 className="section-title">Bob&apos;s photo</h2>
+        <p className="muted small" style={{ margin: 0 }}>
+          Behind the Ask Bob box at the top of a member&apos;s home screen. Edits reach everyone within five
+          minutes.
+        </p>
+        <LandingPhoto
+          url={(cfgRow?.bob_hero_url as string | null) ?? null}
+          which="bob"
+          hint="Somebody who knows the work — a tradesman mid-job, hands on something real. The search box sits over the bottom half, so keep faces and detail in the top two thirds. Landscape, and the wider the better."
+          removed="Removed. The Ask Bob band draws its own ground again." />
       </div>
 
       <div className="card" style={{ display: "grid", gap: 8 }}>

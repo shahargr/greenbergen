@@ -114,6 +114,18 @@ export async function setLandingHero(url: string): Promise<{ ok?: true; error?: 
   return { ok: true };
 }
 
+// THE PHOTOGRAPH BEHIND ASK BOB (migration 193). Its own field, because the
+// landing photograph is a finished house and this one is somebody who knows
+// how to do the work - putting the first behind a search box would be a lie
+// about what the box does.
+export async function setBobHero(url: string): Promise<{ ok?: true; error?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("bob_hero_set", { p_url: url });
+  if (error || data?.ok === false) return { error: data?.reason ?? error?.message ?? "Not saved." };
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
 // The welcome video shown to first-run users (YouTube link or MP4 URL).
 export async function saveWelcomeVideo(formData: FormData) {
   const supabase = await createClient();

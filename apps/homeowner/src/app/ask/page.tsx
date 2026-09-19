@@ -26,8 +26,11 @@ export const metadata = { title: "Ask Bob" };
 // only a promise worth making if today's limits are stated, so the four are
 // named on the page and everything outside them is handed on rather than
 // guessed at.
-export default async function AskPage({ searchParams }: { searchParams: Promise<{ voice?: string }> }) {
-  const { voice } = await searchParams;
+export default async function AskPage({ searchParams }: { searchParams: Promise<{ voice?: string; q?: string }> }) {
+  // ?q= is the box on the home screen, handed over whole. The search there is
+  // a plain GET form so it works before any JavaScript does; this page is
+  // where Bob actually reads it.
+  const { voice, q } = await searchParams;
   const supabase = await createClient();
   const [signedIn, { tiles }] = await Promise.all([isSignedIn(supabase), loadTiles()]);
   // Only what Bob needs to point somewhere real, and only what is actually
@@ -54,7 +57,7 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
         </div>
 
         <Card pad>
-          <AskBob tiles={known} />
+          <AskBob tiles={known} initial={q ?? ""} />
         </Card>
 
         {/* THE PATH THAT WAS ALWAYS HERE, and the end of every sentence Bob
