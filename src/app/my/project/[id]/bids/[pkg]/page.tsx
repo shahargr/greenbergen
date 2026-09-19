@@ -7,7 +7,10 @@ import { savePackage, setPackageItems, inviteBidders, attachBidDocs, runAiReview
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-type Item = { id: string; scope_item_id: string; item: string; category: string | null; is_required: boolean; sort: number };
+type Item = { id: string; scope_item_id: string; item: string; category: string | null; is_required: boolean; sort: number;
+  // Taken out of this proposal on purpose (192). Not in the tick list - that
+  // box reconciles what it is given, so a line in it is a line being asked for.
+  is_included?: boolean; excluded_why?: string | null };
 type Candidate = { id: string; item: string; category: string | null };
 type Doc = { id: string; file_name: string; kind: string | null; bucket: string; path: string };
 type Bid = { id: string; bidder: string | null; bidder_contact_id: string; status: string; amount: number | null; received_on: string | null; valid_until: string | null; is_like_for_like: boolean | null; scope_gaps: string | null };
@@ -74,6 +77,9 @@ export default async function BidPackagePage({
   const back = `/my/project/${id}/bids/${pkgId}`;
   const save = savePackage.bind(null, id, pkgId);
   const editable = p.can_edit && p.status !== "closed";
+  // What the room is actually asking for, and what was set aside (192).
+  const asked = p.items.filter((i) => i.is_included !== false);
+  const outOf = p.items.filter((i) => i.is_included === false);
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 760 }}>
@@ -111,9 +117,9 @@ export default async function BidPackagePage({
 
         {/* Scope */}
         <div className="card" style={{ display: "grid", gap: 8 }}>
-          <h2 className="section-title" style={{ margin: 0 }}>Scope · {p.items.length} line{p.items.length === 1 ? "" : "s"} · {p.items.filter((i) => i.is_required).length} required</h2>
+          <h2 className="section-title" style={{ margin: 0 }}>Scope · {asked.length} line{asked.length === 1 ? "" : "s"} · {asked.filter((i) => i.is_required).length} required{outOf.length > 0 ? ` · ${outOf.length} not in it` : ""}</h2>
           {p.scope_summary && <p className="small" style={{ margin: 0 }}>{p.scope_summary}</p>}
-          {!editable && p.items.map((i) => (
+          {!editable && asked.map((i) => (
             <div key={i.id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
               <span style={{ flex: 1 }}>{i.item}</span>
               <span className="muted" style={{ whiteSpace: "nowrap" }}>{i.is_required ? "required" : "optional"}</span>
@@ -124,7 +130,7 @@ export default async function BidPackagePage({
               <div className="muted" style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>
                 <span>In</span><span>Line</span><span>Required</span>
               </div>
-              {p.items.map((i) => (
+              {asked.map((i) => (
                 <label key={i.id} className="small" style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px", gap: 8, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
                   <input type="checkbox" name="item" value={i.scope_item_id} defaultChecked />
                   <span>{i.item}</span>
@@ -143,11 +149,25 @@ export default async function BidPackagePage({
                   ))}
                 </>
               )}
-              {p.items.length === 0 && p.candidates.length === 0 && (
+              {asked.length === 0 && p.candidates.length === 0 && (
                 <p className="muted small" style={{ margin: 0 }}>No scope lines for this trade yet — add scope items on the project first, or set the trade below.</p>
               )}
               <div><button className="btn small">Save scope</button></div>
             </form>
+          )}
+          {/* SET ASIDE ON PURPOSE (192), and out of the tick list above so
+              saving it cannot quietly put them back. The site screen is where
+              they go in and out; here they are shown so the desk knows. */}
+          {outOf.length > 0 && (
+            <>
+              <span className="muted small" style={{ marginTop: 6 }}>Not in this proposal ({outOf.length}):</span>
+              {outOf.map((i) => (
+                <div key={i.id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid #f0f1ee", paddingTop: 6, opacity: .62 }}>
+                  <span style={{ flex: 1, textDecoration: "line-through" }}>{i.item}</span>
+                  <span className="muted" style={{ whiteSpace: "nowrap" }}>{i.excluded_why || "out"}</span>
+                </div>
+              ))}
+            </>
           )}
         </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // CORRECT THEM, OR TAKE THEM OUT (migration 188). Shahar (2026-09-18): "edit
 // the bidding room capability is lacking. edit / remove people for example is
@@ -26,6 +26,15 @@ export function BidRowMenu({
 }) {
   const [open, setOpen] = useState<"" | "edit" | "remove">("");
 
+  // It is a sheet over the page now, not a dropdown inside the table, so it
+  // closes the way sheets close: tap outside, or Escape.
+  useEffect(() => {
+    if (open === "") return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(""); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [open]);
+
   return (
     <span className="rowmenu">
       <button type="button" className="btn btn-ghost small" aria-expanded={open !== ""}
@@ -33,7 +42,10 @@ export function BidRowMenu({
         onClick={() => setOpen(open === "" ? "edit" : "")}>…</button>
 
       {open !== "" && (
-        <div className="rowmenu-panel">
+        <>
+        <button type="button" className="rowmenu-scrim" aria-label="Close"
+          onClick={() => setOpen("")} />
+        <div className="rowmenu-panel" role="dialog" aria-label={`Change or remove ${who}`}>
           <div className="rowmenu-tabs">
             <button type="button" className={open === "edit" ? "on" : ""} onClick={() => setOpen("edit")}>Correct them</button>
             <button type="button" className={open === "remove" ? "on" : ""} onClick={() => setOpen("remove")}>Take them out</button>
@@ -85,6 +97,7 @@ export function BidRowMenu({
             </form>
           )}
         </div>
+        </>
       )}
     </span>
   );

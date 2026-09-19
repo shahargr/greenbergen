@@ -8,7 +8,7 @@ import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { money } from "@/lib/board";
 import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent, showPhoto, hidePhoto,
   attachUploads, attachExisting, detachDoc, shareDoc,
-  removeBidder, editBidder, addKnownToRoom, setTemplate, setMeasures } from "./actions";
+  removeBidder, editBidder, addKnownToRoom, setTemplate, setMeasures, refineLines } from "./actions";
 import { BidPapers } from "@/components/BidPapers";
 import { BidLink } from "@/components/BidLink";
 import { BidRowMenu } from "@/components/BidRowMenu";
@@ -37,7 +37,11 @@ type Item = { id: string; scope_item_id: string; item: string; category: string 
   // THE MEASUREMENT (188). How much of this line there is, in the trade's own
   // word - 32 squares, 140 linear feet. Shown to every bidder so they all
   // price the same quantity, and what turns three quotes into a rate.
-  qty: number | null; unit: string | null };
+  qty: number | null; unit: string | null;
+  // IN OR OUT OF THIS PROPOSAL (192). A line the room is not asking for -
+  // tear-off on a new build - stays here with its reason so the decision can
+  // be read and undone; no bidder sees it and no bid is short for it.
+  is_included: boolean; excluded_why: string | null };
 type Shot = { id: string; path: string; caption: string | null; file_id: string | null; sort: number };
 type Doc = { id: string; file_name: string; kind: string | null; bucket: string; path: string };
 type Bid = {
@@ -172,9 +176,14 @@ export default async function BidPackagePage({
   // priced on its own and never a gap.
   const base = p.items.filter((i) => i.kind !== "option");
   const options = p.items.filter((i) => i.kind === "option");
-  const required = base.filter((i) => i.is_required);
-  const itemIds = base.map((i) => i.scope_item_id).join(",");
-  const optionIds = options.map((i) => i.scope_item_id).join(",");
+  // And a third list, cutting across both: what is being ASKED FOR. Everything
+  // below the refine form reads off `asked`, because a line taken out is not a
+  // line to price, to compare, or to be missing.
+  const asked = base.filter((i) => i.is_included !== false);
+  const outOf = p.items.filter((i) => i.is_included === false);
+  const askedOptions = options.filter((i) => i.is_included !== false);
+  const itemIds = asked.map((i) => i.scope_item_id).join(",");
+  const optionIds = askedOptions.map((i) => i.scope_item_id).join(",");
   // What this bidder last put against one line, read out of the comparison -
   // so reopening the sheet to change one number does not blank the rest.
   const priceOf = (b: Bid, scopeItemId: string): number | null => {
@@ -219,6 +228,12 @@ export default async function BidPackagePage({
         {ok === "scope" && (
           <div className="banner-ok">
             Scope saved. Those lines are what every bid is judged against.
+            {held && ` Kept anyway, because somebody already priced them: ${held}.`}
+          </div>
+        )}
+        {ok === "refined" && (
+          <div className="banner-ok">
+            Lines saved — {n}. Anybody who left out a line you took out is no longer short of it.
             {held && ` Kept anyway, because somebody already priced them: ${held}.`}
           </div>
         )}
@@ -310,8 +325,8 @@ export default async function BidPackagePage({
                                 {money(Math.abs(c.lines_total - b.amount))} off his total
                               </span>
                             )}
-                            {c != null && c.lines_priced > 0 && c.lines_priced < base.length && (
-                              <span className="sub">{c.lines_priced} of {base.length}</span>
+                            {c != null && c.lines_priced > 0 && c.lines_priced < asked.length && (
+                              <span className="sub">{c.lines_priced} of {asked.length}</span>
                             )}
                           </td>
                         )}
@@ -463,149 +478,227 @@ export default async function BidPackagePage({
           </section>
         )}
 
-        {/* WHAT WAS ASKED FOR. A bidder prices these lines; a reply that
-            leaves a required one out is a gap, and the database says so. */}
-        <section className="stack" style={{ gap: 8 }}>
-          <div className="divider-label">
-            Scope · {base.length} line{base.length === 1 ? "" : "s"}{required.length > 0 ? ` · ${required.length} required` : ""}
-          </div>
-          {p.scope_summary && <Card soft pad><div className="small">{p.scope_summary}</div></Card>}
-          {base.length === 0 && !canWrite && (
-            <Card soft pad><div className="small">No scope lines on this package yet.</div></Card>
-          )}
-          {base.map((i) => (
-            <div className="home-row" key={i.id} style={{ cursor: "default", alignItems: "flex-start" }}>
-              <span className="grow" style={{ minWidth: 0 }}>
-                <span className="t" style={{ fontWeight: 600 }}>{i.item}</span>
-                {i.category && <span className="m" style={{ display: "block" }}>{i.category}</span>}
-              </span>
-              {i.is_required && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>required</span>}
-            </div>
-          ))}
+        {/* WHAT WAS ASKED FOR, BEHIND ONE LINE. Shahar (2026-09-19): "make the
+            scope foldable, it is too much for no reason on the page." Thirteen
+            lines and four editors pushed everything that changes daily - who
+            replied, whose number is in - off the bottom of the phone. The
+            scope is written once and read rarely, so it lives behind its own
+            summary and opens when you want it.
 
-          {/* THE SCOPE IS WRITTEN IN THE ROOM (Shahar's choice, 2026-09-17).
-              One line per line. These lines are the project's scope for the
-              trade, not a copy of it, and they are the rows of the table
-              above - so what you type here is what every bid is judged
-              against. Saving the box back is safe: a line already written is
-              matched, never written twice. */}
-          {canWrite && (
-            <details className="card pad" open={base.length === 0}>
-              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
-                {base.length === 0 ? "Write the scope" : "Change the scope"}
-              </summary>
-              <form action={setScope.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="scope-lines">One line per line</label>
-                  <textarea id="scope-lines" name="lines" className="input" rows={Math.max(6, base.length + 2)}
-                    defaultValue={base.map((i) => i.item).join("\n")}
-                    placeholder={"Tear off to deck\nIce and water at eaves and valleys\nArchitectural shingles, 30 year\nDrip edge all around\nHaul away and dumpster"} />
-                </div>
-                <button className="btn btn-secondary btn-block">Save the scope</button>
-                <p className="tiny text-muted" style={{ margin: 0 }}>
-                  Every line counts as required. Taking a line out of the box leaves it on the job — it only
-                  stops being one of the rows here.
-                </p>
-              </form>
-            </details>
-          )}
-          {/* THE SHEET THEY FILL IN (188b). Shahar (2026-09-18): "when asking
-              for pricing i would like to create the template the vendors will
-              complete so it is easier to compare them."
+            A bidder prices these lines; a reply that leaves a required one out
+            is a gap, and the database says so. */}
+        <details className="card pad" open={base.length === 0}>
+          <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+            Scope · {asked.length} line{asked.length === 1 ? "" : "s"}
+            {outOf.length > 0 ? ` · ${outOf.length} not in it` : ""}
+            {askedOptions.length > 0 ? ` · ${askedOptions.length} option${askedOptions.length === 1 ? "" : "s"}` : ""}
+          </summary>
+          <div className="stack" style={{ gap: 8, marginTop: 10 }}>
+            {p.scope_summary && <Card soft pad><div className="small">{p.scope_summary}</div></Card>}
+            {base.length === 0 && !canWrite && (
+              <Card soft pad><div className="small">No scope lines on this package yet.</div></Card>
+            )}
+            {asked.map((i) => (
+              <div className="home-row" key={i.id} style={{ cursor: "default", alignItems: "flex-start" }}>
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="t" style={{ fontWeight: 600 }}>{i.item}</span>
+                  {i.category && <span className="m" style={{ display: "block" }}>{i.category}</span>}
+                </span>
+                {i.is_required && <span className="tag tag-outline" style={{ whiteSpace: "nowrap" }}>required</span>}
+              </div>
+            ))}
 
-              A base line used to be a TICK - in or out - and the whole job one
-              lump sum. Three roofers come back with 41,000 / 38,500 / 44,000
-              and the only honest thing you can say is which is smaller. Where
-              the money went is the question, and nobody could ask it.
-
-              Two halves, and the second is what makes it a bid sheet rather
-              than a wish: ask for a price on every line, and say HOW MUCH of
-              each line there is. Thirteen prices are comparable; thirteen
-              prices against 32 squares and 140 linear feet are a rate. */}
-          {canWrite && base.length > 0 && (
-            <details className="card pad" open={p.price_per_line}>
-              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
-                What they fill in{p.price_per_line ? " · a price on every line" : " · one number"}
-              </summary>
-
-              <form action={setTemplate.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
-                <label className="radio-opt" style={{ marginBottom: 0 }}>
-                  <input type="checkbox" name="price_per_line" defaultChecked={p.price_per_line} />
-                  <span className="grow" style={{ minWidth: 0 }}>
-                    <span className="t">Ask for a price against every line</span>
-                    <span className="m" style={{ display: "block" }}>
-                      Their page gets {base.length} price boxes instead of {base.length} ticks, and their total is the
-                      sum of the lines. The side-by-side then compares line against line.
+            {/* TAKEN OUT ON PURPOSE (192). Shown, greyed, with the reason -
+                because "did this bid include tear-off?" is a question somebody
+                asks a year later, and "we decided it did not apply" is a
+                better answer than silence. */}
+            {outOf.length > 0 && (
+              <>
+                <div className="divider-label">Not in this proposal · {outOf.length}</div>
+                {outOf.map((i) => (
+                  <div className="home-row" key={i.id} style={{ cursor: "default", alignItems: "flex-start", opacity: .62 }}>
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t" style={{ fontWeight: 600, textDecoration: "line-through" }}>{i.item}</span>
+                      {i.excluded_why && <span className="m" style={{ display: "block" }}>{i.excluded_why}</span>}
                     </span>
-                  </span>
-                </label>
-                <button className="btn btn-secondary btn-block">
-                  {p.price_per_line ? "Save — or go back to one number" : "Ask for a price per line"}
-                </button>
-              </form>
-
-              {/* The measurement. Offered whichever way the room is asking,
-                  because a quantity is worth stating even against a lump sum:
-                  it is how you know everybody priced the same roof. */}
-              <div className="divider-label" style={{ marginTop: 14 }}>How much of each line</div>
-              <p className="tiny text-muted" style={{ margin: "0 0 8px" }}>
-                Optional, and shown to every bidder. Leave a line blank where you genuinely do not know — a stale
-                number is worse than none.
-              </p>
-              <form action={setMeasures.bind(null, id, pkgId)} className="stack" style={{ gap: 6 }}>
-                {base.map((i) => (
-                  <div key={i.id} className="meas-row">
-                    <span className="meas-item">{i.item}</span>
-                    <input className="input meas-qty" name={`qty__${i.id}`} inputMode="decimal"
-                      defaultValue={i.qty != null ? String(i.qty) : ""} placeholder="—"
-                      aria-label={`How much: ${i.item}`} />
-                    <input className="input meas-unit" name={`unit__${i.id}`}
-                      defaultValue={i.unit ?? ""} placeholder="squares"
-                      aria-label={`Counted in: ${i.item}`} />
+                    <span className="tag tag-neutral" style={{ whiteSpace: "nowrap" }}>out</span>
                   </div>
                 ))}
-                <button className="btn btn-secondary btn-block">Save the measurements</button>
-              </form>
-            </details>
-          )}
+              </>
+            )}
 
-          {/* OPTIONS THEY PRICE SEPARATELY (Shahar, 2026-09-17: "there are
-              options i'd like them to include in their bid, as separate line
-              item"). Its own box, because an option is not scope: it is not
-              part of the number, it is never a gap, and every bidder is asked
-              what it would cost on top. */}
-          {canWrite && (
-            <details className="card pad" open={options.length > 0}>
-              <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
-                Options they price separately{options.length > 0 ? ` · ${options.length}` : ""}
-              </summary>
-              <form action={setScope.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
-                <input type="hidden" name="kind" value="option" />
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label htmlFor="option-lines">One option per line</label>
-                  <textarea id="option-lines" name="lines" className="input" rows={Math.max(4, options.length + 2)}
-                    defaultValue={options.map((i) => i.item).join("\n")}
-                    placeholder={"Copper valley metal instead of galvanized\nStrip and replace the porch roof as well\nGutters and leaders"} />
-                </div>
-                <button className="btn btn-secondary btn-block">Save the options</button>
-                <p className="tiny text-muted" style={{ margin: 0 }}>
-                  Each one gets a price box of its own on the bidder&apos;s page. Leaving one unpriced is a
-                  fair answer and never counts against him.
+            {/* REFINE (192). Shahar (2026-09-19): "an easy way to include /
+                exclude items from the proposal. for example, this image
+                reflects a new build, so tear-off existing is not needed...
+                maybe a refine button."
+
+                One control per line, because a line is in exactly one state:
+                asked for, priced separately, not in this proposal, or a line
+                that should never have been typed. The wording sits beside it,
+                so "Testing - adding a line" is fixed where you notice it
+                rather than by rewriting the box below. */}
+            {canWrite && p.items.length > 0 && (
+              <details className="card pad">
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                  Refine the lines · one at a time
+                </summary>
+                <form action={refineLines.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                  <input type="hidden" name="ids" value={p.items.map((i) => i.id).join(",")} />
+                  {p.items.map((i) => (
+                    <div className="ref-row" key={i.id}>
+                      <input className="input ref-text" name={`item__${i.id}`} defaultValue={i.item}
+                        aria-label={`The wording: ${i.item}`} />
+                      <select className="input ref-state" name={`state__${i.id}`}
+                        defaultValue={i.is_included === false ? "out" : i.kind === "option" ? "option" : "in"}
+                        aria-label={`Where this line stands: ${i.item}`}>
+                        <option value="in">Asked for</option>
+                        <option value="option">Priced separately</option>
+                        <option value="out">Not in this one</option>
+                        <option value="drop">Remove the line</option>
+                      </select>
+                    </div>
+                  ))}
+                  <label className="field" style={{ marginBottom: 0 }}>
+                    <span className="field-label">Why the ones you took out are out (optional)</span>
+                    <input className="input" name="why" placeholder="New build — nothing to tear off" />
+                  </label>
+                  <button className="btn btn-secondary btn-block">Save the lines</button>
+                  <p className="tiny text-muted" style={{ margin: 0 }}>
+                    A line that is <strong>not in this one</strong> stays here with its reason, is hidden from every
+                    bidder, and stops counting against anybody who left it out. <strong>Remove</strong> takes it off
+                    the room for good — it stays on the job, and a line somebody has already priced is kept whatever
+                    you pick.
+                  </p>
+                </form>
+              </details>
+            )}
+
+            {/* THE SCOPE IS WRITTEN IN THE ROOM (Shahar's choice, 2026-09-17).
+                One line per line. These lines are the project's scope for the
+                trade, not a copy of it, and they are the rows of the table
+                above - so what you type here is what every bid is judged
+                against. Saving the box back is safe: a line already written is
+                matched, never written twice, and a line taken out on purpose is
+                left alone rather than read as a deletion. */}
+            {canWrite && (
+              <details className="card pad" open={base.length === 0}>
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                  {base.length === 0 ? "Write the scope" : "Add lines, or rewrite the list"}
+                </summary>
+                <form action={setScope.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor="scope-lines">One line per line</label>
+                    <textarea id="scope-lines" name="lines" className="input" rows={Math.max(6, asked.length + 2)}
+                      defaultValue={asked.map((i) => i.item).join("\n")}
+                      placeholder={"Tear off to deck\nIce and water at eaves and valleys\nArchitectural shingles, 30 year\nDrip edge all around\nHaul away and dumpster"} />
+                  </div>
+                  <button className="btn btn-secondary btn-block">Save the scope</button>
+                  <p className="tiny text-muted" style={{ margin: 0 }}>
+                    Every line counts as required. Taking a line out of the box leaves it on the job — it only
+                    stops being one of the rows here. Lines you set aside above are not in this box and are not
+                    touched by saving it.
+                  </p>
+                </form>
+              </details>
+            )}
+            {/* THE SHEET THEY FILL IN (188b). Shahar (2026-09-18): "when asking
+                for pricing i would like to create the template the vendors will
+                complete so it is easier to compare them."
+
+                A base line used to be a TICK - in or out - and the whole job one
+                lump sum. Three roofers come back with 41,000 / 38,500 / 44,000
+                and the only honest thing you can say is which is smaller. Where
+                the money went is the question, and nobody could ask it.
+
+                Two halves, and the second is what makes it a bid sheet rather
+                than a wish: ask for a price on every line, and say HOW MUCH of
+                each line there is. Thirteen prices are comparable; thirteen
+                prices against 32 squares and 140 linear feet are a rate. */}
+            {canWrite && asked.length > 0 && (
+              <details className="card pad" open={p.price_per_line}>
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                  What they fill in{p.price_per_line ? " · a price on every line" : " · one number"}
+                </summary>
+
+                <form action={setTemplate.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                  <label className="radio-opt" style={{ marginBottom: 0 }}>
+                    <input type="checkbox" name="price_per_line" defaultChecked={p.price_per_line} />
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="t">Ask for a price against every line</span>
+                      <span className="m" style={{ display: "block" }}>
+                        Their page gets {asked.length} price boxes instead of {asked.length} ticks, and their total is the
+                        sum of the lines. The side-by-side then compares line against line.
+                      </span>
+                    </span>
+                  </label>
+                  <button className="btn btn-secondary btn-block">
+                    {p.price_per_line ? "Save — or go back to one number" : "Ask for a price per line"}
+                  </button>
+                </form>
+
+                {/* The measurement. Offered whichever way the room is asking,
+                    because a quantity is worth stating even against a lump sum:
+                    it is how you know everybody priced the same roof. */}
+                <div className="divider-label" style={{ marginTop: 14 }}>How much of each line</div>
+                <p className="tiny text-muted" style={{ margin: "0 0 8px" }}>
+                  Optional, and shown to every bidder. Leave a line blank where you genuinely do not know — a stale
+                  number is worse than none.
                 </p>
-              </form>
-            </details>
-          )}
-          {!canWrite && options.length > 0 && (
-            <div className="stack" style={{ gap: 6 }}>
-              <div className="divider-label">Options, priced separately · {options.length}</div>
-              {options.map((i) => (
-                <div className="home-row" key={i.id} style={{ cursor: "default" }}>
-                  <span className="t">{i.item}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+                <form action={setMeasures.bind(null, id, pkgId)} className="stack" style={{ gap: 6 }}>
+                  {asked.map((i) => (
+                    <div key={i.id} className="meas-row">
+                      <span className="meas-item">{i.item}</span>
+                      <input className="input meas-qty" name={`qty__${i.id}`} inputMode="decimal"
+                        defaultValue={i.qty != null ? String(i.qty) : ""} placeholder="—"
+                        aria-label={`How much: ${i.item}`} />
+                      <input className="input meas-unit" name={`unit__${i.id}`}
+                        defaultValue={i.unit ?? ""} placeholder="squares"
+                        aria-label={`Counted in: ${i.item}`} />
+                    </div>
+                  ))}
+                  <button className="btn btn-secondary btn-block">Save the measurements</button>
+                </form>
+              </details>
+            )}
+
+            {/* OPTIONS THEY PRICE SEPARATELY (Shahar, 2026-09-17: "there are
+                options i'd like them to include in their bid, as separate line
+                item"). Its own box, because an option is not scope: it is not
+                part of the number, it is never a gap, and every bidder is asked
+                what it would cost on top. */}
+            {canWrite && (
+              <details className="card pad" open={askedOptions.length > 0}>
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                  Options they price separately{askedOptions.length > 0 ? ` · ${askedOptions.length}` : ""}
+                </summary>
+                <form action={setScope.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                  <input type="hidden" name="kind" value="option" />
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor="option-lines">One option per line</label>
+                    <textarea id="option-lines" name="lines" className="input" rows={Math.max(4, askedOptions.length + 2)}
+                      defaultValue={askedOptions.map((i) => i.item).join("\n")}
+                      placeholder={"Copper valley metal instead of galvanized\nStrip and replace the porch roof as well\nGutters and leaders"} />
+                  </div>
+                  <button className="btn btn-secondary btn-block">Save the options</button>
+                  <p className="tiny text-muted" style={{ margin: 0 }}>
+                    Each one gets a price box of its own on the bidder&apos;s page. Leaving one unpriced is a
+                    fair answer and never counts against him.
+                  </p>
+                </form>
+              </details>
+            )}
+            {!canWrite && askedOptions.length > 0 && (
+              <div className="stack" style={{ gap: 6 }}>
+                <div className="divider-label">Options, priced separately · {askedOptions.length}</div>
+                {askedOptions.map((i) => (
+                  <div className="home-row" key={i.id} style={{ cursor: "default" }}>
+                    <span className="t">{i.item}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
 
         {/* Terms worth knowing on site, when they are set. */}
         {(p.deposit_pct != null || p.retainage_pct != null || p.net_days != null || p.insurance_workers_comp || p.coi_required) && (
@@ -929,15 +1022,15 @@ export default async function BidPackagePage({
                           for a price per line asks for it here too - a bid
                           taken over the phone has to be comparable with one
                           that came in through the link, and it never was. */}
-                      {base.length > 0 && (
+                      {asked.length > 0 && (
                         <details open={p.price_per_line}>
                           <summary className="tiny text-muted" style={{ cursor: "pointer" }}>
                             {p.price_per_line
-                              ? `What he put against each line · ${base.length}`
+                              ? `What he put against each line · ${asked.length}`
                               : "What his price covers — everything, unless you say otherwise"}
                           </summary>
                           <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-                            {base.map((i) => {
+                            {asked.map((i) => {
                               const said = priceOf(b, i.scope_item_id);
                               return (
                                 <label key={i.id} className={p.price_per_line ? "meas-row" : "row small"}
@@ -961,13 +1054,13 @@ export default async function BidPackagePage({
                       {/* The options, priced on their own. They were only ever
                           collectable through his link; a manager writing the
                           bid down could not record them at all. */}
-                      {options.length > 0 && (
+                      {askedOptions.length > 0 && (
                         <details>
                           <summary className="tiny text-muted" style={{ cursor: "pointer" }}>
-                            Options, priced separately · {options.length}
+                            Options, priced separately · {askedOptions.length}
                           </summary>
                           <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-                            {options.map((i) => {
+                            {askedOptions.map((i) => {
                               const said = priceOf(b, i.scope_item_id);
                               return (
                                 <label key={i.id} className="meas-row">

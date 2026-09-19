@@ -158,6 +158,58 @@ export async function setScope(projectId: string, pkgId: string, formData: FormD
   redirect(here(projectId, pkgId, { ok: kind === "option" ? "options" : "scope" }));
 }
 
+// REFINING THE LINES (migration 192). Shahar (2026-09-19): "an easy way to
+// include / exclude items from the proposal. for example, this image reflect a
+// new build, so tear-off existing is not needed."
+//
+// One save for the whole list. Each line comes back as one of four states,
+// because a line is in exactly one of them - and sending a state the screen
+// did not offer is not possible, so nothing here has to decide anything: the
+// database owns what each state means and what may not be done to a line
+// somebody has already priced.
+export async function refineLines(projectId: string, pkgId: string, formData: FormData) {
+  const ids = String(formData.get("ids") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (ids.length === 0) redirect(here(projectId, pkgId, { error: "Nothing to save." }));
+
+  const lines = ids.map((lineId) => {
+    const state = String(formData.get(`state__${lineId}`) ?? "in");
+    const item = txt(formData.get(`item__${lineId}`));
+    return {
+      id: lineId,
+      ...(item ? { item } : {}),
+      ...(state === "drop"
+        ? { drop: true }
+        : state === "out"
+        ? { in: false }
+        : { in: true, kind: state === "option" ? "option" : "base" }),
+    };
+  });
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_lines_refine", {
+    p_package: pkgId, p_lines: lines, p_why: txt(formData.get("why")),
+  });
+  revalidatePath(here(projectId, pkgId));
+  revalidatePath(`/project/${projectId}/bids`);
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "Those lines did not save.") }));
+  }
+  // What actually happened, in the numbers - "saved" tells somebody who just
+  // struck four lines nothing about whether the right four went.
+  const held = Array.isArray(data.held) ? (data.held as string[]) : [];
+  redirect(here(projectId, pkgId, {
+    ok: "refined",
+    n: [
+      data.excluded ? `${data.excluded} taken out` : null,
+      data.included ? `${data.included} back in` : null,
+      data.removed ? `${data.removed} removed` : null,
+      data.moved ? `${data.moved} moved` : null,
+      data.renamed ? `${data.renamed} reworded` : null,
+    ].filter(Boolean).join(", ") || "nothing changed",
+    ...(held.length > 0 ? { held: held.join(", ") } : {}),
+  }));
+}
+
 // OUT, WITHOUT ANYBODY WINNING. A bidder drops out, or never comes back with
 // a number, long before the winner is picked.
 export async function markLost(projectId: string, pkgId: string, bidId: string, formData: FormData) {
