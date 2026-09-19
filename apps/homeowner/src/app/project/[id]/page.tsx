@@ -10,6 +10,7 @@ import { stopwatch } from "@shared/perf";
 import { PhotoRequest } from "@/components/PhotoRequest";
 import { WaitingCard } from "./WaitingCard";
 import { bookingAction, cancelProject, closeProject, reopenProject, updatePlan } from "./actions";
+import { MarkOpened } from "@shared/MarkOpened";
 
 export const dynamic = "force-dynamic";
 
@@ -240,6 +241,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const isDone = b.state === "done";
   return (
     <Screen>
+      {/* Remembered here and not on the early returns above: a project that
+          could not be read is not a project you were in. */}
+      <MarkOpened projectId={id} />
       <AppBar brand />
       <div className="body">
         {switcher}

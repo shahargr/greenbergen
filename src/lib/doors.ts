@@ -55,6 +55,16 @@ export const DOOR_ENTRY: Record<DoorKey, string> = {
   admin: "/my",
 };
 
+// THE SAME DOOR, OPENED ON ONE JOB. Every door has a per-project screen, so
+// resuming needs no second column saying which app the project was opened in:
+// the door is decided first, exactly as before, and the project is rendered
+// by whichever door won.
+export const DOOR_PROJECT: Record<DoorKey, (id: string) => string> = {
+  homeowner: (id) => `${DOOR_URL.homeowner}/project/${id}`,
+  expert: (id) => `${DOOR_URL.expert}/project/${id}`,
+  admin: (id) => `/my/project/${id}`,
+};
+
 // Named the way Shahar names them out loud - homeowner, contractor, project
 // experts, admin - one door for everyone who works on homes.
 export const DOOR_LABEL: Record<DoorKey, { title: string; blurb: string }> = {
@@ -102,9 +112,22 @@ export function readDoors(data: DoorsRow | null): Doors {
 // Every sign-in resolves straight through. Their own choice when they have
 // made one and still hold it, else the house rule, else the portal - which a
 // brand new account with no door at all still has.
-export function landing(doors: Doors): string {
+//
+// AND THEN THE JOB THEY WERE IN. The door was always remembered; what was
+// inside it never was, so a sign-in landed on a list however deep in a job
+// you were when you closed the tab. lastProjectId comes from
+// my_last_project() (migration 194), which is RLS-bound: a project whose seat
+// was revoked, or which was trashed, simply does not come back, and this
+// falls through to the door's own entry. So there is nothing to re-check
+// here - the absence IS the check.
+//
+// The door still decides first. Remembering a project must never move
+// somebody into an app they did not resolve to, which is why this reads
+// DOOR_PROJECT[door] rather than storing the door the project was opened in.
+export function landing(doors: Doors, lastProjectId?: string | null): string {
   if (!doors.signed_in) return "/login";
   const chosen = doors.preferred && doors.held.includes(doors.preferred) ? doors.preferred : null;
   const door = chosen ?? LANDS.find((k) => doors.held.includes(k)) ?? null;
-  return door ? DOOR_ENTRY[door] : "/my";
+  if (!door) return "/my";
+  return lastProjectId ? DOOR_PROJECT[door](lastProjectId) : DOOR_ENTRY[door];
 }

@@ -20,6 +20,7 @@ import type { PanelPrefs } from "@/components/Panels";
 import { matchesQuery } from "@/lib/search";
 import { SiteVisits, type Visit } from "./SiteVisits";
 import { SiteWeekTrades, weekDay, type SiteWeek } from "./SiteWeek";
+import { MarkOpened } from "@shared/MarkOpened";
 
 export const dynamic = "force-dynamic";
 
@@ -521,6 +522,9 @@ export default async function ProjectPage({
 
   return (
     <Screen>
+      {/* Remembered here and not on the early returns above: a project that
+          could not be read is not a project you were in. */}
+      <MarkOpened projectId={id} />
       {/* THE SEAT, BY THE NAME. Shahar (2026-09-14): "viewing as should be
           changed to seat, and drop down with all options. top right above the
           photo, by the project name."

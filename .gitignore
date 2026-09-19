@@ -25,3 +25,6 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Claude Code - personal session overrides, never committed
+.claude/settings.local.json
