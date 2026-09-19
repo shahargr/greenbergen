@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { VoiceAsk } from "@/components/VoiceAsk";
+import { withBase } from "@shared/site";
 
 // ASK BOB, AT THE TOP, AS A SEARCH SCREEN (Shahar, 2026-09-19).
 //
@@ -34,7 +35,15 @@ export function BobSearch({ photo, signedIn }: { photo: string | null; signedIn:
         <p className="bob-eyebrow">Ask Bob</p>
         <h1 className="bob-line">What is going on in the house?</h1>
 
-        <form className="bob-box" action="/ask" method="get">
+        {/* withBase, and it is not optional: this is a NATIVE form, and a
+            native form is a raw URL. next/link, redirect() and router.push()
+            add the /home prefix themselves; an action= attribute does not, so
+            this posted to the PORTAL's /ask - which does not exist - and
+            every question typed here answered with a 404 (Shahar,
+            2026-09-19: "i types in the ask bob window 'My fauset leaks' and
+            got a 404 page"). The one plain form in the app was the one place
+            the basePath had to be written by hand. */}
+        <form className="bob-box" action={withBase("/ask")} method="get">
           <input className="bob-q" type="search" name="q" autoComplete="off"
             aria-label="Tell Bob what is going on"
             placeholder="“the power keeps going out”" />
