@@ -1,8 +1,10 @@
 import { AppBar, Card, Screen, Skeleton } from "@shared/ui";
+import { LoadingBar } from "@shared/LoadingScreen";
 
 export default function Loading() {
   return (
     <Screen>
+      <LoadingBar />
       <AppBar brand />
       <div className="body">
         <Skeleton h={10} w={140} />

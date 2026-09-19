@@ -1676,3 +1676,32 @@ a.homepanel-alert:hover { text-decoration: underline; }
 .door-fab > summary:hover { border-color: #1a1a1a; }
 .door-fab[open] > summary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
 .door-fab .door-fab-panel { top: auto; bottom: calc(100% + 8px); right: 0; }
+
+/* WHILE A SCREEN IS BEING BUILT (2026-09-19). The bar rides the top of the
+   glass and is indeterminate: the server never says how far through it is,
+   and a bar that stalls at 90% is worse than one that keeps moving. The
+   skeletons keep the page's shape so nothing jumps when the real thing
+   arrives - the same rule the three apps follow. */
+.load-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 2.5px; z-index: 90;
+  background: #eceae5; overflow: hidden;
+}
+.load-bar > span {
+  display: block; height: 100%; width: 40%; border-radius: 0 2px 2px 0;
+  background: var(--brand, #1f6f45);
+  animation: load-slide 1.15s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+@keyframes load-slide {
+  0%   { transform: translateX(-100%) scaleX(.6); }
+  50%  { transform: translateX(80%)  scaleX(1); }
+  100% { transform: translateX(250%) scaleX(.6); }
+}
+.skel {
+  background: linear-gradient(90deg, #f2f0ec, #e7e4de, #f2f0ec);
+  background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: 8px;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .load-bar > span { animation: none; width: 100%; opacity: .5; }
+  .skel { animation: none; }
+}

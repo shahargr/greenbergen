@@ -1,10 +1,12 @@
 import { AppBar, Card, Screen, Skeleton } from "@shared/ui";
+import { LoadingBar } from "@shared/LoadingScreen";
 
 // E1 - skeleton with the shape of the real package page. Shown after
 // 300 ms by the browser's own paint timing; never flashed on purpose.
 export default function Loading() {
   return (
     <Screen>
+      <LoadingBar />
       <AppBar back="/packages" title=" " />
       <div className="body">
         <div className="illus"><Skeleton h={120} w="70%" /></div>

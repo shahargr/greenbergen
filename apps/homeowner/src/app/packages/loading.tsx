@@ -1,10 +1,12 @@
 import { AppBar, Screen, StepKicker } from "@shared/ui";
+import { LoadingBar } from "@shared/LoadingScreen";
 import { TileSkeleton } from "@/components/PackageTile";
 
 // Screen 4c - grid loading. Skeletons keep the shape; never a spinner.
 export default function Loading() {
   return (
     <Screen>
+      <LoadingBar />
       <AppBar brand />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>

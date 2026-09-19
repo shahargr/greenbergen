@@ -1466,3 +1466,25 @@ a.seg-opt.on { background: var(--color-surface); box-shadow: 0 1px 4px rgba(22, 
 .door-fab > summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .door-fab[open] > summary { background: var(--color-text); color: var(--color-bg); border-color: var(--color-text); }
 .door-fab .door-menu { right: 0; top: auto; bottom: calc(100% + 8px); }
+
+/* THE BAR (2026-09-19). Indeterminate, because the server never says how far
+   through it is and a bar that stalls at 90% is worse than one that keeps
+   moving. It rides the very top of the screen, above everything, and it is
+   two pixels - enough to answer "did my tap land", quiet enough to ignore. */
+.load-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 2.5px; z-index: 90;
+  background: var(--color-soft-2); overflow: hidden;
+}
+.load-bar > span {
+  display: block; height: 100%; width: 40%; border-radius: 0 2px 2px 0;
+  background: var(--color-accent, var(--color-text));
+  animation: load-slide 1.15s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+@keyframes load-slide {
+  0%   { transform: translateX(-100%) scaleX(.6); }
+  50%  { transform: translateX(80%)  scaleX(1); }
+  100% { transform: translateX(250%) scaleX(.6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .load-bar > span { animation: none; width: 100%; opacity: .5; }
+}

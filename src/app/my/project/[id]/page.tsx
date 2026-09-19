@@ -90,7 +90,16 @@ export default async function ProjectPage({
     );
   }
 
-  const [perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows }] =
+  // ONE TRIP, NOT FOUR (2026-09-19). Shahar: "since it takes time for the
+  // page to load..." It did: this screen made twenty-odd round trips one
+  // after another, each ~190 ms warm, and four of them - who I am, the bid
+  // packages, my own bids, and whether I may edit here - depend on nothing
+  // but the project id that arrived in the URL. They were serial for no
+  // reason. They ride with the first group now.
+  const [
+    perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows },
+    { data: meRow }, { data: bidPkgData }, { data: myBidData }, { data: canEditData },
+  ] =
     await Promise.all([
       projectPerms(id),
       supabase
@@ -109,6 +118,15 @@ export default async function ProjectPage({
         .from("project_config_values")
         .select("key, value")
         .eq("project_id", id),
+      supabase.rpc("me"),
+      // Bid planner: this project's packages, and any bids the caller was
+      // invited to.
+      supabase.rpc("portal_bid_packages", { p_project: id }),
+      supabase.rpc("portal_my_bids", { p_project: id }),
+      // Whether this person may write on the project at all: the same
+      // function the row policies use, so a form is offered only where it
+      // would succeed.
+      supabase.rpc("can_edit_project", { p_project_id: id }),
     ]);
 
   // Stage (budget-phase) tiles are hidden on this page for now; the task
@@ -138,7 +156,6 @@ export default async function ProjectPage({
     assignee_id: string | null; assignee: string | null; trade: string | null;
     parent_id: string | null; parent_title: string | null; open_children: number;
   };
-  const { data: meRow } = await supabase.rpc("me");
   const myContactId: string | null = meRow?.contact_id ?? null;
   // God mode banner: the admin toggle is on, or a superadmin is on a project
   // they hold no seat on. RLS already grants full access; this only makes it
@@ -185,11 +202,6 @@ export default async function ProjectPage({
   // Late-by-person panels now live inside TasksTable (clickable filters).
   const todayIso = new Date().toISOString().slice(0, 10);
 
-  // Bid planner: this project's packages, and any bids the caller was invited to.
-  const [{ data: bidPkgData }, { data: myBidData }] = await Promise.all([
-    supabase.rpc("portal_bid_packages", { p_project: id }),
-    supabase.rpc("portal_my_bids", { p_project: id }),
-  ]);
   type BidPkg = { id: string; phase: string | null; category: string | null; trade: string | null; status: string; reply_by: string | null; n_invited: number; n_received: number };
   type MyBid = { id: string; package_id: string; phase: string | null; category: string | null; status: string; reply_by: string | null; amount: number | null; package_status: string };
   const bidPkgs = ((bidPkgData ?? []) as BidPkg[]);
@@ -214,9 +226,6 @@ export default async function ProjectPage({
   // shows; it is the landing. The checks are head counts and the RPCs the
   // tabs themselves read from, and they run only for the side that needs them.
   const specCount = ((configValueRows ?? []) as { value: string | null }[]).filter((r) => r.value != null).length;
-  // Whether this person may write on the project at all: the same function
-  // the row policies use, so a form is offered only where it would succeed.
-  const { data: canEditData } = await supabase.rpc("can_edit_project", { p_project_id: id });
   const canEdit = perms.admin || canEditData === true;
   // Project scope: editors always have the wizard, the bid ladder and the
   // forms. Anyone else needs something written, filed or lined up to read.
@@ -533,38 +542,6 @@ export default async function ProjectPage({
     if (r.value != null) configValues[r.key] = r.value;
   }
 
-  // What this person may upload (plan), and the visits already logged.
-  const caps = await getCaps();
-  type VisitRow = { id: string; action: string; completed_on: string | null; notes: string | null; created_by: string | null; n_files: number };
-  const { data: visitRows } = tab === "visit"
-    ? await supabase.from("actions").select("id, action, completed_on, notes, created_by, file_links(count)")
-        .eq("project_id", id).like("action", "Site visit log - %").order("completed_on", { ascending: false }).limit(30)
-    : { data: [] };
-  const visits: VisitRow[] = ((visitRows ?? []) as unknown as (Omit<VisitRow, "n_files"> & { file_links: { count: number }[] })[])
-    .map((v) => ({ id: v.id, action: v.action, completed_on: v.completed_on, notes: v.notes, created_by: v.created_by, n_files: v.file_links?.[0]?.count ?? 0 }));
-
-  // Days on site per person, from the roster (site_roster: one row per
-  // person per day) - the answer to "how many days did each trade spend here".
-  const { data: rosterAll } = tab === "visit"
-    ? await supabase.from("site_roster").select("contact_id, on_date").eq("project_id", id)
-    : { data: [] };
-  const daysByContact = new Map<string, Set<string>>();
-  for (const r of ((rosterAll ?? []) as { contact_id: string; on_date: string }[])) {
-    const s = daysByContact.get(r.contact_id) ?? new Set<string>();
-    s.add(r.on_date);
-    daysByContact.set(r.contact_id, s);
-  }
-
-  // The roster day: ?date= when given (after a save, or when browsing), else today.
-  const rosterDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayIso;
-  const { data: rosterRows } = await supabase.from("site_roster").select("contact_id").eq("project_id", id).eq("on_date", rosterDate);
-  const onSiteToday = new Set(((rosterRows ?? []) as { contact_id: string }[]).map((r) => r.contact_id));
-
-  // People: most open work first; the idle ones fold away unless asked for.
-  const sortedPeople = [...peopleRows].sort((a, b) => (b.open - a.open) || a.name.localeCompare(b.name));
-  const activePeople = sortedPeople.filter((p) => p.open > 0);
-  const visiblePeople = showAllPeople || activePeople.length === 0 ? sortedPeople : activePeople;
-
   // This week, Monday to Sunday, in the server's calendar.
   const dayMs = 86400000;
   const todayDate = new Date(todayIso + "T12:00:00");
@@ -581,12 +558,63 @@ export default async function ProjectPage({
   const threeDays = [shiftDay(todayIso, -1), todayIso, shiftDay(todayIso, 1)];
   const winStart = [threeDays[0], selectedDay ?? threeDays[0]].sort()[0];
   const winEnd = [threeDays[2], selectedDay ?? threeDays[2]].sort()[1];
-  const { data: weekTxRows } = await supabase
+  // The roster day: ?date= when given (after a save, or when browsing), else today.
+  const rosterDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : todayIso;
+
+  // SIX READS THAT RAN IN A QUEUE (2026-09-19). What you may upload, the
+  // visits, the roster twice, the week's payments and the week's gates: none
+  // of them needs any of the others, and they were costing ~190 ms each in
+  // series. Started together here and awaited where each is used, so the
+  // page's shape below is untouched and the wait is one read long instead of
+  // six. Everything above is arithmetic on dates - it only moved up so these
+  // can start.
+  const pCaps = getCaps();
+  const pVisits = tab === "visit"
+    ? supabase.from("actions").select("id, action, completed_on, notes, created_by, file_links(count)")
+        .eq("project_id", id).like("action", "Site visit log - %").order("completed_on", { ascending: false }).limit(30)
+    : Promise.resolve({ data: [] as unknown[] });
+  const pRosterAll = tab === "visit"
+    ? supabase.from("site_roster").select("contact_id, on_date").eq("project_id", id)
+    : Promise.resolve({ data: [] as unknown[] });
+  const pRosterDay = supabase.from("site_roster").select("contact_id").eq("project_id", id).eq("on_date", rosterDate);
+  const pWeekTx = supabase
     .from("transactions").select("id, description, amount, paid_on, target_date, status")
     .eq("project_id", id).not("source_account_id", "is", null)
     .in("status", ["scheduled", "forecast", "approved", "invoice received"])
     .or(`paid_on.gte.${winStart},target_date.gte.${winStart}`)
     .limit(100);
+  const pWeekExtra = supabase
+    .from("actions").select("id, action, status, is_gate, target_date, completed_on")
+    .eq("project_id", id)
+    .or(`is_gate.eq.true,and(status.eq.Completed,completed_on.gte.${winStart},completed_on.lte.${winEnd})`)
+    .limit(200);
+
+  // What this person may upload (plan), and the visits already logged.
+  const caps = await pCaps;
+  type VisitRow = { id: string; action: string; completed_on: string | null; notes: string | null; created_by: string | null; n_files: number };
+  const { data: visitRows } = await pVisits;
+  const visits: VisitRow[] = ((visitRows ?? []) as unknown as (Omit<VisitRow, "n_files"> & { file_links: { count: number }[] })[])
+    .map((v) => ({ id: v.id, action: v.action, completed_on: v.completed_on, notes: v.notes, created_by: v.created_by, n_files: v.file_links?.[0]?.count ?? 0 }));
+
+  // Days on site per person, from the roster (site_roster: one row per
+  // person per day) - the answer to "how many days did each trade spend here".
+  const { data: rosterAll } = await pRosterAll;
+  const daysByContact = new Map<string, Set<string>>();
+  for (const r of ((rosterAll ?? []) as { contact_id: string; on_date: string }[])) {
+    const s = daysByContact.get(r.contact_id) ?? new Set<string>();
+    s.add(r.on_date);
+    daysByContact.set(r.contact_id, s);
+  }
+
+  const { data: rosterRows } = await pRosterDay;
+  const onSiteToday = new Set(((rosterRows ?? []) as { contact_id: string }[]).map((r) => r.contact_id));
+
+  // People: most open work first; the idle ones fold away unless asked for.
+  const sortedPeople = [...peopleRows].sort((a, b) => (b.open - a.open) || a.name.localeCompare(b.name));
+  const activePeople = sortedPeople.filter((p) => p.open > 0);
+  const visiblePeople = showAllPeople || activePeople.length === 0 ? sortedPeople : activePeople;
+
+  const { data: weekTxRows } = await pWeekTx;
   type WeekTx = { id: string; description: string | null; amount: number | null; paid_on: string | null; target_date: string | null; status: string };
   const weekPayments = ((weekTxRows ?? []) as WeekTx[])
     .map((t) => ({ ...t, on: t.paid_on ?? t.target_date }))
@@ -595,11 +623,7 @@ export default async function ProjectPage({
   // Completed this week (on the day they closed) and every gate on the
   // project (on its due day): both belong on the calendar.
   type WeekExtra = { id: string; action: string | null; status: string; is_gate: boolean | null; target_date: string | null; completed_on: string | null };
-  const { data: extraRows } = await supabase
-    .from("actions").select("id, action, status, is_gate, target_date, completed_on")
-    .eq("project_id", id)
-    .or(`is_gate.eq.true,and(status.eq.Completed,completed_on.gte.${winStart},completed_on.lte.${winEnd})`)
-    .limit(200);
+  const { data: extraRows } = await pWeekExtra;
   const extras = ((extraRows ?? []) as WeekExtra[]);
   const doneThisWeek = extras
     .filter((a) => a.status === "Completed" && !a.is_gate && a.completed_on && a.completed_on >= winStart && a.completed_on <= winEnd)
