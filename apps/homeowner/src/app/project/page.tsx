@@ -226,10 +226,18 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </Card>
         )}
 
-        {/* THE WAY IN, the landing's own: pick a package, or just say it. */}
+        {/* THE WAY IN, the member's own: ask Bob, pick a package, or just say
+            it. Bob is first (2026-09-19) because a member arrives with a
+            SITUATION - "the power keeps going out" - and the catalogue asks
+            them to already know the name of the answer. */}
         <Card soft pad>
           <div className="stack" style={{ gap: 8 }}>
-            <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
+            <Link href="/ask" className="btn btn-primary btn-block">Ask Bob</Link>
+            <p className="small text-muted" style={{ margin: 0 }}>
+              Your replica for anything house related. Today he is good at generators, water heaters, EV chargers
+              and home internet — and he says so when something is not his.
+            </p>
+            <Link href="/packages" className="btn btn-soft btn-block">Start your new project today</Link>
             <VoiceAsk signedIn />
           </div>
         </Card>

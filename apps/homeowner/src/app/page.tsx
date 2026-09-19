@@ -164,6 +164,27 @@ export default async function Landing({ searchParams }: { searchParams: Promise<
           </section>
         )}
 
+        {/* MEET BOB (2026-09-19). The community offer is four tiles you have
+            to already know the name of; Bob is the same four jobs reached the
+            way people actually arrive at them - "the power keeps going out".
+            He sits under the tiles rather than over them, because the front
+            door's one job is still the build. */}
+        <section className="stack" style={{ gap: 10 }}>
+          <div className="divider-label">Meet Bob</div>
+          <Card pad>
+            <p style={{ margin: 0, fontSize: 16, lineHeight: 1.45 }}>
+              Bob is your replica for anything house related — from a DIY weekend project to planning a move.
+              He gets better the more he knows about your house.
+            </p>
+            <p className="small text-muted" style={{ margin: "8px 0 0" }}>
+              Today he is good at four things: emergency generators, water heater replacement, EV chargers and home
+              internet. Tell him what is going on and he will tell you what it is, what it takes, and whether it is
+              his — straight.
+            </p>
+            <Link href="/ask" className="btn btn-primary btn-block" style={{ marginTop: 12 }}>Ask Bob</Link>
+          </Card>
+        </section>
+
         <Card pad={false}>
           <div className="promises">
             <div><div className="t">Built by us</div><div className="d">On our own platform</div></div>
