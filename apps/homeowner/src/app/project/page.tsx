@@ -1,70 +1,55 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getMe, targetWindowLabel, type BookingSummary, type ProjectSummary } from "@/lib/me";
-import { featured, isOpen, loadPublicSettings, loadTiles } from "@shared/catalogue";
+import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { Scene, SceneMore } from "@/components/Scene";
-import { HomeHero } from "@/components/HomeHero";
 import { BobSearch } from "@/components/BobSearch";
-import { DiyRail, diyTiles } from "@/components/DiyRail";
-import { PhotoBanner } from "@/components/PhotoBanner";
 import { stopwatch } from "@shared/perf";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Green Bergen" };
 
-// The home screen leads with the QUESTION, not the filing cabinet: the
-// catalogue first, then the member's own projects - planned, live, done,
-// cancelled - underneath, because a returning member scrolls to them while a
-// new one never has to. Homes themselves live in the profile.
-// CANCELLED IS NOT ON THIS SCREEN. Shahar (2026-09-12): "the cancelled
-// section at the bottom of the page is a pointing finger to negative
-// experience likely - should not be here." A home screen whose last word is a
-// list of things that did not happen is an odd thing to greet somebody with,
-// and the record is not lost: a cancelled booking is still on its own project
-// page, and the ledger and the timeline still have all of it.
-type Bucket = "all" | "offers" | "going" | "done";
-// TWO GROUPS AND A DRAWER. Shahar (2026-09-15): "Change under way to on-going
-// (DIY or Awarded) / Change lining up to pending offers / Remove done,
-// keeping all."
+// THREE THINGS, IN THIS ORDER (Shahar, 2026-09-19): "landing on this page as
+// home owner should show ask bob, below the promoted projects, and below my
+// current open projects... all that shows there today can be removed."
 //
-// The old pair split on how far along a job was - before a contractor was on
-// it, and after - which put "Improvements" at 52 Ryerson, three things on a
-// list that nobody has been asked to do, under "Lining up", as though an
-// offer were coming. Nothing is out on it. Nobody has been asked. It is his
-// own work to do, and lining up is not what it is doing.
+//   1. Ask Bob          the sentence they already have in their head
+//   2. Promoted         community negotiated packages
+//   3. Their own work   open jobs, or - signed out - the way in
 //
-// The split is now WHO YOU ARE WAITING FOR, which is the only question with
-// two different answers:
+// WHAT CAME OFF, and it was most of the screen: the bookings photo banner,
+// the DIY rail, the hero photograph, the "nothing bookable today" notice, the
+// "start your new project" card, the filter chips and the Done section. Each
+// earned its place at the time; together they had turned the first screen of
+// the app into a page you scroll rather than a page you use. Nothing is lost
+// - /packages still carries every package, finished work is still on its own
+// project page, and the ledger and the timeline still have all of it.
+//
+// CANCELLED WAS ALREADY OFF and stays off. Shahar (2026-09-12): "the
+// cancelled section at the bottom of the page is a pointing finger to
+// negative experience likely - should not be here."
+type Bucket = "offers" | "going" | "done";
+// TWO GROUPS, AND THE SPLIT IS WHO YOU ARE WAITING FOR. Shahar
+// (2026-09-15): "Change under way to on-going (DIY or Awarded) / Change
+// lining up to pending offers / Remove done, keeping all."
 //
 //   Pending offers          somebody has been ASKED and has not answered.
 //   On-going (DIY or        nobody is being waited on: either a contractor
 //   Awarded)                has it, or you do.
 //
-// Done is no longer a tab. Finished work is not something you go looking for
-// on the home screen - but it is not hidden either: it keeps its section
-// under All, which is the tab that means "everything, nothing left out".
-const TABS: { key: Bucket; label: string }[] = [
-  { key: "going", label: "On-going (DIY or Awarded)" },
-  { key: "offers", label: "Pending offers" },
-  { key: "all", label: "All" },
-];
-// The sections under All, in this order. Done has a heading without having a
-// tab, which is the whole point of keeping it here.
-const ORDER: Exclude<Bucket, "all">[] = ["going", "offers", "done"];
-const SECTION: Record<Exclude<Bucket, "all">, string> = {
+// The tabs are gone with everything else - the screen shows OPEN work, which
+// is these two and nothing else. Done keeps no heading here now: finished
+// work is not something you go looking for on a home screen, and it is still
+// on its own project page.
+const OPEN: Exclude<Bucket, "done">[] = ["going", "offers"];
+const SECTION: Record<Exclude<Bucket, "done">, string> = {
   going: "On-going (DIY or Awarded)",
   offers: "Pending offers",
-  done: "Done",
 };
-// The bare /project URL means this one, so it is the tab that carries no
-// query string - and an empty screen is never the default, so if nothing is
-// on-going the first tab with anything on it opens instead.
-const DEFAULT_BUCKET: Bucket = "going";
 
 // ONE ROW PER JOB, booked or not (migration 116). Shahar, with two
 // screenshots: "as professional i see both Ran and My own generator project.
@@ -87,7 +72,7 @@ type Row =
 // It keys off project_progress's KEY rather than its order, because the
 // question is no longer "how far along" - it is "is anybody being waited on",
 // and the three keys that mean yes do not sit together on the ladder.
-const bucketOf = (r: Row): Exclude<Bucket, "all"> | "cancelled" => {
+const bucketOf = (r: Row): Bucket | "cancelled" => {
   const k = r.p.progress_label?.key;
   if (k === "cancelled") return "cancelled";
   if (k === "done") return "done";
@@ -111,111 +96,55 @@ const tagFor = (key?: string) =>
   : "tag tag-outline";
 
 
-export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; show?: string; home?: string }> }) {
-  const { ok, show, home } = await searchParams;
+export default async function ProjectIndex({ searchParams }: { searchParams: Promise<{ ok?: string; home?: string }> }) {
+  const { ok, home } = await searchParams;
   const w = stopwatch("/project");
-  // The catalogue is template data behind a shared cache; it does not wait
-  // on the member's own read and the member's read does not wait on it.
-  // loadSections went with the category headings: no section renders here any
-  // more, so the round trip that fetched their labels was pure cost.
+  // The catalogue is template data behind a shared cache and it is read with
+  // the ANON key, so it answers for a visitor with no session exactly as it
+  // does for a member. That is what lets this screen render signed out.
   const [me, { tiles }, settings] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("tiles", () => loadTiles()),
-    // The same photograph the front door opens on (config.landing_hero_url,
-    // migration 072), through the same cached read.
     w.step("settings", () => loadPublicSettings()),
   ]);
   w.done();
-  if (!me.signed_in) redirect("/login?next=/project");
-  // Everything waiting on you, not just the booking conversations: the old
-  // count missed offers, questions and anything else addressed to you.
-  // my_unread_count() is the same predicate the inbox list calls `pending`.
-  const unread = await unreadForShell();
-  // "done" is still accepted here though it has no tab any more, so an old
-  // link to the finished list still lands where it meant to.
-  const asked: Bucket | null =
-    show === "all" || ORDER.some((k) => k === show) ? (show as Bucket) : null;
 
-  // THE SHOP WINDOW, THE WAY THE FRONT DOOR SHOWS IT.
-  //
-  // Shahar (2026-09-11): "make this look like homeowner landing." It used to
-  // be three four-up grids of line drawings - the headline row, Renovation,
-  // Not yet - which is a filing cabinet, and a member deciding what to do
-  // next is doing exactly what a visitor on the landing is doing: looking at
-  // the work. So this is now the landing's rail of scenes, the same six
-  // promoted packages in the same clothes, ending in the way to all of them.
-  //
-  // Nothing is lost: /packages still carries every package, live and not
-  // yet, plus the group purchases, and the tail of the rail is how you get
-  // there. It is one tap where it used to be a scroll.
+  // NO REDIRECT ANY MORE. Shahar (2026-09-19): "if i am not logged in, so a
+  // call to action to log in after the promoted ones." This screen used to
+  // bounce a signed-out visitor to /login, which meant the one page that
+  // shows what we DO could only be seen by somebody who had already decided
+  // to join. Bob and the shelf are the pitch; the sign-in is the ask, and it
+  // comes after them.
+  const signedIn = me.signed_in;
+  const unread = signedIn ? await unreadForShell() : 0;
+
   const scenes = featured(tiles);
-  const diy = diyTiles(tiles);
-  const noneLive = !tiles.some(isOpen);
-
-  const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
-  // The projects are the spine: every job under a home the member owns. A
-  // booking, where there is one, is what dresses the row.
-  const booked = new Map(me.bookings.map((b) => [b.project_id, b]));
-  const all: Row[] = me.projects.map((p) => {
-    const b = booked.get(p.project_id);
-    return b ? { kind: "booking" as const, project_id: p.project_id, b, p } : { kind: "project" as const, project_id: p.project_id, p };
-  });
-  const mine = onlyHome ? all.filter((r) => r.p.home_project_id === onlyHome.project_id) : all;
-  const counts = { all: 0, going: 0, offers: 0, done: 0 } as Record<Bucket, number>;
-  for (const r of mine) { const k = bucketOf(r); if (k !== "cancelled") { counts[k]++; counts.all++; } }
-  // Nobody asked, so: what is on-going - unless nothing is, in which case the
-  // first tab that has something on it, and "All" if none of them do.
-  const filter: Bucket = asked
-    ?? (counts[DEFAULT_BUCKET] > 0 ? DEFAULT_BUCKET : ORDER.find((k) => counts[k] > 0) ?? "all");
-  const shown = mine.filter((r) => { const k = bucketOf(r); return k !== "cancelled" && (filter === "all" || k === filter); });
-  const manyHomes = me.homes.length > 1;
-  const href = (b: Bucket) => {
-    const q = new URLSearchParams();
-    if (onlyHome) q.set("home", onlyHome.project_id);
-    if (b !== DEFAULT_BUCKET) q.set("show", b);
-    return q.size ? `/project?${q}` : "/project";
-  };
 
   return (
     <Screen>
-      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
+      <AppBar
+        brand
+        door="homeowner"
+        right={signedIn
+          ? <ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />
+          : <Link href="/login?next=/project" className="small" style={{ fontWeight: 700 }}>Log in</Link>}
+      />
       <div className="body">
-        {ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
-        {ok === "removed" && <div className="banner-ok">Removed from your DIY projects. Nothing was ever sent.</div>}
-        {me.missing && <Notice title="Preview mode">The database migration in db/ has not been applied yet, so homes and projects cannot be read. The catalogue still works.</Notice>}
-        {me.degraded && <Notice kind="error" title="We couldn&apos;t load your homes just now.">Nothing is lost. <Link href="/project">Try again</Link>, and if it keeps happening tell us.</Notice>}
-        <PhotoBanner bookings={me.bookings} />
+        {signedIn && ok === "home" && <div className="banner-ok">Home added. Pick a package for it whenever you like.</div>}
+        {signedIn && ok === "removed" && <div className="banner-ok">Removed from your DIY projects. Nothing was ever sent.</div>}
+        {signedIn && me.missing && <Notice title="Preview mode">The database migration in db/ has not been applied yet, so homes and projects cannot be read. The catalogue still works.</Notice>}
+        {signedIn && me.degraded && <Notice kind="error" title="We couldn&apos;t load your homes just now.">Nothing is lost. <Link href="/project">Try again</Link>, and if it keeps happening tell us.</Notice>}
 
-        {/* A PICTURE, THEN THE SHELF (Shahar, 2026-09-12): "home screen
-            design is still crowded and complex, and it is hard to understand
-            what the system help me do. Let's start with an image (25% of the
-            screen, slightly faded, with a text on top stating: We get things
-            done around your house)."
-            And the paragraph under the old headline went with it - "not sure
-            why this text is necessary". It was three sentences explaining a
-            shelf that explains itself. */}
-        {/* BOB LEADS (Shahar, 2026-09-19): "This page should lead with Ask
-            Bob, like a search screen with audio / video recording option. In
-            a background of knowledge handyman."
+        {/* 1. BOB LEADS (Shahar, 2026-09-19): "This page should lead with Ask
+            Bob, like a search screen with audio / video recording option."
+            A member arrives with a SITUATION - the power keeps going out -
+            and a search box takes the sentence they already have, where a
+            shelf asks them to know the name of the answer first. */}
+        <BobSearch photo={settings.bobHero} signedIn={signedIn} />
 
-            The photograph used to open the screen and the shelf came second,
-            which asked a member to recognise the name of their problem before
-            they could say it. A search box takes the sentence they already
-            have. The picture is still here - it is just not the first thing
-            asked of them. */}
-        <BobSearch photo={settings.bobHero} signedIn />
-
-        {/* DIY, straight under him: what we are pushing this season, as a
-            walkthrough rather than a price. */}
-        <DiyRail tiles={diy} />
-
-        <HomeHero photo={settings.hero} line={settings.taglineShown ? settings.tagline : null} />
+        {/* 2. THE PROMOTED ONES. */}
         {scenes.length > 0 && (
           <section className="stack" style={{ gap: 10 }}>
-            {/* "Chat what we do to community negotiated packages" and
-                "remove the 20 packages, just leave more packages" - the count
-                was our inventory, not their business, and the heading now
-                says what the shelf IS. */}
             <div className="row" style={{ alignItems: "center", gap: 10 }}>
               <div className="divider-label" style={{ flex: 1 }}>Community negotiated packages</div>
               <Link href="/packages" className="small row" style={{ fontWeight: 700, whiteSpace: "nowrap", gap: 0, alignItems: "center" }}>
@@ -229,79 +158,73 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
           </section>
         )}
 
-        {noneLive && (
-          // Not a bug, and it must not read like one. When nobody approved
-          // carries any of these trades, every package on the screen is dim -
-          // saying so once, plainly, beats leaving a member to guess.
-          <Card soft pad>
-            <div className="card-title">Nothing we can book on the spot today</div>
-            <p className="small text-muted" style={{ margin: "4px 0 0" }}>
-              These prices are real, but no approved contractor covers their trades yet. Open any
-              of them: you can start it as a DIY project now, and ask us to tell you the day
-              someone can take it on.
-            </p>
-          </Card>
-        )}
-
-        {/* THE OTHER WAY IN. Bob is at the top of the screen now, so this is
-            the one for somebody who already knows what they want and would
-            rather go straight to the shelf. */}
-        <Card soft pad>
-          <Link href="/packages" className="btn btn-primary btn-block">Start your new project today</Link>
-        </Card>
-
-        {/* THE CONTRACTOR DIRECTORY IS NOT HERE YET. Shahar
-            (2026-09-11): "the contractors list should be removed for now,
-            until we have enough." A directory of three people reads as a
-            shortage, not a community, and it is the one screen on this app
-            whose whole job is to be reassuring. /contractors still exists and
-            still works - nothing links to it until the list can carry its own
-            weight. */}
-
-        {/* The jobs - live, DIY, done. The list of HOMES is not
-            here any more: it lives in the profile (gear), where it can be
-            edited, and "add another home" is offered where it is actually
-            needed - when a package is booked and the wizard asks which home.
-            The ?home= filter still works for links that carry it. */}
-        {counts.all > 0 ? (
-          <>
-            <div className="divider-label" style={{ marginTop: 6 }}>
-              {onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : "Your projects"}
-            </div>
-            {onlyHome && (
-              <Link href="/project" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }}>← All homes</Link>
-            )}
-
-            {mine.length > 0 && (
-              <nav className="chips" aria-label="Filter projects">
-                {TABS.filter((x) => x.key === "all" || counts[x.key] > 0).map((x) => (
-                  <Link key={x.key} href={href(x.key)} className={`tag ${filter === x.key ? "" : "tag-neutral"}`} aria-current={filter === x.key ? "page" : undefined} style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }}>
-                    {x.label} · {counts[x.key]}
-                  </Link>
-                ))}
-              </nav>
-            )}
-
-            {(filter === "all" ? ORDER : [filter as Exclude<Bucket, "all">]).map((k) => {
-              const rows = shown.filter((r) => bucketOf(r) === k);
-              if (rows.length === 0) return null;
-              return (
-                <section className="stack" style={{ gap: 10 }} key={k}>
-                  {filter === "all" && <div className="divider-label">{SECTION[k]}</div>}
-                  {rows.map((r) => r.kind === "booking"
-                    ? <BookingRow key={r.project_id} b={r.b} showHome={manyHomes && !onlyHome} />
-                    : <ProjectRow key={r.project_id} p={r.p} showHome={manyHomes && !onlyHome} />)}
-                </section>
-              );
-            })}
-          </>
-        ) : (
-          <Card soft pad>
-            <div className="small">Nothing on your list yet — tap a package above to start one. Your home is added the first time a project needs it.</div>
-          </Card>
-        )}
+        {/* 3. THEIR OWN WORK - or, with no session, the way in. */}
+        {signedIn ? <OpenWork me={me} home={home} /> : <JoinIn />}
       </div>
     </Screen>
+  );
+}
+
+// THE ASK, AFTER THE PITCH. Everything above this reads the same signed out
+// as signed in, so by the time somebody gets here they have seen what Bob
+// does and what the packages cost. ?next= brings them back to this screen
+// rather than dropping them somewhere generic.
+function JoinIn() {
+  return (
+    <Card soft pad>
+      <div className="card-title">Your projects live here</div>
+      <p className="small text-muted" style={{ margin: "4px 0 10px" }}>
+        Log in to book a package, keep your jobs in one place and pick up where you left off.
+      </p>
+      <Link href="/login?next=/project" className="btn btn-primary btn-block">Log in or join</Link>
+    </Card>
+  );
+}
+
+// OPEN WORK ONLY. The ?home= filter is kept - links elsewhere in the app
+// carry it - but it shows nothing of itself on the bare /project URL.
+function OpenWork({ me, home }: { me: Extract<Awaited<ReturnType<typeof getMe>>, { signed_in: true }>; home?: string }) {
+  const onlyHome = me.homes.find((h) => h.project_id === home) ?? null;
+  // The projects are the spine: every job under a home the member owns. A
+  // booking, where there is one, is what dresses the row.
+  const booked = new Map(me.bookings.map((b) => [b.project_id, b]));
+  const all: Row[] = me.projects.map((p) => {
+    const b = booked.get(p.project_id);
+    return b ? { kind: "booking" as const, project_id: p.project_id, b, p } : { kind: "project" as const, project_id: p.project_id, p };
+  });
+  const mine = onlyHome ? all.filter((r) => r.p.home_project_id === onlyHome.project_id) : all;
+  const open = mine.filter((r) => { const k = bucketOf(r); return k === "going" || k === "offers"; });
+  const manyHomes = me.homes.length > 1;
+
+  if (open.length === 0) {
+    return (
+      <Card soft pad>
+        <div className="small">Nothing open on your list — tap a package above to start one. Your home is added the first time a project needs it.</div>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <div className="divider-label" style={{ marginTop: 6 }}>
+        {onlyHome ? (onlyHome.address?.split(",")[0] ?? "This home") : "Your projects"}
+      </div>
+      {onlyHome && (
+        <Link href="/project" className="btn btn-ghost" style={{ alignSelf: "flex-start", padding: 0 }}>← All homes</Link>
+      )}
+      {OPEN.map((k) => {
+        const rows = open.filter((r) => bucketOf(r) === k);
+        if (rows.length === 0) return null;
+        return (
+          <section className="stack" style={{ gap: 10 }} key={k}>
+            <div className="divider-label">{SECTION[k]}</div>
+            {rows.map((r) => r.kind === "booking"
+              ? <BookingRow key={r.project_id} b={r.b} showHome={manyHomes && !onlyHome} />
+              : <ProjectRow key={r.project_id} p={r.p} showHome={manyHomes && !onlyHome} />)}
+          </section>
+        );
+      })}
+    </>
   );
 }
 
