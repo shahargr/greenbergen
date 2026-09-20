@@ -26,7 +26,7 @@ export default async function SharedCard({ params }: { params: Promise<{ slug: s
   const joinHref = `/join?ref=${encodeURIComponent(s.ref)}`;
   return (
     <Screen>
-      <AppBar brand right={<span className="tag tag-neutral">Shared by {by}</span>} />
+      <AppBar brand back={{ fallback: "/" }} right={<span className="tag tag-neutral">Shared by {by}</span>} />
       <div className="body">
         <div className="share-card">
           <div className="ba">

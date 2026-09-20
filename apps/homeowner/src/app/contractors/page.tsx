@@ -34,7 +34,7 @@ export default async function ContractorsPage({ searchParams }: { searchParams: 
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
+      <AppBar brand back={{ fallback: "/project" }} right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
       <div className="body">
         <div className="hero">
           <h1>The contractors</h1>

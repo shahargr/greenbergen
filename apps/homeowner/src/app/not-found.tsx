@@ -4,7 +4,7 @@ import { AppBar, Card, Screen } from "@shared/ui";
 export default function NotFound() {
   return (
     <Screen>
-      <AppBar brand />
+      <AppBar brand back={{ fallback: "/project" }} />
       <div className="body">
         <Card pad>
           <h1>Nothing here.</h1>

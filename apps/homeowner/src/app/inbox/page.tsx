@@ -63,7 +63,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand door="homeowner" right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
+      <AppBar brand back={{ fallback: "/project" }} door="homeowner" right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
       <div className="body">
         <div className="hero">
           <h1>Inbox</h1>

@@ -5,7 +5,7 @@ export default function Loading() {
   return (
     <Screen>
       <LoadingBar />
-      <AppBar brand />
+      <AppBar brand back={{ fallback: "/projects" }} />
       <div className="body">
         <Skeleton h={10} w={140} />
         <Skeleton h={30} w="70%" />

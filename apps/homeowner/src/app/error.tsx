@@ -11,7 +11,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   const when = new Date().toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
   return (
     <Screen>
-      <AppBar brand />
+      <AppBar brand back={{ fallback: "/project" }} />
       <div className="body">
         <Card pad>
           <h1>This didn&apos;t load.</h1>

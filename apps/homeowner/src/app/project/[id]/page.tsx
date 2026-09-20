@@ -76,7 +76,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     const covered = b.scope.filter((s) => s.kind === "assurance");
     return (
       <Screen>
-        <AppBar back="/project" title={title} sub={b.address?.split(",")[0] ?? undefined} />
+        <AppBar back={{ fallback: "/projects" }} title={title} sub={b.address?.split(",")[0] ?? undefined} />
         <div className="body">
           {ok === "plan" && <div className="banner-ok">Plan updated.</div>}
           {ok === "step" && <div className="banner-ok">Ticked off.</div>}
@@ -162,7 +162,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (b.state === "closed") {
     return (
       <Screen>
-        <AppBar brand />
+        <AppBar brand back={{ fallback: "/projects" }} />
         <div className="body">
           {switcher}
           <StatusHero variant="neutral" kicker={`Closed · ${shortDate(b.closed_at)}`} title="We've closed the request. No hard feelings.">
@@ -192,7 +192,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       const next = bump(b.price_cents);
       return (
         <Screen>
-          <AppBar brand />
+          <AppBar brand back={{ fallback: "/projects" }} />
           <div className="body">
             {switcher}
             <div className="kicker">{ago(b.posted_at)} · {pkg?.tile_title} · {b.address?.split(",")[0]}</div>
@@ -225,7 +225,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     }
     return (
       <Screen>
-        <AppBar brand />
+        <AppBar brand back={{ fallback: "/projects" }} />
         <div className="body">
           {switcher}
           <div className="kicker">Your project</div>
@@ -264,7 +264,15 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       {/* Remembered here and not on the early returns above: a project that
           could not be read is not a project you were in. */}
       <MarkOpened projectId={id} door="homeowner" />
-      <AppBar brand />
+      {/* EVERY BRANCH OF THIS SCREEN CARRIES THE ARROW (Shahar, 2026-09-20:
+          "how do i go back? every page should a back button"). It used to be
+          brand-only on four of the five states, so a person who opened a
+          project had the wordmark and nothing else - and the wordmark goes
+          home, not back. { fallback } rather than a fixed href because a
+          project is reached from the home screen, from the list, and from a
+          link somebody sent: the browser knows the way in, and the list is
+          only the answer when there is no way in of ours behind this page. */}
+      <AppBar brand back={{ fallback: "/projects" }} />
       <div className="body">
         {switcher}
         <div className="kicker">Your project · {b.address?.split(",")[0]}</div>

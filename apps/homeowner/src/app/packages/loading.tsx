@@ -7,7 +7,7 @@ export default function Loading() {
   return (
     <Screen>
       <LoadingBar />
-      <AppBar brand />
+      <AppBar brand back={{ fallback: "/project" }} />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">

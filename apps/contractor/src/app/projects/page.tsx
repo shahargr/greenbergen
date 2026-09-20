@@ -69,7 +69,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" switcher={<DoorSwitchIcon current="expert" />} />} />
+      <AppBar brand back={{ fallback: "/work" }} right={<ShellIcons unread={unread} gearHref="/business" inboxHref="/inbox" switcher={<DoorSwitchIcon current="expert" />} />} />
       <div className="body">
         {board.degraded && (
           <Notice kind="error" title="We couldn&apos;t load the whole board.">
