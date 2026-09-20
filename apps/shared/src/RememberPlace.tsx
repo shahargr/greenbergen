@@ -44,7 +44,19 @@ export function RememberPlace({ door }: { door: "homeowner" | "expert" | "portal
     // A uuid anywhere in the path means the page belongs to a project, which
     // is what lets the read re-check the seat before handing the path back.
     const project = path.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] ?? null;
-    void createClient().rpc("remember_place", { p_door: door, p_path: path, p_project: project });
+    // DISPATCHED, NOT JUST BUILT. A PostgrestFilterBuilder is a THENABLE,
+    // not a promise: the request is only sent from inside .then(). `void
+    // builder` built one and dropped it, so this wrote nothing at all while
+    // every awaited read beside it worked - the logs showed my_last_places
+    // 19 times and remember_place zero. Nothing on screen depends on this,
+    // which is exactly why it went unnoticed, so the failure stays silent
+    // and only releases the guard for the next attempt.
+    createClient()
+      .rpc("remember_place", { p_door: door, p_path: path, p_project: project })
+      .then(
+        ({ error }) => { if (error) last.current = null; },
+        () => { last.current = null; },
+      );
   }, [pathname, door]);
 
   return null;

@@ -27,7 +27,11 @@ import { createClient } from "@/lib/supabase/client";
 export function MarkOpened({ projectId, door }: { projectId: string; door: "homeowner" | "expert" | "portal" }) {
   useEffect(() => {
     if (!projectId) return;
-    void createClient().rpc("mark_project_opened", { p_project: projectId, p_door: door });
+    // Thenable, not a promise - see RememberPlace. `void` built the request
+    // and never sent it, so no project has been stamped as opened.
+    createClient()
+      .rpc("mark_project_opened", { p_project: projectId, p_door: door })
+      .then(() => {}, () => {});
   }, [projectId, door]);
 
   return null;

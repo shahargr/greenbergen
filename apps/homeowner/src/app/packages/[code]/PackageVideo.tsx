@@ -66,13 +66,25 @@ export function PackageVideo({ videos, signedIn, title, poster: posterProp = nul
   useEffect(() => {
     if (!signedIn || !videoId || !key || sent.current.has("shown")) return;
     sent.current.add("shown");
-    void createClient().rpc("homeowner_video_event", { p_video: videoId, p_event: "shown", p_viewer: key });
+    // Thenable, not a promise - see RememberPlace. Every video event was
+    // built and dropped, which is why package_video_events is empty.
+    createClient()
+      .rpc("homeowner_video_event", { p_video: videoId, p_event: "shown", p_viewer: key })
+      .then(
+        ({ error }) => { if (error) sent.current.delete("shown"); },
+        () => { sent.current.delete("shown"); },
+      );
   }, [signedIn, videoId, key]);
 
   function send(event: "play" | "complete") {
     if (!signedIn || !videoId || !key || sent.current.has(event)) return;
     sent.current.add(event);
-    void createClient().rpc("homeowner_video_event", { p_video: videoId, p_event: event, p_viewer: key });
+    createClient()
+      .rpc("homeowner_video_event", { p_video: videoId, p_event: event, p_viewer: key })
+      .then(
+        ({ error }) => { if (error) sent.current.delete(event); },
+        () => { sent.current.delete(event); },
+      );
   }
 
   if (!video) return null;
