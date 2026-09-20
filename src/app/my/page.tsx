@@ -163,6 +163,28 @@ export default async function MyPage({
   ) : null;
   const canCreate: boolean = home?.can_create ?? false;
   const godMode = godOn && !!boot?.me?.is_superadmin;
+
+  // THE WAY INTO ADMINISTRATION, FROM THE OWNER DASHBOARD.
+  //
+  // Shahar, 2026-09-20, looking at this screen: "didn't we already asked to
+  // modify this page layout / design? ... check what we already discussed to
+  // be there from top priorities."
+  //
+  // The administration screens we agreed on are built, and they are at
+  // /admin - this page is the OWNER dashboard and stays one, because ten
+  // members who are not administrators need exactly what it already shows.
+  // What was missing is that nothing here said /admin existed at all, so an
+  // administrator who landed on their own houses had no way across. This
+  // band is that way across, and it carries the four numbers the console
+  // leads with so it is worth a glance even when you are not going.
+  //
+  // Superadmins only, and admin_console() refuses anyone else in the
+  // database as well (migration 200), so the guard here is about not making
+  // a pointless round trip, not about safety.
+  const { data: consoleData } = boot?.me?.is_superadmin
+    ? await supabase.rpc("admin_console")
+    : { data: null };
+  const adminN = (consoleData ?? {}) as Record<string, number>;
   // God mode: everyone with a seat and a login, once each, highest seat as the hint.
   type ViewTarget = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
   const [{ data: viewTargetData }, { data: realIdData }] = godMode
@@ -1020,6 +1042,36 @@ export default async function MyPage({
             </a>
           )}
         </section>
+      )}
+
+      {boot?.me?.is_superadmin && (
+        <Link href="/admin" className="card statlink" style={{
+          display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+          marginBottom: 12, padding: "12px 16px",
+        }}>
+          <span style={{ flex: "1 1 190px", minWidth: 0 }}>
+            <span className="stat-kicker">Administration</span>
+            <span className="small text-muted" style={{ display: "block" }}>
+              The catalogue, the people, the towns and the machine.
+            </span>
+          </span>
+          <span style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+            {[
+              ["Members", adminN.users_active ?? 0],
+              ["Projects", adminN.projects_live ?? 0],
+              ["Purchases", adminN.purchases ?? 0],
+              ["Proposals", adminN.proposals ?? 0],
+            ].map(([label, n]) => (
+              <span key={String(label)} style={{ display: "grid" }}>
+                <span style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.1 }}>{n}</span>
+                <span className="small text-muted">{label}</span>
+              </span>
+            ))}
+          </span>
+          <span className="small" style={{ color: "var(--brand)", fontWeight: 700, whiteSpace: "nowrap" }}>
+            Open the console →
+          </span>
+        </Link>
       )}
 
       {/* Invitations waiting for my answer, and answers to the ones I sent. */}

@@ -11,15 +11,6 @@ import { NavRole } from "@/components/NavRole";
 import { seatLabel } from "@/lib/seatLabel";
 import { endViewAs, beginViewAs } from "@/components/viewas";
 
-const InviteIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="9" cy="8" r="4" />
-    <path d="M2 21c0-3.6 3.1-6 7-6 1.2 0 2.3.2 3.3.6" />
-    <path d="M19 8v8" />
-    <path d="M15 12h8" />
-  </svg>
-);
-
 const InboxIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 12h-6l-2 3h-4l-2-3H2" />
@@ -149,6 +140,10 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
     <header className={onAdminDoor ? "topnav topnav-admin" : "topnav"}>
       <nav className="wrap topnav-inner">
         <div className="topnav-left">
+          {/* BACK SITS LEFT OF THE LOCKUP, like every AppBar in the two apps.
+              It was over on the right among the account icons, which is why
+              this bar read as a different product's bar. */}
+          <BackNav />
           {/* The seat you hold IS the line under the logo now - MY HOME,
               PROJECT M., CONTRACTOR, VISITOR, ADMIN - one word, in the
               lockup. Name, email and "(N roles)" moved to the tooltip. */}
@@ -166,7 +161,6 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
         <div className="topnav-right">
           {realAdmin && !onAdminDoor && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined}
             people={people} borrowed={borrowed ? { id: String(borrowed), canAct } : null} here={here} selfId={realId} />}
-          <BackNav />
           {/* One inbox for the person; ?door=admin keeps this door's chrome
               on it (name under the logo, wordmark back here). */}
           <Link href="/pro/inbox?door=admin" className="iconlink"
@@ -182,7 +176,6 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
               </span>
             )}
           </Link>
-          <Link href="/my/invite" className="iconlink" title="Invite" aria-label="Invite"><InviteIcon /></Link>
           {/* THE GEAR OPENS THE CONSOLE on the admin door, not the account
               settings - the console used to be a link buried inside those
               settings (Shahar, 2026-09-18: "we need the Admin console on the

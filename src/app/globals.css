@@ -1,11 +1,38 @@
 :root {
-  --bg: #fbfbf9;
-  --ink: #1b1f1c;
-  --muted: #6b7370;
-  --line: #e3e6e2;
-  --brand: #1f6b45;
-  --brand-ink: #ffffff;
+  /* THE WARM GROUND, SHARED WITH THE OTHER SEATS.
+     Shahar, 2026-09-20: "make this page from a design stand point look more
+     like MG Fitness colors" - and separately, "make top bar similar to other
+     seats top navigation bar". Those turn out to be the same request.
+
+     MG Fitness is a warm off-white ground (#FBFAF7), white surfaces, warm
+     hairlines (#E5E2DA), soft low shadows and generous radii. So is
+     warm-ink.css, which the homeowner and Professionals apps already use.
+     THE PORTAL WAS THE ODD ONE OUT: a cold near-white ground, a cold grey
+     hairline, a cold grey-green muted, a dark pine brand that is not the
+     brand the apps paint, and no radius or shadow scale at all. Three seats
+     of one product, one of them in a different scheme.
+
+     So these values come from warm-ink.css rather than from MicFit directly.
+     Taking MicFit's ACTUAL colours would mean its near-black brand and
+     terracotta accent, and painting greenbergen's green over with terracotta
+     is not restyling a page, it is replacing the brand. What carries across
+     is the SCHEME - warm ground, white cards, warm hairlines, soft shadow -
+     which is exactly what warm-ink already encodes in this product's own
+     green. Token NAMES are unchanged on purpose: a thousand lines of CSS
+     below read them, and this is a repaint, not a rename. */
+  --bg: #f6f3ee;
   --card: #ffffff;
+  --ink: #161513;
+  --muted: #7a746c;
+  --line: #e7e1d7;
+  --line-strong: #d9d2c6;
+  /* The apps' green, not the portal's darker pine. One product, one green. */
+  --brand: #2f8f3e;
+  --brand-ink: #ffffff;
+  --soft: #f1ede6;
+
+  --radius-card: 18px;
+  --shadow-card: 0 10px 30px rgba(22, 21, 19, 0.07);
 }
 
 * { box-sizing: border-box; }
@@ -54,7 +81,10 @@ a:hover { text-decoration: underline; }
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  /* Rounder and lifted, like a card in the apps and in MicFit. A 12px corner
+     with no shadow reads as a table cell; these read as objects on a ground. */
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   padding: 18px 20px;
 }
 
@@ -332,16 +362,25 @@ a.book-card:hover { text-decoration: none; transform: translateY(-2px); box-shad
 
 /* Signed-in top menu */
 .topnav {
-  border-bottom: 1px solid var(--line);
-  background: var(--card);
+  /* THE SAME BAR THE OTHER SEATS WEAR (Shahar, 2026-09-20: "Make top bar
+     similar to other seats top navigation bar"). The apps' .appbar has no
+     panel and no rule under it - the lockup and the icons sit straight on
+     the ground, 56px tall, clear of the notch. This one was a white panel
+     with a hairline beneath, which is why it read as a different product
+     even before the colours drifted. The admin tint below still paints a
+     panel, because on that door the panel IS the signal. */
+  background: transparent;
+  border-bottom: none;
 }
 .topnav-inner {
   width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding-top: 10px;
+  /* .appbar's measurements: 8px gap, 56px tall, safe-area padding on top. */
+  gap: 8px;
+  min-height: 56px;
+  padding-top: calc(10px + env(safe-area-inset-top));
   padding-bottom: 10px;
   font-size: 14px;
 }
@@ -354,7 +393,7 @@ a.book-card:hover { text-decoration: none; transform: translateY(-2px); box-shad
    the bar itself goes dark, in the same maroon the acting-as banner has
    always used, so the two read as one family of "you are not an ordinary
    user right now". */
-.topnav-admin { background: #2e1a1d; border-bottom-color: #2e1a1d; color: #f6f1ea; }
+.topnav-admin { background: #2e1a1d; border-bottom: 1px solid #2e1a1d; color: #f6f1ea; }
 .topnav-admin .wordmark,
 .topnav-admin .topnav-right a,
 .topnav-admin .iconlink,
@@ -366,8 +405,8 @@ a.book-card:hover { text-decoration: none; transform: translateY(-2px); box-shad
 .topnav-admin button.iconlink:hover { color: #fff; }
 .topnav-admin .wordmark .wm-door { color: #f0c9ce; font-weight: 800; }
 
-.topnav-left { min-width: 0; flex: 1 1 auto; overflow: hidden; }
-.topnav-right { display: flex; gap: 18px; align-items: center; flex: 0 0 auto; }
+.topnav-left { min-width: 0; flex: 1 1 auto; overflow: hidden; display: flex; align-items: center; gap: 8px; }
+.topnav-right { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
 .topnav-right a { color: var(--body, var(--ink)); }
 .topnav-right a:hover { color: var(--brand); text-decoration: none; }
 
