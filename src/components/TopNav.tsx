@@ -7,8 +7,6 @@ import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
 import { MaskMenu, type Person } from "@/components/MaskMenu";
 import { BackNav } from "@/components/BackNav";
-import { NavRole } from "@/components/NavRole";
-import { seatLabel } from "@/lib/seatLabel";
 import { endViewAs, beginViewAs } from "@/components/viewas";
 
 const InboxIcon = () => (
@@ -97,7 +95,6 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const roleCount = new Set([...seatNames, ...tradeNames]).size;
   const whoLabel = (topSeat ?? tradeNames[0] ?? role) + (roleCount > 1 ? ` (${roleCount} roles)` : "");
   const firstName = (me?.full_name?.trim().split(/\s+/)[0]) || (me?.email ? me.email.split("@")[0] : "You");
-  const ranksObj = Object.fromEntries(rankOf);
 
   // The label under the logo: the picked hat, as long as it lives on this
   // surface; otherwise the surface's own name.
@@ -149,13 +146,16 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
               lockup. Name, email and "(N roles)" moved to the tooltip. */}
           <span className="brandstack" title={me?.email ? `${firstName} · ${me.email} · ${whoLabel}${isAdmin ? ` · viewing as ${viewLabel}` : ""}` : undefined}>
             <Wordmark small href={ROLE_HOME[role]}
+              // CORE, NOT THE SEAT (Shahar, 2026-09-20: "greenbergen under
+              // text should read CORE"). The line used to name whichever seat
+              // you happened to hold here - HOMES, PROJECT M., CONTRACTOR -
+              // which told you about a project rather than about the door you
+              // were standing in. The other two doors name themselves
+              // (HOMEOWNER, PROFESSIONAL); this one is the core, and now says
+              // so. seatLabel() is still what NavRole uses inside a project.
               door={onAdminDoor
                 ? "Admin mode"
-                : me?.email
-                // A trade with no project seat yet is still a contractor, not a visitor.
-                ? <NavRole appUserId={me?.app_user_id ?? null} ranks={ranksObj} admin={isAdmin}
-                    fallback={seatNames.length === 0 && tradeNames.length > 0 && !isAdmin ? "Contractor" : seatLabel(seatNames, ranksObj, isAdmin)} />
-                : seatLabel([], {}, false)} />
+                : "Core"} />
           </span>
         </div>
         <div className="topnav-right">
