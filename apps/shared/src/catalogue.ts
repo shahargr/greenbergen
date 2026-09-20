@@ -110,16 +110,30 @@ export const isBookable = (t: Tile) => isPriced(t) && isCovered(t);
 // something today - books it, or takes your sentence to that person. Only
 // "coming soon" and "nobody carries it yet" are dim.
 export const isQuote = (t: Tile) => t.availability === "quote" || t.availability === "custom";
-export const isOpen = (t: Tile) => isCovered(t) && (isPriced(t) || isQuote(t));
+// COVERAGE NO LONGER DIMS A TILE (Shahar, 2026-09-20: "these three should not
+// be set as disabled, as well as the home internet system").
+//
+// It used to, and the reasoning was sound at the time: with nobody approved
+// to carry the trade, tapping the tile led to an offer that would reach an
+// empty room. That stopped being true when the take screen shipped - a
+// package with no contractor still has a real way on, the DIY one, with the
+// community price kept as the reference. The tile is a live door again.
+//
+// isCovered still means what it always meant - is there anyone to hand this
+// to - and the package page still reads it, which is how turn-key stays off
+// the screen when nobody can honour it. What changed is that our supply
+// problem is no longer shown to a member as the product's status.
+export const isOpen = (t: Tile) => isPriced(t) || isQuote(t);
 
 // Why a tile is dim, in the member's words. Order matters: no price is a
 // bigger gap than no contractor, and "coming soon" outranks both.
 export function dimReason(t: Tile): string {
+  // ONLY A PACKAGE THAT IS ACTUALLY NOT READY says coming soon. The
+  // no-contractor case used to land here too and it was the wrong sentence:
+  // the package is ready, priced and open - we are the ones missing a
+  // tradesman, and a member reading "coming soon" about a water heater they
+  // could start this weekend is being told something untrue.
   if (t.availability === "coming_soon") return "Coming soon";
-  // "Coming soon", not "No contractor yet": the second is our problem
-  // described to a customer, and it reads as a shrug. It is the same
-  // state either way - priced, nobody approved carries the trade.
-  if (!isCovered(t)) return "Coming soon";
   if (t.availability === "quote") return "We look first";
   if (t.availability === "custom") return "Tell us what you need";
   return "Not yet";

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { dimReason, fromPrice, isBookable, isOpen, type Tile } from "@shared/catalogue";
+import { dimReason, fromPrice, isOpen, isPriced, type Tile } from "@shared/catalogue";
 import { Illustration } from "@shared/Illustrations";
 import { dollars } from "@shared/format";
 
@@ -26,7 +26,12 @@ export function Scene({ t }: { t: Tile }) {
   const open = isOpen(t);
   // "from" is the package's floor - its cheapest configuration - read from
   // the package, never typed here (053).
-  const line = isBookable(t) && floor != null ? `from ${dollars(floor)}`
+  // The price is the community's and it is real whether or not somebody is
+  // approved to carry the trade today - that only decides whether we can do
+  // it FOR you, which the package page says in its own words. isBookable
+  // used to gate this line, so a priced package with no contractor showed no
+  // price at all.
+  const line = isPriced(t) && floor != null ? `from ${dollars(floor)}`
     : open ? "Ask a person"
     : dimReason(t);
   return (
@@ -38,7 +43,15 @@ export function Scene({ t }: { t: Tile }) {
           : <Illustration name={t.illustration} />}
       </span>
       <span className="scene-cap">
-        <strong>{t.tile_title}{t.tile_line2 ? <small> {t.tile_line2}</small> : null}</strong>
+        {/* THE SECOND LINE IS ALWAYS THERE, empty or not (Shahar, 2026-09-20:
+            "the image height of all images on this carousel must be the
+            same"). On the tall rail the picture is flex:1 - it takes
+            whatever the caption leaves - so a two-line title like "Water
+            heater / replacement" made its own image shorter than its
+            neighbours'. Reserving the line makes every caption the same
+            height, which makes every picture the same height, without a
+            magic pixel number that the next font change would break. */}
+        <strong>{t.tile_title}<small>{t.tile_line2 ? ` ${t.tile_line2}` : "\u00a0"}</small></strong>
         <span className="small">{line}</span>
       </span>
     </Link>

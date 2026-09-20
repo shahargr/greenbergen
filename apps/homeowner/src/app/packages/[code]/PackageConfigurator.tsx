@@ -44,10 +44,14 @@ export function PackageConfigurator({
 
   // A visitor goes straight into the wizard too: the account is created at
   // its last step, not before the first (Shahar, 2026-09-10).
-  const bookHref = `/packages/${pkg.code}/book?sel=${encodeURIComponent(encodeSelections(sel))}`;
-  const planHref = `${bookHref}&mode=plan`;
-  const primaryHref = covered ? bookHref : planHref;
-  const primaryLabel = covered ? "Order now" : "Start as DIY";
+
+  // One destination now: the screen that explains both ways and then hands
+  // off to the wizard that already runs each of them. The sticky bar and the
+  // button at the bottom lead to the same place - two entries to one fork,
+  // rather than two different offers depending on where you tapped.
+  const takeHref = `/packages/${pkg.code}/take?sel=${encodeURIComponent(encodeSelections(sel))}`;
+  const primaryHref = takeHref;
+  const primaryLabel = covered ? "Get this done" : "Take it on";
 
   const notes: React.ReactNode[] = [];
   if (!covered) {
@@ -124,41 +128,28 @@ export function PackageConfigurator({
       <div className="actions" style={{ padding: 0, marginTop: 8 }}>
         <div className="divider-label">How do you want to take it on?</div>
 
-        {covered ? (
-          <>
-            <Link href={bookHref} className="btn btn-primary btn-block">
-              {pkg.instant_book ? `Turn-key · ${dollars(price)}` : `Turn-key · request at ${dollars(price)}`}
-            </Link>
-            <p className="small text-muted center" style={{ margin: "0 0 6px" }}>
-              We match the contractor and hold this price. Next: your address, then{" "}
-              {pkg.photos.length === 1 ? "one photo" : `${["", "one", "two", "three", "four"][pkg.photos.length] ?? pkg.photos.length} photos`}. No payment today.
-            </p>
+        {/* ONE WAY ON (Shahar, 2026-09-20). This was two buttons side by side
+            with a paragraph under each, which asks somebody to compare two
+            offers before they have decided they want the job at all. The
+            fork moved to its own screen, where each way gets room to say what
+            it costs and what it commits to - and where the answer to "what
+            does DIY cost" can be honest rather than a number we made up. See
+            take/page.tsx. */}
+        <Link href={takeHref} className="btn btn-primary btn-block">
+          {covered ? "Get this done" : "See how to take this on"}
+        </Link>
+        <p className="small text-muted center" style={{ margin: "0 0 6px" }}>
+          {covered
+            ? `Next: have it done at ${dollars(price)}, or take it on yourself with our checklist. Nothing is sent yet.`
+            : `No approved contractor covers ${pkg.trade ? pkg.trade.toLowerCase() : "this trade"} yet, so today this one is yours to do — with our checklist, and ${dollars(price)} kept as your reference.`}
+        </p>
 
-            <Link href={planHref} className="btn btn-secondary btn-block">Add to my DIY projects</Link>
+        {!covered && signedIn && (
+          <>
+            <NotifyMe code={pkg.code} trade={pkg.trade} signedIn={signedIn} />
             <p className="tiny text-muted center" style={{ margin: 0 }}>
-              Yours to do, at your pace. Keeps the scope and today&apos;s price as your reference, and
-              nothing goes to contractors. Switch it to turn-key whenever you want.
+              No cost and no commitment — it tells us which trade to go find next.
             </p>
-          </>
-        ) : (
-          // The two swap places. DIY is the thing that actually works today,
-          // so it leads; turn-key is not offered as a button that would post a
-          // job to an empty room.
-          <>
-            <Link href={planHref} className="btn btn-primary btn-block">Add to my DIY projects</Link>
-            <p className="small text-muted center" style={{ margin: "0 0 6px" }}>
-              Yours to do, at your pace, with the scope and today&apos;s price kept as your
-              reference. It becomes turn-key the day we can hand it over.
-            </p>
-
-            {signedIn && (
-              <>
-                <NotifyMe code={pkg.code} trade={pkg.trade} signedIn={signedIn} />
-                <p className="tiny text-muted center" style={{ margin: 0 }}>
-                  No cost and no commitment — it tells us which trade to go find next.
-                </p>
-              </>
-            )}
           </>
         )}
       </div>
