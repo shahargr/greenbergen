@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProjectFinder, type FoundProject } from "./ProjectFinder";
 import { mapsHref } from "@/lib/maps";
 import { WorkFilters, type Bucket } from "./WorkFilters";
 import { CarIcon } from "@/components/CarIcon";
@@ -107,10 +108,22 @@ function WxIcon({ icon, size = 26 }: { icon: WeatherIcon; size?: number }) {
 // The owner's landing. New owner with nothing: claim your address is the
 // hero; the magnet band (weather, trash, tasks, pros, deals, hourly, invite)
 // fills with honest ask-for-something empty states until the data exists.
+// ONE PAGE, THREE ROUTES (Shahar, 2026-09-20: "remove all houses and projects
+// from this landing page. Have a link showing all houses ... and a link to all
+// projects (same logic as listed here on the page, just a different page)").
+//
+// The houses rail and the project rails are 220 lines that read a dozen locals
+// computed across the 400 lines above them. Lifting them into their own files
+// would mean lifting the whole data load with them, so instead the SAME
+// component serves /my, /my/houses and /my/projects and `show` decides which
+// of its three sections paint. "Same logic, a different page" - literally the
+// same code, which is the only way the two pages cannot drift from this one.
 export default async function MyPage({
   searchParams,
+  show = "landing",
 }: {
   searchParams: Promise<{ panel?: string; error?: string; ok?: string; t?: string; all?: string; allp?: string; view?: string }>;
+  show?: "landing" | "houses" | "projects";
 }) {
   const { panel, error: flashError, ok: flashOk, t: tileKey, all: showAll, allp, view: viewParam } = await searchParams;
   const showClosedProjects = allp === "1";
@@ -401,8 +414,9 @@ export default async function MyPage({
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
   // Card bundle plus the status / method lists the inline transaction editor needs.
-  const [{ data: cardData }, { data: txStatusRows }, { data: txMethodRows }, { data: invitesData }, { data: prefRows }] = await Promise.all([
+  const [{ data: cardData }, { data: findData }, { data: txStatusRows }, { data: txMethodRows }, { data: invitesData }, { data: prefRows }] = await Promise.all([
     supabase.rpc("portal_project_cards", { p_all: godMode }),
+    supabase.rpc("portal_project_search", { p_all: godMode }),
     supabase.from("transaction_statuses").select("status"),
     supabase.from("payment_methods").select("id, name").eq("is_active", true)
       .order("display_order", { ascending: true, nullsFirst: false }),
@@ -1176,7 +1190,25 @@ export default async function MyPage({
         </section>
       )}
 
-      {hasHome && bandOverviewAll.length > 0 && (
+      {/* THE LANDING IS A WAY IN, NOT A LIST. Two doors - every house, every
+          project - and a grid you can search, in place of the rails that used
+          to unroll every house and every job inline. */}
+      {show === "landing" && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <Link href="/my/houses" className="card statlink" style={{ flex: "1 1 200px", padding: "12px 16px", display: "grid", gap: 2 }}>
+            <strong>Houses</strong>
+            <span className="muted small">Every property, and adding or removing one.</span>
+          </Link>
+          <Link href="/my/projects" className="card statlink" style={{ flex: "1 1 200px", padding: "12px 16px", display: "grid", gap: 2 }}>
+            <strong>Projects</strong>
+            <span className="muted small">Every project, with the filters this page used to carry.</span>
+          </Link>
+        </div>
+      )}
+
+      {show === "landing" && <ProjectFinder projects={(findData ?? []) as FoundProject[]} />}
+
+      {show !== "landing" && hasHome && bandOverviewAll.length > 0 && (
         // Keyed on the flash params: an action redirecting back here with
         // ?ok= / ?error= must remount the client rows (Saving… / Uploading…
         // would otherwise stick — Next keeps client state on a same-route
@@ -1231,7 +1263,7 @@ export default async function MyPage({
               <>
                 {/* A contractor holds no house; the section would only be an
                     empty box telling them to claim an address they do not own. */}
-                {(houses.length > 0 || !isContractorish) && (<>
+                {show !== "projects" && (houses.length > 0 || !isContractorish) && (<>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "0 0 2px" }}>
                   <h2 className="section-title" style={{ margin: 0 }}>🏠 Houses · {houses.length}</h2>
                   <Link href="/my/new-home" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Add property</Link>
@@ -1380,7 +1412,7 @@ export default async function MyPage({
 
                 {/* Jobs whose home is not on the page (a house you hold no
                     seat on, or one behind "show all") keep their own row. */}
-                {(() => {
+                {show !== "houses" && (() => {
                   const houseIds = new Set(houses.map((h) => h.id));
                   const loose = jobs.filter((j) => !j.parent_project_id || !houseIds.has(j.parent_project_id));
                   if (loose.length === 0 && houses.length > 0) return null;
@@ -1398,7 +1430,7 @@ export default async function MyPage({
                   );
                 })()}
 
-                {others.length > 0 && (
+                {show !== "houses" && others.length > 0 && (
                   <>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
                       <h2 className="section-title" style={{ margin: 0, color: "#2f4f6b" }}>🏢 Umbrella, ventures &amp; systems · {others.length}</h2>
