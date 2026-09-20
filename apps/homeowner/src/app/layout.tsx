@@ -8,6 +8,7 @@ import { Notebook } from "@shared/Notebook";
 import { DoorSwitchFab } from "@shared/DoorSwitchFab";
 import { BuildState } from "@shared/BuildState";
 import { Analytics } from "@vercel/analytics/next";
+import { RememberPlace } from "@shared/RememberPlace";
 
 export const metadata: Metadata = {
   title: { default: "Green Bergen", template: "%s · Green Bergen" },
@@ -27,6 +28,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={fontClassName}>
       <body>
+        {/* Remembers where this seat was last standing (migration 199). */}
+        <RememberPlace door="homeowner" />
         <div className="app">
           <OfflineBanner />
           <NavOrigin />

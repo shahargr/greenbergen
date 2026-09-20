@@ -45,13 +45,26 @@ const Door = ({ door }: { door: DoorKey }) => {
 export function DoorMask({ current }: { current?: DoorKey }) {
   const [doors, setDoors] = useState<Doors | null>(null);
   const [asked, setAsked] = useState(false);
+  // Where each other seat was last standing (migration 199), so a switch
+  // goes BACK rather than to a front page. Fetched with the doors on the
+  // same open, because the menu draws every row at once.
+  const [places, setPlaces] = useState<Record<string, string | null> | null>(null);
 
   const load = useCallback(async () => {
     if (asked) return;
     setAsked(true);
-    const { data } = await createClient().rpc("my_doors");
+    const supabase = createClient();
+    const [{ data }, { data: seats }] = await Promise.all([
+      supabase.rpc("my_doors"),
+      supabase.rpc("my_last_places"),
+    ]);
     setDoors(readDoors(data ?? null));
+    setPlaces((seats as Record<string, string | null> | null) ?? null);
   }, [asked]);
+
+  // A seat with nothing remembered - or whose project is gone, which the
+  // database answers as null - falls back to the door's own entry.
+  const backTo = (k: DoorKey) => places?.[k] ?? DOORS[k].entry;
 
   // Where we are, when the screen did not say: the apps live on one host at
   // /home and /pro, and everything else is the portal.
@@ -83,7 +96,7 @@ export function DoorMask({ current }: { current?: DoorKey }) {
         )}
 
         {others.map((k) => (
-          <a key={k} href={DOORS[k].entry} className="door-mask-row">
+          <a key={k} href={backTo(k)} className="door-mask-row">
             <span className="ic"><Door door={k} /></span>
             <span className="grow" style={{ minWidth: 0 }}>
               <span className="t">{DOORS[k].label}</span>

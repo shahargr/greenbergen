@@ -31,12 +31,15 @@ async function Decide() {
   // seat this sign-in lands in. Two round trips instead of one, on a screen
   // that is already painting - see GoTo.tsx.
   const door = landingDoor(doors);
-  // my_last_project is RLS-bound, so a revoked seat or a trashed project
-  // comes back null and landing() falls through to the door's own entry.
-  const last = door
-    ? await supabase.rpc("my_last_project", { p_door: doorForDb(door) })
+  // THE PAGE, NOT THE PROJECT (migration 199). my_last_place returns a
+  // host-absolute path already, and it is RLS-bound: a revoked seat or a
+  // trashed project comes back null and we fall through to the door's own
+  // entry rather than sending somebody somewhere they can no longer go.
+  const place = door
+    ? await supabase.rpc("my_last_place", { p_door: doorForDb(door) })
     : null;
-  return <GoTo href={landing(doors, last && !last.error ? (last.data as string | null) : null)} />;
+  const back = place && !place.error ? (place.data as string | null) : null;
+  return <GoTo href={back ?? landing(doors)} />;
 }
 
 export default function AfterLogin() {

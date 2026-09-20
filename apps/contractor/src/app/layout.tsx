@@ -8,6 +8,7 @@ import { Notebook } from "@shared/Notebook";
 import { DoorSwitchFab } from "@shared/DoorSwitchFab";
 import { BuildState } from "@shared/BuildState";
 import { Analytics } from "@vercel/analytics/next";
+import { RememberPlace } from "@shared/RememberPlace";
 
 // The same shell as the homeowner app, deliberately. A contractor and a
 // homeowner are two sides of one community, not two products, and they
@@ -30,6 +31,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={fontClassName}>
       <body>
+        {/* Remembers where this seat was last standing (migration 199). */}
+        <RememberPlace door="expert" />
         <div className="app">
           <OfflineBanner />
           <NavOrigin />
