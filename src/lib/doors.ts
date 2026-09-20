@@ -125,9 +125,25 @@ export function readDoors(data: DoorsRow | null): Doors {
 // somebody into an app they did not resolve to, which is why this reads
 // DOOR_PROJECT[door] rather than storing the door the project was opened in.
 export function landing(doors: Doors, lastProjectId?: string | null): string {
-  if (!doors.signed_in) return "/login";
-  const chosen = doors.preferred && doors.held.includes(doors.preferred) ? doors.preferred : null;
-  const door = chosen ?? LANDS.find((k) => doors.held.includes(k)) ?? null;
-  if (!door) return "/my";
+  const door = landingDoor(doors);
+  if (door === null) return doors.signed_in ? "/my" : "/login";
   return lastProjectId ? DOOR_PROJECT[door](lastProjectId) : DOOR_ENTRY[door];
 }
+
+// WHICH DOOR, on its own, because the caller has to know it BEFORE it can
+// ask for the last project (migration 198): the memory is per door, so
+// "which door" has to be settled first. Returns null for a signed-out
+// visitor and for an account holding no door at all - landing() tells those
+// two apart, nobody else needs to.
+export function landingDoor(doors: Doors): DoorKey | null {
+  if (!doors.signed_in) return null;
+  const chosen = doors.preferred && doors.held.includes(doors.preferred) ? doors.preferred : null;
+  return chosen ?? LANDS.find((k) => doors.held.includes(k)) ?? null;
+}
+
+// The portal calls its own door "admin"; the database has always spelled it
+// "portal" (app_users.default_door, and now user_project_prefs.last_door).
+// readDoors() translates on the way in - this is the way out, and both live
+// here so the two spellings can never drift into three.
+export const doorForDb = (door: DoorKey): "homeowner" | "expert" | "portal" =>
+  door === "admin" ? "portal" : door;

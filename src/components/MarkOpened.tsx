@@ -18,11 +18,17 @@ import { createClient } from "@/lib/supabase/client";
 // mark_project_opened() already refuses a project the caller holds no seat on
 // - a lost stamp costs a resume, never correctness. It is not worth an error
 // in front of somebody trying to read their job.
-export function MarkOpened({ projectId }: { projectId: string }) {
+// THE DOOR IS PART OF THE STAMP (migration 198). Shahar, after switching
+// from homeowner to Professionals and landing on the front page: "didn't we
+// said that we will land on the last page we were on in this seat?" One
+// memory per person could not answer that - a seat is per door, so the stamp
+// has to be too. The database vocabulary is homeowner / expert / portal,
+// which is what app_users.default_door has always used.
+export function MarkOpened({ projectId, door }: { projectId: string; door: "homeowner" | "expert" | "portal" }) {
   useEffect(() => {
     if (!projectId) return;
-    void createClient().rpc("mark_project_opened", { p_project: projectId });
-  }, [projectId]);
+    void createClient().rpc("mark_project_opened", { p_project: projectId, p_door: door });
+  }, [projectId, door]);
 
   return null;
 }

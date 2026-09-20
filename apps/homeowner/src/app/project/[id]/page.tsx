@@ -263,7 +263,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     <Screen>
       {/* Remembered here and not on the early returns above: a project that
           could not be read is not a project you were in. */}
-      <MarkOpened projectId={id} />
+      <MarkOpened projectId={id} door="homeowner" />
       <AppBar brand />
       <div className="body">
         {switcher}

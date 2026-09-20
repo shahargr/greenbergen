@@ -675,7 +675,7 @@ export default async function ProjectPage({
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 640 }}>
       {/* Remembered here and not on the early returns above: a project that
           could not be read is not a project you were in. */}
-      <MarkOpened projectId={id} />
+      <MarkOpened projectId={id} door="portal" />
       {/* A default workstream its owner switched off: still here, off the lists. */}
       {disabledAt && (
         <p className="small" style={{ margin: "0 0 10px", padding: "8px 10px", borderRadius: 8, background: "#f4f5f1", color: "#5b6158" }}>

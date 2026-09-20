@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { createClient } from "@/lib/supabase/server";
-import { landing } from "@/lib/doors";
+import { doorForDb, landing, landingDoor } from "@/lib/doors";
 import { loadDoors } from "@/lib/doors.server";
 import { GoTo } from "./GoTo";
 
@@ -25,14 +25,18 @@ export const metadata = { title: "Signing you in" };
 
 async function Decide() {
   const supabase = await createClient();
-  // Both reads at once: neither needs the other, and this sits between a
-  // person and their work. my_last_project() is RLS-bound, so a revoked seat
-  // or a trashed project comes back null and landing() falls to the door.
-  const [doors, last] = await Promise.all([
-    loadDoors(),
-    supabase.rpc("my_last_project"),
-  ]);
-  return <GoTo href={landing(doors, last.error ? null : (last.data as string | null))} />;
+  const doors = await loadDoors();
+  // THE DOOR FIRST, THEN THE JOB, and the order is forced: the memory is per
+  // door (migration 198), so there is nothing to ask for until we know which
+  // seat this sign-in lands in. Two round trips instead of one, on a screen
+  // that is already painting - see GoTo.tsx.
+  const door = landingDoor(doors);
+  // my_last_project is RLS-bound, so a revoked seat or a trashed project
+  // comes back null and landing() falls through to the door's own entry.
+  const last = door
+    ? await supabase.rpc("my_last_project", { p_door: doorForDb(door) })
+    : null;
+  return <GoTo href={landing(doors, last && !last.error ? (last.data as string | null) : null)} />;
 }
 
 export default function AfterLogin() {

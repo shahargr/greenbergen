@@ -524,7 +524,7 @@ export default async function ProjectPage({
     <Screen>
       {/* Remembered here and not on the early returns above: a project that
           could not be read is not a project you were in. */}
-      <MarkOpened projectId={id} />
+      <MarkOpened projectId={id} door="expert" />
       {/* THE SEAT, BY THE NAME. Shahar (2026-09-14): "viewing as should be
           changed to seat, and drop down with all options. top right above the
           photo, by the project name."
