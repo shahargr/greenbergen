@@ -3,7 +3,6 @@ import { createClient } from "@shared/supabase/server";
 import { COMMUNITY_SERVICES, isOpen, loadTiles } from "@shared/catalogue";
 import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, ChevronIcon, Screen, ShellIcons, StepKicker } from "@shared/ui";
-import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { dollars } from "@shared/format";
 import { Scene } from "@/components/Scene";
 
@@ -28,7 +27,7 @@ export default async function PackagesPage() {
   const dim = rest.filter((t) => !isOpen(t));
   return (
     <Screen>
-      <AppBar brand back={{ fallback: "/project" }} right={signedIn ? <ShellIcons switcher={<DoorSwitchIcon current="homeowner" />} /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
+      <AppBar brand back={{ fallback: "/project" }} right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
       <div className="body">
         <StepKicker>Step 1 of 3</StepKicker>
         <div className="hero">

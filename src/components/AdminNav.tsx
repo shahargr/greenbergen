@@ -80,6 +80,14 @@ const MORE: Item[] = [
     icon: <svg {...I}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>,
   },
   {
+    href: "/admin/site", label: "Site design",
+    icon: <svg {...I}><path d="M12 3v18" /><path d="M3 12h18" /><rect x="3" y="3" width="18" height="18" rx="2" /></svg>,
+  },
+  {
+    href: "/admin/claude", label: "Supabase permissions",
+    icon: <svg {...I}><rect x="4" y="10.5" width="16" height="10" rx="2" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" /><circle cx="12" cy="15.5" r="1.3" /></svg>,
+  },
+  {
     href: "/admin/photos", label: "Public pages",
     icon: <svg {...I}><rect x="3" y="4" width="18" height="14" rx="2" /><circle cx="8.5" cy="9" r="1.6" /><path d="m3 16 5-4 4 3 4-4 5 5" /></svg>,
   },

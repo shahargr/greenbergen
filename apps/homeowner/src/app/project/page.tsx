@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getMe } from "@/lib/me";
 import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
-import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { unreadForShell } from "@shared/unread";
 import { Scene, SceneMore } from "@/components/Scene";
 import { BobSearch } from "@/components/BobSearch";
@@ -64,7 +63,7 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
         brand
         door="homeowner"
         right={signedIn
-          ? <ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />
+          ? <ShellIcons unread={unread} />
           : <Link href="/login?next=/project" className="small" style={{ fontWeight: 700 }}>Log in</Link>}
       />
       <div className="body">

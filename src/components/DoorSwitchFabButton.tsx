@@ -12,7 +12,7 @@ import { DOOR_ENTRY, DOOR_LABEL, DOOR_ORDER, type DoorKey } from "@/lib/doors";
 //
 // The apps share one in apps/shared; the portal does not compile apps/ (see
 // CLAUDE.md), so it has its own - the same control in the portal's clothes,
-// and the same trick the header's DoorMask uses: a <details>, so it opens
+// and a <details> rather than state, so it opens
 // without JavaScript, and my_doors() is asked THE FIRST TIME IT IS OPENED
 // rather than on every page load. A switch that floats on every screen must
 // not cost a round trip on every screen.

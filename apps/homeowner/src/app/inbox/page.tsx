@@ -6,7 +6,6 @@ import { stopwatch } from "@shared/perf";
 import { getMe } from "@/lib/me";
 import { ago, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
-import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { unreadForShell } from "@shared/unread";
 import { Illustration } from "@shared/Illustrations";
 import { PhotoBanner } from "@/components/PhotoBanner";
@@ -63,7 +62,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   return (
     <Screen>
-      <AppBar brand back={{ fallback: "/project" }} door="homeowner" right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />} />
+      <AppBar brand back={{ fallback: "/project" }} door="homeowner" right={<ShellIcons unread={unread} />} />
       <div className="body">
         <div className="hero">
           <h1>Inbox</h1>

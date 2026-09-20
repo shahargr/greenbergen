@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
-import { DoorSwitchIcon } from "@shared/DoorSwitchIcon";
 import { unreadForShell } from "@shared/unread";
 import { BookingRow, ORDER, ProjectRow, SECTION, TABS, bucketOf, rowsFor, type Bucket } from "@/components/ProjectRows";
 import { stopwatch } from "@shared/perf";
@@ -52,7 +51,7 @@ export default async function ProjectsIndex({ searchParams }: { searchParams: Pr
       <AppBar
         back="/project"
         title="Your projects"
-        right={<ShellIcons unread={unread} switcher={<DoorSwitchIcon current="homeowner" />} />}
+        right={<ShellIcons unread={unread} />}
       />
       <div className="body">
         {me.missing && <Notice title="Preview mode">The database migration in db/ has not been applied yet, so homes and projects cannot be read.</Notice>}

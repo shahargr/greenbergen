@@ -3,7 +3,6 @@ import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getMe } from "@/lib/serverMe";
 import { Wordmark } from "@/components/SiteHeader";
-import { DoorMask } from "@/components/DoorMask";
 import { signOut } from "@/app/my/actions";
 import { VIEW_HOME } from "@/components/viewmap";
 import { MaskMenu, type Person } from "@/components/MaskMenu";
@@ -194,12 +193,12 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
             title={onAdminDoor ? "Admin console" : "Settings"} aria-label={onAdminDoor ? "Admin console" : "Settings"}>
             <SettingsIcon />
           </Link>
-          {/* Switch door: the mask, opened right here. The picker screen it
-              used to go to is gone (Shahar, 2026-09-12) - every sign-in lands
-              in a door now, and this is how you cross to another one. Next to
-              Sign out because they are the two ways to stop being here as
-              this hat. On the admin door it lives in the console instead. */}
-          {!onAdminDoor && <DoorMask current="admin" />}
+          {/* NO DOOR SWITCH HERE. It sat next to Sign out until 2026-09-20,
+              when Shahar pointed out it is the floating button over again:
+              "remove the icon on the top bar for switching seats, as it is
+              the same as the floating icon". One switcher, bottom right, on
+              every screen of every app - two of them meant two menus that
+              open over each other and say slightly different things. */}
           <form action={signOut} style={{ display: "inline-flex" }}>
             <button className="iconlink" title="Sign out" aria-label="Sign out"><SignOutIcon /></button>
           </form>

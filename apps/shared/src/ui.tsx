@@ -238,14 +238,9 @@ export function DoorSwitch({ held, current }: { held: DoorKey[]; current: DoorKe
 //
 // What is left is the two things a person actually reaches for: what came in,
 // and everything else.
-export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/inbox", switcher }: { unread?: number; gearHref?: string; inboxHref?: string;
-  // The door switch, when this person holds more than one (DoorSwitchIcon).
-  // Passed in rather than rendered here: it has to read my_doors(), and this
-  // module is imported by client components, so it may not touch the server.
-  switcher?: ReactNode }) {
+export function ShellIcons({ unread = 0, gearHref = "/settings", inboxHref = "/inbox" }: { unread?: number; gearHref?: string; inboxHref?: string }) {
   return (
     <span className="shell-icons">
-      {switcher}
       <Link href={inboxHref} className="btn btn-ghost btn-icon" aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}>
         <InboxIcon />
         {unread > 0 && <span className="dot-n">{unread > 9 ? "9+" : unread}</span>}
