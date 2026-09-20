@@ -54,6 +54,10 @@ export type BookingSummary = {
 export type ProjectSummary = {
   project_id: string; name: string; address: string | null; status: string; stage: string | null;
   package_code: string | null; home_project_id: string | null; home_name: string | null;
+  // How the job is being taken on (migration 195). NULL on a project that
+  // predates the choice - most of the old ones - so the badge stays off
+  // rather than guessing.
+  delivery: "diy" | "hired" | null;
   // False for a job somebody simply started - it has no price, no package
   // and no wizard answers, and the screen should not pretend otherwise.
   has_booking: boolean;

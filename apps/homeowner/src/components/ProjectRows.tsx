@@ -70,6 +70,20 @@ export const tagFor = (key?: string) =>
   : key === "cancelled" ? "tag tag-neutral"
   : "tag tag-outline";
 
+// WHO IS DOING IT, on a list you scan (migration 195/197). Only two states
+// are worth a word: you, or somebody you are paying. A job that predates the
+// choice carries NULL and gets no badge - an empty label is a better answer
+// than a guessed one.
+export function DeliveryTag({ delivery }: { delivery: "diy" | "hired" | null }) {
+  if (!delivery) return null;
+  return (
+    <span className={delivery === "diy" ? "tag tag-outline" : "tag tag-neutral"}
+          style={{ marginLeft: 6, padding: "1px 7px" }}>
+      {delivery === "diy" ? "DIY" : "Hired"}
+    </span>
+  );
+}
+
 export type MeIn = Extract<Me, { signed_in: true }>;
 
 // The projects are the spine: every job under a home the member owns. A
@@ -106,7 +120,7 @@ export function ProjectRow({ p, showHome }: { p: ProjectSummary; showHome: boole
         </svg>
       </span>
       <span className="grow">
-        <span className="t">{p.name}{p.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{p.unread}</span>}</span>
+        <span className="t">{p.name}<DeliveryTag delivery={p.delivery} />{p.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{p.unread}</span>}</span>
         <span className="m" style={{ display: "block" }}>
           {[showHome && p.home_name ? p.home_name : null, st?.detail].filter(Boolean).join(" · ")}
         </span>
@@ -116,7 +130,7 @@ export function ProjectRow({ p, showHome }: { p: ProjectSummary; showHome: boole
   );
 }
 
-export function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boolean }) {
+export function BookingRow({ b, showHome, delivery = null }: { b: BookingSummary; showHome: boolean; delivery?: "diy" | "hired" | null }) {
   // The same rule as every other row (migration 119). What a booking adds is
   // the money: a reference price while it is a plan, what it went out at
   // while it is looking, what it came to when it is finished.
@@ -135,7 +149,7 @@ export function BookingRow({ b, showHome }: { b: BookingSummary; showHome: boole
     <Link href={`/project/${b.project_id}`} className="home-row">
       <span className="ic"><Illustration name={b.illustration} /></span>
       <span className="grow">
-        <span className="t">{b.name}{b.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{b.unread}</span>}</span>
+        <span className="t">{b.name}<DeliveryTag delivery={delivery} />{b.unread > 0 && <span className="tag tag-status" style={{ marginLeft: 6, padding: "1px 7px" }}>{b.unread}</span>}</span>
         <span className="m" style={{ display: "block" }}>{line}</span>
       </span>
       {st

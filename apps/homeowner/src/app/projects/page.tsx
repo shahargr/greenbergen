@@ -89,8 +89,10 @@ export default async function ProjectsIndex({ searchParams }: { searchParams: Pr
               return (
                 <section className="stack" style={{ gap: 10 }} key={k}>
                   {filter === "all" && <div className="divider-label">{SECTION[k]}</div>}
+                  {/* A booking row draws from the booking, but which way the
+                      job was taken lives on the project half of the same row. */}
                   {rows.map((r) => r.kind === "booking"
-                    ? <BookingRow key={r.project_id} b={r.b} showHome={manyHomes && !onlyHome} />
+                    ? <BookingRow key={r.project_id} b={r.b} showHome={manyHomes && !onlyHome} delivery={r.p.delivery} />
                     : <ProjectRow key={r.project_id} p={r.p} showHome={manyHomes && !onlyHome} />)}
                 </section>
               );
