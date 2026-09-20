@@ -156,3 +156,34 @@ export async function reopenProject(formData: FormData) {
   if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
   redirect(`/project/${projectId}?ok=reopened`);
 }
+
+// TICK ONE STEP OF THE DIY CHECKLIST (migration 195b).
+//
+// homeowner_task_close already existed and already carries the rules - it
+// checks membership, refuses a task on somebody else's job, and is idempotent
+// on a step that is already closed - so this is the same one-RPC shape as
+// everything else here rather than a second set of rules in TypeScript.
+export async function tickStep(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const actionId = String(formData.get("action_id") ?? "");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("homeowner_task_close", { p_project: projectId, p_action_id: actionId });
+  revalidatePath(`/project/${projectId}`);
+  revalidatePath("/project");
+  if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  redirect(`/project/${projectId}?ok=step`);
+}
+
+// BUILD THE LIST FOR A JOB THAT PREDATES IT. Every DIY job taken from now on
+// leaves homeowner_book with its checklist already on it; the ones taken
+// before migration 195b have none. Generating on demand is safe because
+// homeowner_diy_checklist refuses to run twice - it will not resurrect a step
+// somebody has already closed.
+export async function buildChecklist(formData: FormData) {
+  const projectId = String(formData.get("project") ?? "");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("homeowner_diy_checklist", { p_project: projectId });
+  revalidatePath(`/project/${projectId}`);
+  if (error || !data?.ok) redirect(`/project/${projectId}?error=${encodeURIComponent(friendly(data?.reason ?? error?.message))}`);
+  redirect(`/project/${projectId}?ok=checklist`);
+}

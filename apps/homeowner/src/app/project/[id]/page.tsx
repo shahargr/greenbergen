@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getMe, TARGET_WINDOWS, targetWindowLabel } from "@/lib/me";
 import { getBooking, type Booking } from "@/lib/booking";
+import { getChecklist } from "@/lib/checklist";
 import { encodeSelections } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Avatar, Card, ChevronIcon, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
@@ -9,7 +10,8 @@ import { ProgressLine } from "@shared/ProgressLine";
 import { stopwatch } from "@shared/perf";
 import { PhotoRequest } from "@/components/PhotoRequest";
 import { WaitingCard } from "./WaitingCard";
-import { bookingAction, cancelProject, closeProject, reopenProject, updatePlan } from "./actions";
+import { DiyChecklist } from "./DiyChecklist";
+import { bookingAction, buildChecklist, cancelProject, closeProject, reopenProject, updatePlan } from "./actions";
 import { MarkOpened } from "@shared/MarkOpened";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +24,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const w = stopwatch("/project/[id]");
   // The shell and the job are independent reads; fetching them together
   // costs one round trip instead of two.
-  const [me, { booking: b, missing }] = await Promise.all([
+  const [me, { booking: b, missing }, checklist] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("booking", () => getBooking(id)),
+    w.step("checklist", () => getChecklist(id)),
   ]);
   w.done();
   if (!me.signed_in) redirect(`/login?next=/project/${id}`);
@@ -76,6 +79,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <AppBar back="/project" title={title} sub={b.address?.split(",")[0] ?? undefined} />
         <div className="body">
           {ok === "plan" && <div className="banner-ok">Plan updated.</div>}
+          {ok === "step" && <div className="banner-ok">Ticked off.</div>}
+          {ok === "checklist" && <div className="banner-ok">Your checklist is ready.</div>}
           {ok === "finished" && <div className="banner-ok">Closed as finished. The record is frozen.</div>}
           {ok === "cancelled" && <div className="banner-ok">Cancelled. Anything open on it went with it.</div>}
           {ok === "reopened" && <div className="banner-ok">Open again, and back on your list.</div>}
@@ -91,23 +96,38 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             </div>
           </Card>
           {b.note && <blockquote>{b.note}</blockquote>}
-          {/* DIY is not a purchase, so this is not a receipt. The same scope
-              lines read as the ORDER OF THE WORK - numbered, not ticked,
-              because nothing is done yet. The two assurance lines (insurance,
-              the warranty) are dropped: they are what a contractor carries,
-              and on a job you do yourself nobody carries them. Saying so
-              plainly below is the honest version of the turn-key pitch. */}
-          <Card pad>
-            <div className="kicker">Suggested steps for the job</div>
-            <ol className="steps" style={{ marginTop: 6 }}>
-              {steps.map((si, i) => (
-                <li key={i}><span className="n">{i + 1}</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>
-              ))}
-            </ol>
-            <p className="tiny text-muted" style={{ margin: "10px 0 0" }}>
-              The order most {pluralTrade(pkg?.trade, 2)} work in. Yours to change — nothing here is a commitment.
-            </p>
-          </Card>
+          {/* THE STEPS ARE TASKS NOW (migrations 195b / 196). They used to be
+              scope lines rendered as a numbered list - "numbered, not ticked,
+              because nothing is done yet" - which was true right up until
+              taking a job DIY started generating real actions for it. A list
+              you cannot tick is a poster; rulebook 42 is the whole argument,
+              and the same one that says a scope line with no task is
+              invisible. The numbered list is still the fallback for a job
+              taken before the checklist existed.
+
+              The two assurance lines (insurance, the warranty) stay out of
+              both: they are what a contractor carries, and on a job you do
+              yourself nobody carries them. */}
+          {checklist && checklist.items.length > 0 ? (
+            <DiyChecklist projectId={b.project_id} items={checklist.items} trade={pluralTrade(pkg?.trade, 2)} />
+          ) : (
+            <Card pad>
+              <div className="kicker">Suggested steps for the job</div>
+              <ol className="steps" style={{ marginTop: 6 }}>
+                {steps.map((si, i) => (
+                  <li key={i}><span className="n">{i + 1}</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>
+                ))}
+              </ol>
+              <p className="tiny text-muted" style={{ margin: "10px 0 0" }}>
+                The order most {pluralTrade(pkg?.trade, 2)} work in. Yours to change — nothing here is a commitment.
+              </p>
+              {/* Taken before migration 195b, so it never got a list. */}
+              <form action={buildChecklist} style={{ marginTop: 12 }}>
+                <input type="hidden" name="project" value={b.project_id} />
+                <button className="btn btn-secondary btn-block">Turn these into a checklist I can tick</button>
+              </form>
+            </Card>
+          )}
           {covered.length > 0 && (
             <Card pad soft>
               <div className="kicker">What turn-key adds</div>
