@@ -55,11 +55,35 @@ export default function AdminClaudePage() {
             <strong>The auto-mode classifier</strong> — a judgement on the
             action rather than the tool name. It is what produced the three
             Execute SQL dialogs, and it runs outside this repository entirely.
-            No allow list reaches it. The only thing that does is the{" "}
-            <strong>session&apos;s permission mode</strong>, set where the
-            session is created — which is why changing that mode is what
-            finally stopped the prompts.
+            No allow list reaches it.
           </p>
+          <p style={{ margin: "8px 0 0" }}>
+            <strong>The session&apos;s permission mode</strong> — the only
+            thing that removes the classifier, and it is not set from any file
+            we control here. Two limits are worth knowing before you try:
+          </p>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 20 }}>
+            <li>
+              <strong>No environment variable sets it.</strong> Nothing you put
+              in a cloud environment&apos;s variables box changes a permission
+              mode — the documented variables cover none of this, and the CLI
+              has no such variable.
+            </li>
+            <li>
+              <code>permissions.defaultMode</code> in this repo&apos;s{" "}
+              <code>.claude/settings.json</code> honours{" "}
+              <code>default</code>, <code>acceptEdits</code> and{" "}
+              <code>plan</code>, but <em>not</em> <code>auto</code> or{" "}
+              <code>bypassPermissions</code> — those need user or managed
+              settings.
+            </li>
+            <li>
+              And <strong>cloud sessions ignore</strong>{" "}
+              <code>bypassPermissions</code> and <code>dontAsk</code> from
+              settings files altogether. On the web and the phone, the mode
+              picker on the session is the lever; a file cannot do it.
+            </li>
+          </ul>
         </div>
       </div>
 
