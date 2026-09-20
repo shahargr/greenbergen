@@ -64,7 +64,10 @@ export const DOORS: Record<DoorKey, Door> = {
     full: "The portal",
     blurb: "Everything: admin, deals, the whole record.",
     url: url(process.env.NEXT_PUBLIC_DOOR_PORTAL, SITE_ORIGIN),
-    entry: `${url(process.env.NEXT_PUBLIC_DOOR_PORTAL, SITE_ORIGIN)}/my`,
+    // Administration, not the owner dashboard - matches DOOR_ENTRY.admin in
+    // the portal's own src/lib/doors.ts. If these two disagree, the door
+    // opens on a different screen depending on which app you left.
+    entry: `${url(process.env.NEXT_PUBLIC_DOOR_PORTAL, SITE_ORIGIN)}/admin`,
   },
 };
 

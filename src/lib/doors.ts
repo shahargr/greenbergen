@@ -52,7 +52,21 @@ export const DOOR_URL: Record<DoorKey, string> = {
 export const DOOR_ENTRY: Record<DoorKey, string> = {
   homeowner: `${DOOR_URL.homeowner}/project`,
   expert: `${DOOR_URL.expert}/work`,
-  admin: "/my",
+  // ADMINISTRATION, NOT THE HOUSES (Shahar, 2026-09-20: "admin page should
+  // focus only on administration and not visibility into projects" - he was
+  // looking at /my, because that is where this door used to open).
+  //
+  // /my is the OWNER dashboard: your houses, your projects, your money. It is
+  // the right screen for the ten members who are not administrators, and the
+  // right screen for an administrator who wants their own house - so it stays
+  // exactly as it is. It was just never the administration screen, and having
+  // the admin door open on it meant an administrator arriving at the site was
+  // handed somebody's project list instead of the platform.
+  //
+  // Only superadmins hold this door (my_doors() -> 'admin', is_superadmin),
+  // so this cannot land anyone on a screen /admin/layout would bounce them
+  // off.
+  admin: "/admin",
 };
 
 // THE SAME DOOR, OPENED ON ONE JOB. Every door has a per-project screen, so
