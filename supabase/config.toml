@@ -1,0 +1,22 @@
+# Supabase project configuration.
+#
+# The three Edge Functions below were LIVE IN SUPABASE AND NOWHERE ELSE until
+# 2026-09-20 - deployed, serving money traffic, and absent from git. This file
+# and the sources beside it are now the record; Supabase is the deployment.
+#
+# verify_jwt IS A DEPLOY SETTING, NOT A CODE ONE, which is why it is here and
+# not only in a comment. stripe-webhook must stay false: Stripe cannot send a
+# Supabase JWT, and the authentication is the Stripe signature checked inside
+# the function. A redeploy that let it default to true would silently reject
+# every webhook and the failure would look like Stripe going quiet.
+
+project_id = "oznqiwldgjrykadqsriv"
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.create-stage-payment]
+verify_jwt = true
+
+[functions.stripe-connect-onboarding]
+verify_jwt = true

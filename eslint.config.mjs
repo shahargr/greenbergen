@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Nested apps lint themselves (apps/homeowner has its own config).
     "apps/**",
+    // Deno sources for the Supabase Edge Functions - not part of this app.
+    "supabase/**",
   ]),
 ]);
 
