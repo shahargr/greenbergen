@@ -25,7 +25,7 @@ export function SubtaskRow({ task, parentId }: { task: Subtask; parentId: string
 
   if (!unlocked) {
     return (
-      <div className="small" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 10, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 8, minWidth: 0 }}>
+      <div className="small" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", gap: 10, alignItems: "center", borderTop: "1px solid var(--soft)", paddingTop: 8, minWidth: 0 }}>
         <Link href={`/my/task/${task.id}`} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: "none", color: "inherit" }}>
           {task.action ?? "(untitled)"} →
         </Link>
@@ -43,7 +43,7 @@ export function SubtaskRow({ task, parentId }: { task: Subtask; parentId: string
     <form
       action={saveTask.bind(null, task.id)}
       onSubmit={() => setBusy(true)}
-      style={{ display: "grid", gap: 8, borderTop: "1px solid #f0f1ee", paddingTop: 8, minWidth: 0 }}
+      style={{ display: "grid", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 8, minWidth: 0 }}
     >
       <input type="hidden" name="back" value={`/my/task/${parentId}`} />
       <div className="field" style={{ marginBottom: 0 }}>

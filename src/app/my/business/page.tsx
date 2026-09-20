@@ -71,7 +71,7 @@ export default async function BusinessPage({
       <p className="small" style={{ margin: "0 0 6px" }}><Link href="/my/settings">← Account setup</Link></p>
       <span className="kicker">Business</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 12px" }}>{co?.company_name ?? "Your business"}</h1>
-      {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
+      {ok && <p className="banner" style={{ background: "var(--ok)" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14 }}>
@@ -85,16 +85,16 @@ export default async function BusinessPage({
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 8 }}>
               {[["Invited", f.invited], ["Awaiting decision", f.submitted], ["Won", f.won], ["Lost", f.lost]].map(([l, n]) => (
-                <div key={String(l)} className="card" style={{ padding: "8px 10px", background: "#fafbfa" }}>
+                <div key={String(l)} className="card" style={{ padding: "8px 10px", background: "var(--soft)" }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color: "var(--brand)" }}>{n as number}</div>
                   <div className="muted" style={{ fontSize: 11 }}>{l as string}</div>
                 </div>
               ))}
-              <div className="card" style={{ padding: "8px 10px", background: "#fafbfa" }}>
+              <div className="card" style={{ padding: "8px 10px", background: "var(--soft)" }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: "var(--brand)" }}>{winRate == null ? "—" : `${winRate}%`}</div>
                 <div className="muted" style={{ fontSize: 11 }}>Win rate</div>
               </div>
-              <div className="card" style={{ padding: "8px 10px", background: "#fafbfa" }}>
+              <div className="card" style={{ padding: "8px 10px", background: "var(--soft)" }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: "var(--brand)" }}>{money(f.won_value)}</div>
                 <div className="muted" style={{ fontSize: 11 }}>Won, total</div>
               </div>
@@ -189,7 +189,7 @@ export default async function BusinessPage({
                       <td className="small" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{money(it.unit_price)}</td>
                       <td style={{ textAlign: "right" }}>
                         <form action={deletePriceItem.bind(null, it.id)}>
-                          <button className="btn ghost small" style={{ padding: "1px 8px", color: "#c0262d" }} aria-label={`Remove ${it.item}`}>✕</button>
+                          <button className="btn ghost small" style={{ padding: "1px 8px", color: "var(--danger)" }} aria-label={`Remove ${it.item}`}>✕</button>
                         </form>
                       </td>
                     </tr>
@@ -200,7 +200,7 @@ export default async function BusinessPage({
           )}
 
           {add === "1" && (
-            <form action={savePriceItem} style={{ display: "grid", gap: 8, borderTop: "1px solid #eef0ec", paddingTop: 10 }}>
+            <form action={savePriceItem} style={{ display: "grid", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 10 }}>
               <div className="form-2col">
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="pi-item">What you charge for</label>
@@ -299,7 +299,7 @@ export default async function BusinessPage({
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {DOC_KINDS.slice(0, 3).map(([k, label]) => (
               <span key={k} className="extra-chip"
-                style={has(k) ? { background: "#e6f2ea", color: "#1f6b45" } : { background: "#fdf4e3", color: "#a8842c" }}>
+                style={has(k) ? { background: "var(--ok-soft)", color: "var(--brand)" } : { background: "#fdf4e3", color: "var(--warn)" }}>
                 {has(k) ? "✓" : "○"} {label}
               </span>
             ))}
@@ -309,17 +309,17 @@ export default async function BusinessPage({
           </p>
 
           {b.documents.map((d) => (
-            <div key={d.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", borderTop: "1px solid #eef0ec", paddingTop: 6, flexWrap: "wrap" }}>
+            <div key={d.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", borderTop: "1px solid var(--soft)", paddingTop: 6, flexWrap: "wrap" }}>
               <span style={{ minWidth: 0 }}>
                 <strong>{d.label}</strong>
                 <span className="muted"> · {DOC_KINDS.find(([k]) => k === d.kind)?.[1] ?? d.kind}</span>
                 {d.expires_on && <span className="muted"> · expires {d.expires_on}</span>}
               </span>
               <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                {d.expired && <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}>expired</span>}
+                {d.expired && <span className="extra-chip" style={{ background: "#fdecec", color: "var(--danger)" }}>expired</span>}
                 {links.get(d.id) && <a href={links.get(d.id)} target="_blank" rel="noreferrer" className="btn ghost small" style={{ padding: "1px 8px" }}>Open</a>}
                 <form action={deleteCredential.bind(null, d.id)}>
-                  <button className="btn ghost small" style={{ padding: "1px 8px", color: "#c0262d" }} aria-label={`Remove ${d.label}`}>✕</button>
+                  <button className="btn ghost small" style={{ padding: "1px 8px", color: "var(--danger)" }} aria-label={`Remove ${d.label}`}>✕</button>
                 </form>
               </span>
             </div>
@@ -327,7 +327,7 @@ export default async function BusinessPage({
           {b.documents.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing on file yet.</p>}
 
           {doc === "1" && (
-            <form action={saveBusinessDoc} style={{ display: "grid", gap: 8, borderTop: "1px solid #eef0ec", paddingTop: 10 }}>
+            <form action={saveBusinessDoc} style={{ display: "grid", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 10 }}>
               <div className="form-2col">
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="d-kind">Kind</label>

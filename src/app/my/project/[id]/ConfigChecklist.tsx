@@ -21,7 +21,7 @@ export function ConfigChecklist({ projectId, items }: { projectId: string; items
           style={{
             display: "grid", gap: 6, padding: "10px 12px",
             borderTop: i === 0 ? "none" : "1px solid var(--line, #e5e7eb)",
-            background: it.done ? "#f2f7f3" : "#fff",
+            background: it.done ? "var(--ok-soft)" : "#fff",
           }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <form action={configToggle.bind(null, projectId, it.id, !it.done)} style={{ display: "flex" }}>

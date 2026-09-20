@@ -55,7 +55,7 @@ export async function ScopeBrief({ projectId, description, caps, canEdit }: {
       )}
 
       {specs.length > 0 && (
-        <div style={{ display: "grid", gap: 6, borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+        <div style={{ display: "grid", gap: 6, borderTop: "1px solid var(--soft)", paddingTop: 8 }}>
           <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>
             Specs · {specs.length}
           </div>
@@ -71,14 +71,14 @@ export async function ScopeBrief({ projectId, description, caps, canEdit }: {
       )}
 
       {canEdit && (caps.image || caps.video || caps.document) && (
-        <form action={uploadScopeFiles.bind(null, projectId)} style={{ display: "grid", gap: 8, borderTop: "1px solid #eef0ec", paddingTop: 10 }}>
+        <form action={uploadScopeFiles.bind(null, projectId)} style={{ display: "grid", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 10 }}>
           <FileDrop name="files" videoName="videos" docName="docs" accept={acceptFor(caps)}
             label="Add photos, plans or PDFs" camera={caps.image} />
           <div><button className="btn small">Upload</button></div>
         </form>
       )}
 
-      <div style={{ display: "grid", gap: 4, borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+      <div style={{ display: "grid", gap: 4, borderTop: "1px solid var(--soft)", paddingTop: 8 }}>
         <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>
           Files · {files.length}
         </div>
@@ -90,8 +90,8 @@ export async function ScopeBrief({ projectId, description, caps, canEdit }: {
             <div key={f.id} className="small" style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid #f4f5f2", paddingTop: 4, minWidth: 0 }}>
               {isImg && u
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={u} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 6, border: "1px solid #e7e9e4", flex: "none" }} />
-                : <span style={{ width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 6, border: "1px solid #e7e9e4", background: "#f7f8f5", flex: "none" }}>
+                ? <img src={u} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)", flex: "none" }} />
+                : <span style={{ width: 32, height: 32, display: "grid", placeItems: "center", borderRadius: 6, border: "1px solid var(--line)", background: "var(--soft)", flex: "none" }}>
                     {f.kind === "video" ? "🎬" : f.kind === "audio" ? "🎙" : "📄"}
                   </span>}
               <span style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -100,7 +100,7 @@ export async function ScopeBrief({ projectId, description, caps, canEdit }: {
               </span>
               {canEdit && (
                 <form action={deleteScopeFile.bind(null, projectId, f.id)} style={{ flex: "none" }}>
-                  <button className="btn ghost small" style={{ padding: "1px 8px", color: "#c0262d" }}
+                  <button className="btn ghost small" style={{ padding: "1px 8px", color: "var(--danger)" }}
                     aria-label={`Delete ${f.file_name}`} title="Delete this file">✕</button>
                 </form>
               )}

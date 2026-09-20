@@ -174,7 +174,7 @@ export function InviteBuilder({ isSuperadmin, senderName, defaultComment }: { is
       {link && (
         <div className="card" style={{ padding: "18px 20px", display: "grid", gap: 12 }}>
           <span className="section-title" style={{ marginBottom: 0 }}>Send it</span>
-          <code className="small" style={{ wordBreak: "break-all", background: "#f2f7f3", padding: "8px 10px", borderRadius: 8 }}>
+          <code className="small" style={{ wordBreak: "break-all", background: "var(--ok-soft)", padding: "8px 10px", borderRadius: 8 }}>
             {link}
           </code>
           <div className="btn-row">

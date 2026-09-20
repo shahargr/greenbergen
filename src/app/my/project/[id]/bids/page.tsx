@@ -13,9 +13,9 @@ type BudgetLine = { id: string; phase: string | null; category: string | null; t
 
 const money = (n: number | null) => (n == null ? "—" : `$${Math.round(n).toLocaleString()}`);
 const statusTone = (s: string) =>
-  s === "open" ? { background: "#e4f0e9", color: "#2f6b4f" }
-  : s === "reviewing" ? { background: "#f7efdd", color: "#a8842c" }
-  : s === "awarded" ? { background: "#e4f0e9", color: "#2f6b4f" }
+  s === "open" ? { background: "var(--ok-soft)", color: "var(--ok)" }
+  : s === "reviewing" ? { background: "#f7efdd", color: "var(--warn)" }
+  : s === "awarded" ? { background: "var(--ok-soft)", color: "var(--ok)" }
   : { background: "#eef1ea", color: "#7b857e" };
 
 // Bid planner for one project: every package by phase, and a way to start
@@ -48,7 +48,7 @@ export default async function BidsPage({
       <p className="small" style={{ margin: "0 0 6px" }}><Link href={`/my/project/${id}`}>← {project.project_name}</Link></p>
       <span className="kicker">Bid planner</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 12px" }}>Packages · {pkgs.length}</h1>
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
+      {saved && <p className="banner" style={{ background: "var(--ok)" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
       <p className="muted small" style={{ margin: "0 0 14px" }}>
         One package per phase and category: scope, documents, optional budget, insurance and payment terms — so every reply lands in the same shape and can be compared like for like.

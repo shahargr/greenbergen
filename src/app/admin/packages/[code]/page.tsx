@@ -93,7 +93,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       <p className="small"><Link href="/admin/packages">&larr; All packages</Link></p>
       <span className="kicker">Package · {p.trade}{p.covered ? "" : " · nobody approved carries this trade"}</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 4px" }}>{p.name}</h1>
-      {error && <p className="card" style={{ borderLeft: "4px solid #c0262d" }}>{error}</p>}
+      {error && <p className="card" style={{ borderLeft: "4px solid var(--danger)" }}>{error}</p>}
       {saved && <p className="card" style={{ borderLeft: "4px solid var(--brand)" }}>{saved}</p>}
 
       {/* 1. THE PACKAGE AND ITS BASIC SETUP */}

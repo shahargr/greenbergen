@@ -67,7 +67,7 @@ export async function CrewSite({ projectId, projectName, address, caps }: {
         <div className="card" style={{ display: "grid", gap: 4 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Today</h2>
           {day.events.map((e, i) => (
-            <div key={i} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid #eef0ec", paddingTop: 4 }}>
+            <div key={i} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid var(--soft)", paddingTop: 4 }}>
               <span>{e.kind === "arrive" ? "🟢 Signed in" : "🔴 Signed out"}{e.note ? ` · ${e.note}` : ""}</span>
               <span className="muted">{clock(e.at)}</span>
             </div>

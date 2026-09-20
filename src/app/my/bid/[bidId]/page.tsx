@@ -98,9 +98,9 @@ export default async function BidReplyPage({
       )}
       <p className="muted small" style={{ margin: "0 0 12px" }}>
         {b.bidder ? `${b.bidder} · ` : ""}status <strong>{b.status}</strong> · reply by {pk.reply_by ?? "—"}
-        {pk.status !== "open" && <> · <span style={{ color: "#a8842c" }}>package {pk.status}</span></>}
+        {pk.status !== "open" && <> · <span style={{ color: "var(--warn)" }}>package {pk.status}</span></>}
       </p>
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
+      {saved && <p className="banner" style={{ background: "var(--ok)" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14 }}>
@@ -136,7 +136,7 @@ export default async function BidReplyPage({
             {pk.items.map((i) => {
               const li = prior.get(i.scope_item_id);
               return (
-                <div key={i.scope_item_id} className="small" style={{ display: "grid", gridTemplateColumns: "24px 1fr 120px", gap: 8, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                <div key={i.scope_item_id} className="small" style={{ display: "grid", gridTemplateColumns: "24px 1fr 120px", gap: 8, alignItems: "center", borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                   <input type="checkbox" name={`inc_${i.scope_item_id}`} defaultChecked={li ? li.included : true} />
                   <span>{i.item}{i.is_required && <span className="muted"> · required</span>}</span>
                   <input name={`price_${i.scope_item_id}`} className="input" inputMode="decimal" defaultValue={li?.price ?? ""} placeholder="incl." style={{ height: 32, padding: "2px 8px" }} />
@@ -199,9 +199,9 @@ export default async function BidReplyPage({
                 {pk.items.map((i) => {
                   const li = prior.get(i.scope_item_id);
                   return (
-                    <div key={i.scope_item_id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                    <div key={i.scope_item_id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                       <span style={{ flex: 1 }}>{i.item}{i.is_required && <span className="muted"> · required</span>}</span>
-                      <span style={{ whiteSpace: "nowrap", color: li?.included ? "#2f6b4f" : "#c0262d", fontWeight: 600 }}>{li?.included ? (li.price != null ? money(li.price) : "included") : "excluded"}</span>
+                      <span style={{ whiteSpace: "nowrap", color: li?.included ? "var(--ok)" : "var(--danger)", fontWeight: 600 }}>{li?.included ? (li.price != null ? money(li.price) : "included") : "excluded"}</span>
                     </div>
                   );
                 })}

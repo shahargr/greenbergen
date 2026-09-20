@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { ActAsTable } from "@/components/ActAsTable";
 import { beginViewAs } from "@/components/viewas";
 import {
   vendorDecision,
@@ -286,7 +287,13 @@ export default async function AdminUsersPage({
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96 }}>
       <span className="kicker">Admin</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 14px" }}>User management</h1>
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Done ✓</p>}
+
+      {/* Moved off /admin/console on 2026-09-20 (Shahar: "remove all people
+          from the setup page, they should be listed under users &
+          contractors" - contractors among them). Two screens listing the same
+          people is how they drift. */}
+      <ActAsTable here="/admin/users" />
+      {saved && <p className="banner" style={{ background: "var(--ok)" }}>Done ✓</p>}
       {error && <p className="error small">{error}</p>}
 
       <div className="youband" style={{ marginBottom: 16 }}>

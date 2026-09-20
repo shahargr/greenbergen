@@ -157,7 +157,7 @@ export function CardTxRow({
         style={{ cursor: "pointer" }}
       >
         <td className="muted" style={cell}>{tx.on_date ?? "—"}</td>
-        <td style={{ ...cell, fontWeight: 600, color: pending ? "#a8842c" : undefined }}>{money(tx.amount)}</td>
+        <td style={{ ...cell, fontWeight: 600, color: pending ? "var(--warn)" : undefined }}>{money(tx.amount)}</td>
         <td style={cell}>{tx.paid_to}</td>
         <td className="muted col-status" style={cell}>{tx.status}</td>
         <td className="muted" style={{ fontSize: 11, textAlign: "right" }}>{open ? "▴" : "▾"}</td>
@@ -182,7 +182,7 @@ export function CardTxRow({
               {/* The lookup: contract, task, references, audit trail, receipts. */}
               {loading && <span className="muted small">Loading details…</span>}
               {detail && (
-                <div style={{ display: "grid", gap: 8, borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+                <div style={{ display: "grid", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 8 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }} className="small">
                     <Field label="Contact on record" value={detail.contractor?.name ?? "—"} />
                     <Field label="Contract" value={detail.contract?.title ?? "—"} />
@@ -208,7 +208,7 @@ export function CardTxRow({
                               style={{ display: "inline-block", textDecoration: "none" }}>
                               {isImg
                                 // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={u} alt={a.file_name} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
+                                ? <img src={u} alt={a.file_name} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
                                 : <span className="extra-chip">📄 {a.file_name}</span>}
                             </a>
                           ) : (

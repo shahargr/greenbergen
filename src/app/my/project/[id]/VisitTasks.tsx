@@ -31,7 +31,7 @@ export function VisitTasks({ members }: { members: VisitMember[] }) {
       )}
 
       {rows.map((i) => (
-        <div key={i} className="card" style={{ padding: "8px 10px", display: "grid", gap: 6, background: "#fafbfa" }}>
+        <div key={i} className="card" style={{ padding: "8px 10px", display: "grid", gap: 6, background: "var(--soft)" }}>
           {/* The row id travels with the row, so the evidence checkbox still
               matches its task after other rows are removed. */}
           <input type="hidden" name="task_row" value={String(i)} />
@@ -58,7 +58,7 @@ export function VisitTasks({ members }: { members: VisitMember[] }) {
               <input type="checkbox" name="task_attach" value={String(i)} defaultChecked />
               Attach this visit&apos;s evidence
             </label>
-            <button type="button" className="btn ghost small" style={{ color: "#c0262d" }} onClick={() => dropRow(i)}>
+            <button type="button" className="btn ghost small" style={{ color: "var(--danger)" }} onClick={() => dropRow(i)}>
               Remove
             </button>
           </div>

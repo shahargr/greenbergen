@@ -522,7 +522,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                   <img src={avatars[who]} alt="" className="phase-icon"
                     style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", padding: 0 }} />
                 ) : (
-                  <span className="phase-icon" style={{ background: "#fdecec", color: "#c0262d", width: 26, height: 26 }} title={lateTrade.get(who) ?? "No trade"}>
+                  <span className="phase-icon" style={{ background: "#fdecec", color: "var(--danger)", width: 26, height: 26 }} title={lateTrade.get(who) ?? "No trade"}>
                     <span style={{ display: "inline-flex", transform: "scale(0.62)" }}><TradeIcon trade={lateTrade.get(who) ?? ""} /></span>
                   </span>
                 )}
@@ -624,11 +624,11 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                 onClick={() => { setPhase(on ? "all" : s.key); setView("all"); setOpen(null); }}>
                 <span className="phase-name" style={{ fontSize: 12 }}>{s.label}</span>
                 <span className="small" style={{ fontWeight: 700 }}>
-                  <span style={{ color: over ? "#c0262d" : "#2f6b4f" }}>{tileMoney(s.actual)}</span>
+                  <span style={{ color: over ? "var(--danger)" : "var(--ok)" }}>{tileMoney(s.actual)}</span>
                   <span className="muted" style={{ fontWeight: 400 }}> / {tileMoney(s.budget)}</span>
                 </span>
                 <span className="progressbar" style={{ width: "100%", background: "#eceee9" }}>
-                  <span style={{ width: `${pct}%`, background: over ? "#c0262d" : "#2f6b4f", display: "inline-block", height: "100%" }} />
+                  <span style={{ width: `${pct}%`, background: over ? "var(--danger)" : "var(--ok)", display: "inline-block", height: "100%" }} />
                 </span>
                 <span className="phase-nums">
                   <strong>{st.open}</strong> open
@@ -685,7 +685,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
       )}
 
       {parentOf && (
-        <div className="small" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#fdecec", color: "#c0262d", padding: "6px 10px", borderRadius: 8 }}>
+        <div className="small" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#fdecec", color: "var(--danger)", padding: "6px 10px", borderRadius: 8 }}>
           <span>Subtasks of <strong>{parentTitle}</strong> · {shown.length}</span>
           <button type="button" className="btn ghost small" onClick={() => { setParentOf(null); setOpen(null); }}>Show all tasks ✕</button>
         </div>
@@ -729,7 +729,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                       )}
                       {kids.length > 0 ? (
                         <button type="button" className="extra-chip"
-                          style={{ marginTop: 2, cursor: "pointer", border: "none", background: isOpen ? "#e6f2ea" : "#fdecec", color: isOpen ? "#1f6b45" : "#c0262d", fontWeight: 600 }}
+                          style={{ marginTop: 2, cursor: "pointer", border: "none", background: isOpen ? "var(--ok-soft)" : "#fdecec", color: isOpen ? "var(--brand)" : "var(--danger)", fontWeight: 600 }}
                           title={isOpen ? "Fold the subtasks away" : "Unfold this task's subtasks"}
                           aria-expanded={isOpen}
                           onClick={(e) => { e.stopPropagation(); setExpanded(toggleSet(expanded, t.id)); }}>
@@ -737,7 +737,7 @@ export function TasksTable({ tasks, initialProject, initialDomain, initialState,
                         </button>
                       ) : (t.open_children ?? 0) > 0 && (
                         <button type="button" className="extra-chip"
-                          style={{ marginTop: 2, cursor: "pointer", border: "none", background: "#fdecec", color: "#c0262d", fontWeight: 600 }}
+                          style={{ marginTop: 2, cursor: "pointer", border: "none", background: "#fdecec", color: "var(--danger)", fontWeight: 600 }}
                           title="Show this task's open subtasks"
                           onClick={(e) => { e.stopPropagation(); setParentOf(t.id); setView("all"); setOpen(null); }}>
                           {t.open_children} open subtask{t.open_children === 1 ? "" : "s"} →

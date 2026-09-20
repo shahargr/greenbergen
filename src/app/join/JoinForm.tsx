@@ -231,7 +231,7 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
           Complete it any time at the link below — we verify you by your phone
           number, so the link is safe to keep.
         </p>
-        <code className="small" style={{ wordBreak: "break-all", background: "#f2f7f3", padding: "8px 10px", borderRadius: 8 }}>
+        <code className="small" style={{ wordBreak: "break-all", background: "var(--ok-soft)", padding: "8px 10px", borderRadius: 8 }}>
           {completeLink}
         </code>
         <div className="btn-row">

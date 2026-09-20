@@ -85,7 +85,7 @@ export function ShareBidForm({ projectId, candidates, trades }: {
       </div>
 
       {other.length > 0 && (
-        <div style={{ borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
+        <div style={{ borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
           <button type="button" className="btn ghost small" onClick={() => setShowOthers((v) => !v)}>
             {showOthers ? "Hide" : `${other.length} other${other.length === 1 ? "" : "s"} do different work`}
           </button>
@@ -103,7 +103,7 @@ export function ShareBidForm({ projectId, candidates, trades }: {
       <div><button className="btn small">Send the brief</button></div>
 
       {invited.length > 0 && (
-        <p className="muted small" style={{ margin: 0, borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
+        <p className="muted small" style={{ margin: 0, borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
           Already holding this brief: {invited.map((c) => c.name).join(", ")}.
         </p>
       )}

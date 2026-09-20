@@ -649,7 +649,7 @@ export default async function ProjectPage({
   const rollup = (rollupData ?? null) as Rollup | null;
   // Gantt milestone sign: a diamond. Red while the gate is open, green once closed.
   const gateIcon = (closed: boolean) => (
-    <span aria-hidden style={{ display: "inline-block", width: 9, height: 9, background: closed ? "#1f6b45" : "#c0262d", transform: "rotate(45deg)", marginRight: 6, verticalAlign: "0px" }} />
+    <span aria-hidden style={{ display: "inline-block", width: 9, height: 9, background: closed ? "var(--brand)" : "var(--danger)", transform: "rotate(45deg)", marginRight: 6, verticalAlign: "0px" }} />
   );
   const overdueTasks = projectTasks.filter((t) => t.state === "open" && t.target_date && t.target_date < todayIso);
   const dayLabel = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
@@ -731,8 +731,8 @@ export default async function ProjectPage({
         );
       })()}
 
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
-      {flashOk && <p className="banner" style={{ background: "#2f6b4f" }}>{flashOk}</p>}
+      {saved && <p className="banner" style={{ background: "var(--ok)" }}>Saved ✓</p>}
+      {flashOk && <p className="banner" style={{ background: "var(--ok)" }}>{flashOk}</p>}
       {error && <p className="error small">{error}</p>}
       {/* Somebody invited who has no account here yet: the invitation only
           becomes real when this link reaches them, so it is shown once,
@@ -821,7 +821,7 @@ export default async function ProjectPage({
               <div className="hub-cols">
                 <div className="card" style={{ display: "grid", gap: 4, alignContent: "start", minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                    <h2 className="section-title" style={{ margin: 0, color: "#a8842c" }}>Projects · {myProjects.length}</h2>
+                    <h2 className="section-title" style={{ margin: 0, color: "var(--warn)" }}>Projects · {myProjects.length}</h2>
                     {perms.rank >= 50 && <Link href={`/my/new-project?parent=${project.id}`} className="small" style={{ whiteSpace: "nowrap", fontWeight: 700 }}>＋ New</Link>}
                   </div>
                   {myProjects.length === 0 && <p className="muted small" style={{ margin: "4px 0 0" }}>Nothing under way. A kitchen, a generator, a deck — start one.</p>}
@@ -844,10 +844,10 @@ export default async function ProjectPage({
                   return (
                     <Link key={t.id} href={`/my/task/${t.id}`} className="hub-row">
                       <span className="hub-name" style={{ fontWeight: 500 }}>
-                        {(late || t.priority === "High") && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                        {(late || t.priority === "High") && <span style={{ color: "var(--danger)" }}>● </span>}{t.action}
                         {t.project_id !== project.id && <span className="muted"> · {nameOf.get(t.project_id) ?? ""}</span>}
                       </span>
-                      <span className="small" style={{ whiteSpace: "nowrap", color: late ? "#c0262d" : "var(--muted)" }}>
+                      <span className="small" style={{ whiteSpace: "nowrap", color: late ? "var(--danger)" : "var(--muted)" }}>
                         {t.target_date ? (late ? `${dayLabel(t.target_date)} · late` : dayLabel(t.target_date)) : "no date"}
                       </span>
                     </Link>
@@ -884,7 +884,7 @@ export default async function ProjectPage({
                   ))}
                   {dayTasks.map((t) => (
                     <Link key={t.id} href={itemHref(t.id)} className="weekitem" title={t.action} style={selectedItem === t.id ? { fontWeight: 700, textDecoration: "underline" } : undefined}>
-                      {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                      {t.priority === "High" && <span style={{ color: "var(--danger)" }}>● </span>}{t.action}
                     </Link>
                   ))}
                   {dayPay.map((p) => (
@@ -905,7 +905,7 @@ export default async function ProjectPage({
             })}
           </div>
           {overdueTasks.length > 0 && (
-            <p className="small" style={{ margin: 0, color: "#c0262d" }}>
+            <p className="small" style={{ margin: 0, color: "var(--danger)" }}>
               <strong>{overdueTasks.length} overdue</strong> · oldest {dayLabel(overdueTasks[0].target_date!)} — <Link href={`/my/project/${project.id}?tab=site&tasks=stuck`} style={{ color: "inherit" }}>see them</Link>
             </p>
           )}
@@ -922,7 +922,7 @@ export default async function ProjectPage({
 
         {/* A schedule item, unfolded in place. */}
         {item && (
-          <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, borderLeft: `3px solid ${item.is_gate ? (["Completed", "Cancelled", "Force Cancelled"].includes(item.status) ? "#1f6b45" : "#c0262d") : item.status === "Completed" ? "#1f6b45" : "var(--brand)"}` }}>
+          <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, borderLeft: `3px solid ${item.is_gate ? (["Completed", "Cancelled", "Force Cancelled"].includes(item.status) ? "var(--brand)" : "var(--danger)") : item.status === "Completed" ? "var(--brand)" : "var(--brand)"}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
               <h2 className="section-title" style={{ margin: 0 }}>
                 {item.is_gate && gateIcon(["Completed", "Cancelled", "Force Cancelled"].includes(item.status))}{item.action ?? "(untitled)"}
@@ -934,10 +934,10 @@ export default async function ProjectPage({
             </div>
             <div className="small" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <span className="extra-chip">{item.status}</span>
-              {item.priority && <span className="extra-chip" style={item.priority === "High" ? { background: "#fdecec", color: "#c0262d" } : undefined}>{item.priority}</span>}
+              {item.priority && <span className="extra-chip" style={item.priority === "High" ? { background: "#fdecec", color: "var(--danger)" } : undefined}>{item.priority}</span>}
               {item.target_date && <span className="extra-chip">Due {item.target_date}</span>}
-              {item.completed_on && <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>Done {item.completed_on}</span>}
-              {item.is_gate && <span className="extra-chip" style={{ background: "#fdf4e3", color: "#a8842c" }}>Gate</span>}
+              {item.completed_on && <span className="extra-chip" style={{ background: "var(--ok-soft)", color: "var(--brand)" }}>Done {item.completed_on}</span>}
+              {item.is_gate && <span className="extra-chip" style={{ background: "#fdf4e3", color: "var(--warn)" }}>Gate</span>}
             </div>
             <div className="small" style={{ display: "grid", gridTemplateColumns: "120px minmax(0, 1fr)", gap: "4px 10px" }}>
               <span className="muted">Assigned to</span>
@@ -961,10 +961,10 @@ export default async function ProjectPage({
           ];
           const kindLabel = { gate: "Gate", task: "Task", done: "Completed", payment: "Payment" } as const;
           const kindStyle = (k: DayRow["kind"], st: string): React.CSSProperties =>
-            k === "gate" ? (["Completed", "Cancelled", "Force Cancelled"].includes(st) ? { background: "#e6f2ea", color: "#1f6b45" } : { background: "#fdecec", color: "#c0262d" })
-            : k === "done" ? { background: "#e6f2ea", color: "#1f6b45" }
-            : k === "payment" ? { background: "#fdf4e3", color: "#a8842c" }
-            : { background: "#f0f1ee", color: "#555" };
+            k === "gate" ? (["Completed", "Cancelled", "Force Cancelled"].includes(st) ? { background: "var(--ok-soft)", color: "var(--brand)" } : { background: "#fdecec", color: "var(--danger)" })
+            : k === "done" ? { background: "var(--ok-soft)", color: "var(--brand)" }
+            : k === "payment" ? { background: "#fdf4e3", color: "var(--warn)" }
+            : { background: "var(--soft)", color: "#555" };
           return (
             <div className="card" style={{ display: "grid", gap: 6, minWidth: 0, overflowX: "auto", borderLeft: "3px solid var(--brand)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
@@ -987,7 +987,7 @@ export default async function ProjectPage({
                           <span className="extra-chip" style={kindStyle(r.kind, r.status)}>
                             {r.kind === "gate" ? <>{gateIcon(["Completed", "Cancelled", "Force Cancelled"].includes(r.status))}Gate</> : kindLabel[r.kind]}
                           </span>
-                          {r.priority === "High" && <span style={{ color: "#c0262d", fontWeight: 600 }}>High</span>}
+                          {r.priority === "High" && <span style={{ color: "var(--danger)", fontWeight: 600 }}>High</span>}
                           {r.who && <span>{r.who}</span>}
                           <span className="muted">{r.status}</span>
                         </span>
@@ -1007,7 +1007,7 @@ export default async function ProjectPage({
                       <tr key={`${r.kind}-${r.id}`}>
                         <td style={{ fontWeight: 600 }}>{r.href ? <Link href={r.href}>{r.title}</Link> : r.title}</td>
                         <td><span className="extra-chip" style={kindStyle(r.kind, r.status)}>{r.kind === "gate" ? <>{gateIcon(["Completed", "Cancelled", "Force Cancelled"].includes(r.status))}Gate</> : kindLabel[r.kind]}</span></td>
-                        <td className="small">{r.priority === "High" ? <span style={{ color: "#c0262d", fontWeight: 600 }}>High</span> : (r.priority ?? <span className="muted">—</span>)}</td>
+                        <td className="small">{r.priority === "High" ? <span style={{ color: "var(--danger)", fontWeight: 600 }}>High</span> : (r.priority ?? <span className="muted">—</span>)}</td>
                         <td className="small">{r.who ?? <span className="muted">—</span>}</td>
                         <td className="muted small" style={{ whiteSpace: "nowrap" }}>{r.status}</td>
                       </tr>
@@ -1098,7 +1098,7 @@ export default async function ProjectPage({
                 ? <p className="muted small" style={{ margin: 0 }}>Start a package from a budget line. The brief above travels with it, so bidders price from the owner&apos;s own words and photos.</p>
                 : bidPkgs.map((p) => (
                   <Link key={p.id} href={`/my/project/${project.id}/bids/${p.id}`} className="small"
-                    style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                    style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                       <span className="muted">{p.phase ?? "—"} · </span><strong>{p.category ?? p.trade ?? "Package"}</strong>
                     </span>
@@ -1113,7 +1113,7 @@ export default async function ProjectPage({
               {bidPkgs.length === 0
                 ? <p className="muted small" style={{ margin: 0 }}>Create a package first, then invite from the People on this project. Bidders reply through their portal account.</p>
                 : bidPkgs.map((p) => (
-                  <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+                  <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0 }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                       <strong>{p.category ?? p.trade ?? "Package"}</strong> <span className="muted">· {p.n_received}/{p.n_invited} replies{p.reply_by ? ` · by ${p.reply_by}` : ""}</span>
                     </span>
@@ -1131,11 +1131,11 @@ export default async function ProjectPage({
               {bidPkgs.map((p) => {
                 const w = wonByPkg.get(p.id);
                 return (
-                  <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+                  <div key={p.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0 }}>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                       <strong>{p.category ?? p.trade ?? "Package"}</strong>{" "}
                       {w
-                        ? <span style={{ color: "#2f6b4f" }}>✅ awarded to {w.contacts?.person_name ?? w.contacts?.name ?? "—"}{w.amount != null ? ` · $${Math.round(w.amount).toLocaleString()}` : ""}</span>
+                        ? <span style={{ color: "var(--ok)" }}>✅ awarded to {w.contacts?.person_name ?? w.contacts?.name ?? "—"}{w.amount != null ? ` · $${Math.round(w.amount).toLocaleString()}` : ""}</span>
                         : <span className="muted">· {p.n_received > 0 ? `${p.n_received} repl${p.n_received === 1 ? "y" : "ies"} to review` : "waiting for replies"}</span>}
                     </span>
                     {!w && p.n_received > 0 && (
@@ -1232,7 +1232,7 @@ export default async function ProjectPage({
               <h2 className="section-title" style={{ margin: 0 }}>Visits · {visits.length}</h2>
               {visits.length === 0 && <p className="muted small" style={{ margin: 0 }}>No visits logged yet.</p>}
               {visits.map((v) => (
-                <Link key={v.id} href={`/my/task/${v.id}`} className="small" style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+                <Link key={v.id} href={`/my/task/${v.id}`} className="small" style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0 }}>
                   <span style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                     <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{v.action.replace(/^Site visit log - /, "")}</strong>
                     <span className="muted" style={{ whiteSpace: "nowrap" }}>{v.n_files ? `${v.n_files} file${v.n_files === 1 ? "" : "s"}` : ""}{v.created_by ? ` · ${v.created_by}` : ""}</span>
@@ -1258,7 +1258,7 @@ export default async function ProjectPage({
             {sortedPeople.length === 0 && <p className="muted small" style={{ margin: 0 }}>No one on this project yet.</p>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6 }}>
               {[...sortedPeople].sort((x, y) => ((x.trade ? 0 : 1) - (y.trade ? 0 : 1)) || (x.trade ?? "").localeCompare(y.trade ?? "") || x.name.localeCompare(y.name)).map((p) => (
-                <label key={p.contactId} className="small" style={{ display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", border: "1px solid #e7e9e4", borderRadius: 8, background: onSiteToday.has(p.contactId) ? "#eef5f0" : "#fff", minWidth: 0, cursor: "pointer" }}>
+                <label key={p.contactId} className="small" style={{ display: "flex", gap: 6, alignItems: "center", padding: "6px 8px", border: "1px solid var(--line)", borderRadius: 8, background: onSiteToday.has(p.contactId) ? "var(--ok-soft)" : "#fff", minWidth: 0, cursor: "pointer" }}>
                   <input type="checkbox" name="contact" value={p.contactId} defaultChecked={onSiteToday.has(p.contactId)} />
                   <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     <strong>{p.name}</strong>{p.trade && <span className="muted"> · {p.trade}</span>}
@@ -1297,7 +1297,7 @@ export default async function ProjectPage({
             <h2 className="section-title" style={{ margin: 0 }}>Bids to answer · {myBids.length}</h2>
             {myBids.map((b) => (
               <Link key={b.id} href={`/my/bid/${b.id}`} className="small"
-                style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit", borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
                   <strong>{b.category ?? "Package"}</strong>{b.phase ? <span className="muted"> · {b.phase}</span> : null}
                 </span>
@@ -1340,9 +1340,9 @@ export default async function ProjectPage({
                           <td style={{ minWidth: 0 }}><strong style={{ fontWeight: 600 }}>{st.name}</strong></td>
                           <td className="muted" style={{ whiteSpace: "nowrap" }}>{st.contracts?.trade ?? st.contracts?.title ?? "—"}</td>
                           <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{money(st.amount)}</td>
-                          <td className="muted" style={{ whiteSpace: "nowrap", color: late ? "#c0262d" : undefined }}>{st.due_on ?? "—"}</td>
+                          <td className="muted" style={{ whiteSpace: "nowrap", color: late ? "var(--danger)" : undefined }}>{st.due_on ?? "—"}</td>
                           <td style={{ whiteSpace: "nowrap" }}>
-                            <span className="extra-chip" style={paid ? { background: "#e6f2ea", color: "#1f6b45" } : late ? { background: "#fdecec", color: "#c0262d" } : undefined}>
+                            <span className="extra-chip" style={paid ? { background: "var(--ok-soft)", color: "var(--brand)" } : late ? { background: "#fdecec", color: "var(--danger)" } : undefined}>
                               {paid ? `Paid${st.paid_at ? " " + String(st.paid_at).slice(0, 10) : ""}` : st.status}
                             </span>
                           </td>
@@ -1422,15 +1422,15 @@ export default async function ProjectPage({
             )}
             {/* Click a row to open the person's card: every task they're connected to. */}
             {visiblePeople.map((p) => (
-              <details key={p.contactId} style={{ borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0, overflow: "hidden" }}>
+              <details key={p.contactId} style={{ borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0, overflow: "hidden" }}>
                 <summary className="small" style={{ cursor: "pointer", listStyle: "none", display: "grid", gridTemplateColumns: "1fr 1.6fr 0.55fr 0.9fr 0.9fr 0.45fr 0.45fr", gap: 8, alignItems: "center", minWidth: 0 }}>
                   <span className="muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.trade ?? "—"}</span>
                   <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
                   <span>{p.open}</span>
-                  <span style={{ color: p.balance > 0 ? "#a8842c" : undefined, whiteSpace: "nowrap" }}>
+                  <span style={{ color: p.balance > 0 ? "var(--warn)" : undefined, whiteSpace: "nowrap" }}>
                     {p.balance > 0 ? `$${Math.round(p.balance).toLocaleString()}` : "—"}
                   </span>
-                  <span style={{ color: p.paid > 0 ? "#2f6b4f" : undefined, whiteSpace: "nowrap" }}>
+                  <span style={{ color: p.paid > 0 ? "var(--ok)" : undefined, whiteSpace: "nowrap" }}>
                     {p.paid > 0 ? `$${Math.round(p.paid).toLocaleString()}` : "—"}
                   </span>
                   <span>
@@ -1488,7 +1488,7 @@ export default async function ProjectPage({
               </details>
             ))}
             {perms.rank >= 50 && (
-              <div style={{ borderTop: "1px solid #eef0ec", paddingTop: 8, minWidth: 0 }}>
+              <div style={{ borderTop: "1px solid var(--soft)", paddingTop: 8, minWidth: 0 }}>
                 <InviteToProject
                   projectId={project.id}
                   projectName={project.project_name}

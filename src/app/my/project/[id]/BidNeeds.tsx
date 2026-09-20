@@ -42,7 +42,7 @@ export async function BidNeeds({ projectId, canEdit }: { projectId: string; canE
       )}
 
       {needs.map((n) => (
-        <div key={n.id} className="small" style={{ display: "grid", gap: 2, borderTop: "1px solid #f0f1ee", paddingTop: 6, minWidth: 0 }}>
+        <div key={n.id} className="small" style={{ display: "grid", gap: 2, borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", minWidth: 0 }}>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               <span style={{ marginRight: 6 }}>{KIND_ICON[n.kind] ?? "🔧"}</span>
@@ -51,17 +51,17 @@ export async function BidNeeds({ projectId, canEdit }: { projectId: string; canE
             </span>
             <span style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
               {n.awarded
-                ? <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>awarded</span>
+                ? <span className="extra-chip" style={{ background: "var(--ok-soft)", color: "var(--brand)" }}>awarded</span>
                 : n.pkg_id
                   ? <Link href={`/my/project/${projectId}/bids/${n.pkg_id}`} className="extra-chip" style={{ textDecoration: "none" }}>{n.pkg_status}</Link>
-                  : <span className="extra-chip" style={{ background: "#fdf4e3", color: "#a8842c" }}>no package</span>}
+                  : <span className="extra-chip" style={{ background: "#fdf4e3", color: "var(--warn)" }}>no package</span>}
               {canEdit && !n.pkg_id && (
                 <Link href={`/my/project/${projectId}/bids`} className="btn ghost small" style={{ padding: "2px 8px" }}>Package →</Link>
               )}
               {canEdit && (
                 <form action={removeBidNeed.bind(null, projectId, n.id)}>
                   <button className="btn ghost small" title="Remove this line" aria-label={`Remove ${n.label}`}
-                    style={{ padding: "2px 8px", color: "#c0262d" }}>✕</button>
+                    style={{ padding: "2px 8px", color: "var(--danger)" }}>✕</button>
                 </form>
               )}
             </span>

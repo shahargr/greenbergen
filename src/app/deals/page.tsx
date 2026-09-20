@@ -83,14 +83,14 @@ export default async function DealsPage({
         </p>
 
         {banner && (
-          <p className="banner" style={{ background: "#1f6b45" }}>
+          <p className="banner" style={{ background: "var(--brand)" }}>
             {banner.text}
             {banner.url && <>{" "}<a href={banner.url} style={{ color: "#fff", textDecoration: "underline" }}>Learn more →</a></>}
           </p>
         )}
 
         {booked && (
-          <p className="banner" style={{ background: "#2f6b4f" }}>
+          <p className="banner" style={{ background: "var(--ok)" }}>
             Booked for {prettyDate(booked)} ✓ — your spot is held. Online payment
             is coming; we&apos;ll send a payment link before the visit.
           </p>
@@ -117,7 +117,7 @@ export default async function DealsPage({
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
                   <strong style={{ fontSize: 17 }}>{d.title}</strong>
                   {d.price_cents != null && (
-                    <span style={{ fontSize: 17, fontWeight: 700, color: "var(--brand, #1f6b45)" }}>
+                    <span style={{ fontSize: 17, fontWeight: 700, color: "var(--brand, var(--brand))" }}>
                       {dollars(d.price_cents)}
                     </span>
                   )}

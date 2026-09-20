@@ -76,7 +76,7 @@ export default async function ActivityPage({
         </p>
       )}
 
-      {error && <p className="card" style={{ borderLeft: "4px solid #c0262d" }}>{error}</p>}
+      {error && <p className="card" style={{ borderLeft: "4px solid var(--danger)" }}>{error}</p>}
       {saved && <p className="card" style={{ borderLeft: "4px solid var(--brand)" }}>{saved}</p>}
 
       {/* 1. WHAT THIS PROCESS IS */}

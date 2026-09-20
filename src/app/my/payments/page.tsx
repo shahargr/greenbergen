@@ -191,7 +191,7 @@ export default async function PaymentsPage({
       <p className="small" style={{ margin: "0 0 6px" }}><Link href="/my">← Home</Link></p>
       <h1 style={{ fontSize: 26, margin: "0 0 12px" }}>Transactions</h1>
 
-      {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
+      {ok && <p className="banner" style={{ background: "var(--ok)" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
 
       <div className="youband" style={{ marginBottom: 14 }}>
@@ -202,7 +202,7 @@ export default async function PaymentsPage({
         </div>
         <div className="tile" style={{ cursor: "default" }}>
           <span className="tile-label">Outstanding</span>
-          <span style={{ fontSize: 20, fontWeight: 800, color: "#a8842c" }}>${Math.round(openTotal).toLocaleString()}</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: "var(--warn)" }}>${Math.round(openTotal).toLocaleString()}</span>
           <span className="tile-sub">{openRows2.length} awaiting payment</span>
         </div>
         <Link className="tile" href="/my/payments?all=1">
@@ -228,7 +228,7 @@ export default async function PaymentsPage({
         <div style={{ marginTop: 12 }}>
           {ok ? (
             <div style={{ display: "grid", gap: 10 }}>
-              <p style={{ margin: 0, fontWeight: 700, color: "#2f6b4f" }}>Transaction logged ✓</p>
+              <p style={{ margin: 0, fontWeight: 700, color: "var(--ok)" }}>Transaction logged ✓</p>
               <p className="muted small" style={{ margin: 0 }}>It&apos;s in the list below.</p>
               <div>
                 <Link className="btn" href="/my/payments">＋ Log another transaction</Link>

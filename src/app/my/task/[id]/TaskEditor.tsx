@@ -192,12 +192,12 @@ export function TaskEditor({
             parent / child badge. */}
         <div className="small" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
           <span title={`Stage: ${task.status}`} aria-label={`Stage: ${task.status}`}
-            style={{ fontWeight: 700, color: /pending/i.test(task.status) ? "#a8842c" : task.status === "In Progress" ? "var(--brand)" : task.status === "Parked" ? "#7b857e" : task.status === "Completed" ? "#1f6b45" : "#555" }}>
+            style={{ fontWeight: 700, color: /pending/i.test(task.status) ? "var(--warn)" : task.status === "In Progress" ? "var(--brand)" : task.status === "Parked" ? "#7b857e" : task.status === "Completed" ? "var(--brand)" : "#555" }}>
             {task.status === "In Progress" ? "◐" : /pending/i.test(task.status) ? "⏳" : task.status === "Parked" ? "⏸" : task.status === "Completed" ? "●" : task.status === "Cancelled" ? "⊘" : "○"}
           </span>
           {task.priority && task.priority !== "Missing" && task.priority !== "No Priority" && (
             <span title={`Priority: ${task.priority}`} aria-label={`Priority: ${task.priority}`}
-              style={{ fontWeight: 700, color: task.priority === "High" ? "#c0262d" : task.priority === "Medium" ? "#a8842c" : "#7b857e" }}>
+              style={{ fontWeight: 700, color: task.priority === "High" ? "var(--danger)" : task.priority === "Medium" ? "var(--warn)" : "#7b857e" }}>
               {task.priority === "High" ? "▲" : task.priority === "Medium" ? "▲" : "▽"}
             </span>
           )}
@@ -332,7 +332,7 @@ export function TaskEditor({
         <div className="card" style={{ display: "grid", gap: 8 }}>
           <h2 className="section-title" style={{ margin: 0 }}>Comments · {comments.length}</h2>
           {comments.map((c) => (
-            <div key={c.id} className="small" style={{ borderLeft: "3px solid var(--brand, #1f6b45)", paddingLeft: 10 }}>
+            <div key={c.id} className="small" style={{ borderLeft: "3px solid var(--brand, var(--brand))", paddingLeft: 10 }}>
               <span className="muted">
                 <strong style={{ color: "inherit" }}>{c.author_name}</strong>
                 {" · "}

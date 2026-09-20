@@ -124,7 +124,7 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
       >
         <td className="muted" style={{ whiteSpace: "nowrap" }}>{day}</td>
         <td style={cell}>
-          {task.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{task.action}
+          {task.priority === "High" && <span style={{ color: "var(--danger)" }}>● </span>}{task.action}
         </td>
         <td className="muted col-who" style={cell}>{task.assignee ? task.assignee.split(" ")[0] : "—"}</td>
         <td className="muted" style={{ textAlign: "right", fontSize: 11 }}>{open ? "▴" : "▾"}</td>
@@ -151,7 +151,7 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                   {detail.desired_outcome && <div className="small"><span className="muted">Outcome: </span>{detail.desired_outcome}</div>}
                   {detail.notes && <div className="small" style={{ whiteSpace: "pre-line" }}><span className="muted">Notes: </span>{detail.notes}</div>}
                   {detail.open_children > 0 && (
-                    <div className="small" style={{ color: "#c0262d" }}>
+                    <div className="small" style={{ color: "var(--danger)" }}>
                       <Link href={`/my/project/${detail.project_id}?parent=${task.id}`} style={{ color: "inherit", fontWeight: 600 }}>
                         {detail.open_children} open subtask{detail.open_children > 1 ? "s" : ""} →
                       </Link>{" "}— must close before this can complete.
@@ -170,7 +170,7 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                             <a key={f.id} href={u} target="_blank" rel="noreferrer" title={f.file_name} style={{ textDecoration: "none" }}>
                               {f.kind === "photo"
                                 // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={u} alt={f.file_name} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
+                                ? <img src={u} alt={f.file_name} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
                                 : <span className="extra-chip">{f.kind === "audio" ? "🎙" : "📄"} {f.file_name}</span>}
                             </a>
                           ) : <span key={f.id} className="extra-chip">{f.file_name}</span>;
@@ -182,7 +182,7 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                     <div style={{ display: "grid", gap: 4 }}>
                       <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.4 }}>Latest comments</div>
                       {detail.comments.map((c, i) => (
-                        <div key={i} className="small" style={{ borderLeft: "3px solid var(--brand, #1f6b45)", paddingLeft: 8 }}>
+                        <div key={i} className="small" style={{ borderLeft: "3px solid var(--brand, var(--brand))", paddingLeft: 8 }}>
                           <span className="muted"><strong style={{ color: "inherit" }}>{c.author}</strong> · {when(c.created_at)}</span>
                           <div style={{ whiteSpace: "pre-line" }}>{c.body}</div>
                         </div>
@@ -265,7 +265,7 @@ export function CardTaskRow({ task, day }: { task: CardTask; day: string }) {
                     </label>
                   )}
                   {detail.requires_photo_evidence && (
-                    <p className="small" style={{ margin: 0, color: "#c0262d" }}>This task requires BEFORE and AFTER photos — it cannot be force-closed.</p>
+                    <p className="small" style={{ margin: 0, color: "var(--danger)" }}>This task requires BEFORE and AFTER photos — it cannot be force-closed.</p>
                   )}
                 </div>
               )}

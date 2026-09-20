@@ -47,7 +47,7 @@ export default async function AdminPackagesPage({ searchParams }: { searchParams
         <strong> levers</strong>: the questions whose answers add an upgrade at its cost, or take one away.
         The homeowner apps read this live; the grid picks changes up within five minutes.
       </p>
-      {error && <p className="card" style={{ borderLeft: "4px solid #c0262d" }}>{error}</p>}
+      {error && <p className="card" style={{ borderLeft: "4px solid var(--danger)" }}>{error}</p>}
       {saved && <p className="card" style={{ borderLeft: "4px solid var(--brand)" }}>{saved}</p>}
 
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
@@ -59,7 +59,7 @@ export default async function AdminPackagesPage({ searchParams }: { searchParams
             {live.map((r) => (
               <tr key={r.code}>
                 <td><Link href={`/admin/packages/${r.code}`}><strong>{r.name}</strong></Link><br /><span className="muted small">{r.tile_title} · {r.tile_group === "front" ? "front page" : "more"} · order {r.sort_order}{r.promote && <> · <strong>on the landing page</strong>{!r.has_photo && " (no photo yet)"}</>}</span></td>
-                <td>{r.trade}{!r.covered && <><br /><span className="small" style={{ color: "#c0262d" }}>nobody approved carries it</span></>}</td>
+                <td>{r.trade}{!r.covered && <><br /><span className="small" style={{ color: "var(--danger)" }}>nobody approved carries it</span></>}</td>
                 <td>{AVAIL[r.availability] ?? r.availability}</td>
                 <td style={{ textAlign: "right" }}>{money(r.base_price_cents)}</td>
                 <td style={{ textAlign: "right" }}>{r.levers}<span className="muted small"> · {r.items} lines</span></td>

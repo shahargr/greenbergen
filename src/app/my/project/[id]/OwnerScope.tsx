@@ -30,21 +30,21 @@ export async function OwnerScope({ projectId, canEdit, add }: {
 
       {mine.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing written yet.</p>}
       {mine.map((l) => (
-        <div key={l.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0 }}>
+        <div key={l.id} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0 }}>
           <span style={{ minWidth: 0 }}>
             {l.owner_summary ?? l.item}
             {l.audience === "both" && <span className="muted"> · also priced by the trade</span>}
           </span>
           {canEdit && (
             <form action={deleteScopeItem.bind(null, projectId, l.id)} style={{ flex: "none" }}>
-              <button className="btn ghost small" style={{ padding: "1px 8px", color: "#c0262d" }} aria-label="Remove this line">✕</button>
+              <button className="btn ghost small" style={{ padding: "1px 8px", color: "var(--danger)" }} aria-label="Remove this line">✕</button>
             </form>
           )}
         </div>
       ))}
 
       {canEdit && (
-        <form action={saveScopeItem.bind(null, projectId)} style={{ display: "grid", gap: 8, borderTop: "1px solid #eef0ec", paddingTop: 10 }}>
+        <form action={saveScopeItem.bind(null, projectId)} style={{ display: "grid", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 10 }}>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="os-owner">What you want</label>
             <input id="os-owner" name="owner_summary" className="input" required

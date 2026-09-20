@@ -94,7 +94,7 @@ export function PhotoPick({ name, label = "Add photo" }: { name: string; label?:
         <button type="button" className={live ? "btn small" : "btn ghost small"} onClick={() => (live ? stopCamera() : openCamera())} title={live ? "Close camera" : "Take a photo"} aria-label={live ? "Close camera" : "Take a photo"}>📷</button>
         {preview && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: "1px solid #e7e9e4" }} />
+          <img src={preview} alt="" style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--line)" }} />
         )}
         {file && (
           <span className="muted small" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

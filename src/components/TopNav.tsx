@@ -171,7 +171,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
             style={{ position: "relative" }}>
             <InboxIcon />
             {inbound > 0 && (
-              <span aria-hidden style={{ position: "absolute", top: 2, right: 2, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, background: "#c0262d", color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: "16px", textAlign: "center" }}>
+              <span aria-hidden style={{ position: "absolute", top: 2, right: 2, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700, lineHeight: "16px", textAlign: "center" }}>
                 {inbound}
               </span>
             )}
@@ -198,7 +198,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
         </div>
       </nav>
       {borrowed && (
-        <div style={{ background: canAct ? "#7a1f2b" : "#c0262d", color: "#fff", fontSize: 13, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ background: canAct ? "#7a1f2b" : "var(--danger)", color: "#fff", fontSize: 13, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span>
             {canAct
               ? <>⚡ Acting as <strong>{me?.full_name ?? me?.email}</strong> — every change lands as them, logged with your name behind it.</>

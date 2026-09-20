@@ -143,7 +143,7 @@ export function NewHomeForm({ rooms }: { rooms: RoomType[] }) {
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {preview && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="" style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
+            <img src={preview} alt="" style={{ width: 96, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
           )}
           <label className="btn ghost small" style={{ cursor: "pointer" }}>
             {photo ? "Change photo" : "Add photo"}

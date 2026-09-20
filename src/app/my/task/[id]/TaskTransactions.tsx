@@ -51,10 +51,10 @@ type TxDetail = {
 
 const chipStyle = (status: string): React.CSSProperties =>
   status === "paid"
-    ? { background: "#e6f2ea", color: "#1f6b45" }
+    ? { background: "var(--ok-soft)", color: "var(--brand)" }
     : status === "planned" || status === "scheduled"
-      ? { background: "#fdf4e3", color: "#a8842c" }
-      : { background: "#f0f1ee", color: "#555" };
+      ? { background: "#fdf4e3", color: "var(--warn)" }
+      : { background: "var(--soft)", color: "#555" };
 
 // One attached transaction: status shown on the row, click the description
 // to open its detail (looked up on open, never on page load).
@@ -99,7 +99,7 @@ function AttachedRow({ t, taskId, canEdit }: { t: TaskTx; taskId: string; canEdi
   }, [open, t.id]);
 
   return (
-    <div style={{ display: "grid", gap: 6, borderTop: "1px solid #f0f1ee", paddingTop: 8, minWidth: 0 }}>
+    <div style={{ display: "grid", gap: 6, borderTop: "1px solid var(--soft)", paddingTop: 8, minWidth: 0 }}>
       <div className="small" style={ROW}>
         <button type="button" onClick={() => setOpen(!open)} title={open ? "Hide details" : "Show details"}
           style={{ ...DESC, background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", cursor: "pointer", textAlign: "left" }}>
@@ -116,7 +116,7 @@ function AttachedRow({ t, taskId, canEdit }: { t: TaskTx; taskId: string; canEdi
         ) : <span />}
       </div>
       {open && (
-        <div className="small" style={{ display: "grid", gap: 4, padding: "6px 10px", background: "#f7f8f5", borderRadius: 8, minWidth: 0 }}>
+        <div className="small" style={{ display: "grid", gap: 4, padding: "6px 10px", background: "var(--soft)", borderRadius: 8, minWidth: 0 }}>
           {state === "loading" && <span className="muted">Loading…</span>}
           {state === "denied" && (
             <span className="muted">Status: {t.status}{t.paid_from_account ? ` · from ${t.paid_from_account}` : ""}. The full detail (payee, references, receipts) is only shown to seats that see money on this project.</span>
@@ -203,7 +203,7 @@ export function TaskTransactions({
       ))}
 
       {canEdit && (
-        <div style={{ display: "grid", gap: 8, minWidth: 0, borderTop: "1px solid #e7e9e4", paddingTop: 10 }}>
+        <div style={{ display: "grid", gap: 8, minWidth: 0, borderTop: "1px solid var(--line)", paddingTop: 10 }}>
           <label className="small muted" htmlFor="tx-search" style={{ margin: 0 }}>
             Attach a transaction — search by payee, account or amount
           </label>

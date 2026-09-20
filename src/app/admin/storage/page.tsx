@@ -59,7 +59,7 @@ export default async function StoragePage({
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <h1 style={{ fontSize: 24, margin: 0 }}>Storage &amp; backup</h1>
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Recorded ✓</p>}
+      {saved && <p className="banner" style={{ background: "var(--ok)" }}>Recorded ✓</p>}
       {error && <p className="error small">{error}</p>}
 
       <div className="youband" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
@@ -103,20 +103,20 @@ export default async function StoragePage({
           const over = !unlimited && u.quota_bytes! > 0 && u.used_bytes > u.quota_bytes!;
           const caps = [u.cap_voice && "voice", u.cap_image && "image", u.cap_video && "video", u.cap_document && "docs"].filter(Boolean).join(" · ");
           return (
-            <div key={u.user_id} style={{ display: "grid", gap: 6, borderTop: "1px solid #eef0ec", paddingTop: 10 }}>
+            <div key={u.user_id} style={{ display: "grid", gap: 6, borderTop: "1px solid var(--soft)", paddingTop: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>
                   {u.name}{u.is_super && <span className="muted" style={{ fontWeight: 400 }}> · admin</span>}
                 </span>
                 <span className="small" style={{ whiteSpace: "nowrap" }}>
-                  <strong style={{ color: over ? "#c0262d" : undefined }}>{fmtBytes(u.used_bytes)}</strong>
+                  <strong style={{ color: over ? "var(--danger)" : undefined }}>{fmtBytes(u.used_bytes)}</strong>
                   <span className="muted"> / {unlimited ? "∞" : fmtBytes(u.quota_bytes!)}</span>
                   <span className="muted"> · {u.file_count} file{u.file_count === 1 ? "" : "s"}</span>
                 </span>
               </div>
               {!unlimited && (
                 <div className="progressbar" style={{ background: "#eceee9" }}>
-                  <span style={{ width: `${pct}%`, background: over ? "#c0262d" : "#2f6b4f", display: "inline-block", height: "100%" }} />
+                  <span style={{ width: `${pct}%`, background: over ? "var(--danger)" : "var(--ok)", display: "inline-block", height: "100%" }} />
                 </div>
               )}
               <div className="muted" style={{ fontSize: 11 }}>Can upload: {caps || "nothing"}</div>
@@ -146,7 +146,7 @@ export default async function StoragePage({
         <h2 className="section-title">Backup</h2>
         <div className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <span>
-            Last backup: <strong style={{ color: s.backup_stale ? "#c0262d" : "inherit" }}>{fmtWhen(s.last_backup_at)}</strong>
+            Last backup: <strong style={{ color: s.backup_stale ? "var(--danger)" : "inherit" }}>{fmtWhen(s.last_backup_at)}</strong>
             {backupAgo && <span className="muted"> · {backupAgo}</span>}
           </span>
           <form action={recordStorageOp.bind(null, "backup")}>

@@ -143,7 +143,7 @@ export function FileDrop({
       onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}
       style={{
         border: `2px dashed ${over ? "var(--brand)" : "#cdd2cc"}`,
-        background: over ? "#f0f6f2" : "#fafbfa",
+        background: over ? "var(--soft)" : "var(--soft)",
         borderRadius: 10, padding: "10px 12px", display: "grid", gap: 8, outline: "none", minWidth: 0,
       }}
     >

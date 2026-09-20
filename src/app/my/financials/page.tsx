@@ -83,7 +83,7 @@ export default async function FinancialsPage() {
           </span>
         </div>
         <div className="progressbar">
-          <span style={{ width: `${totalContracted > 0 ? Math.min(100, Math.round((totalPaid / totalContracted) * 100)) : 0}%`, background: "#a8842c" }} />
+          <span style={{ width: `${totalContracted > 0 ? Math.min(100, Math.round((totalPaid / totalContracted) * 100)) : 0}%`, background: "var(--warn)" }} />
         </div>
       </div>
 
@@ -99,7 +99,7 @@ export default async function FinancialsPage() {
                   {p.contracted > 0 && <> · ${Math.round(p.contracted - p.paid).toLocaleString()} open</>}
                 </span>
               </div>
-              <div className="progressbar"><span style={{ width: `${pct}%`, background: "#a8842c" }} /></div>
+              <div className="progressbar"><span style={{ width: `${pct}%`, background: "var(--warn)" }} /></div>
             </Link>
           );
         })}

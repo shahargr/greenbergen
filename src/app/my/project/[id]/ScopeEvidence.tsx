@@ -47,14 +47,14 @@ export async function ScopeEvidence({ projectId, caps, canAdd, openLine }: {
       </p>
 
       {[...byTrade.entries()].map(([trade, rows]) => (
-        <div key={trade} style={{ display: "grid", gap: 6, borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+        <div key={trade} style={{ display: "grid", gap: 6, borderTop: "1px solid var(--soft)", paddingTop: 8 }}>
           <strong className="small">
             {trade} · {rows.filter((r) => r.evidence.length > 0).length}/{rows.length}
           </strong>
           {rows.map((l) => (
             <details key={l.id} open={openLine === l.id} style={{ minWidth: 0 }}>
               <summary className="small" style={{ cursor: "pointer", display: "flex", gap: 8, alignItems: "baseline", minWidth: 0 }}>
-                <span style={{ color: l.evidence.length > 0 ? "#1f6b45" : "#c9ccc4" }}>
+                <span style={{ color: l.evidence.length > 0 ? "var(--brand)" : "#c9ccc4" }}>
                   {l.evidence.length > 0 ? "●" : "○"}
                 </span>
                 <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -77,8 +77,8 @@ export async function ScopeEvidence({ projectId, caps, canAdd, openLine }: {
                           style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", minWidth: 0 }}>
                           {isImg && u
                             // eslint-disable-next-line @next/next/no-img-element
-                            ? <img src={u} alt={e.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
-                            : <span style={{ display: "grid", placeItems: "center", width: "100%", aspectRatio: "1 / 1", borderRadius: 8, border: "1px solid #e7e9e4", background: "#f7f8f5", fontSize: 20 }}>
+                            ? <img src={u} alt={e.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
+                            : <span style={{ display: "grid", placeItems: "center", width: "100%", aspectRatio: "1 / 1", borderRadius: 8, border: "1px solid var(--line)", background: "var(--soft)", fontSize: 20 }}>
                                 {e.kind === "video" ? "🎬" : e.kind === "audio" ? "🎙" : "📄"}
                               </span>}
                           <span className="muted" style={{ fontSize: 10, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

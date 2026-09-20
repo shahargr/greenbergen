@@ -78,10 +78,10 @@ export default async function InvitePage({
       </p>
       {error && <p className="error small">{error}</p>}
       {ok && (
-        <p className="banner" style={{ background: "#2f6b4f", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <p className="banner" style={{ background: "var(--ok)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span>{ok}</span>
           {forProject && (
-            <Link href={`/my/project/${forProject.id}`} className="btn small" style={{ background: "#fff", color: "#2f6b4f", whiteSpace: "nowrap" }}>
+            <Link href={`/my/project/${forProject.id}`} className="btn small" style={{ background: "#fff", color: "var(--ok)", whiteSpace: "nowrap" }}>
               Done — back to {forName} →
             </Link>
           )}
@@ -180,7 +180,7 @@ export default async function InvitePage({
               {i.comment && <span className="muted small">&ldquo;{i.comment}&rdquo;</span>}
 
               {i.acceptors.map((a, idx) => (
-                <div key={idx} className="card" style={{ padding: "10px 12px", background: "#f2f7f3", display: "grid", gap: 3 }}>
+                <div key={idx} className="card" style={{ padding: "10px 12px", background: "var(--ok-soft)", display: "grid", gap: 3 }}>
                   <strong style={{ fontSize: 14 }}>{a.name}</strong>
                   <span className="small">
                     {a.email && <a href={`mailto:${a.email}`}>{a.email}</a>}

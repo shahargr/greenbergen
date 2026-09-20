@@ -1,4 +1,5 @@
 import MyPage from "../page";
+import { AllProjectsToggle } from "@/components/AllProjectsToggle";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Projects · Green Bergen" };
@@ -15,5 +16,14 @@ export default function ProjectsPage({
 }: {
   searchParams: Promise<{ panel?: string; error?: string; ok?: string; t?: string; all?: string; allp?: string; view?: string }>;
 }) {
-  return MyPage({ searchParams, show: "projects" });
+  // The switch between "my seats" and "the whole platform" sits ON the list it
+  // changes now, not behind the gear two screens away (Shahar, 2026-09-20:
+  // "remove all projects from under the setup tab / they should be kept in
+  // the project page"). Renders nothing for anyone but a superadmin.
+  return (
+    <>
+      <AllProjectsToggle back="/my/projects" />
+      {MyPage({ searchParams, show: "projects" })}
+    </>
+  );
 }

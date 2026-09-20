@@ -388,7 +388,7 @@ export default async function MyPage({
     </span>
   );
   const jobGlyph = (
-    <span className="tile-icon" style={{ width: 34, height: 34, flex: "none", background: "#fdf4e3", color: "#a8842c" }}>
+    <span className="tile-icon" style={{ width: 34, height: 34, flex: "none", background: "#fdf4e3", color: "var(--warn)" }}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg>
     </span>
   );
@@ -467,7 +467,7 @@ export default async function MyPage({
   type TileKind = "house" | "project" | "umbrella" | "tech" | "system" | "personal" | "travel";
   const KIND: Record<TileKind, { label: string; color: string; bg: string; glyph: React.ReactNode }> = {
     house:    { label: "House",           color: "var(--brand)", bg: "#dcefe2", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /><path d="M10 21v-6h4v6" /></svg> },
-    project:  { label: "Project",         color: "#a8842c",      bg: "#fdf4e3", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg> },
+    project:  { label: "Project",         color: "var(--warn)",      bg: "#fdf4e3", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="m14.5 9.5 6 6L18 18l-6-6" /><path d="M3.3 6.8 6 4l4.4 4.4a2 2 0 0 1 0 2.8l-.2.2a2 2 0 0 1-2.8 0z" /><path d="m5 21 5.5-5.5" /></svg> },
     umbrella: { label: "Umbrella",        color: "#2f4f6b",      bg: "#e6edf3", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 18 0z" /><path d="M12 12v7a2 2 0 0 0 4 0" /><path d="M12 3v1" /></svg> },
     tech:     { label: "AI / Tech",       color: "#4a3f8f",      bg: "#ebe8f7", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="7" width="10" height="10" rx="2" /><path d="M10 10h4v4h-4z" /><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" /></svg> },
     system:   { label: "Platform & data", color: "#555",         bg: "#ececea", glyph: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5.5" rx="8" ry="3" /><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13" /><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" /></svg> },
@@ -523,7 +523,7 @@ export default async function MyPage({
                       <div className="muted" style={{ fontSize: 11, lineHeight: 1.35, display: "flex", flexWrap: "wrap", gap: "0 8px" }}>
                         {st.length === 0 && <span>no open tasks</span>}
                         {st.map(([s, n]) => <span key={s}><strong style={{ color: "var(--ink)" }}>{n}</strong> {s.toLowerCase()}</span>)}
-                        {anyK && <span>contracts <strong style={{ color: "var(--ink)" }}>{k!.open}</strong> open · <strong style={{ color: "var(--ink)" }}>{k!.closed}</strong> closed · <strong style={{ color: k!.to_sign ? "#c0262d" : "var(--ink)" }}>{k!.to_sign}</strong> to sign</span>}
+                        {anyK && <span>contracts <strong style={{ color: "var(--ink)" }}>{k!.open}</strong> open · <strong style={{ color: "var(--ink)" }}>{k!.closed}</strong> closed · <strong style={{ color: k!.to_sign ? "var(--danger)" : "var(--ink)" }}>{k!.to_sign}</strong> to sign</span>}
                       </div>
                     </li>
                   );
@@ -536,11 +536,11 @@ export default async function MyPage({
         {kind !== "house" && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <span className="extra-chip"><strong>{c?.open ?? p.open_count}</strong> open</span>
           <span className="extra-chip"><strong>{c?.done ?? 0}</strong> done</span>
-          {(c?.stuck ?? 0) > 0 && <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
+          {(c?.stuck ?? 0) > 0 && <span className="extra-chip" style={{ background: "#fdecec", color: "var(--danger)" }}><strong>{c?.stuck}</strong> stuck</span>}
         </div>}
         {kind !== "house" && urgent && (
           <div className="small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {urgent.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{urgent.action}
+            {urgent.priority === "High" && <span style={{ color: "var(--danger)" }}>● </span>}{urgent.action}
           </div>
         )}
       </Link>
@@ -555,7 +555,7 @@ export default async function MyPage({
         style={{
           padding: "14px 16px", display: "grid", gap: 10,
           marginLeft: Math.min(depth, 3) * 24,
-          borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid #a8842c",
+          borderLeft: isRoot ? "3px solid var(--brand)" : "3px solid var(--warn)",
         }}>
         {/* Header: name + address/status, with per-project invite on the panel. */}
         <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -594,7 +594,7 @@ export default async function MyPage({
           </Link>
           {(c?.stuck ?? 0) > 0 && (
             <Link href={`/my/project/${p.id}?tasks=stuck`} className="extra-chip"
-              style={{ background: "#fdecec", color: "#c0262d", textDecoration: "none" }}>
+              style={{ background: "#fdecec", color: "var(--danger)", textDecoration: "none" }}>
               <strong>{c?.stuck}</strong> stuck
             </Link>
           )}
@@ -611,7 +611,7 @@ export default async function MyPage({
               <Link key={u.id} href={`/my/task/${u.id}`} className="small"
                 style={{ display: "flex", justifyContent: "space-between", gap: 10, textDecoration: "none", color: "inherit" }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                  {u.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{u.action}
+                  {u.priority === "High" && <span style={{ color: "var(--danger)" }}>● </span>}{u.action}
                 </span>
                 <span className="muted" style={{ whiteSpace: "nowrap" }}>{u.target_date ?? "—"}</span>
               </Link>
@@ -652,7 +652,7 @@ export default async function MyPage({
                         <span className="extra-chip" style={{ marginLeft: 6, fontSize: 10, padding: "0 6px" }}>{t.status}</span>
                       </td>
                       <td className="muted col-who">payment</td>
-                      <td style={{ textAlign: "right", fontWeight: 600, color: "#a8842c", whiteSpace: "nowrap" }}>{money(t.amount)}</td>
+                      <td style={{ textAlign: "right", fontWeight: 600, color: "var(--warn)", whiteSpace: "nowrap" }}>{money(t.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -868,14 +868,14 @@ export default async function MyPage({
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                     {(d.tiers ?? []).map((t) => (
                       <span key={t.id} className="extra-chip"
-                        style={d.mine?.tier && d.mine.tier.min_houses === t.min_houses ? { background: "#2f6b4f", color: "#fff" } : undefined}>
+                        style={d.mine?.tier && d.mine.tier.min_houses === t.min_houses ? { background: "var(--ok)", color: "#fff" } : undefined}>
                         {t.min_houses === 1 ? "1 house" : `${t.min_houses}+ houses`} · ${(t.price_cents / 100).toLocaleString()}{t.label ? ` · ${t.label}` : ""}
                       </span>
                     ))}
                     <span className="muted small">back-to-back, within {d.radius_miles ?? 0.5} mi</span>
                   </div>
                   {d.mine ? (
-                    <div className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "8px 10px", background: "#eef5f0", borderRadius: 8 }}>
+                    <div className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "8px 10px", background: "var(--ok-soft)", borderRadius: 8 }}>
                       <span>
                         ✅ You&apos;re in for <strong>{d.mine.address}</strong> · window {d.mine.window_start} → {d.mine.window_end}
                         <br />
@@ -1028,7 +1028,7 @@ export default async function MyPage({
           {homeErr && <> — consumer_home(): {homeErr.message}</>}
         </p>
       )}
-      {flashOk && <p className="banner" style={{ background: "#2f6b4f", marginTop: 0 }}>{flashOk}</p>}
+      {flashOk && <p className="banner" style={{ background: "var(--ok)", marginTop: 0 }}>{flashOk}</p>}
       {hasHome && needsPhoto && (
         <p className="small" style={{ margin: "0 0 10px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span>📷 Add a profile photo — it shows on your task panels.</span>
@@ -1094,7 +1094,7 @@ export default async function MyPage({
       {(invites.incoming.length > 0 || invites.outcomes.length > 0) && (
         <div id="inbound" style={{ display: "grid", gap: 4, marginBottom: 10 }}>
           {invites.incoming.map((i) => (
-            <div key={i.id} className="small" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "6px 10px", borderRadius: 8, background: "#eef5f0", borderLeft: "3px solid var(--brand)" }}>
+            <div key={i.id} className="small" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "6px 10px", borderRadius: 8, background: "var(--ok-soft)", borderLeft: "3px solid var(--brand)" }}>
               <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={i.message ?? undefined}>
                 ✉️ Invited to <strong>{i.project_name}</strong> by {i.by ?? "someone"}{i.seat ? ` as ${i.seat}` : ""}{i.message ? ` — “${i.message}”` : ""}
               </span>
@@ -1381,14 +1381,14 @@ export default async function MyPage({
                                   <span className="homepanel-jobname">{j.project_name}</span>
                                   <span className="muted" style={{ fontSize: 11, display: "flex", gap: 8, flexWrap: "wrap" }}>
                                     <span><strong style={{ color: "var(--ink)" }}>{openN}</strong> open</span>
-                                    {(c?.stuck ?? 0) > 0 && <span style={{ color: "#c0262d" }}><strong>{c?.stuck}</strong> stuck</span>}
+                                    {(c?.stuck ?? 0) > 0 && <span style={{ color: "var(--danger)" }}><strong>{c?.stuck}</strong> stuck</span>}
                                   </span>
                                 </Link>
                                 {tasks.map((t) => (
                                   <Link key={t.id} href={`/my/task/${t.id}`} className="homepanel-task">
                                     <span aria-hidden>↳</span>
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-                                      {t.priority === "High" && <span style={{ color: "#c0262d" }}>● </span>}{t.action}
+                                      {t.priority === "High" && <span style={{ color: "var(--danger)" }}>● </span>}{t.action}
                                     </span>
                                   </Link>
                                 ))}
@@ -1419,7 +1419,7 @@ export default async function MyPage({
                   return (
                     <>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 2px" }}>
-                        <h2 className="section-title" style={{ margin: 0, color: "#a8842c" }}>🔧 {houses.length > 0 ? "Other projects" : "Projects"} · {loose.length}</h2>
+                        <h2 className="section-title" style={{ margin: 0, color: "var(--warn)" }}>🔧 {houses.length > 0 ? "Other projects" : "Projects"} · {loose.length}</h2>
                         <Link href="/my/new-project" className="small" style={{ fontWeight: 700, whiteSpace: "nowrap" }}>＋ Create a project</Link>
                       </div>
                       {loose.length === 0 && <p className="muted small" style={{ margin: 0 }}>No projects yet — a generator, a water heater, a leak: describe it once and it becomes a project under your house.</p>}

@@ -161,7 +161,7 @@ export default async function AdminDealsPage({
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <h1 style={{ fontSize: 24, margin: 0 }}>Deals</h1>
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
+      {saved && <p className="banner" style={{ background: "var(--ok)" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
 
       <div className="card" style={{ display: "grid", gap: 10 }}>
@@ -194,7 +194,7 @@ export default async function AdminDealsPage({
               const members = bookings.filter((b) => b.cluster_id === c.id && b.status !== "withdrawn");
               const tier = (d.tiers ?? []).find((t) => t.id === c.tier_id) ?? null;
               return (
-                <div key={c.id} className="small" style={{ display: "grid", gap: 4, padding: "8px 10px", background: c.status === "forming" ? "#f7f8f5" : "#eef5f0", borderRadius: 8 }}>
+                <div key={c.id} className="small" style={{ display: "grid", gap: 4, padding: "8px 10px", background: c.status === "forming" ? "var(--soft)" : "var(--ok-soft)", borderRadius: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                     <span>
                       <strong>Run · {c.street_key ?? "nearby"}</strong> · {members.length} house{members.length === 1 ? "" : "s"} · {c.status} · {tierLabel(tier)}

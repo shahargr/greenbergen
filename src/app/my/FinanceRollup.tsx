@@ -44,7 +44,7 @@ function Bar({ paid, open, budget }: { paid: number; open: number; budget: numbe
   const openPct = budget > 0 ? Math.min(100 - paidPct, (open / budget) * 100) : 0;
   return (
     <div className="progressbar" style={{ background: "#eceee9" }}>
-      <span style={{ width: `${paidPct}%`, background: over ? "#c0262d" : "#2f6b4f", display: "inline-block", height: "100%" }} />
+      <span style={{ width: `${paidPct}%`, background: over ? "var(--danger)" : "var(--ok)", display: "inline-block", height: "100%" }} />
       <span style={{ width: `${openPct}%`, background: "#cbb26b", display: "inline-block", height: "100%" }} />
     </div>
   );
@@ -63,14 +63,14 @@ function TradeRow({ t }: { t: RollupTrade }) {
   const remaining = t.budget - t.actual_paid - t.open_committed;
   const over = t.budget > 0 && t.actual_paid + t.open_committed > t.budget;
   return (
-    <div style={{ display: "grid", gap: 4, padding: "8px 0", borderTop: "1px solid #f0f1ee" }}>
+    <div style={{ display: "grid", gap: 4, padding: "8px 0", borderTop: "1px solid var(--soft)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
         <span style={{ fontWeight: 600, fontSize: 13 }}>
           {t.trade}
           {t.is_builder_scope && <span className="muted" style={{ fontWeight: 400 }}> · builder</span>}
         </span>
         <span className="small" style={{ whiteSpace: "nowrap" }}>
-          <strong style={{ color: over ? "#c0262d" : undefined }}>{money(t.actual_paid)}</strong>
+          <strong style={{ color: over ? "var(--danger)" : undefined }}>{money(t.actual_paid)}</strong>
           <span className="muted"> / {money(t.budget)}</span>
         </span>
       </div>
@@ -78,7 +78,7 @@ function TradeRow({ t }: { t: RollupTrade }) {
       <div className="muted" style={{ fontSize: 11, display: "flex", gap: 12, flexWrap: "wrap" }}>
         {t.open_committed > 0 && <span>{money(t.open_committed)} scheduled</span>}
         {t.budget > 0 && (
-          <span style={{ color: remaining < 0 ? "#c0262d" : undefined }}>
+          <span style={{ color: remaining < 0 ? "var(--danger)" : undefined }}>
             {remaining < 0 ? `${money(-remaining)} over` : `${money(remaining)} left`}
           </span>
         )}
@@ -91,12 +91,12 @@ function PhaseBlock({ ph }: { ph: RollupPhase }) {
   const remaining = ph.budget - ph.actual_paid - ph.open_committed;
   const over = ph.budget > 0 && ph.actual_paid + ph.open_committed > ph.budget;
   return (
-    <details style={{ borderTop: "1px solid #e7e9e4", padding: "10px 0 4px" }}>
+    <details style={{ borderTop: "1px solid var(--line)", padding: "10px 0 4px" }}>
       <summary style={{ cursor: "pointer", listStyle: "none", display: "grid", gap: 6 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
           <span style={{ fontWeight: 700, fontSize: 14 }}>{ph.phase}</span>
           <span className="small" style={{ whiteSpace: "nowrap" }}>
-            <strong style={{ color: over ? "#c0262d" : undefined }}>{money(ph.actual_paid)}</strong>
+            <strong style={{ color: over ? "var(--danger)" : undefined }}>{money(ph.actual_paid)}</strong>
             <span className="muted"> / {money(ph.budget)}</span>
           </span>
         </div>
@@ -135,11 +135,11 @@ export function FinanceRollup({ rollup }: { rollup: Rollup }) {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                 <Stat label="Budget" value={money(p.budget)} />
-                <Stat label="Actual" value={money(p.actual_paid)} tone="#2f6b4f" />
+                <Stat label="Actual" value={money(p.actual_paid)} tone="var(--ok)" />
                 <Stat
                   label={remaining < 0 ? "Over" : "Left"}
                   value={money(Math.abs(remaining))}
-                  tone={remaining < 0 ? "#c0262d" : "#a8842c"}
+                  tone={remaining < 0 ? "var(--danger)" : "var(--warn)"}
                 />
               </div>
               <Bar paid={p.actual_paid} open={p.open_committed} budget={p.budget} />

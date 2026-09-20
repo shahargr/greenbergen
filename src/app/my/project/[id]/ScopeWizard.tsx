@@ -114,7 +114,7 @@ export async function ScopeWizard({ projectId, step, canEdit }: { projectId: str
                 </label>
               );
               return (
-                <div key={t.trade} style={{ display: "grid", gap: 4, borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+                <div key={t.trade} style={{ display: "grid", gap: 4, borderTop: "1px solid var(--soft)", paddingTop: 8 }}>
                   <strong className="small">
                     {t.trade} · {lead.length} line{lead.length === 1 ? "" : "s"} for this job
                   </strong>
@@ -157,7 +157,7 @@ export async function ScopeWizard({ projectId, step, canEdit }: { projectId: str
                     One draft package per trade, carrying that trade&apos;s scope lines as the items bidders price. Trades that already have a package are left alone.
                   </p>
                   {scoped.map((t) => (
-                    <div key={t.trade} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                    <div key={t.trade} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                       <span><strong>{t.trade}</strong> <span className="muted">· {t.scope_lines} line{t.scope_lines === 1 ? "" : "s"}</span></span>
                       <span className="muted">{t.stage ?? "—"}</span>
                     </div>

@@ -27,8 +27,8 @@ type Pkg = {
 
 const money = (n: number | null) => (n == null ? "—" : `$${Math.round(n).toLocaleString()}`);
 const chip = (s: string) => ({
-  background: s === "open" || s === "awarded" || s === "received" ? "#e4f0e9" : s === "reviewing" || s === "under negotiation" ? "#f7efdd" : "#eef1ea",
-  color: s === "open" || s === "awarded" || s === "received" ? "#2f6b4f" : s === "reviewing" || s === "under negotiation" ? "#a8842c" : "#7b857e",
+  background: s === "open" || s === "awarded" || s === "received" ? "var(--ok-soft)" : s === "reviewing" || s === "under negotiation" ? "#f7efdd" : "#eef1ea",
+  color: s === "open" || s === "awarded" || s === "received" ? "var(--ok)" : s === "reviewing" || s === "under negotiation" ? "var(--warn)" : "#7b857e",
 });
 
 // One bid package: scope, documents, budget, terms, insurance, invitations,
@@ -92,7 +92,7 @@ export default async function BidPackagePage({
       <p className="muted small" style={{ margin: "0 0 12px" }}>
         {p.trade && p.trade !== p.category ? `Trade: ${p.trade} · ` : ""}Reply by {p.reply_by ?? "—"} · {p.bids.length} invited · {p.bids.filter((b) => b.status !== "invited" && b.status !== "no response").length} replied
       </p>
-      {saved && <p className="banner" style={{ background: "#2f6b4f" }}>Saved ✓</p>}
+      {saved && <p className="banner" style={{ background: "var(--ok)" }}>Saved ✓</p>}
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14 }}>
@@ -120,7 +120,7 @@ export default async function BidPackagePage({
           <h2 className="section-title" style={{ margin: 0 }}>Scope · {asked.length} line{asked.length === 1 ? "" : "s"} · {asked.filter((i) => i.is_required).length} required{outOf.length > 0 ? ` · ${outOf.length} not in it` : ""}</h2>
           {p.scope_summary && <p className="small" style={{ margin: 0 }}>{p.scope_summary}</p>}
           {!editable && asked.map((i) => (
-            <div key={i.id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+            <div key={i.id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
               <span style={{ flex: 1 }}>{i.item}</span>
               <span className="muted" style={{ whiteSpace: "nowrap" }}>{i.is_required ? "required" : "optional"}</span>
             </div>
@@ -131,7 +131,7 @@ export default async function BidPackagePage({
                 <span>In</span><span>Line</span><span>Required</span>
               </div>
               {asked.map((i) => (
-                <label key={i.id} className="small" style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px", gap: 8, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                <label key={i.id} className="small" style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px", gap: 8, alignItems: "center", borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                   <input type="checkbox" name="item" value={i.scope_item_id} defaultChecked />
                   <span>{i.item}</span>
                   <span><input type="checkbox" name="req" value={i.scope_item_id} defaultChecked={i.is_required} /></span>
@@ -141,7 +141,7 @@ export default async function BidPackagePage({
                 <>
                   <span className="muted small" style={{ marginTop: 6 }}>Not in this package yet ({p.trade ?? "this trade"}):</span>
                   {p.candidates.map((c) => (
-                    <label key={c.id} className="small" style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px", gap: 8, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                    <label key={c.id} className="small" style={{ display: "grid", gridTemplateColumns: "24px 1fr 90px", gap: 8, alignItems: "center", borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                       <input type="checkbox" name="item" value={c.id} />
                       <span className="muted">{c.item}</span>
                       <span><input type="checkbox" name="req" value={c.id} defaultChecked /></span>
@@ -162,7 +162,7 @@ export default async function BidPackagePage({
             <>
               <span className="muted small" style={{ marginTop: 6 }}>Not in this proposal ({outOf.length}):</span>
               {outOf.map((i) => (
-                <div key={i.id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid #f0f1ee", paddingTop: 6, opacity: .62 }}>
+                <div key={i.id} className="small" style={{ display: "flex", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 6, opacity: .62 }}>
                   <span style={{ flex: 1, textDecoration: "line-through" }}>{i.item}</span>
                   <span className="muted" style={{ whiteSpace: "nowrap" }}>{i.excluded_why || "out"}</span>
                 </div>
@@ -216,7 +216,7 @@ export default async function BidPackagePage({
           <div className="form-2col">
             <div className="field" style={{ marginBottom: 0 }}>
               <label>Budget (from the budget line)</label>
-              <div className="input" style={{ background: "#fafbfa" }}>{money(p.budget_amount)}</div>
+              <div className="input" style={{ background: "var(--soft)" }}>{money(p.budget_amount)}</div>
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
               <label>Visibility</label>
@@ -287,7 +287,7 @@ export default async function BidPackagePage({
             <form action={inviteBidders.bind(null, id, pkgId)} style={{ display: "grid", gap: 6, marginTop: 10 }}>
               <p className="muted small" style={{ margin: 0 }}>People on this project, by trade. Anyone you want to invite must be on the project first (Settings → Contacts / Invite).</p>
               {p.members.filter((m) => !p.bids.some((b) => b.bidder_contact_id === m.contact_id)).map((m) => (
-                <label key={m.contact_id} className="small" style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid #f0f1ee", paddingTop: 6 }}>
+                <label key={m.contact_id} className="small" style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
                   <input type="checkbox" name="contact" value={m.contact_id} defaultChecked={!!p.trade && !!m.trade && m.trade.toLowerCase() === p.trade.toLowerCase()} />
                   <span style={{ flex: 1 }}>{m.name}</span>
                   <span className="muted">{m.trade ?? "—"}</span>
@@ -321,7 +321,7 @@ export default async function BidPackagePage({
                         const c = it.cells.find((x) => x.bid_id === b.id);
                         const inc = !!c?.included;
                         return (
-                          <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap", color: inc ? "#2f6b4f" : (it.is_required ? "#c0262d" : "#7b857e"), fontWeight: inc || it.is_required ? 600 : 400 }}>
+                          <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap", color: inc ? "var(--ok)" : (it.is_required ? "var(--danger)" : "#7b857e"), fontWeight: inc || it.is_required ? 600 : 400 }}>
                             {inc ? (c?.price != null ? money(c.price) : "included") : (it.is_required ? "excluded · gap" : "—")}
                           </td>
                         );
@@ -333,8 +333,8 @@ export default async function BidPackagePage({
                     <td className="muted">terms</td>
                     {cmp.bids.map((b) => (
                       <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        {b.terms_ok ? <span style={{ color: "#2f6b4f", fontWeight: 600 }}>accept</span> : (
-                          <span className="extra-chip" style={{ background: "#f7efdd", color: "#a8842c" }}>
+                        {b.terms_ok ? <span style={{ color: "var(--ok)", fontWeight: 600 }}>accept</span> : (
+                          <span className="extra-chip" style={{ background: "#f7efdd", color: "var(--warn)" }}>
                             counter {[b.terms_reply?.deposit_pct != null ? `dep ${b.terms_reply.deposit_pct}%` : null,
                                       b.terms_reply?.retainage_pct != null ? `ret ${b.terms_reply.retainage_pct}%` : null,
                                       b.terms_reply?.net_days != null ? `net ${b.terms_reply.net_days}` : null].filter(Boolean).join(" · ")}
@@ -347,8 +347,8 @@ export default async function BidPackagePage({
                     <td className="muted">ins.</td>
                     {cmp.bids.map((b) => (
                       <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                        {b.insurance_ok ? <span style={{ color: "#2f6b4f", fontWeight: 600 }}>held</span>
-                          : <span className="extra-chip" style={{ background: "#f9e4e5", color: "#c0262d" }}>
+                        {b.insurance_ok ? <span style={{ color: "var(--ok)", fontWeight: 600 }}>held</span>
+                          : <span className="extra-chip" style={{ background: "#f9e4e5", color: "var(--danger)" }}>
                               {[!b.insurance_reply?.gl_held ? "no GL" : null, p.insurance_workers_comp && !b.insurance_reply?.wc_held ? "no WC" : null, p.coi_required && !b.insurance_reply?.coi ? "no COI" : null].filter(Boolean).join(" · ") || "gap"}
                             </span>}
                       </td>
@@ -364,8 +364,8 @@ export default async function BidPackagePage({
                     {cmp.bids.map((b) => (
                       <td key={b.id} style={{ textAlign: "right", whiteSpace: "nowrap", fontWeight: 700 }}>
                         {money(b.normalized)}
-                        {b.gaps > 0 && <span className="extra-chip" style={{ marginLeft: 6, background: "#f7efdd", color: "#a8842c" }}>+{money(b.gap_cost)} · {b.gaps} gap{b.gaps > 1 ? "s" : ""}</span>}
-                        {b.id === p.awarded_bid_id && <span className="extra-chip" style={{ marginLeft: 6, background: "#e4f0e9", color: "#2f6b4f" }}>awarded</span>}
+                        {b.gaps > 0 && <span className="extra-chip" style={{ marginLeft: 6, background: "#f7efdd", color: "var(--warn)" }}>+{money(b.gap_cost)} · {b.gaps} gap{b.gaps > 1 ? "s" : ""}</span>}
+                        {b.id === p.awarded_bid_id && <span className="extra-chip" style={{ marginLeft: 6, background: "var(--ok-soft)", color: "var(--ok)" }}>awarded</span>}
                       </td>
                     ))}
                   </tr>
@@ -402,7 +402,7 @@ export default async function BidPackagePage({
                   <span className="small">Recommendation:</span>
                   <strong>{latestReview.recommended_bid_id ? bidderOf(latestReview.recommended_bid_id) : "none"}</strong>
                   {latestReview.confidence && (
-                    <span className="extra-chip" style={latestReview.confidence === "high" ? { background: "#e4f0e9", color: "#2f6b4f" } : latestReview.confidence === "low" ? { background: "#f9e4e5", color: "#c0262d" } : { background: "#f7efdd", color: "#a8842c" }}>
+                    <span className="extra-chip" style={latestReview.confidence === "high" ? { background: "var(--ok-soft)", color: "var(--ok)" } : latestReview.confidence === "low" ? { background: "#f9e4e5", color: "var(--danger)" } : { background: "#f7efdd", color: "var(--warn)" }}>
                       confidence {latestReview.confidence}
                     </span>
                   )}
@@ -448,7 +448,7 @@ export default async function BidPackagePage({
                     <td style={{ fontWeight: 600 }}>{b.bidder ?? "—"}</td>
                     <td><span className="extra-chip" style={chip(b.status)}>{b.status}</span></td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{money(b.amount)}</td>
-                    <td className="small">{b.is_like_for_like == null ? <span className="muted">—</span> : b.is_like_for_like ? <span style={{ color: "#2f6b4f", fontWeight: 600 }}>yes</span> : <span style={{ color: "#c0262d", fontWeight: 600 }} title={b.scope_gaps ?? ""}>gaps</span>}</td>
+                    <td className="small">{b.is_like_for_like == null ? <span className="muted">—</span> : b.is_like_for_like ? <span style={{ color: "var(--ok)", fontWeight: 600 }}>yes</span> : <span style={{ color: "var(--danger)", fontWeight: 600 }} title={b.scope_gaps ?? ""}>gaps</span>}</td>
                     <td className="muted" style={{ whiteSpace: "nowrap" }}>{b.received_on ?? "—"}</td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <Link href={`/my/bid/${b.id}`} className="small">View →</Link>
@@ -457,7 +457,7 @@ export default async function BidPackagePage({
                           <button className="btn small" title="Award this package to this bidder">Award</button>
                         </form>
                       )}
-                      {b.status === "awarded" && <span className="extra-chip" style={{ marginLeft: 8, background: "#e6f2ea", color: "#1f6b45" }}>✅ awarded</span>}
+                      {b.status === "awarded" && <span className="extra-chip" style={{ marginLeft: 8, background: "var(--ok-soft)", color: "var(--brand)" }}>✅ awarded</span>}
                     </td>
                   </tr>
                 ))}

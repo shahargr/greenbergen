@@ -231,7 +231,7 @@ export default async function TaskPage({
             return (
               <a key={e.id} href={u} target="_blank" rel="noreferrer" title={`${f.file_name} · ${e.role} · ${new Date(e.created_at).toLocaleDateString()}`} style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", minWidth: 0 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={u} alt={f.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
+                <img src={u} alt={f.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
                 <span style={{ fontSize: 10, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</span>
                 <span className="muted" style={{ fontSize: 10, lineHeight: 1.2 }}>{e.role} · {new Date(e.created_at).toLocaleDateString()}</span>
               </a>
@@ -300,12 +300,12 @@ export default async function TaskPage({
         </div>
       )}
       {isDeletionGate && (
-        <div className="card" style={{ display: "grid", gap: 8, marginBottom: 12, borderLeft: "3px solid #c0262d" }}>
-          <h2 className="section-title" style={{ margin: 0, color: "#c0262d" }}>Deletion request · {gateProject?.project_name ?? ""}</h2>
+        <div className="card" style={{ display: "grid", gap: 8, marginBottom: 12, borderLeft: "3px solid var(--danger)" }}>
+          <h2 className="section-title" style={{ margin: 0, color: "var(--danger)" }}>Deletion request · {gateProject?.project_name ?? ""}</h2>
           <p className="small" style={{ margin: 0 }}>Approving moves the project - tasks, media and all - to the recycle bin, restorable for the retention window. Declining leaves everything as it is.</p>
           {canDecideDeletion ? (
             <div className="btn-row">
-              <form action={approveDeletion.bind(null, t.id)}><button className="btn" style={{ background: "#c0262d" }}>Approve — move to recycle bin</button></form>
+              <form action={approveDeletion.bind(null, t.id)}><button className="btn" style={{ background: "var(--danger)" }}>Approve — move to recycle bin</button></form>
               <form action={declineDeletion.bind(null, t.id)}><button className="btn ghost">Decline</button></form>
             </div>
           ) : (

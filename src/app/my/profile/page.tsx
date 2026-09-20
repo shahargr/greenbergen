@@ -66,7 +66,7 @@ export default async function ProfilePage({
       <p className="small" style={{ margin: "0 0 6px" }}><Link href="/my/settings">← Account setup</Link></p>
       <span className="kicker">Profile</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 12px" }}>Your full details</h1>
-      {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
+      {ok && <p className="banner" style={{ background: "var(--ok)" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
 
       <div style={{ display: "grid", gap: 14 }}>
@@ -211,7 +211,7 @@ export default async function ProfilePage({
 
           {p.credentials.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nothing on file yet.</p>}
           {p.credentials.map((k) => (
-            <div key={k.id} className="small" style={{ display: "grid", gap: 2, borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
+            <div key={k.id} className="small" style={{ display: "grid", gap: 2, borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
                 <span style={{ minWidth: 0 }}>
                   <strong>{k.label}</strong>
@@ -220,13 +220,13 @@ export default async function ProfilePage({
                 </span>
                 <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                   {k.expired
-                    ? <span className="extra-chip" style={{ background: "#fdecec", color: "#c0262d" }}>expired</span>
+                    ? <span className="extra-chip" style={{ background: "#fdecec", color: "var(--danger)" }}>expired</span>
                     : k.status === "verified"
-                      ? <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>verified</span>
+                      ? <span className="extra-chip" style={{ background: "var(--ok-soft)", color: "var(--brand)" }}>verified</span>
                       : <span className="extra-chip">on file, not yet checked</span>}
                   {links.get(k.id) && <a href={links.get(k.id)} target="_blank" rel="noreferrer" className="btn ghost small" style={{ padding: "1px 8px" }}>Open</a>}
                   <form action={deleteCredential.bind(null, k.id)}>
-                    <button className="btn ghost small" style={{ padding: "1px 8px", color: "#c0262d" }} aria-label={`Remove ${k.label}`}>✕</button>
+                    <button className="btn ghost small" style={{ padding: "1px 8px", color: "var(--danger)" }} aria-label={`Remove ${k.label}`}>✕</button>
                   </form>
                 </span>
               </div>
@@ -239,7 +239,7 @@ export default async function ProfilePage({
           ))}
 
           {add === "1" && (
-            <form action={saveCredential} style={{ display: "grid", gap: 8, borderTop: "1px solid #eef0ec", paddingTop: 10 }}>
+            <form action={saveCredential} style={{ display: "grid", gap: 8, borderTop: "1px solid var(--soft)", paddingTop: 10 }}>
               <div className="form-2col">
                 <div className="field" style={{ marginBottom: 0 }}>
                   <label htmlFor="cr-label">What is it</label>

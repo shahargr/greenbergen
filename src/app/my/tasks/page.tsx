@@ -143,12 +143,12 @@ export default async function TasksPage({
         <h1 style={{ fontSize: 26, margin: 0 }}>Tasks</h1>
         <span className="small" style={{ display: "inline-flex", gap: 10 }}>
           <span><strong>{openCount}</strong> open</span>
-          <span style={{ color: lateCount > 0 ? "#c0262d" : "inherit" }}><strong>{lateCount}</strong> late</span>
+          <span style={{ color: lateCount > 0 ? "var(--danger)" : "inherit" }}><strong>{lateCount}</strong> late</span>
           <span><strong>{mineCount}</strong> on you</span>
         </span>
       </div>
 
-      {ok && <p className="banner" style={{ background: "#2f6b4f" }}>{ok}</p>}
+      {ok && <p className="banner" style={{ background: "var(--ok)" }}>{ok}</p>}
       {error && <p className="error small">{error}</p>}
 
 

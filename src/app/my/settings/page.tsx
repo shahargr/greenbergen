@@ -156,7 +156,7 @@ export default async function SettingsPage({
           <div className={avatarUrl ? "acct-head has-avatar" : "acct-head"}>
             {avatarUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatarUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1px solid #e7e9e4" }} />
+              <img src={avatarUrl} alt="" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--line)" }} />
             )}
             <span style={{ minWidth: 0 }}>
               <strong style={{ fontSize: 16 }}>{me?.full_name ?? "Unnamed"}</strong>
@@ -176,7 +176,7 @@ export default async function SettingsPage({
             </span>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", borderTop: "1px solid #eef0ec", paddingTop: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", borderTop: "1px solid var(--soft)", paddingTop: 8 }}>
             <span className="muted small">The details you change often are here; everything else, including trades and licences, is on the full form.</span>
             <Link href="/my/profile" className="btn ghost small" style={{ whiteSpace: "nowrap" }}>Full details →</Link>
           </div>
@@ -272,7 +272,7 @@ export default async function SettingsPage({
             ["🏁", "Projects completed", ownerProjects.filter((o) => o.bucket === "completed")],
           ];
           const line = (href: string, name: string, sub: string | null, right: string) => (
-            <div key={href} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0 }}>
+            <div key={href} className="small" style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0 }}>
               <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 <Link href={href} style={{ fontWeight: 600 }}>{name}</Link>
                 {sub && <span className="muted"> · {sub}</span>}
@@ -353,7 +353,7 @@ export default async function SettingsPage({
                   return (
                     <tr key={c.id}>
                       <td style={{ whiteSpace: "nowrap" }}>
-                        {c.is_owner ? <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>🏠 Owner</span> : (c.trade ?? <span className="muted">—</span>)}
+                        {c.is_owner ? <span className="extra-chip" style={{ background: "var(--ok-soft)", color: "var(--brand)" }}>🏠 Owner</span> : (c.trade ?? <span className="muted">—</span>)}
                         {newStage && c.stage && !c.is_owner && <div className="muted" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>{c.stage}</div>}
                       </td>
                       <td>
@@ -364,9 +364,9 @@ export default async function SettingsPage({
                       </td>
                       <td className="small">{c.seats?.length ? c.seats.join(", ") : <span className="muted">—</span>}</td>
                       <td className="small">
-                        {c.status === "awarded" ? <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>awarded</span>
-                          : c.status === "bidding" ? <span className="extra-chip" style={{ background: "#fdf4e3", color: "#a8842c" }}>bidding</span>
-                          : c.status === "not awarded" ? <span className="extra-chip" style={{ background: "#f0f1ee", color: "#7b857e" }}>not awarded</span>
+                        {c.status === "awarded" ? <span className="extra-chip" style={{ background: "var(--ok-soft)", color: "var(--brand)" }}>awarded</span>
+                          : c.status === "bidding" ? <span className="extra-chip" style={{ background: "#fdf4e3", color: "var(--warn)" }}>bidding</span>
+                          : c.status === "not awarded" ? <span className="extra-chip" style={{ background: "var(--soft)", color: "#7b857e" }}>not awarded</span>
                           : <span className="muted">—</span>}
                       </td>
                       <td style={{ textAlign: "center" }}>
@@ -411,7 +411,7 @@ export default async function SettingsPage({
           <div className="card" style={{ display: "grid", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
               <h2 className="section-title" style={{ margin: 0 }}>Recycle bin · {trashItems.length}</h2>
-              <form action={emptyRecycleBin}><button className="btn ghost small" style={{ color: "#c0262d", borderColor: "#e3b7ba" }}>Empty all</button></form>
+              <form action={emptyRecycleBin}><button className="btn ghost small" style={{ color: "var(--danger)", borderColor: "#e3b7ba" }}>Empty all</button></form>
             </div>
             <p className="muted small" style={{ margin: 0 }}>
               Deleted projects stay restorable for {trashDays} days, then purge automatically.
@@ -427,7 +427,7 @@ export default async function SettingsPage({
                     <button className="btn ghost small">Restore</button>
                   </form>
                   <form action={deleteProjectNow.bind(null, t.id)}>
-                    <button className="btn ghost small" style={{ color: "#c0262d", borderColor: "#e3b7ba" }}>Empty now</button>
+                    <button className="btn ghost small" style={{ color: "var(--danger)", borderColor: "#e3b7ba" }}>Empty now</button>
                   </form>
                 </span>
               </div>
@@ -449,8 +449,8 @@ export default async function SettingsPage({
                 <a key={m.id} href={u ?? "#"} target="_blank" rel="noreferrer" title={`${m.file_name} · ${proj}`} style={{ display: "grid", gap: 2, textDecoration: "none", color: "inherit", minWidth: 0 }}>
                   {isImg && u
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={u} alt={m.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid #e7e9e4" }} />
-                    : <span style={{ display: "grid", placeItems: "center", width: "100%", aspectRatio: "1 / 1", borderRadius: 8, border: "1px solid #e7e9e4", background: "#f7f8f5", fontSize: 22 }}>{icon}</span>}
+                    ? <img src={u} alt={m.file_name} style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", borderRadius: 8, border: "1px solid var(--line)" }} />
+                    : <span style={{ display: "grid", placeItems: "center", width: "100%", aspectRatio: "1 / 1", borderRadius: 8, border: "1px solid var(--line)", background: "var(--soft)", fontSize: 22 }}>{icon}</span>}
                   <span style={{ fontSize: 10, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.caption ?? m.file_name}</span>
                   <span className="muted" style={{ fontSize: 10, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{proj} · {new Date(m.created_at).toLocaleDateString()}</span>
                 </a>

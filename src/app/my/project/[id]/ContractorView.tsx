@@ -48,7 +48,7 @@ export async function ContractorView({ projectId, show = "both" }: { projectId: 
           </p>
         )}
         {milestones.map((m) => (
-          <div key={m.id} className="small" style={{ display: "grid", gap: 2, borderTop: "1px solid #eef0ec", paddingTop: 6, minWidth: 0 }}>
+          <div key={m.id} className="small" style={{ display: "grid", gap: 2, borderTop: "1px solid var(--soft)", paddingTop: 6, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
               <span style={{ minWidth: 0 }}>
                 {m.sequence_no != null && <span className="muted">{m.sequence_no}. </span>}
@@ -58,7 +58,7 @@ export async function ContractorView({ projectId, show = "both" }: { projectId: 
               <span style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
                 <strong>{money(m.amount)}</strong>
                 {paid(m.status) || paid(m.settlement_status)
-                  ? <span className="extra-chip" style={{ background: "#e6f2ea", color: "#1f6b45" }}>paid</span>
+                  ? <span className="extra-chip" style={{ background: "var(--ok-soft)", color: "var(--brand)" }}>paid</span>
                   : <span className="extra-chip">{m.status ?? "not due"}</span>}
               </span>
             </div>
@@ -84,7 +84,7 @@ export async function ContractorView({ projectId, show = "both" }: { projectId: 
           </p>
         )}
         {contracts.map((c) => (
-          <details key={c.id} open={contracts.length === 1} style={{ borderTop: "1px solid #eef0ec", paddingTop: 6 }}>
+          <details key={c.id} open={contracts.length === 1} style={{ borderTop: "1px solid var(--soft)", paddingTop: 6 }}>
             <summary className="small" style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <span><strong>{c.title ?? c.trade ?? "Contract"}</strong> <span className="muted">· {c.status}</span></span>
               <span style={{ whiteSpace: "nowrap" }}><strong>{money(c.amount, c.currency ?? "USD")}</strong></span>
