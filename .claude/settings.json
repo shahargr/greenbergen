@@ -1,23 +1,8 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
-    "allow": ["mcp__Supabase"],
-    "ask": [
-      "mcp__Supabase__create_project",
-      "mcp__Supabase__pause_project",
-      "mcp__Supabase__restore_project",
-      "mcp__Supabase__create_branch",
-      "mcp__Supabase__delete_branch",
-      "mcp__Supabase__merge_branch",
-      "mcp__Supabase__reset_branch",
-      "mcp__Supabase__rebase_branch",
-      "mcp__Supabase__deploy_edge_function"
-    ]
-  },
-  "autoMode": {
     "allow": [
-      "$defaults",
-      "Reading and writing the Green Bergen Supabase project (ref oznqiwldgjrykadqsriv) with the Supabase MCP tools, including execute_sql and apply_migration. This is the owner's own database and schema migrations are the normal way this project is built."
+      "Bash(supabase *)",
+      "Bash(npx supabase *)"
     ]
   }
 }
