@@ -86,10 +86,46 @@
    padding rather than the row folding, which is what he chose. */
 .task-row-value.triple { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); align-items: end; }
 .task-row-value.triple .field { min-width: 0; }
-.task-row-value.triple .field-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.task-row-value.triple .input, .task-row-value.triple .btn { width: 100%; min-width: 0; }
+
+/* TWO LINES, AND A RECTANGLE (Shahar, 2026-09-17: "note how the text don't
+   fit the button. Change to two line text inside and do rectangle to allow
+   more.")
+   The label wrapped to nothing: "Completion target" was cut to "Completion
+   targ…" by an ellipsis. It gets two lines now, and every cell reserves both
+   of them so the three controls still sit on one baseline whether their own
+   label needs one line or two. */
+.task-row-value.triple .field-label {
+  white-space: normal; overflow: visible; text-overflow: clip;
+  line-height: 1.2; min-height: 2.4em;
+  display: flex; align-items: flex-end;
+}
+
+/* Taller, and square-cornered like the inputs beside them rather than pills.
+   A pill spends its width on the round ends; these three cells are a third of
+   a phone each and cannot afford them. */
+.task-row-value.triple .input, .task-row-value.triple .btn {
+  width: 100%; min-width: 0;
+  min-height: 52px;
+  border-radius: var(--radius-input);
+}
+/* A button's words may take both lines. A select's cannot — the browser draws
+   the closed value on one line whatever we say — so it gets an ellipsis, and
+   the caret keeps the lane it is drawn in. */
+.task-row-value.triple .btn {
+  white-space: normal; text-align: center; line-height: 1.2;
+  padding-left: 10px; padding-right: 10px;
+}
+.task-row-value.triple select.input { text-overflow: ellipsis; }
+
 @media (max-width: 430px) {
-  .task-row-value.triple .input, .task-row-value.triple .btn { font-size: 13px; padding-left: 8px; padding-right: 6px; }
+  .task-row-value.triple .input, .task-row-value.triple .btn { font-size: 13px; padding-left: 8px; padding-right: 8px; }
+  /* NOT the select's right padding. THIS WAS THE BUG IN THE SCREENSHOT: the
+     caret is a background image at "right 15px center" and select.input
+     reserves 40px of padding for it to stand in. Overriding that to 6px here
+     took the lane away without moving the caret, so it was drawn on top of
+     the words — "Not Started⌄", "Shahar Greenb⌄". A narrower lane is fine;
+     no lane is not. */
+  .task-row-value.triple select.input { padding-right: 26px; background-position: right 8px center; }
   .task-row-value.triple input[type="date"] { font-size: 12px; padding-left: 6px; padding-right: 2px; }
 }
 
