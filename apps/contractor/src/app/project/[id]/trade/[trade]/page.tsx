@@ -4,9 +4,10 @@ import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, ChevronIcon, Notice, Screen } from "@shared/ui";
+import type { Target } from "@shared/inbox/data";
 import { getBoard, money, oneList, runs } from "@/lib/board";
 import type { SiteWeek } from "../../SiteWeek";
-import { QuickTask } from "./QuickTask";
+import { QuickTask, type TradePayDefaults } from "./QuickTask";
 import { Engage } from "./Engage";
 import { GateMark } from "@/components/GateMark";
 import { DuePill, HighPill, UrgencyKey, rowClass } from "@/components/TaskRowBits";
@@ -47,7 +48,8 @@ export default async function TradePage({
 
   const w = stopwatch("/project/[id]/trade/[trade]");
   const supabase = await createClient();
-  const [board, { data: weekData }, { data: spineData }, { data: methodData }, { data: acctData }, { data: gateData }] = await Promise.all([
+  const [board, { data: weekData }, { data: spineData }, { data: methodData }, { data: acctData }, { data: gateData },
+         { data: targetData }, { data: payDefaultData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
     // WHO IS APPOINTED, asked of the one thing that knows. This page's own
@@ -73,6 +75,15 @@ export default async function TradePage({
     // claim it, and whether it needs a photograph. Family-aware, because the
     // stages live on the JOB and this screen is usually opened on the HOUSE.
     w.step("gates", () => rpc<Gate[]>(supabase, "portal_my_milestones", { p_project: id })),
+    // WHO YOU PAID, AS A LIST. The same read the pay screen and the compose
+    // box use, so the three cannot drift apart: a typed name creates a
+    // contact, and that is how one framer ended up as two.
+    w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
+    // WHO WAS PAID LAST TIME ON THIS TRADE, out of what, against which
+    // contract and budget line (migration 205). Shahar: "From default to the
+    // one used last time."
+    w.step("paydefaults", () => rpc<TradePayDefaults & { ok: boolean }>(
+      supabase, "portal_trade_pay_defaults", { p_project: id, p_trade: trade })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}/trade/${raw}`);
   const seat = board.seats.find((s) => s.project_id === id);
@@ -81,6 +92,15 @@ export default async function TradePage({
   const mine = (spineData?.trades ?? []).find((x) => x.trade === trade) ?? null;
   const methods = (methodData ?? []) as { id: string; name: string; requires_reference: boolean }[];
   const accounts = Array.isArray(acctData) ? acctData : [];
+  // This job's roster first; failing that, everyone you can write to at all -
+  // a lumber yard is on file without being on the project.
+  const targets = Array.isArray(targetData) ? targetData : [];
+  const roster = targets.find((x) => x.project_id === id)?.people ?? targets.flatMap((x) => x.people);
+  const people = [...new Map(roster.map((p) => [p.contact_id, { contact_id: p.contact_id, name: p.name }])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name));
+  // ok:false means the money ladder said no - the defaults are a payment
+  // form's fields, and who was paid what is financial.
+  const payDefaults = payDefaultData?.ok ? (payDefaultData as TradePayDefaults) : null;
   // THIS TRADE'S GATES, in the order a PM cares about them: what can be
   // claimed today, then what is coming. Paid ones are history and fold away.
   const allGates = (Array.isArray(gateData) ? gateData : []).filter((g) => g.trade === trade);
@@ -320,7 +340,8 @@ export default async function TradePage({
           {manages && (
             <QuickTask projectId={landsOn} projectName={nameOf.get(landsOn) ?? null}
               trade={trade} elsewhere={landsOn !== id}
-              methods={methods} accounts={accounts} />
+              methods={methods} accounts={accounts}
+              people={people} payDefaults={payDefaults} />
           )}
           <nav className="chips" aria-label="Which tasks">
             <Chip href={`/project/${id}/trade/${raw}`} on={!show} label={`Open · ${open.length}`} />
