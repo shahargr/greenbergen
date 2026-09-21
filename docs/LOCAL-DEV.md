@@ -9,8 +9,8 @@ push only when a batch is worth deploying.
 
 | | why | how |
 |---|---|---|
-| **Node 24.x** | Next 16.3.3 needs `>=20.9`. Vercel builds on 24.x, so 24 is what production runs. | `nvm install 24 && nvm use 24` |
-| **nvm** | So the Node version is per-project and you can match Vercel exactly. | `brew install nvm` (then follow its shell instructions) |
+| **Node 24.x** | Next 16.3.3 needs `>=20.9`. Vercel builds on 24.x, so 24 is what production runs, and `.nvmrc` pins it. | `nvm install && nvm use` (reads `.nvmrc`) |
+| **nvm** | So the Node version is per-project and you can match Vercel exactly. | nvm's own install script — see github.com/nvm-sh/nvm. Homebrew is **not** required for any of this. |
 | **git** | Already on macOS via Xcode command line tools. | `xcode-select --install` |
 | **An editor** | VS Code, Cursor, whatever you already use. | — |
 | **Claude Code** *(optional)* | To keep working the way you have been, but against local files. | `npm install -g @anthropic-ai/claude-code`, then `claude` inside the repo. See code.claude.com/docs |
