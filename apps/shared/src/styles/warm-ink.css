@@ -95,7 +95,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* — card: the white surface everything sits on — */
 .card { position: relative; display: flex; flex-direction: column; gap: var(--space-2); background: var(--color-surface); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
-.card.pad, .bp-pad { padding: var(--space-4); }
+.card.pad, .bp-pad { padding: var(--space-3); }
 .card.soft { background: var(--color-soft-2); box-shadow: none; }
 .card-kicker { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 .card-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 15.5px; line-height: 1.15; letter-spacing: -0.01em; }
@@ -149,8 +149,17 @@ button, input, textarea, select { font: inherit; color: inherit; }
    caret away without putting one back. So every control on every screen read
    as flat text until you poked it. Now: a quiet edge always, a darker one on
    hover, the accent on focus, and a real caret on anything that opens. */
+/* 44px, AND NOT A PIXEL LESS (Shahar, 2026-09-21: "Reduce all panels size and
+   drop down heights"). It was 50. 44 is the floor, not a preference: it is
+   Apple's minimum tap target, and a control smaller than a fingertip is a
+   control people miss and press twice.
+
+   font-size STAYS AT 16px for the same kind of reason. Below 16, iOS Safari
+   zooms the whole page the moment a field takes focus, and then you are
+   pinching your way back out of a form you were halfway through. The height
+   came out of the padding instead. */
 .input {
-  width: 100%; min-height: 50px; padding: 10px 16px; font-size: 16px; font-weight: 500; color: var(--color-text);
+  width: 100%; min-height: 44px; padding: 8px 14px; font-size: 16px; font-weight: 500; color: var(--color-text);
   caret-color: var(--color-accent); background: var(--color-surface);
   border: 1.5px solid var(--color-divider); border-radius: var(--radius-input); appearance: none;
   box-shadow: 0 1px 2px rgba(22, 21, 19, 0.04);
@@ -187,6 +196,19 @@ input.input[list] {
 textarea.input { min-height: 100px; resize: vertical; line-height: 1.45; }
 .hint { font-size: 12px; color: var(--muted); margin: 5px 0 0; }
 .hint.error { color: var(--color-danger); }
+
+/* NOT OPTIONAL, AND SAYING SO (Shahar, 2026-09-21: "If fields are not
+   optional - be clear about it"). Almost everything in this app can be left
+   blank on purpose - a task with no date is a real state - so the rare field
+   that CANNOT be is the one that has to announce itself. The marker sits on
+   the label rather than being an asterisk needing a legend somewhere else,
+   and it is a word rather than a colour, because a red tint tells somebody
+   with no colour vision nothing at all. */
+.req {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: var(--radius-pill);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  vertical-align: 1px; background: var(--color-danger-soft); color: var(--color-danger);
+}
 .radio { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
 .radio input, .seg-opt input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
 .radio .dot { width: 20px; height: 20px; flex: none; border-radius: 50%; border: 1.5px solid var(--color-divider-strong); background: var(--color-surface); }

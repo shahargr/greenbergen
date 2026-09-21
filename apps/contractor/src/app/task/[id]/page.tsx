@@ -869,14 +869,21 @@ export default async function TaskPage({
             {/* Only when the database has actually refused - see askWhy.
                 Choosing Completed in Stage is what closes a task now, so this
                 is where the "nothing attached" question lands. */}
+            {/* REQUIRED, AND IT SAYS SO (Shahar, 2026-09-21: "If fields are
+                not optional - be clear about it"). Every other field on this
+                screen can be left alone; this one cannot, because it is the
+                only thing standing between a task with no proof and a closed
+                task with no proof. `required` makes the browser say so too,
+                before the round trip. */}
             {askWhy && (
               <label className="field">
-                <span className="field-label">Why it closes with nothing attached</span>
-                <input name="unlock_reason" className="input" autoFocus
+                <span className="field-label">
+                  Why none is added <span className="req">required</span>
+                </span>
+                <input name="unlock_reason" className="input" autoFocus required
                   placeholder="Nothing to photograph · the certificate is with the town · done by phone" />
                 <span className="hint">
-                  A few words, recorded against the task. Or attach the proof above instead —
-                  a photo, a certificate or a recording all count.
+                  Or attach it above instead — a photo, a certificate or a recording all count.
                 </span>
               </label>
             )}

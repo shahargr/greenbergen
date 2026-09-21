@@ -43,8 +43,10 @@
   display: grid;
   grid-template-columns: minmax(104px, 34%) 1fr;
   align-items: start;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
+  gap: var(--space-2);
+  /* 12px top and bottom on every row added up to a screen you scroll past
+     rather than read (Shahar, 2026-09-21). 8px keeps the rows separable. */
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--color-divider);
 }
 .task-row:last-child { border-bottom: 0; }
@@ -105,7 +107,7 @@
    a phone each and cannot afford them. */
 .task-row-value.triple .input, .task-row-value.triple .btn {
   width: 100%; min-width: 0;
-  min-height: 52px;
+  min-height: 46px;
   border-radius: var(--radius-input);
 }
 /* A button's words may take both lines. A select's cannot — the browser draws
