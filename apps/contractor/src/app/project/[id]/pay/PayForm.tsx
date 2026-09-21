@@ -24,6 +24,8 @@ export type PayChoice = {
   id: string; action: string; project_id: string; project: string;
   owed: number; due: string | null; contract_id: string | null; contract: string | null;
 };
+/** A budget line on one of the jobs, so a payment can be counted against it. */
+export type BudgetLine = { id: string; project_id: string; category: string; phase: string | null };
 export type ContractDefault = {
   contract_id: string; title: string | null; trade: string | null;
   party: string | null; account: string | null; method: string | null;
@@ -32,11 +34,12 @@ export type ContractDefault = {
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const shortDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-export function PayForm({ projectId, choices, defaults, methods, accounts, people, defaultTask, startAmount = null }: {
+export function PayForm({ projectId, choices, defaults, budgetLines, methods, accounts, people, defaultTask, startAmount = null }: {
   projectId: string;
   /** Arrived from a payment gate that already knows what it is worth (190). */
   choices: PayChoice[];
   defaults: ContractDefault[];
+  budgetLines: BudgetLine[];
   methods: Method[];
   accounts: string[];
   people: { contact_id: string; name: string }[];
@@ -64,9 +67,23 @@ export function PayForm({ projectId, choices, defaults, methods, accounts, peopl
   const picked = choices.find((c) => c.id === task) ?? null;
   const d = picked?.contract_id ? defaults.find((x) => x.contract_id === picked.contract_id) ?? null : null;
 
+  // WHERE THE MONEY LANDS. Until 2026-09-21 a task payment carried neither a
+  // contract nor a budget line - task_payment_log did not even have the
+  // columns in its insert - so every one of them fell outside the budget.
+  // Shahar found $5,000 paid to his framer that no balance had moved for.
+  // The contract is not asked for: the TASK already knows it, and it was
+  // sitting right here in `picked.contract_id` unsent. The budget line IS
+  // asked for, because it cannot be derived - "Framing" on this project is
+  // two lines, Labor and Materials, and guessing between them is how you get
+  // a balance that is confidently wrong.
+  const linesHere = budgetLines.filter((b) => !picked || b.project_id === picked.project_id);
+  const [line, setLine] = useState("");
+
   return (
     <>
       <input type="hidden" name="action_id" value={task} />
+      {/* The task's own contract, carried through rather than re-asked. */}
+      <input type="hidden" name="contract_id" value={picked?.contract_id ?? ""} />
 
       {jobs.length > 1 && (
         <label className="field">
@@ -112,6 +129,24 @@ export function PayForm({ projectId, choices, defaults, methods, accounts, peopl
             : <>Anything already outstanding is at the top. Nothing here fits? Open the job and add the task first — a payment with no task is a payment nobody can find again.</>}
         </span>
       </label>
+
+      {picked && (
+        <label className="field">
+          <span className="field-label">Where it lands</span>
+          <select className="input" name="budget_category_id" value={line}
+            onChange={(e) => setLine(e.target.value)}>
+            <option value="">Choose a budget line…</option>
+            {linesHere.map((b) => (
+              <option key={b.id} value={b.id}>{b.phase ? `${b.phase} · ` : ""}{b.category}</option>
+            ))}
+          </select>
+          <span className="hint">
+            {picked.contract_id
+              ? <>It counts against <strong>{picked.contract ?? "this task's contract"}</strong> either way. The budget line is what makes it show up as spend on that line — leave it blank and the contract moves but the budget does not.</>
+              : <>No contract on this task, so the budget line is the only thing that will count this money anywhere.</>}
+          </span>
+        </label>
+      )}
 
       {/* The gate's amount rides in on the FIRST render (its own key), so
           picking a task afterwards still applies that contract's payee and

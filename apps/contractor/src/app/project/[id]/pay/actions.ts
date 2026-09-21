@@ -66,6 +66,11 @@ export async function logCategoryPayment(formData: FormData) {
     p_notes: txt(formData.get("notes")),
     p_awaiting: String(formData.get("awaiting") ?? "") === "1",
     p_file_ids: files.length > 0 ? files : null,
+    // Where it lands (migration 203). Both are checked against the task's own
+    // project on the way in, so a line from another job is refused rather
+    // than quietly corrupting two balances at once.
+    p_contract: txt(formData.get("contract_id")),
+    p_budget_category: txt(formData.get("budget_category_id")),
   });
   if (error) redirect(at({ error: error.message }));
   if (data?.ok === false) redirect(at({ error: data.reason ?? "That payment did not save." }));
