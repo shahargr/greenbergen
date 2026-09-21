@@ -1017,3 +1017,18 @@
 /* An unticked line is out, so it should look out while you scan the list. */
 .ref-row:has(.ref-in:not(:checked)) .ref-text { opacity: .55; text-decoration: line-through; }
 @media (min-width: 560px) { .ref-row { grid-template-columns: 24px minmax(0, 1fr) 150px; } .ref-state { font-size: 13px; } }
+
+/* THE THREE KINDS OF SCOPE LINE, AS A RAIL. Three steps with their counts,
+   because "how many lines am I still deciding on" is the question somebody
+   halfway through a scope actually has - a percentage bar answers a
+   different one. Each is a link, so the steps are an order rather than a
+   cage: nobody should have to page through Standard to fix one Special
+   line they came here for. */
+.scope-rail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 4px; }
+.scope-step { display: grid; gap: 1px; padding: 8px 6px; border-radius: 14px; text-align: center;
+  background: var(--color-soft); color: var(--color-muted); text-decoration: none;
+  border: 1px solid transparent; min-width: 0; }
+.scope-step.on { background: var(--color-surface); color: var(--color-text); border-color: var(--color-divider-strong); }
+.scope-step .n { font-family: var(--font-heading); font-weight: 800; font-size: 15px; line-height: 1; }
+.scope-step .t { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scope-step .c { font-size: 10px; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

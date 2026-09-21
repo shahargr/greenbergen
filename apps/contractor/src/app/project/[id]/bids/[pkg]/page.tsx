@@ -566,6 +566,26 @@ export default async function BidPackagePage({
                 never have been typed - stay in a narrow select that reads
                 "—" until you need it. The tick decides in or out; the select
                 only overrides it. Nothing can disagree with itself. */}
+            {/* IT IS A PAGE NOW (Shahar, 2026-09-21: "the scope panel should
+                be a scope page with step by step guidance to complete it").
+                The fold stays for the quick correction you came here to make;
+                the page is for actually working through a scope, three kinds
+                of line at a time. Same form, same action - one of them is
+                just a better place to spend five minutes. */}
+            {canWrite && p.items.length > 0 && (
+              <Link href={`/project/${id}/bids/${pkgId}/scope`} className="home-row">
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="t">Work through the scope</span>
+                  <span className="m" style={{ display: "block" }}>
+                    Standard, optional and the lines somebody wrote for this job — in or out, one kind at a time
+                  </span>
+                </span>
+                <span className="tiny text-muted" style={{ flex: "none", whiteSpace: "nowrap" }}>
+                  {p.items.filter((i) => i.is_included !== false).length} of {p.items.length} in
+                </span>
+              </Link>
+            )}
+
             {canWrite && p.items.length > 0 && (
               <details className="card pad">
                 <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>

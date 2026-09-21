@@ -191,19 +191,32 @@ export async function refineLines(projectId: string, pkgId: string, formData: Fo
     };
   });
 
+  // WHERE TO GO AFTERWARDS. The room posts nothing and lands back on itself;
+  // the step-by-step scope page posts the next step, so a wizard saves each
+  // group as it passes rather than holding three screens of ticks in the
+  // browser and losing them to a stray tap. Only a path inside THIS package
+  // is honoured - a redirect target off a form field is a redirect somebody
+  // else can choose for you.
+  const wanted = txt(formData.get("next"));
+  const base = `/project/${projectId}/bids/${pkgId}`;
+  const nextPath = wanted && wanted.startsWith(`${base}/`) ? wanted : null;
+  const land = (params: Record<string, string>) =>
+    nextPath ? `${nextPath}${nextPath.includes("?") ? "&" : "?"}${new URLSearchParams(params)}` : here(projectId, pkgId, params);
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_bid_lines_refine", {
     p_package: pkgId, p_lines: lines, p_why: txt(formData.get("why")),
   });
   revalidatePath(here(projectId, pkgId));
+  revalidatePath(`${base}/scope`);
   revalidatePath(`/project/${projectId}/bids`);
   if (error || !data?.ok) {
-    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "Those lines did not save.") }));
+    redirect(land({ error: data?.reason ?? friendly(error?.message, "Those lines did not save.") }));
   }
   // What actually happened, in the numbers - "saved" tells somebody who just
   // struck four lines nothing about whether the right four went.
   const held = Array.isArray(data.held) ? (data.held as string[]) : [];
-  redirect(here(projectId, pkgId, {
+  redirect(land({
     ok: "refined",
     n: [
       data.excluded ? `${data.excluded} taken out` : null,
