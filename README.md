@@ -11,6 +11,12 @@ npm install
 npm run dev
 ```
 
+That is the portal alone, on `localhost:3000`. To run all three apps behind
+one origin - which is the only way `/home` and `/pro` work against local code
+rather than production - see **[docs/LOCAL-DEV.md](docs/LOCAL-DEV.md)**: what
+to install, the three env files, the `ZONE_*` lines, and the Supabase
+redirect URL that sign-in needs before it will work on localhost.
+
 ## Where things live
 
 - `src/app` - routes: `/` landing, `/login` (email OTP + Google), `/my` (the
