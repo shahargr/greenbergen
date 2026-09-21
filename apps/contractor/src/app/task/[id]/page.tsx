@@ -360,7 +360,16 @@ export default async function TaskPage({
         <TaskBar formId="task-form" taskId={id} justSaved={!!ok} />
       )}
       <div className="body">
-        {error && <Notice kind="error" title="Not saved.">{error}</Notice>}
+        {/* "Not saved." IS A LIE WHEN SOMETHING WAS. Shahar, 2026-09-21, on a
+            screen showing both banners at once: the status note had saved and
+            the close had been refused, so the page said "Not saved." directly
+            above "Saved: status." Both were true and together they read as a
+            broken screen. An update here is several writes - a note, a status
+            line, a stage - and they do not all fail together, so the title
+            says which case it is. */}
+        {error && (
+          <Notice kind="error" title={ok ? "The rest was not saved." : "Not saved."}>{error}</Notice>
+        )}
         {/* IT STAYS ON THE TASK NOW, and the thing you just posted is one tap
             from being taken back (Shahar, 2026-09-12: "after clicking save,
             you should stay on this very same line added, as sometime you would
