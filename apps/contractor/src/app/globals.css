@@ -1004,6 +1004,16 @@
    control that says where the line stands. On a phone the two stack; there is
    no third column to get lost behind, because a line is in exactly one state
    and asking it as one question is the whole point. */
-.ref-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.ref-text { flex: 1 1 200px; min-width: 0; font-size: 13px; }
-.ref-state { flex: 0 1 150px; min-width: 132px; font-size: 13px; }
+/* ONE LINE PER LINE (Shahar, 2026-09-21). This was a flex row that wrapped,
+   so on a phone every scope line took two rows - the wording, then a select
+   under it - and ten lines read as twenty. A grid cannot wrap: the tick, the
+   wording and the rare-case select stay on one line at any width, and the
+   wording takes whatever is left. */
+.ref-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) 104px; gap: 8px; align-items: center; }
+.ref-head { padding: 0 2px 2px; }
+.ref-in { width: 20px; height: 20px; margin: 0; justify-self: center; accent-color: var(--color-accent); cursor: pointer; }
+.ref-text { min-width: 0; font-size: 13px; }
+.ref-state { min-width: 0; font-size: 12px; padding-left: 8px; padding-right: 4px; }
+/* An unticked line is out, so it should look out while you scan the list. */
+.ref-row:has(.ref-in:not(:checked)) .ref-text { opacity: .55; text-decoration: line-through; }
+@media (min-width: 560px) { .ref-row { grid-template-columns: 24px minmax(0, 1fr) 150px; } .ref-state { font-size: 13px; } }

@@ -172,14 +172,20 @@ export async function refineLines(projectId: string, pkgId: string, formData: Fo
   if (ids.length === 0) redirect(here(projectId, pkgId, { error: "Nothing to save." }));
 
   const lines = ids.map((lineId) => {
-    const state = String(formData.get(`state__${lineId}`) ?? "in");
+    // THE TICK DECIDES IN OR OUT; THE SELECT ONLY OVERRIDES IT. An unticked
+    // checkbox posts nothing at all, so absence IS "not in this one" - which
+    // is why the ids list above is the source of truth for which rows were
+    // on the form. Order matters: drop beats everything, then the tick, then
+    // whether an included line is priced on its own.
+    const state = String(formData.get(`state__${lineId}`) ?? "");
+    const included = formData.get(`in__${lineId}`) != null;
     const item = txt(formData.get(`item__${lineId}`));
     return {
       id: lineId,
       ...(item ? { item } : {}),
       ...(state === "drop"
         ? { drop: true }
-        : state === "out"
+        : !included
         ? { in: false }
         : { in: true, kind: state === "option" ? "option" : "base" }),
     };
@@ -207,6 +213,56 @@ export async function refineLines(projectId: string, pkgId: string, formData: Fo
       data.renamed ? `${data.renamed} reworded` : null,
     ].filter(Boolean).join(", ") || "nothing changed",
     ...(held.length > 0 ? { held: held.join(", ") } : {}),
+  }));
+}
+
+// HE TOOK HIMSELF OUT, WHICH IS NOT THE SAME AS LOSING (migration 212).
+//
+// "Close as lost" writes 'not awarded' - you rejected his price. A roofer
+// who rings to say he is booked until spring was never rejected, and filing
+// him that way means next year the room lies to you about what happened.
+//
+//   declined  - he never priced it
+//   withdrawn - he priced it and pulled the price
+//
+// The database refuses "withdrawn" on a bid that never carried a number, so
+// the two cannot be mixed up by a mis-tap.
+export async function stepOut(projectId: string, pkgId: string, bidId: string, how: string, formData: FormData) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_step_out", {
+    p_bid: bidId, p_how: how, p_reason: txt(formData.get("reason")),
+  });
+  revalidatePath(here(projectId, pkgId));
+  revalidatePath(`/project/${projectId}/bids`);
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "Could not record that.") }));
+  }
+  redirect(here(projectId, pkgId, { ok: "stepout", who: String(data.bidder ?? "He"), how: String(data.status) }));
+}
+
+// UNDOING AN AWARD (migration 210). Reversible only while it is still a
+// decision: the database refuses once a payment, a claimed payment stage or
+// an open task hangs off the contract it created, and says how many it
+// found. The reason is required - it goes on the bid.
+export async function unaward(projectId: string, pkgId: string, formData: FormData) {
+  const reason = txt(formData.get("reason"));
+  if (!reason) redirect(here(projectId, pkgId, { error: "Say why the award is being undone — it goes on the record." }));
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_unaward", { p_pkg: pkgId, p_reason: reason });
+  revalidatePath(here(projectId, pkgId));
+  revalidatePath(`/project/${projectId}/bids`);
+  revalidatePath(`/project/${projectId}`);
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "Could not undo the award.") }));
+  }
+  // The seat it deliberately did NOT take away is worth saying out loud,
+  // not burying - it is the one thing the undo leaves behind.
+  redirect(here(projectId, pkgId, {
+    ok: "unaward",
+    who: String(data.bidder ?? "He"),
+    back: String(data.restored_to ?? "received"),
+    ...(data.seat_kept ? { seat: "1" } : {}),
   }));
 }
 

@@ -8,7 +8,8 @@ import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { money } from "@/lib/board";
 import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent, showPhoto, hidePhoto,
   attachUploads, attachExisting, detachDoc, shareDoc,
-  removeBidder, editBidder, addKnownToRoom, setTemplate, setMeasures, refineLines } from "./actions";
+  removeBidder, editBidder, addKnownToRoom, setTemplate, setMeasures, refineLines,
+  stepOut, unaward } from "./actions";
 import { BidPapers } from "@/components/BidPapers";
 import { BidLink } from "@/components/BidLink";
 import { BidRowMenu } from "@/components/BidRowMenu";
@@ -94,6 +95,10 @@ type Pkg = {
 
 // A reply that is in, whatever stage it reached.
 const REPLIED = ["received", "under negotiation", "awarded", "not awarded"];
+// ALREADY OUT, however he got there - turned down, or gone of his own accord
+// (212). The three buttons that take somebody out are hidden once any of
+// them has been pressed; the row menu is where a mistake gets corrected.
+const OUT = ["not awarded", "declined", "withdrawn"];
 const tone = (s: string) =>
   s === "awarded" ? "tag-ok"
   : s === "received" || s === "under negotiation" ? "tag-outline"
@@ -104,10 +109,11 @@ export default async function BidPackagePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string; pkg: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; open?: string; held?: string; docq?: string; who?: string; n?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; open?: string; held?: string; docq?: string; who?: string;
+    n?: string; how?: string; back?: string; seat?: string }>;
 }) {
   const { id, pkg: pkgId } = await params;
-  const { ok, error, open, held, docq, who, n } = await searchParams;
+  const { ok, error, open, held, docq, who, n, how, back, seat } = await searchParams;
   const w = stopwatch("/project/[id]/bids/[pkg]");
   const supabase = await createClient();
 
@@ -215,6 +221,22 @@ export default async function BidPackagePage({
         {ok === "gaps" && <div className="banner-ok">Number recorded — and it does not cover every required line. The gaps are listed under his name.</div>}
         {ok === "round" && <div className="banner-ok">Round recorded.</div>}
         {ok === "award" && <div className="banner-ok">Awarded. The package is closed and the others are marked.</div>}
+        {/* HE TOOK HIMSELF OUT (212) - said back in his words, not as a status. */}
+        {ok === "stepout" && (
+          <div className="banner-ok">
+            {who || "He"} {how === "withdrawn" ? "withdrew his price" : "declined to bid"}. His link is closed, and
+            the room records that he stepped out rather than that you turned him down.
+          </div>
+        )}
+        {/* THE AWARD IS UNDONE (210) - and the one thing it deliberately did
+            not do is the thing worth saying. */}
+        {ok === "unaward" && (
+          <div className="banner-ok">
+            Award undone. {who || "He"} is back to <strong>{back || "received"}</strong>, the room is open, and the
+            contract it created is cancelled.
+            {seat === "1" && <> {who || "He"} still holds a seat on this job — take it off the team screen if that is wrong.</>}
+          </div>
+        )}
         {ok === "invited" && <div className="banner-ok">Invited.</div>}
         {ok === "added" && <div className="banner-ok">In the room. Write his number down when it comes in.</div>}
         {ok === "already" && <div className="banner-ok">That firm was already in this room — nothing doubled up.</div>}
@@ -532,42 +554,63 @@ export default async function BidPackagePage({
                 reflects a new build, so tear-off existing is not needed...
                 maybe a refine button."
 
-                One control per line, because a line is in exactly one state:
-                asked for, priced separately, not in this proposal, or a line
-                that should never have been typed. The wording sits beside it,
-                so "Testing - adding a line" is fixed where you notice it
-                rather than by rewriting the box below. */}
+                A TICK, NOT A DROPDOWN (Shahar, 2026-09-21: "change UI to
+                line, with include +/- checkbox column"). Four states in one
+                select meant a select on every row, and on a phone each line
+                wrapped onto two - ten lines became twenty rows of furniture
+                to read past.
+
+                In or out is the question you actually ask of twenty lines in
+                a row, and it is binary, so it is a tick. The two states a
+                tick cannot hold - priced separately, and a line that should
+                never have been typed - stay in a narrow select that reads
+                "—" until you need it. The tick decides in or out; the select
+                only overrides it. Nothing can disagree with itself. */}
             {canWrite && p.items.length > 0 && (
               <details className="card pad">
                 <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
                   Refine the lines · one at a time
                 </summary>
-                <form action={refineLines.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                <form action={refineLines.bind(null, id, pkgId)} className="stack" style={{ gap: 6, marginTop: 10 }}>
                   <input type="hidden" name="ids" value={p.items.map((i) => i.id).join(",")} />
-                  {p.items.map((i) => (
-                    <div className="ref-row" key={i.id}>
-                      <input className="input ref-text" name={`item__${i.id}`} defaultValue={i.item}
-                        aria-label={`The wording: ${i.item}`} />
-                      <select className="input ref-state" name={`state__${i.id}`}
-                        defaultValue={i.is_included === false ? "out" : i.kind === "option" ? "option" : "in"}
-                        aria-label={`Where this line stands: ${i.item}`}>
-                        <option value="in">Asked for</option>
-                        <option value="option">Priced separately</option>
-                        <option value="out">Not in this one</option>
-                        <option value="drop">Remove the line</option>
-                      </select>
-                    </div>
-                  ))}
-                  <label className="field" style={{ marginBottom: 0 }}>
-                    <span className="field-label">Why the ones you took out are out (optional)</span>
+                  {/* The tick column needs a word over it, or the first thing
+                      you do is tick one to find out what it does. */}
+                  <div className="ref-row ref-head">
+                    <span className="tiny text-muted" style={{ textAlign: "center" }}>in</span>
+                    <span className="tiny text-muted">the line, as the bidders read it</span>
+                    <span className="tiny text-muted">or…</span>
+                  </div>
+                  {p.items.map((i) => {
+                    const isIn = i.is_included !== false;
+                    return (
+                      <div className="ref-row" key={i.id}>
+                        {/* An option is still asked for - it is priced on its
+                            own line, not left out - so it ticks in. */}
+                        <input type="checkbox" className="ref-in" name={`in__${i.id}`} defaultChecked={isIn}
+                          aria-label={`In this proposal: ${i.item}`} title="In this proposal" />
+                        <input className="input ref-text" name={`item__${i.id}`} defaultValue={i.item}
+                          aria-label={`The wording: ${i.item}`} />
+                        <select className="input ref-state" name={`state__${i.id}`}
+                          defaultValue={i.kind === "option" ? "option" : ""}
+                          aria-label={`Anything special about this line: ${i.item}`}
+                          title="Leave as — unless the line is priced separately or should come off the room">
+                          <option value="">—</option>
+                          <option value="option">Priced separately</option>
+                          <option value="drop">Remove the line</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+                  <label className="field" style={{ marginBottom: 0, marginTop: 4 }}>
+                    <span className="field-label">Why the ones you untick are out (optional)</span>
                     <input className="input" name="why" placeholder="New build — nothing to tear off" />
                   </label>
                   <button className="btn btn-secondary btn-block">Save the lines</button>
                   <p className="tiny text-muted" style={{ margin: 0 }}>
-                    A line that is <strong>not in this one</strong> stays here with its reason, is hidden from every
-                    bidder, and stops counting against anybody who left it out. <strong>Remove</strong> takes it off
-                    the room for good — it stays on the job, and a line somebody has already priced is kept whatever
-                    you pick.
+                    An <strong>unticked</strong> line stays here with its reason, is hidden from every bidder, and
+                    stops counting against anybody who left it out. <strong>Remove the line</strong> takes it off the
+                    room for good — it stays on the job, and a line somebody has already priced is kept whatever you
+                    pick.
                   </p>
                 </form>
               </details>
@@ -799,7 +842,11 @@ export default async function BidPackagePage({
                 necessary documents". */}
             {canWrite && (
               <details className="card pad" open={!!docq}>
-                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>Add papers</summary>
+                {/* "Add papers" told you the filing cabinet it went into, not
+                    what to put in it (Shahar, 2026-09-21). What a bidder
+                    actually needs to price a job is the plans and the
+                    photographs, so the button asks for those. */}
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>Attach plans / images</summary>
                 <div className="stack" style={{ gap: 14, marginTop: 10 }}>
                   <div>
                     <div className="small" style={{ fontWeight: 700, marginBottom: 6 }}>Upload</div>
@@ -925,7 +972,10 @@ export default async function BidPackagePage({
           {p.bids.map((b) => {
             const isAwarded = b.id === p.awarded_bid_id;
             const hasNumber = b.amount != null;
-            const canAward = canWrite && REPLIED.includes(b.status) && b.status !== "not awarded";
+            // A man who declined or withdrew is not awardable either (212) -
+            // "not awarded" used to be the only way out, so it was the only
+            // one this had to exclude.
+            const canAward = canWrite && REPLIED.includes(b.status) && !OUT.includes(b.status);
             const sheet = open === b.id;
             return (
               <Card pad key={b.id}>
@@ -941,7 +991,28 @@ export default async function BidPackagePage({
                       ].filter(Boolean).join(" · ")}
                     </div>
                   </div>
-                  <span className={`tag ${tone(b.status)}`} style={{ whiteSpace: "nowrap" }}>{isAwarded ? "awarded" : b.status}</span>
+                  {/* CORRECT THEM OR TAKE THEM OUT, WHERE THE THUMB IS.
+                      Shahar, 2026-09-21: "i was able to add alex to the room.
+                      i should also have a way to remove someone from the
+                      room."
+
+                      There always was one - the "…" in the last column of the
+                      roster table. On a phone that table scrolls sideways and
+                      the column is three swipes past the edge of the screen,
+                      so the capability existed and could not be found. The
+                      same menu sits on the card now, which is full width and
+                      is where you already are when you are looking at one
+                      bidder rather than comparing all of them. */}
+                  <span className="row" style={{ gap: 6, alignItems: "center", flex: "none" }}>
+                    <span className={`tag ${tone(b.status)}`} style={{ whiteSpace: "nowrap" }}>{isAwarded ? "awarded" : b.status}</span>
+                    {canWrite && !isAwarded && (
+                      <BidRowMenu who={b.bidder ?? "them"} person={b.person}
+                        phone={b.link_phone} email={b.link_email}
+                        priced={b.amount != null}
+                        onEdit={editBidder.bind(null, id, pkgId, b.id)}
+                        onRemove={removeBidder.bind(null, id, pkgId, b.id)} />
+                    )}
+                  </span>
                 </div>
 
                 {b.is_like_for_like === false && b.scope_gaps && (
@@ -1121,18 +1192,44 @@ export default async function BidPackagePage({
                       </form>
                     )}
 
-                    {/* OUT, WITHOUT ANYBODY WINNING. Shahar, on HVAC:
-                        "Jacob / Mario is closed as lost on the bidding." A
-                        bidder drops out, or never comes back with a number,
-                        long before the winner is picked. */}
-                    {b.status !== "not awarded" && !isAwarded && (
-                      <form action={markLost.bind(null, id, pkgId, b.id)} className="stack" style={{ gap: 8 }}>
-                        <div className="small" style={{ fontWeight: 700 }}>Or close {b.bidder ?? "him"} as lost</div>
+                    {/* OUT, AND WHICH KIND OF OUT (212). Shahar, on HVAC:
+                        "Jacob / Mario is closed as lost on the bidding."
+
+                        That was the only button, and it writes 'not awarded'
+                        - which says YOU turned HIM down. A man who rings to
+                        say he is booked until spring was not turned down, and
+                        filing him that way means the room lies to you next
+                        year when you are deciding who to ask again.
+
+                        Three buttons, one form, one reason box. The database
+                        refuses "withdrew" on a bid that never carried a
+                        number, so the two cannot be crossed by a mis-tap. */}
+                    {!OUT.includes(b.status) && !isAwarded && (
+                      <form className="stack" style={{ gap: 8 }}>
+                        <div className="small" style={{ fontWeight: 700 }}>Or take {b.bidder ?? "him"} out of the room</div>
                         <div className="field" style={{ marginBottom: 0 }}>
                           <label htmlFor={`lost-${b.id}`}>Why he is out</label>
-                          <input id={`lost-${b.id}`} name="reason" className="input" placeholder="Optional — never came back, too high, went quiet" />
+                          <input id={`lost-${b.id}`} name="reason" className="input"
+                            placeholder="Optional — never came back, too high, booked until spring" />
                         </div>
-                        <button className="btn btn-ghost btn-block">Close as lost</button>
+                        <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                          <button formAction={markLost.bind(null, id, pkgId, b.id)}
+                            className="btn btn-ghost small" style={{ flex: "1 1 auto" }}
+                            title="You turned his price down">Lost</button>
+                          <button formAction={stepOut.bind(null, id, pkgId, b.id, "declined")}
+                            className="btn btn-ghost small" style={{ flex: "1 1 auto" }}
+                            title="He never priced it">He declined</button>
+                          {hasNumber && (
+                            <button formAction={stepOut.bind(null, id, pkgId, b.id, "withdrawn")}
+                              className="btn btn-ghost small" style={{ flex: "1 1 auto" }}
+                              title="He gave a price and pulled it">He withdrew</button>
+                          )}
+                        </div>
+                        <p className="tiny text-muted" style={{ margin: 0 }}>
+                          <strong>Lost</strong> is you turning his price down. <strong>Declined</strong> and{" "}
+                          <strong>withdrew</strong> are him taking himself out — and they close his link so a price
+                          cannot arrive after he has said he is gone.
+                        </p>
                       </form>
                     )}
                   </div>
@@ -1211,12 +1308,58 @@ export default async function BidPackagePage({
           </details>
         )}
 
-        {closed && (
+        {closed && !p.awarded_bid_id && (
           <Notice title="This package is closed.">
-            {p.awarded_bid_id
-              ? "It is awarded. The contract and its payment schedule live on the money page."
-              : "Reopen it from the portal if replies should come back in."}
+            Nobody won it. Reopen it from the portal if replies should come back in.
           </Notice>
+        )}
+
+        {/* AWARDED - AND IT CAN BE TAKEN BACK (210).
+            Shahar, 2026-09-21: "fix all gaps."
+
+            Awarding was one-way. portal_bid_award refuses a second award
+            with "This package is already awarded" and nothing could clear
+            that, so picking the wrong man ended the room. The only way back
+            was the portal's package editor, which takes a status and has no
+            awarded guard - a back door that leaves the contract, the seat
+            and every losing bid still pointing at the award you thought you
+            had undone.
+
+            Folded, because undoing an award is rare and pressing it by
+            accident is not. What it will and will not do is written above
+            the box rather than discovered afterwards: the database refuses
+            once money has moved, and the seat stays on purpose. */}
+        {p.awarded_bid_id && (
+          <>
+            <Notice title="This package is awarded.">
+              The contract and its payment schedule live on the money page.
+            </Notice>
+            {canWrite && (
+              <details className="card pad">
+                <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                  Awarded the wrong bid?
+                </summary>
+                <form action={unaward.bind(null, id, pkgId)} className="stack" style={{ gap: 8, marginTop: 10 }}>
+                  <p className="tiny text-muted" style={{ margin: 0 }}>
+                    This reopens the room, puts every bid back to where it stood before the award, and cancels the
+                    contract the award created. It is <strong>refused</strong> once a payment, a claimed payment
+                    stage or an open task hangs off that contract — and it will say how many it found.
+                  </p>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor="unaward-why">Why it is being undone</label>
+                    <input id="unaward-why" name="reason" className="input" required
+                      placeholder="He cannot start until November" />
+                  </div>
+                  <button className="btn btn-ghost btn-block">Undo the award</button>
+                  <p className="tiny text-muted" style={{ margin: 0 }}>
+                    His seat on the job is <strong>left in place</strong> — work may already be assigned to him, and
+                    quietly taking a seat away is how a task ends up owned by nobody. Remove it from the team screen
+                    if that is what you want.
+                  </p>
+                </form>
+              </details>
+            )}
+          </>
         )}
 
         <p className="tiny text-muted" style={{ margin: 0 }}>
