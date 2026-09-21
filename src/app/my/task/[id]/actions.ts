@@ -620,6 +620,12 @@ export async function createTaskTransaction(taskId: string, formData: FormData) 
     project_id: projectId,
     action_id: taskId,
     contractor_id: payeeId,
+    // WHERE IT LANDS (migration 203). Until 2026-09-21 no payment logged on a
+    // task carried either, so every one fell outside the budget - Shahar's
+    // $5,000 to his framer among them. Both are checked against this task's
+    // own project in the database.
+    contract_id: String(formData.get("contract_id") ?? "").trim() || null,
+    budget_category_id: String(formData.get("budget_category_id") ?? "").trim() || null,
     notes: String(formData.get("notes") ?? "").trim() || null,
     created_by: "portal:task",
     last_modified_by: "portal:task",

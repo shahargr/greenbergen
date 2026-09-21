@@ -58,6 +58,9 @@ export async function logCategoryPayment(formData: FormData) {
     p_action: action,
     p_amount: amount,
     p_method: txt(formData.get("method")),
+    // The picked contact, so a known vendor is MATCHED rather than
+    // re-created from their name (which is how one framer became two).
+    p_payee_contact: txt(formData.get("payee_contact_id")),
     p_payee_name: txt(formData.get("payee")),
     p_reference: txt(formData.get("reference")),
     p_paid_on: txt(formData.get("paid_on")),

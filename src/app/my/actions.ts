@@ -342,6 +342,9 @@ export async function logPayment(formData: FormData) {
     source_account_id: sourceAccountId,
     project_id: projectId,
     contract_id: String(formData.get("contract") ?? "").trim() || null,
+    // The contract was always carried here and the budget line never was, so
+    // this form could move a contract balance while the budget stood still.
+    budget_category_id: String(formData.get("budget_category_id") ?? "").trim() || null,
     contractor_id: payeeId,
     payment_reference: String(formData.get("payment_ref") ?? "").trim() || null,
     notes: [paidBy ? `Paid by: ${paidBy}.` : null, extraNotes || null].filter(Boolean).join(" ") || null,

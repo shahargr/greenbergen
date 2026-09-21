@@ -24,6 +24,8 @@ export type PayDefaults = {
 // being filled in, and it follows the payment method - a rail that needs a
 // reference (check number, Zelle confirmation) says so before the database
 // has to refuse the payment for the lack of one.
+const NEW = "__new__";
+
 export function PaymentBox({ projectId, methods, people, accounts = [], defaults = null, defaultsKey = "" }: {
   projectId: string | null;
   methods: Method[];
@@ -38,6 +40,8 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
   const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [payee, setPayee] = useState("");
+  // Who the contract says is paid, pinned to the top of the list.
+  const [who, setWho] = useState("");
   const [files, setFiles] = useState<Attached[]>([]);
   const [reference, setReference] = useState("");
   // Your account is a slot in the From/To row now, so it is controlled state
@@ -69,16 +73,30 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
   // as well as to account is mandatory"). A payment with one end is a
   // number nobody can reconcile.
   const ready = started && payee.trim().length > 0 && account.trim().length > 0 && (!needsRef || reference.trim().length > 0);
-  const clear = () => { setAmount(""); setPayee(""); setReference(""); setAccount(""); };
+  const clear = () => { setAmount(""); setPayee(""); setWho(""); setReference(""); setAccount(""); };
 
   // THE CONTRACT FILLS THE SLOTS. When the task changes to one with a
   // contract, its party lands in To, its last account in From, its last rail
   // in How. Only on that change - what you type afterwards stays. Done as
   // state adjusted during render (React's pattern for "a prop changed"),
   // not in an effect, so there is no extra paint with the old values.
+  // THE TRADER, AT THE TOP. The contract names its party as TEXT, so it is
+  // matched back to a contact here - that match is what lets the default be
+  // a real id rather than a name to be re-typed and re-created.
+  const onContract = defaults?.payee
+    ? people.find((x) => x.name.toLowerCase().trim() === defaults.payee!.toLowerCase().trim())
+      ?? people.find((x) => x.name.toLowerCase().includes(defaults.payee!.toLowerCase().trim())
+                         || defaults.payee!.toLowerCase().includes(x.name.toLowerCase().trim()))
+      ?? null
+    : null;
+  const others = people.filter((x) => x.contact_id !== onContract?.contact_id);
+
   const [applied, setApplied] = useState(defaultsKey);
   if (defaultsKey !== applied) {
     setApplied(defaultsKey);
+    // Pick the contract's own party when there is one; otherwise leave it
+    // unchosen rather than guessing at somebody.
+    setWho(onContract?.contact_id ?? "");
     if (defaults?.payee) setPayee(defaults.payee);
     if (defaults?.account) setAccount(defaults.account);
     if (defaults?.amount) setAmount(defaults.amount);
@@ -123,12 +141,38 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
   const theirs = (
     <label className="field" style={{ marginBottom: 0 }}>
       <span className="field-label">{credit ? "From — the other side" : "To — the other side"}</span>
-      <input className="input" name="payee" value={payee} onChange={(e) => setPayee(e.target.value)}
-        required={started}
-        list="task-payee-list" placeholder="The supplier, the shop, the person" autoComplete="off" />
-      <datalist id="task-payee-list">
-        {people.map((p) => <option key={p.contact_id} value={p.name} />)}
-      </datalist>
+      {/* A LIST, NOT A TYPING BOX (Shahar, 2026-09-21: "the name should be a
+          drop down, but the trader be listed as default value in the top so
+          it is easier to select them").
+          This was an <input> with a datalist, which SUGGESTS without
+          constraining - and task_payment_log creates a contact when the name
+          it is handed matches nobody. That is how "Javier Rivera" came to
+          exist beside "Javier Rivera NJ Services - Framer", splitting one
+          framer's history across two contacts and three payments from one.
+          Picking from the list posts the CONTACT ID, so there is nothing to
+          match and nothing to duplicate. Someone genuinely new is still
+          possible - deliberately, one choice down, not by a typo. */}
+      <select className="input" value={who} required={started}
+        onChange={(e) => { setWho(e.target.value); if (e.target.value !== NEW) setPayee(""); }}>
+        <option value="" disabled>Choose who…</option>
+        {onContract && (
+          <optgroup label="On this contract">
+            <option value={onContract.contact_id}>{onContract.name}</option>
+          </optgroup>
+        )}
+        <optgroup label={onContract ? "Everyone else" : "People on file"}>
+          {others.map((p) => <option key={p.contact_id} value={p.contact_id}>{p.name}</option>)}
+        </optgroup>
+        <option value={NEW}>Someone else — type a name</option>
+      </select>
+      {/* The id is what the database uses; the typed name is only read when
+          NEW is chosen, which is the one path that may create a contact. */}
+      <input type="hidden" name="payee_contact_id" value={who === NEW ? "" : who} />
+      {who === NEW && (
+        <input className="input" name="payee" value={payee} required
+          onChange={(e) => setPayee(e.target.value)} style={{ marginTop: 6 }}
+          placeholder="The supplier, the shop, the person" autoComplete="off" />
+      )}
     </label>
   );
   return (

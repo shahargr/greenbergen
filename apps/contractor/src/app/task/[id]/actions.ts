@@ -178,6 +178,9 @@ export async function saveTask(formData: FormData) {
       p_action: id,
       p_amount: amount,
       p_method: txt(formData.get("method")),
+      // The picked contact, so a known vendor is MATCHED rather than
+      // re-created from their name (which is how one framer became two).
+      p_payee_contact: txt(formData.get("payee_contact_id")),
       p_payee_name: txt(formData.get("payee")),
       p_reference: txt(formData.get("reference")),
       p_paid_on: txt(formData.get("paid_on")),
@@ -186,6 +189,12 @@ export async function saveTask(formData: FormData) {
       p_notes: txt(formData.get("notes")),
       p_awaiting: String(formData.get("awaiting") ?? "") === "1",
       p_file_ids: payFiles.length > 0 ? payFiles : null,
+      // WHERE IT LANDS (migration 203). Until 2026-09-21 no payment logged on a
+      // task carried either, so every one fell outside the budget - Shahar's
+      // $5,000 to his framer among them. Both are checked against this task's
+      // own project in the database.
+      p_contract: txt(formData.get("contract_id")),
+      p_budget_category: txt(formData.get("budget_category_id")),
     });
     // The fields and the comment above are already saved; say so with the
     // refusal, and reopen the drawer so the payment is where they left it.
