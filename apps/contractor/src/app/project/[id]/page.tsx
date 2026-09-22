@@ -910,6 +910,20 @@ export default async function ProjectPage({
               </span>
               <ChevronIcon />
             </Link>
+            {/* WHAT WAS INSTALLED, beside the money because it is the other
+                thing that has to be right before a final payment goes out.
+                Every trade's contract carries the requirement (migration 232),
+                and this is where the trade that did the work fills it in. */}
+            <Link href={`/project/${id}/parts`} className="home-row">
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">Parts &amp; warranty</span>
+                <span className="m" style={{ display: "block" }}>
+                  Every piece of equipment installed here — model, serial, who put it in, its
+                  warranty and a photo — and whose workmanship warranty follows the house
+                </span>
+              </span>
+              <ChevronIcon />
+            </Link>
           </section>
         )}
 
