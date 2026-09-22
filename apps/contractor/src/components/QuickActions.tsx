@@ -29,6 +29,11 @@ type Props = {
   /** The address ALONE, when there is one and it is this person's to see -
       what a map application can be handed. */
   address: string | null;
+  /** The package's process, and how many of its steps are still to do
+      (migration 233). A job taken from a package has an order to it, and
+      that order is the first thing you want, not the fifth. */
+  stepsHref: string | null;
+  stepsLeft: number;
   visitHref: string | null;
   visitsToday: number;
   /** The tidy-up process (migration 173), and how many tasks wait in it. */
@@ -48,10 +53,12 @@ const Sparkle = () => <svg {...g}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1
 // Navigation: the arrowhead every map application uses for "go".
 const Nav = () => <svg {...g}><path d="M3 11l18-8-8 18-2-8z" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
+// The process: a list with its place marked. Steps, in order, one of them now.
+const Steps = () => <svg {...g}><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="12" r="1.8" fill="currentColor" stroke="none" /><path d="M4.5 4.5v4M4.5 15.5v4" /></svg>;
 const Dollar = () => <svg {...g}><path d="M12 3v18M16.5 7.5a3.5 3.5 0 0 0-3.5-2h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3.5 3.5 0 0 1-3.5-2" /></svg>;
 const Award = () => <svg {...g}><path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" /></svg>;
 
-export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref }: Props) {
+export function QuickActions({ standing, where, address, stepsHref, stepsLeft, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref }: Props) {
   return (
     <section className="qa">
       <div className="qa-head">
@@ -63,6 +70,17 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
           : <span className="where">{where}</span>)}
       </div>
       <div className="qa-grid">
+        {/* STEP BY STEP, FIRST. Shahar (2026-09-22) walking the DIY
+            generator: "for all this we need step by step ui." On a job taken
+            from a package the order IS the job - which permit before which
+            drawing, what may not be ordered yet - and it leads because
+            everything else here is something you do inside one of its steps. */}
+        {stepsHref && (
+          <Link href={stepsHref} className="qa-btn">
+            <Steps /><span>Step by step</span>
+            {stepsLeft > 0 && <span className="n">{stepsLeft}</span>}
+          </Link>
+        )}
         {visitHref && (
           <Link href={visitHref} className="qa-btn">
             <Pin /><span>Site visit</span>

@@ -38,6 +38,9 @@ export const dynamic = "force-dynamic";
 // you are only ever looking at one. Every number is still computed in the
 // database - portal_finance_rollup, portal_bid_packages, portal_tasks,
 // portal_site_week - so this screen decides what to show and nothing more.
+/** Only what the Step by step tile needs off portal_project_steps (233). */
+type StepRun = { parent_id: string | null; total: number; done: number };
+
 type Rollup = {
   contracted?: number | null; paid?: number | null; owed?: number | null;
   approved?: number | null; stages?: number | null; open_stages?: number | null;
@@ -92,9 +95,11 @@ export default async function ProjectPage({
   // the domain, and this screen wants the whole property anyway (see below),
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
-  const [board, { data: pkgData }, { data: rollupData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }, { data: prefsData }] = await Promise.all([
+  const [board, { data: pkgData }, { data: rollupData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }, { data: prefsData }, { data: runData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
+    // The package's process, for the Step by step tile: how many of its
+    // steps are left, and whether there is one at all (migration 233).
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
     // Who is on site this week, and the record of who has been (migration 068).
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
@@ -117,10 +122,13 @@ export default async function ProjectPage({
     w.step("spine", () => rpc<Spine>(supabase, "portal_project_trades", { p_project: id })),
     // Which panels this person pulled up or folded away here (migration 173).
     w.step("prefs", () => rpc<PanelPrefs>(supabase, "portal_panel_prefs", { p_project: id })),
+    w.step("run", () => rpc<StepRun>(supabase, "portal_project_steps", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}`);
   const prefs: PanelPrefs = prefsData && Array.isArray(prefsData.shown)
     ? prefsData : { shown: [], hidden: [] };
+  // Only the counts - the runner itself is its own screen.
+  const run = runData ?? null;
 
   const seat = board.seats.find((s) => s.project_id === id);
   if (!seat) notFound();
@@ -632,6 +640,8 @@ export default async function ProjectPage({
             standing={[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
             where={seat.address ?? seat.parent_name ?? null}
             address={seat.address ?? null}
+            stepsHref={run?.parent_id ? `/project/${id}/steps` : null}
+            stepsLeft={run ? Math.max(0, run.total - run.done) : 0}
             visitHref={offered.includes("visits") ? panelHref("visits") : null}
             visitsToday={visitsToday}
             tidyHref={manages ? `/project/${id}/tidy?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
