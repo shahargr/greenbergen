@@ -43,7 +43,7 @@ export default async function CategoryPayPage({
 
   const w = stopwatch("/project/[id]/pay");
   const supabase = await createClient();
-  const [board, { data: moneyData }, { data: targetData }, { data: acctData }, { data: defaultData }, { data: lineData }, { data: methodData }] = await Promise.all([
+  const [board, { data: moneyData }, { data: targetData }, { data: acctData }, { data: defaultData }, { data: lineData }, { data: methodData }, { data: tradeData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("money", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id })),
     w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
@@ -64,6 +64,10 @@ export default async function CategoryPayPage({
       .select("id, name, requires_reference")
       .eq("is_active", true).eq("settlement_type", "manual")
       .order("display_order", { ascending: true, nullsFirst: false })),
+    // The catalogue, so a cost can be filed under a trade this job has not
+    // met yet (Shahar, 2026-09-22: "allow to add a trade if needed"). The job's
+    // own trades are counted off its open work in the form itself.
+    w.step("trades", async () => await supabase.from("trades").select("trade").order("trade")),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}/pay`);
   const seat = board.seats.find((s) => s.project_id === id);
@@ -134,7 +138,10 @@ export default async function CategoryPayPage({
     id: t.id, action: t.action,
     project_id: t.project_id ?? id, project: (t.project_id ? nameOf.get(t.project_id) : null) ?? t.project ?? "This job",
     owed: owedOf(t.id), due: t.target_date, contract_id: t.contract_id, contract: t.contract,
+    // What the form now leads on. Null is a real answer, not a gap.
+    trade: t.trade ?? null,
   }));
+  const allTrades = ((tradeData ?? []) as { trade: string }[]).map((x) => x.trade);
   const here = `/project/${id}/pay?${new URLSearchParams({
     ...(trade ? { trade } : {}), ...(phase ? { phase } : {}), ...(owner ? { owner } : {}),
     ...(untagged ? { untagged } : {}), back: to,
@@ -171,14 +178,16 @@ export default async function CategoryPayPage({
             <input type="hidden" name="back" value={to} />
             <input type="hidden" name="here" value={here} />
 
-            {/* WHICH JOB, THEN WHICH TASK, with a search box - and the
-                contract filling the money (Shahar, 2026-09-17: "one list for
-                all is not possible to search... find the task in two clicks").
-                PayForm holds the pick and hands the payment box what the
-                task's contract knows. */}
+            {/* TRADE, THEN TASK, THEN CONTRACT (Shahar, 2026-09-22). It asked
+                which JOB first and then offered every open task on the site,
+                with a search box to make 148 of them bearable. The trade is
+                what the person holding the receipt already knows, and each
+                answer shortens the next - so the search box is a fallback
+                now rather than the only way through. PayForm holds the pick
+                and hands the payment box what the contract knows. */}
             <PayForm projectId={id} choices={pick} defaults={defaults} budgetLines={lines} methods={methods} accounts={accounts} startAmount={startAmount}
               people={people.map((x) => ({ contact_id: x.contact_id, name: x.name }))}
-              defaultTask={task ?? null} />
+              trades={allTrades} defaultTask={task ?? null} />
 
             <Link href={to} className="btn btn-ghost btn-block">Cancel</Link>
           </form>

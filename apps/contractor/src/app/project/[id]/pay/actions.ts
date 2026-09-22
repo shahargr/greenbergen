@@ -52,6 +52,13 @@ export async function logCategoryPayment(formData: FormData) {
     }));
   }
 
+  // THE DESCRIPTION IS REQUIRED (Shahar, 2026-09-22). The form marks it so,
+  // and so does this: a browser that skipped the attribute, or a post built
+  // by hand, must not be the way a payment gets in with nothing said about
+  // what it bought.
+  const notes = txt(formData.get("notes"));
+  if (!notes) redirect(at({ error: "Say what this payment was for — the description is required." }));
+
   const files = String(formData.get("payment_file_ids") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("task_payment_log", {
@@ -66,7 +73,7 @@ export async function logCategoryPayment(formData: FormData) {
     p_paid_on: txt(formData.get("paid_on")),
     p_from_account: fromAccount,
     p_to_account: toAccount,
-    p_notes: txt(formData.get("notes")),
+    p_notes: notes,
     p_awaiting: String(formData.get("awaiting") ?? "") === "1",
     p_file_ids: files.length > 0 ? files : null,
     // Where it lands (migration 203). Both are checked against the task's own
