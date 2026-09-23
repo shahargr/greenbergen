@@ -37,11 +37,11 @@ type Props = {
   addTaskHref: string | null;
   payHref: string | null;
   awardHref: string | null;
-  /** Financials - the budget wizard in the owner portal (set budget → bid →
-      contract), for whoever runs the job. The portal serves this app under
-      /pro, so a /my link stays on the same host. It took the "Take me there"
-      slot (Shahar, 2026-09-23): the address in the caption above is still a
-      map link, so navigation stays one tap without costing a tile. */
+  /** Financials - the project's own budget → bid → contract screen, for
+      whoever runs the job. It took the "Take me there" slot (Shahar,
+      2026-09-23): the address in the caption above is still a map link, so
+      navigation stays one tap without costing a tile. In-app since the same
+      day - "any financial portal must sit inside each project". */
   financeHref: string | null;
 };
 
@@ -81,14 +81,10 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
             above already links to a map, so it paid a tile for a duplicate;
             the budget wizard - set the budget, bid it out, file the
             contracts - had no way in from the board at all. */}
-        {/* A plain anchor, not <Link>: this app lives under basePath /pro,
-            which next/link prepends to every href - /my/... became
-            /pro/my/... and 404'd. The portal route is outside this app, so
-            the raw path is the correct one. */}
         {financeHref && (
-          <a href={financeHref} className="qa-btn">
+          <Link href={financeHref} className="qa-btn">
             <Bars /><span>Financials</span>
-          </a>
+          </Link>
         )}
         {/* THE TIDY-UP. One task at a time, of the ones with no trade or no
             holder, with a guess to accept (migration 173). The count is the

@@ -93,9 +93,11 @@ export async function FinancePanel() {
                 <span className="muted small">…and {(p.by_trade ?? []).length - 8} more.</span>
               )}
               <div className="btn-row" style={{ marginTop: 4 }}>
-                <Link className="btn ghost small" href={`/my/project/${p.project_id}/finance`}>
+                {/* Into the project's own finance screen (/pro) - the admin
+                    layer only looks across; the money lives in the project. */}
+                <a className="btn ghost small" href={`/pro/project/${p.project_id}/finance`}>
                   Budget → bid → contract wizard
-                </Link>
+                </a>
               </div>
             </div>
           </details>
