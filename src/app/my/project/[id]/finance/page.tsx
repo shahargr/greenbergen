@@ -29,13 +29,16 @@ export default async function FinancePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string; step?: string; ok?: string; error?: string }>;
+  searchParams: Promise<{ q?: string; step?: string; ok?: string; error?: string; back?: string }>;
 }) {
   const { id } = await params;
-  const { q, step, ok, error } = await searchParams;
+  const { q, step, ok, error, back: rawBack } = await searchParams;
+  // Where the person came from (the /pro board passes itself); same-origin
+  // paths only, so the link can never lead off the host.
+  const back = rawBack && rawBack.startsWith("/") && !rawBack.startsWith("//") ? rawBack : null;
   const supabase = await createClient();
   const [{ data: project }, { data: boardData }] = await Promise.all([
-    supabase.from("projects").select("id, project_name").eq("id", id).maybeSingle(),
+    supabase.from("projects").select("id, project_name, parent_project_id").eq("id", id).maybeSingle(),
     supabase.rpc("portal_budget_lines", { p_project: id, p_q: q ?? null }),
   ]);
   const board = (boardData ?? { ok: false }) as Board;
@@ -48,6 +51,32 @@ export default async function FinancePage({
   }
 
   const lines = board.lines ?? [];
+
+  // THE WRONG DOOR, CAUGHT. One address is several project rows - the
+  // property record and the build job - and the Financials tile can land on
+  // the one with no budget (Shahar hit this on 55 Walnut: the property row
+  // opened empty while "New build" held the 101 lines). When THIS project
+  // has no lines but a parent or child does, say so and point there.
+  let holder: { id: string; project_name: string; n: number } | null = null;
+  if (lines.length === 0 && !q) {
+    const filters = [`parent_project_id.eq.${id}`];
+    if (project.parent_project_id) {
+      filters.push(`id.eq.${project.parent_project_id}`, `parent_project_id.eq.${project.parent_project_id}`);
+    }
+    const { data: family } = await supabase
+      .from("projects").select("id, project_name").or(filters.join(",")).neq("id", id).is("trashed_at", null);
+    const ids = (family ?? []).map((p) => p.id);
+    if (ids.length > 0) {
+      const { data: cats } = await supabase.from("budget_categories").select("project_id").in("project_id", ids);
+      const counts = new Map<string, number>();
+      for (const c of cats ?? []) counts.set(c.project_id, (counts.get(c.project_id) ?? 0) + 1);
+      const best = (family ?? [])
+        .map((p) => ({ id: p.id, project_name: p.project_name as string, n: counts.get(p.id) ?? 0 }))
+        .filter((p) => p.n > 0)
+        .sort((a, b) => b.n - a.n)[0];
+      holder = best ?? null;
+    }
+  }
   const budgeted = lines.filter((l) => l.target_amount != null);
   const bidding = lines.filter((l) => l.package_id);
   const linked = lines.filter((l) => l.contract_id);
@@ -58,7 +87,9 @@ export default async function FinancePage({
   // Where you are, unless you asked for a particular step.
   const auto = lines.length === 0 ? "1" : bidding.length + linked.length === 0 ? "2" : "3";
   const at = step === "1" || step === "2" || step === "3" ? step : auto;
-  const stepHref = (n: string) => `/my/project/${id}/finance?step=${n}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const stepHref = (n: string) =>
+    `/my/project/${id}/finance?step=${n}${q ? `&q=${encodeURIComponent(q)}` : ""}${back ? `&back=${encodeURIComponent(back)}` : ""}`;
+  const financeHref = (pid: string) => `/my/project/${pid}/finance${back ? `?back=${encodeURIComponent(back)}` : ""}`;
 
   // A plain render helper, not a component - the static-components rule.
   const head = ({ n, title, done, hint }: { n: string; title: string; done: string; hint: string }) => (
@@ -74,11 +105,27 @@ export default async function FinancePage({
 
   return (
     <main className="wrap" style={{ paddingTop: 32, paddingBottom: 96, maxWidth: 900 }}>
-      <p className="small" style={{ margin: "0 0 6px" }}><Link href={`/my/project/${id}`}>← {project.project_name}</Link></p>
+      <p className="small" style={{ margin: "0 0 6px", display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {back && <a href={back}>← Back to the board</a>}
+        <Link href={`/my/project/${id}`}>{back ? "" : "← "}{project.project_name}</Link>
+      </p>
       <span className="kicker">Project finance</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 12px" }}>Budget → bid → contract</h1>
       {ok && <p className="banner" style={{ background: "var(--ok)" }}>{ok === "1" ? "Saved ✓" : `${ok} ✓`}</p>}
       {error && <p className="error small">{error}</p>}
+
+      {holder && (
+        <div className="card" style={{ display: "grid", gap: 6, marginBottom: 14, borderLeft: "3px solid var(--warn)" }}>
+          <strong>This looks like the wrong door.</strong>
+          <p className="muted small" style={{ margin: 0 }}>
+            &ldquo;{project.project_name}&rdquo; has no budget of its own. The budget for this home lives on
+            &ldquo;{holder.project_name}&rdquo; — {holder.n} lines.
+          </p>
+          <div className="btn-row">
+            <Link className="btn small" href={financeHref(holder.id)}>Open {holder.project_name}&apos;s finance →</Link>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "grid", gap: 14 }}>
         {/* Step 1 — set the budget. */}
@@ -161,6 +208,7 @@ export default async function FinancePage({
         <div className="card" style={{ display: "grid", gap: 10, minWidth: 0 }}>
           <form method="get" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             <input type="hidden" name="step" value={at} />
+            {back && <input type="hidden" name="back" value={back} />}
             <input name="q" className="input" placeholder="Search by name or trade…" defaultValue={q ?? ""} style={{ flex: "1 1 220px", maxWidth: 320 }} />
             <button className="btn ghost small">Search</button>
             {q && <Link className="small" href={stepHref(at)}>clear</Link>}
