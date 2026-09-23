@@ -37,6 +37,10 @@ type Props = {
   addTaskHref: string | null;
   payHref: string | null;
   awardHref: string | null;
+  /** The budget wizard in the owner portal (set budget → bid → contract),
+      for whoever runs the job. The portal serves this app under /pro, so a
+      /my link stays on the same host. */
+  budgetHref: string | null;
 };
 
 const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9,
@@ -50,8 +54,10 @@ const Nav = () => <svg {...g}><path d="M3 11l18-8-8 18-2-8z" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
 const Dollar = () => <svg {...g}><path d="M12 3v18M16.5 7.5a3.5 3.5 0 0 0-3.5-2h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3.5 3.5 0 0 1-3.5-2" /></svg>;
 const Award = () => <svg {...g}><path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" /></svg>;
+// The budget: rising bars, money against a plan.
+const Bars = () => <svg {...g}><path d="M4 21V13M10 21V8M16 21V11M22 21H2" /></svg>;
 
-export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref }: Props) {
+export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref, budgetHref }: Props) {
   return (
     <section className="qa">
       <div className="qa-head">
@@ -103,6 +109,11 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
         {awardHref && (
           <Link href={awardHref} className="qa-btn">
             <Award /><span>Award work</span>
+          </Link>
+        )}
+        {budgetHref && (
+          <Link href={budgetHref} className="qa-btn">
+            <Bars /><span>Budget</span>
           </Link>
         )}
       </div>
