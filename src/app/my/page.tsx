@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ProjectFinder, type FoundProject } from "./ProjectFinder";
+import { FinancePanel } from "./FinancePanel";
 import { mapsHref } from "@/lib/maps";
 import { WorkFilters, type Bucket } from "./WorkFilters";
 import { CarIcon } from "@/components/CarIcon";
@@ -1207,6 +1208,11 @@ export default async function MyPage({
       )}
 
       {show === "landing" && <ProjectFinder projects={(findData ?? []) as FoundProject[]} />}
+
+      {/* Budget per trade / large scope, and where the money stands against
+          it — a placeholder panel; the wizard behind each project sets the
+          budget, opens bids and files contracts (222). */}
+      {show === "landing" && <FinancePanel />}
 
       {show !== "landing" && hasHome && bandOverviewAll.length > 0 && (
         // Keyed on the flash params: an action redirecting back here with
