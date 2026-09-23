@@ -14,6 +14,12 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Finance" };
 
 type SeedSource = { id: string; name: string; lines: number };
+type LedgerRow = {
+  id: string; description: string | null; amount: number | null; paid_on: string | null;
+  status: string; direction: string | null; trade: string | null; payee: string | null;
+  from_account: string | null; contract_id: string | null; contract: string | null;
+  budget_category_id: string | null; budget_line: string | null; action_id: string | null;
+};
 type Board = {
   ok: boolean; reason?: string;
   lines: BudgetLine[]; contracts: ContractOpt[]; seed_sources: SeedSource[];
@@ -40,10 +46,11 @@ export default async function FinancePage({
   const { id } = await params;
   const { q, step, ok, error } = await searchParams;
   const supabase = await createClient();
-  const [board, { data: boardData }, { data: project }] = await Promise.all([
+  const [board, { data: boardData }, { data: project }, { data: ledgerData }] = await Promise.all([
     getBoard(),
     supabase.rpc("portal_budget_lines", { p_project: id, p_q: q ?? null }),
     supabase.from("projects").select("id, project_name, parent_project_id").eq("id", id).maybeSingle(),
+    supabase.rpc("portal_money_ledger", { p_project: id }),
   ]);
   if (!board.signed_in) redirect(`/login?next=${encodeURIComponent(`/project/${id}/finance`)}`);
   const seat = board.seats.find((s) => s.project_id === id);
@@ -87,6 +94,12 @@ export default async function FinancePage({
       holder = best ?? null;
     }
   }
+
+  // THE AUDIT LIST (Shahar, 2026-09-23): every transaction, and whether it
+  // is filed against a contract, a trade, or a budget line. A payment
+  // carrying none of the three is UNFILED - nobody can say what it bought.
+  const ledger = ((ledgerData ?? []) as LedgerRow[]);
+  const unfiled = ledger.filter((t) => !t.contract_id && !t.trade && !t.budget_category_id);
 
   const budgeted = lines.filter((l) => l.target_amount != null);
   const bidding = lines.filter((l) => l.package_id);
@@ -257,6 +270,61 @@ export default async function FinancePage({
             )}
           </div>
         </Card>
+
+        {/* ALL PAYMENTS — the audit list. Every transaction on the project,
+            with what it was filed against; the unfiled ones lead, loudly,
+            because a payment against nothing is a number nobody can defend. */}
+        {ledger.length > 0 && (
+          <Card>
+            <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                <h2 className="card-title" style={{ margin: 0 }}>All payments · {ledger.length}</h2>
+                <span className="small" style={{ color: unfiled.length > 0 ? "var(--color-danger)" : "var(--color-ok)", fontWeight: 700 }}>
+                  {unfiled.length > 0 ? `${unfiled.length} filed against nothing` : "every payment is filed ✓"}
+                </span>
+              </div>
+              <p className="small text-muted" style={{ margin: 0 }}>
+                Each payment should name a contract, a trade or a budget line. Fix an unfiled one from
+                the payment itself (Log payment → contract / budget line).
+              </p>
+              {([
+                ["Unfiled", unfiled, unfiled.length > 0],
+                ["Every payment", ledger, false],
+              ] as const).map(([label, rows, openByDefault]) => rows.length > 0 && (
+                <details key={label} open={openByDefault}>
+                  <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
+                    {label} · {rows.length}
+                  </summary>
+                  <div style={{ display: "grid", marginTop: 6 }}>
+                    {rows.map((t) => {
+                      const bad = !t.contract_id && !t.trade && !t.budget_category_id;
+                      const filed = [t.contract, t.trade, t.budget_line].filter(Boolean).join(" · ");
+                      return (
+                        <div key={`${label}-${t.id}`} className="small"
+                          style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "5px 6px",
+                            borderTop: "1px solid var(--color-divider)",
+                            background: bad ? "var(--color-danger-soft)" : undefined, borderRadius: bad ? 8 : 0 }}>
+                          <span className="text-muted" style={{ whiteSpace: "nowrap", width: 76 }}>{t.paid_on ?? "—"}</span>
+                          <span style={{ minWidth: 0, flex: 1 }}>
+                            <span style={{ fontWeight: 600 }}>{t.payee ?? "—"}</span>
+                            {t.description && <span className="text-muted"> · {t.description.length > 70 ? `${t.description.slice(0, 70)}…` : t.description}</span>}
+                            <span className="text-muted" style={{ display: "block" }}>
+                              {filed || <span style={{ color: "var(--color-danger)", fontWeight: 700 }}>no contract · no trade · no line</span>}
+                            </span>
+                          </span>
+                          <span style={{ whiteSpace: "nowrap", textAlign: "right" }}>
+                            <span style={{ fontWeight: 700 }}>{money(t.amount)}</span>
+                            <span className="text-muted" style={{ display: "block" }}>{t.status}</span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </Screen>
   );
