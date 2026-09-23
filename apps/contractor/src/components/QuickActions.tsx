@@ -37,10 +37,12 @@ type Props = {
   addTaskHref: string | null;
   payHref: string | null;
   awardHref: string | null;
-  /** The budget wizard in the owner portal (set budget → bid → contract),
-      for whoever runs the job. The portal serves this app under /pro, so a
-      /my link stays on the same host. */
-  budgetHref: string | null;
+  /** Financials - the budget wizard in the owner portal (set budget → bid →
+      contract), for whoever runs the job. The portal serves this app under
+      /pro, so a /my link stays on the same host. It took the "Take me there"
+      slot (Shahar, 2026-09-23): the address in the caption above is still a
+      map link, so navigation stays one tap without costing a tile. */
+  financeHref: string | null;
 };
 
 const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9,
@@ -49,15 +51,13 @@ const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWi
 const Pin = () => <svg {...g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" /></svg>;
 // The tidy-up: a sparkle, the sign every phone uses for "let it sort this".
 const Sparkle = () => <svg {...g}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" /></svg>;
-// Navigation: the arrowhead every map application uses for "go".
-const Nav = () => <svg {...g}><path d="M3 11l18-8-8 18-2-8z" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
 const Dollar = () => <svg {...g}><path d="M12 3v18M16.5 7.5a3.5 3.5 0 0 0-3.5-2h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3.5 3.5 0 0 1-3.5-2" /></svg>;
 const Award = () => <svg {...g}><path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" /></svg>;
 // The budget: rising bars, money against a plan.
 const Bars = () => <svg {...g}><path d="M4 21V13M10 21V8M16 21V11M22 21H2" /></svg>;
 
-export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref, budgetHref }: Props) {
+export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref, financeHref }: Props) {
   return (
     <section className="qa">
       <div className="qa-head">
@@ -75,17 +75,16 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
             {visitsToday > 0 && <span className="n">{visitsToday} today</span>}
           </Link>
         )}
-        {/* TAKE ME THERE (Shahar, 2026-09-17: "when clicking on site visit,
-            open URL with device map application to navigate there"). Its own
-            tile rather than the Site visit tile's job, because those are two
-            different moments: one is before you drive, the other is when you
-            are standing there with a photograph to log. It only exists when
-            the job has an address this person is allowed to see - a bidder
-            sees the town until the work is awarded (migration 008). */}
-        {address && (
-          <MapLink address={address} className="qa-btn" title={`Navigate to ${address}`}>
-            <Nav /><span>Take me there</span>
-          </MapLink>
+        {/* FINANCIALS took this slot (Shahar, 2026-09-23: "replace the Take
+            me there navigation panel with Financials"). "Take me there"
+            (2026-09-17) was a second tap on the same address the caption
+            above already links to a map, so it paid a tile for a duplicate;
+            the budget wizard - set the budget, bid it out, file the
+            contracts - had no way in from the board at all. */}
+        {financeHref && (
+          <Link href={financeHref} className="qa-btn">
+            <Bars /><span>Financials</span>
+          </Link>
         )}
         {/* THE TIDY-UP. One task at a time, of the ones with no trade or no
             holder, with a guess to accept (migration 173). The count is the
@@ -109,11 +108,6 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
         {awardHref && (
           <Link href={awardHref} className="qa-btn">
             <Award /><span>Award work</span>
-          </Link>
-        )}
-        {budgetHref && (
-          <Link href={budgetHref} className="qa-btn">
-            <Bars /><span>Budget</span>
           </Link>
         )}
       </div>
