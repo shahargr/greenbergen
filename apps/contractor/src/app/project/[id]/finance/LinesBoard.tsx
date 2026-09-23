@@ -263,12 +263,19 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
                     }}>Link a contract</button>
                   </>
                 )}
-                {!l.package_id && (
+                {/* A bid room needs a real trade (226) - a line without one
+                    gets sent to its own editor first, not to an error. */}
+                {!l.package_id && (l.trade ? (
                   <button type="button" className="btn btn-ghost" disabled={busy}
                     onClick={() => start(() => acts.startBid(l.id, l.trade, withQ(new FormData())))}>
                     Start a bid
                   </button>
-                )}
+                ) : (
+                  <button type="button" className="btn btn-ghost" title="Pick the line's trade, save, then bid"
+                    onClick={() => beginEdit(l)}>
+                    Set the trade, then bid
+                  </button>
+                ))}
                 {l.package_id && (
                   <Link className="btn btn-ghost" href={`/project/${projectId}/bids/${l.package_id}`}>
                     Open the bid ({l.package_status})
