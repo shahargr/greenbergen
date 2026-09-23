@@ -81,10 +81,14 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
             above already links to a map, so it paid a tile for a duplicate;
             the budget wizard - set the budget, bid it out, file the
             contracts - had no way in from the board at all. */}
+        {/* A plain anchor, not <Link>: this app lives under basePath /pro,
+            which next/link prepends to every href - /my/... became
+            /pro/my/... and 404'd. The portal route is outside this app, so
+            the raw path is the correct one. */}
         {financeHref && (
-          <Link href={financeHref} className="qa-btn">
+          <a href={financeHref} className="qa-btn">
             <Bars /><span>Financials</span>
-          </Link>
+          </a>
         )}
         {/* THE TIDY-UP. One task at a time, of the ones with no trade or no
             holder, with a guess to accept (migration 173). The count is the
