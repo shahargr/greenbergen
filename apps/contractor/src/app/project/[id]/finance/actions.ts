@@ -79,6 +79,16 @@ export async function startBid(projectId: string, lineId: string, trade: string 
   redirect(`/project/${projectId}/bids/${data.id}?saved=1`);
 }
 
+// Strike a payment out of the ledger (230). The RPC records what it was in
+// change_events before the row goes; receipts unfile but the files survive.
+export async function deleteTransaction(projectId: string, txId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_transaction_delete", { p_id: txId });
+  if (error || !data?.ok) bounce(projectId, null, data?.reason ?? error?.message ?? "That payment was not removed.");
+  revalidatePath(`/project/${projectId}/finance`);
+  redirect(back(projectId, null, "ok=1"));
+}
+
 export async function linkContract(projectId: string, lineId: string, formData: FormData) {
   const supabase = await createClient();
   const q = txt(formData.get("q"));

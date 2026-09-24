@@ -4,8 +4,9 @@ import { createClient } from "@shared/supabase/server";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { getBoard, runs } from "@/lib/board";
 import {
-  saveBudgetLine, seedBudget, startBid, linkContract, unlinkContract,
+  saveBudgetLine, seedBudget, startBid, linkContract, unlinkContract, deleteTransaction,
 } from "./actions";
+import { DeleteTx } from "./DeleteTx";
 import {
   LinesBoard, type BudgetLine, type ContractOpt, type Unattached,
 } from "./LinesBoard";
@@ -109,6 +110,10 @@ export default async function FinancePage({
     return oldestFirst ? a.paid_on.localeCompare(b.paid_on) : b.paid_on.localeCompare(a.paid_on);
   });
   const unfiled = ledger.filter((t) => !t.contract_id && !t.trade && !t.budget_category_id);
+  // The row's Balance reads from the budget line the payment is filed
+  // against (contract first, like the wizard); Bud − act is target vs paid.
+  const lineBy = new Map(lines.map((l) => [l.id, l]));
+  const lineByContract = new Map(lines.filter((l) => l.contract_id).map((l) => [l.contract_id as string, l]));
 
   // Disabled lines (227) are out of the plan: they count toward nothing
   // here except money already paid, which stays real.
@@ -250,6 +255,7 @@ export default async function FinancePage({
           <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
             <form method="get" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
               <input type="hidden" name="step" value={at} />
+              {oldestFirst && <input type="hidden" name="tx" value="oldest" />}
               <input name="q" className="input" placeholder="Search by name or trade…" defaultValue={q ?? ""} style={{ flex: "1 1 200px", maxWidth: 320 }} />
               <button className="btn btn-ghost">Search</button>
               {q && <Link className="small" href={stepHref(at)}>clear</Link>}
@@ -315,26 +321,62 @@ export default async function FinancePage({
                   <summary className="small" style={{ cursor: "pointer", fontWeight: 700 }}>
                     {label} · {rows.length}
                   </summary>
+                  {/* Narrow (a phone held upright): Trade, Date, Paid, Balance,
+                      edit and delete. Wide (landscape, a desk): Status and
+                      Balance budget-vs-actual join in. Shahar, 2026-09-24. */}
                   <div style={{ display: "grid", marginTop: 6 }}>
+                    <div className="ledger-row head tiny text-muted" style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
+                      <span>Trade</span>
+                      <span>Date</span>
+                      <span className="num">Paid</span>
+                      <span className="num">Balance</span>
+                      <span className="ledger-wide">Status</span>
+                      <span className="ledger-wide num">Bud − act</span>
+                      <span />
+                    </div>
                     {rows.map((t) => {
                       const bad = !t.contract_id && !t.trade && !t.budget_category_id;
-                      const filed = [t.contract, t.trade, t.budget_line].filter(Boolean).join(" · ");
+                      const line = (t.budget_category_id && lineBy.get(t.budget_category_id))
+                        || (t.contract_id && lineByContract.get(t.contract_id)) || null;
+                      const goal = line ? (line.contract_amount ?? line.agreed_amount ?? line.target_amount) : null;
+                      const balance = line && goal != null ? goal - line.actual_paid : null;
+                      const bva = line && line.target_amount != null ? line.target_amount - line.actual_paid : null;
                       return (
-                        <div key={`${label}-${t.id}`} className="small"
-                          style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "5px 6px",
-                            borderTop: "1px solid var(--color-divider)",
-                            background: bad ? "var(--color-danger-soft)" : undefined, borderRadius: bad ? 8 : 0 }}>
-                          <span className="text-muted" style={{ whiteSpace: "nowrap", width: 76 }}>{t.paid_on ?? "—"}</span>
-                          <span style={{ minWidth: 0, flex: 1 }}>
-                            <span style={{ fontWeight: 600 }}>{t.payee ?? "—"}</span>
-                            {t.description && <span className="text-muted"> · {t.description.length > 70 ? `${t.description.slice(0, 70)}…` : t.description}</span>}
-                            <span className="text-muted" style={{ display: "block" }}>
-                              {filed || <span style={{ color: "var(--color-danger)", fontWeight: 700 }}>no contract · no trade · no line</span>}
+                        <div key={`${label}-${t.id}`} className="ledger-row small"
+                          style={{ background: bad ? "var(--color-danger-soft)" : undefined, borderRadius: bad ? 8 : 0 }}>
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ fontWeight: 600 }}>
+                              {t.trade ?? t.budget_line ?? (bad
+                                ? <span style={{ color: "var(--color-danger)" }}>unfiled</span> : "—")}
+                            </span>
+                            <span className="tiny text-muted" style={{ display: "block", overflow: "hidden",
+                              textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {[t.payee, t.description].filter(Boolean).join(" · ") || t.contract || "—"}
                             </span>
                           </span>
-                          <span style={{ whiteSpace: "nowrap", textAlign: "right" }}>
-                            <span style={{ fontWeight: 700 }}>{money(t.amount)}</span>
-                            <span className="text-muted" style={{ display: "block" }}>{t.status}</span>
+                          <span className="text-muted" style={{ whiteSpace: "nowrap" }}>{t.paid_on ?? "—"}</span>
+                          <span className="num" style={{ fontWeight: 700 }}>{money(t.amount)}</span>
+                          <span className="num" style={{ color: balance != null && balance < 0 ? "var(--color-danger)" : undefined }}>
+                            {balance == null ? "—" : money(balance)}
+                          </span>
+                          <span className="ledger-wide text-muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {t.status}
+                          </span>
+                          <span className="ledger-wide num" style={{ color: bva != null && bva < 0 ? "var(--color-danger)" : undefined }}>
+                            {bva == null ? "—" : money(bva)}
+                          </span>
+                          <span style={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
+                            {t.action_id ? (
+                              <Link className="btn btn-ghost" title="Edit this payment on its task" style={{ padding: "3px 6px" }}
+                                href={`/task/${t.action_id}?money=1&back=${encodeURIComponent(`/project/${id}/finance`)}`}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+                                  strokeLinecap="round" strokeLinejoin="round" aria-hidden width={14} height={14}>
+                                  <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                                </svg>
+                              </Link>
+                            ) : <span className="btn btn-ghost" style={{ padding: "3px 6px", opacity: 0.3 }} title="No task holds this payment">—</span>}
+                            <DeleteTx what={`${money(t.amount)}${t.payee ? ` to ${t.payee}` : ""}`}
+                              act={deleteTransaction.bind(null, id, t.id)} />
                           </span>
                         </div>
                       );

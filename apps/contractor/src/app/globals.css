@@ -1034,3 +1034,20 @@
 .scope-step .n { font-family: var(--font-heading); font-weight: 800; font-size: 15px; line-height: 1; }
 .scope-step .t { font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scope-step .c { font-size: 10px; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* THE PAYMENT LEDGER AS A TABLE (Shahar, 2026-09-24: "If width is too small
+   (vertical or narrow browser window), focus on these: Trade, Date, Amount
+   Paid, Balance, Edit and Delete. Add more columns when doing a landscape:
+   Status, Balance (budget VS actual)."). Width decides, not the device:
+   under 640px the two .ledger-wide columns vanish and the grid closes up
+   around what is left. display:none children are never placed, so one grid
+   serves both shapes. */
+.ledger-row { display: grid; grid-template-columns: minmax(0, 1.5fr) 72px 74px 74px 58px;
+  gap: 8px; align-items: baseline; padding: 5px 6px; border-top: 1px solid var(--color-divider); }
+.ledger-row.head { border-top: 0; padding-bottom: 2px; }
+.ledger-row .num { text-align: right; white-space: nowrap; }
+.ledger-wide { display: none; }
+@media (min-width: 640px) {
+  .ledger-row { grid-template-columns: minmax(0, 1.7fr) 78px 80px 80px 110px 90px 58px; }
+  .ledger-wide { display: block; }
+}
