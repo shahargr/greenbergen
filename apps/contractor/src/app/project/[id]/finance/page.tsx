@@ -4,7 +4,7 @@ import { createClient } from "@shared/supabase/server";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { getBoard, runs } from "@/lib/board";
 import {
-  saveBudgetLine, deleteBudgetLine, seedBudget, startBid, linkContract, unlinkContract,
+  saveBudgetLine, seedBudget, startBid, linkContract, unlinkContract,
 } from "./actions";
 import {
   LinesBoard, type BudgetLine, type ContractOpt, type Unattached,
@@ -101,15 +101,18 @@ export default async function FinancePage({
   const ledger = ((ledgerData ?? []) as LedgerRow[]);
   const unfiled = ledger.filter((t) => !t.contract_id && !t.trade && !t.budget_category_id);
 
-  const budgeted = lines.filter((l) => l.target_amount != null);
-  const bidding = lines.filter((l) => l.package_id);
-  const linked = lines.filter((l) => l.contract_id);
-  const totalTarget = lines.reduce((n, l) => n + (l.target_amount ?? 0), 0);
-  const totalExpected = lines.reduce((n, l) => n + (l.agreed_amount ?? l.target_amount ?? 0), 0);
+  // Disabled lines (227) are out of the plan: they count toward nothing
+  // here except money already paid, which stays real.
+  const live = lines.filter((l) => !l.disabled_at);
+  const budgeted = live.filter((l) => l.target_amount != null);
+  const bidding = live.filter((l) => l.package_id);
+  const linked = live.filter((l) => l.contract_id);
+  const totalTarget = live.reduce((n, l) => n + (l.target_amount ?? 0), 0);
+  const totalExpected = live.reduce((n, l) => n + (l.agreed_amount ?? l.target_amount ?? 0), 0);
   const totalPaid = lines.reduce((n, l) => n + l.actual_paid, 0);
 
   // Where you are, unless you asked for a particular step.
-  const auto = lines.length === 0 ? "1" : bidding.length + linked.length === 0 ? "2" : "3";
+  const auto = live.length === 0 ? "1" : bidding.length + linked.length === 0 ? "2" : "3";
   const at = step === "1" || step === "2" || step === "3" ? step : auto;
   const stepHref = (n: string) => `/project/${id}/finance?step=${n}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
 
@@ -154,7 +157,7 @@ export default async function FinancePage({
         {/* Step 1 — set the budget. */}
         <Card>
           <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
-            {head({ n: "1", title: "Set the budget", done: `${lines.length} lines · ${budgeted.length} priced`, hint: "change" })}
+            {head({ n: "1", title: "Set the budget", done: `${live.length} lines · ${budgeted.length} priced`, hint: "change" })}
             {at === "1" ? (
               <div style={{ display: "grid", gap: 10 }}>
                 <p className="small text-muted" style={{ margin: 0 }}>
@@ -199,7 +202,7 @@ export default async function FinancePage({
         {/* Step 2 — send lines out to bid. */}
         <Card>
           <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
-            {head({ n: "2", title: "Bid it out", done: `${bidding.length} of ${lines.length} lines in the bid room`, hint: lines.length ? "change" : "set the budget first" })}
+            {head({ n: "2", title: "Bid it out", done: `${bidding.length} of ${live.length} lines in the bid room`, hint: live.length ? "change" : "set the budget first" })}
             {at === "2" ? (
               <p className="small text-muted" style={{ margin: 0 }}>
                 &ldquo;Start a bid&rdquo; on a line opens a package in the <Link href={`/project/${id}/bids`}>bid room</Link> carrying
@@ -218,7 +221,7 @@ export default async function FinancePage({
         {/* Step 3 — every line meets its contract. */}
         <Card>
           <div style={{ display: "grid", gap: 8, minWidth: 0 }}>
-            {head({ n: "3", title: "File the contracts", done: `${linked.length} of ${lines.length} lines contracted`, hint: "change" })}
+            {head({ n: "3", title: "File the contracts", done: `${linked.length} of ${live.length} lines contracted`, hint: "change" })}
             {at === "3" ? (
               <p className="small text-muted" style={{ margin: 0 }}>
                 A line won through the bid room is filed automatically. For work agreed outside it,
@@ -227,7 +230,7 @@ export default async function FinancePage({
               </p>
             ) : (
               <p className="small text-muted" style={{ margin: 0 }}>
-                {linked.length === 0 ? "No line has a contract filed yet." : `${money(lines.reduce((n, l) => n + (l.agreed_amount ?? 0), 0))} agreed across ${linked.length} lines.`}
+                {linked.length === 0 ? "No line has a contract filed yet." : `${money(live.reduce((n, l) => n + (l.agreed_amount ?? 0), 0))} agreed across ${linked.length} lines.`}
               </p>
             )}
           </div>
@@ -261,7 +264,6 @@ export default async function FinancePage({
                 q={q ?? null}
                 acts={{
                   save: saveBudgetLine.bind(null, id),
-                  del: deleteBudgetLine.bind(null, id),
                   link: linkContract.bind(null, id),
                   unlink: unlinkContract.bind(null, id),
                   startBid: startBid.bind(null, id),

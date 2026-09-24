@@ -14,6 +14,9 @@ import Link from "next/link";
 //   f. Balance, against the contract when one exists, else the target;
 //   g. "Link a contract" is a button; a trash can disconnects one;
 //   h. a catcher row at the bottom holds spend filed to no line.
+// And from 2026-09-24: the unfold IS the panel - editing swaps its contents,
+// it never stacks a second panel - and a line is disabled, not deleted,
+// which files it at the very end under its own Disabled section.
 export type Payment = {
   id: string; paid_on: string | null; amount: number | null; status: string;
   description: string | null; reference: string | null;
@@ -26,6 +29,7 @@ export type BudgetLine = {
   id: string; category: string; phase: string | null; trade: string | null;
   cost_type: string | null; is_builder_scope: boolean;
   target_amount: number | null; agreed_amount: number | null; notes: string | null;
+  disabled_at: string | null;
   actual_paid: number; open_committed: number;
   package_id: string | null; package_status: string | null;
   contract_id: string | null; contract_title: string | null; contract_status: string | null;
@@ -42,7 +46,6 @@ export type Unattached = {
 
 type Acts = {
   save: (fd: FormData) => Promise<void>;
-  del: (lineId: string, fd: FormData) => Promise<void>;
   link: (lineId: string, fd: FormData) => Promise<void>;
   unlink: (lineId: string, contractId: string, fd: FormData) => Promise<void>;
   startBid: (lineId: string, trade: string | null, fd: FormData) => Promise<void>;
@@ -59,13 +62,14 @@ const k = (n: number | null | undefined) => {
 };
 
 type StatusKey = "new" | "bid" | "awarded" | "working" | "completed";
-const TONE: Record<StatusKey | "unfiled", { background: string; color: string }> = {
+const TONE: Record<StatusKey | "unfiled" | "disabled", { background: string; color: string }> = {
   new: { background: "var(--color-soft)", color: "var(--color-text)" },
   bid: { background: "var(--color-bid-soft)", color: "var(--color-bid)" },
   awarded: { background: "var(--color-ok-soft)", color: "var(--color-ok)" },
   working: { background: "var(--color-ok)", color: "#fff" },
   completed: { background: "var(--color-soft-2)", color: "var(--color-ok)" },
   unfiled: { background: "var(--color-soft)", color: "var(--color-muted)" },
+  disabled: { background: "var(--color-soft)", color: "var(--color-muted)" },
 };
 
 function statusOf(l: BudgetLine): StatusKey {
@@ -78,7 +82,7 @@ function statusOf(l: BudgetLine): StatusKey {
   return "new";
 }
 
-function Chip({ s }: { s: StatusKey | "unfiled" }) {
+function Chip({ s }: { s: StatusKey | "unfiled" | "disabled" }) {
   return <span className="tag" style={{ ...TONE[s], textTransform: "capitalize" }}>{s}</span>;
 }
 
@@ -153,8 +157,16 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
     });
   };
 
+  // Retire or revive: one save with only the disabled key, nothing else moves.
+  const toggleDisabled = (l: BudgetLine) => start(async () => {
+    const fd = withQ(new FormData());
+    fd.set("id", l.id);
+    fd.set("disabled", l.disabled_at ? "0" : "1");
+    await acts.save(fd);
+  });
+
   const row = (l: BudgetLine) => {
-    const s = statusOf(l);
+    const s = l.disabled_at ? ("disabled" as const) : statusOf(l);
     const goal = l.contract_amount ?? l.agreed_amount ?? l.target_amount;
     const balance = goal == null ? null : goal - l.actual_paid;
     const editing = edit === l.id;
@@ -162,7 +174,8 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
     return (
       <div key={l.id} style={{ borderTop: "1px solid var(--color-divider)", padding: "8px 0", display: "grid", gap: 8 }}>
         {/* THE ONE LINE. Click anywhere on it to unfold; the icons act. */}
-        <div style={{ display: "flex", gap: 12, alignItems: "center", cursor: "pointer" }}
+        <div style={{ display: "flex", gap: 12, alignItems: "center", cursor: "pointer",
+            opacity: l.disabled_at ? 0.55 : undefined }}
           onClick={() => setOpen(unfolded ? null : l.id)}>
           <span style={{ flex: "1 1 150px", minWidth: 0 }}>
             <span style={{ fontWeight: 700, fontSize: 14 }}>{l.category}</span>
@@ -192,7 +205,10 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
               style={{ padding: "5px 8px" }} onClick={() => (editing ? setEdit(null) : beginEdit(l))}>
               <Pencil />
             </button>
-            {l.contract_id ? (
+            {l.disabled_at ? (
+              <button type="button" className="btn btn-ghost" title="Bring this line back into the plan"
+                disabled={busy} style={{ whiteSpace: "nowrap" }} onClick={() => toggleDisabled(l)}>Enable</button>
+            ) : l.contract_id ? (
               <button type="button" className="btn btn-ghost" title="Disconnect the contract" disabled={busy}
                 style={{ padding: "5px 8px", color: "var(--color-danger)" }}
                 onClick={() => start(() => acts.unlink(l.id, l.contract_id!, withQ(new FormData())))}>
@@ -205,11 +221,12 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
           </span>
         </div>
 
-        {/* THE UNFOLD (c): what was paid, what the contract schedules, and -
-            while editing - the fields with the floating save to commit them. */}
+        {/* THE UNFOLD (c): ONE panel. Reading, it shows what was paid and what
+            the contract schedules; editing, it BECOMES the editor - the
+            detail never stacks beneath the fields as a second panel. */}
         {unfolded && (
           <div style={{ background: "var(--color-soft-2)", borderRadius: 14, padding: "10px 12px", display: "grid", gap: 10 }}>
-            {editing && (
+            {editing ? (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 <input className="input" value={draft.category ?? ""} style={{ flex: "2 1 160px" }}
                   onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))} />
@@ -229,21 +246,22 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
                     style={{ width: 100, textAlign: "right" }}
                     onChange={(e) => setDraft((d) => ({ ...d, target_amount: e.target.value }))} />
                 </label>
-                {!l.contract_id && !l.package_id && l.payments.length === 0 && (
-                  <button type="button" className="btn btn-ghost small" disabled={busy}
-                    style={{ color: "var(--color-danger)" }}
-                    onClick={() => start(() => acts.del(l.id, withQ(new FormData())))}>delete line</button>
-                )}
+                {/* Retire, never delete (2026-09-24): the line and everything
+                    filed against it survive, at the end under Disabled. */}
+                <button type="button" className="btn btn-ghost small" disabled={busy}
+                  style={{ color: l.disabled_at ? undefined : "var(--color-danger)" }}
+                  onClick={() => toggleDisabled(l)}>
+                  {l.disabled_at ? "enable line" : "disable line"}
+                </button>
               </div>
-            )}
-
+            ) : (<>
             {l.contract_id ? (
               <div className="small" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
                 <strong>{l.contract_title ?? "Contract"}</strong>
                 <span className="text-muted">{l.contract_status}{l.contract_signed ? ` · signed ${l.contract_signed}` : ""}</span>
                 {l.contract_amount != null && <span>{k(l.contract_amount)}</span>}
               </div>
-            ) : (
+            ) : l.disabled_at ? null : (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                 {freeContracts.length > 0 && (
                   <>
@@ -302,15 +320,19 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
               <PayList rows={l.payments} />
             </div>
             {l.notes && <p className="small text-muted" style={{ margin: 0 }}>{l.notes}</p>}
+            </>)}
           </div>
         )}
       </div>
     );
   };
 
+  const active = lines.filter((l) => !l.disabled_at);
+  const retired = lines.filter((l) => l.disabled_at);
+
   return (
     <div style={{ display: "grid" }}>
-      {lines.map(row)}
+      {active.map(row)}
 
       {/* THE CATCHER (h): every dollar on this project that names no budget
           line. It cannot be edited here - it exists to be seen and filed. */}
@@ -339,6 +361,18 @@ export function LinesBoard({ projectId, lines, contracts, unattached, trades, ph
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* THE DISABLED SECTION (2026-09-24): retired lines file at the very
+          end, dimmed, with everything filed against them intact. Enable
+          brings one back into the plan. */}
+      {retired.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--color-divider-strong)", paddingTop: 8, marginTop: 4 }}>
+          <span className="tiny text-muted" style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
+            Disabled — out of the plan, history kept
+          </span>
+          {retired.map(row)}
         </div>
       )}
 

@@ -38,6 +38,9 @@ export async function saveBudgetLine(projectId: string, formData: FormData) {
     if (formData.has(key)) p[key] = txt(formData.get(key));
   }
   if (formData.has("target_amount")) p.target_amount = num(formData.get("target_amount"));
+  // Retire ("1") or revive ("0") the line - 227 keeps everything filed
+  // against it either way.
+  if (formData.has("disabled")) p.disabled = formData.get("disabled") === "1";
   const { data, error } = await supabase.rpc("portal_budget_line_save", { p });
   if (error || !data?.ok) bounce(projectId, q, data?.reason ?? error?.message ?? "Could not save the line.");
   revalidatePath(`/project/${projectId}/finance`);
