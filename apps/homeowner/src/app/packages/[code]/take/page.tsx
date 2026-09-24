@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { asksFirst, decodeSelections, encodeSelections, loadCovered, loadPackage, priceFor } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
+import { usesEvFlow } from "@/lib/ev";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "How do you want to take it on?" };
@@ -39,10 +40,11 @@ export default async function TakePage({ params, searchParams }: { params: Promi
   const priced = pkg.availability === "priced";
   // A gas job asks its survey first, a guided package walks its photos, and
   // both end in this same fork - turn-key or DIY - so they skip this screen
-  // (migrations 235, 236).
+  // (migrations 235, 236). The EV charger asks it on its own step 3, beside
+  // the wall it goes on (lib/ev.ts).
   // Only while someone covers the trade: without a contractor, turn-key would
   // reach nobody, and this screen says so.
-  if (priced && asksFirst(pkg) && (await loadCovered(pkg.trade))) redirect(bookHref);
+  if (priced && (asksFirst(pkg) || usesEvFlow(pkg)) && (await loadCovered(pkg.trade))) redirect(bookHref);
 
   return (
     <Screen>
