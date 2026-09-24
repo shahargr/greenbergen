@@ -27,14 +27,16 @@ type Lib = {
 export default async function LibraryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [board, { data }] = await Promise.all([
+  const [board, { data, error }] = await Promise.all([
     getBoard(),
     supabase.rpc("portal_library", { p_project: id }),
   ]);
   if (!board.signed_in) redirect(`/login?next=${encodeURIComponent(`/project/${id}/library`)}`);
   const seat = board.seats.find((s) => s.project_id === id);
   if (!seat) notFound();
-  const lib = (data ?? { ok: false }) as Lib;
+  // A failed CALL is not a refusal, and must not read like one: the first
+  // deploy crashed on a bad column and the fallback text blamed permissions.
+  const lib = (data ?? { ok: false, reason: error ? `The library did not load: ${error.message}` : undefined }) as Lib;
   if (!lib.ok || !runs(seat)) {
     return (
       <Screen>

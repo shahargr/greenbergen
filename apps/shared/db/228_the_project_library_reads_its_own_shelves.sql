@@ -100,7 +100,9 @@ begin
            (fl.contract_id is not null or fl.payment_stage_id is not null
             or tx.contract_id is not null) as via_contract,
            (fl.bid_package_id is not null or fl.bid_id is not null) as via_proposal,
-           coalesce(c.title, tc.title, psc.title, bp.trade, bbp.trade, a.title, tx.description) as detail
+           -- (a task name lives in actions.action; a.title crashed the
+           -- first deploy of this read, fixed the same day)
+           coalesce(c.title, tc.title, psc.title, bp.trade, bbp.trade, a.action, tx.description) as detail
       from public.file_links fl
       join public.files f on f.id = fl.file_id and f.project_id = p_project
       left join public.contracts c on c.id = fl.contract_id
