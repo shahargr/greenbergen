@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef } from "react";
-import { configLabel, deltaNotes, isHardware, priceFor, type GasKind, type Lever, type Package, type Selections } from "@shared/catalogue";
+import { priceFor, type GasKind, type Lever, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
-import { PriceBlock } from "@shared/PriceBlock";
-import { AppBar, Card, CheckIcon, Notice, Screen, StepKicker } from "@shared/ui";
+import { AppBar, Card, Notice, Screen } from "@shared/ui";
+import { ChoiceLever, Delta, ProposalView, WalkProgress } from "./SurveyParts";
 
 // THE THREE STEPS BEFORE A GAS JOB'S PRICE (Shahar, 2026-09-24, a three-phone
 // mock-up of the emergency power flow; migration 235).
@@ -249,165 +249,36 @@ export function PowerSurvey({
 export function Proposal({ pkg, sel, survey, onBack, onEdit, onAccept }: {
   pkg: Package; sel: Selections; survey: SurveyState; onBack: () => void; onEdit: () => void; onAccept: () => void;
 }) {
-  const price = priceFor(pkg, sel);
-  const deltas = deltaNotes(pkg, sel);
   const kinds = (pkg.gas_kinds ?? []).filter((k) => survey.kinds.includes(k.key));
   const lo = kinds.reduce((t, k) => t + (k.typical_low ?? 0), 0);
   const hi = kinds.reduce((t, k) => t + (k.typical_high ?? 0), 0);
-  const payments = pkg.milestones.filter((m) => m.kind === "payment" && m.percent_of_contract);
   const btu = (n: number) => `${Math.round(n / 1000).toLocaleString()}k`;
 
   return (
-    <Screen>
-      <AppBar back={onBack} title={pkg.tile_title} sub="Your proposal" />
-      <div className="body">
-        <StepKicker>Turn-key · Your proposal</StepKicker>
-        <div className="hero">
-          <h1>Your {pkg.tile_title.toLowerCase()}, done for you.</h1>
-          <p className="lead">Priced from your answers. Book it and the price is held; contractors accept at it or pass — nobody counter-offers.</p>
-        </div>
-
-        <Card pad={false}>
-          <PriceBlock cents={price} was={deltas.length ? pkg.base_price_cents : null} config={configLabel(pkg, sel)} delta={deltas} kicker="Community price · turn-key" />
-        </Card>
-
+    <ProposalView pkg={pkg} sel={sel} onBack={onBack} onEdit={onEdit} onAccept={onAccept}
+      setup={(l) => { const ft = isBanded(l) ? survey.feet[l.key] : undefined; return ft != null ? ftLabel(l, ft) : null; }}
+      notice={survey.kinds.length > 0 && survey.allListed == null && (
+        <Notice title="One thing unanswered">You didn&apos;t say whether that is every gas appliance. The plumber will ask — or <button type="button" className="btn btn-ghost" style={{ padding: 0, minHeight: 0 }} onClick={onEdit}>answer it now</button>.</Notice>
+      )}>
+      {(kinds.length > 0 || survey.allListed != null) && (
         <Card pad>
-          <h6 style={{ marginBottom: 2 }}>Your setup</h6>
-          <div className="kv-rows">
-            {pkg.levers.map((l) => {
-              const o = l.options.find((x) => x.key === sel[l.key]);
-              if (!o) return null;
-              const ft = isBanded(l) ? survey.feet[l.key] : undefined;
-              return (
-                <div key={l.key}>
-                  <span className="k">{l.label}</span>
-                  <span style={{ textAlign: "right" }}>
-                    {ft != null ? ftLabel(l, ft) : o.label}
-                    {o.price_delta_cents !== 0 && <span className="text-muted"> · {dollars(o.price_delta_cents, { sign: true })}</span>}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <h6 style={{ marginBottom: 2 }}>Gas already in the house</h6>
+          {kinds.length > 0 ? (
+            <>
+              <p className="small" style={{ margin: "2px 0 6px" }}>{kinds.map((k) => k.label).join(", ")}{survey.allListed === false && survey.other.trim() ? `, and ${survey.other.trim()}` : ""}.</p>
+              {hi > 0 && <p className="small text-muted" style={{ margin: 0 }}>Appliances like these typically draw {btu(lo)}–{btu(hi)} BTU/h together. The plumber reads the real numbers off the plates and checks the meter carries them and the generator.</p>}
+            </>
+          ) : (
+            <p className="small text-muted" style={{ margin: 0 }}>{survey.allListed === false && survey.other.trim() ? `${survey.other.trim()}. ` : "Nothing else on gas. "}The plumber checks the meter against it.</p>
+          )}
         </Card>
-
-        {(kinds.length > 0 || survey.allListed != null) && (
-          <Card pad>
-            <h6 style={{ marginBottom: 2 }}>Gas already in the house</h6>
-            {kinds.length > 0 ? (
-              <>
-                <p className="small" style={{ margin: "2px 0 6px" }}>{kinds.map((k) => k.label).join(", ")}{survey.allListed === false && survey.other.trim() ? `, and ${survey.other.trim()}` : ""}.</p>
-                {hi > 0 && <p className="small text-muted" style={{ margin: 0 }}>Appliances like these typically draw {btu(lo)}–{btu(hi)} BTU/h together. The plumber reads the real numbers off the plates and checks the meter carries them and the generator.</p>}
-              </>
-            ) : (
-              <p className="small text-muted" style={{ margin: 0 }}>{survey.allListed === false && survey.other.trim() ? `${survey.other.trim()}. ` : "Nothing else on gas. "}The plumber checks the meter against it.</p>
-            )}
-          </Card>
-        )}
-
-        <Card pad>
-          <h6 style={{ marginBottom: 6 }}>What&apos;s included</h6>
-          <ul className="scope">
-            {pkg.items.filter((it) => !isHardware(it)).map((it, i) => (
-              <li key={i}>
-                <span className="ic"><CheckIcon size={18} /></span>
-                <span>{it.label}{it.detail && <span className="detail"> — {it.detail}</span>}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        {pkg.items.some(isHardware) && (
-          <Card pad>
-            <h6 style={{ marginBottom: 2 }}>What you buy</h6>
-            <p className="small text-muted" style={{ margin: "0 0 6px" }}>Not in the price. Have it delivered to the house before the crew comes.</p>
-            <ul className="scope">
-              {pkg.items.filter(isHardware).map((it, i) => (
-                <li key={i} style={{ flexWrap: "wrap" }}>
-                  <span className="grow">
-                    {it.label}{it.detail && <span className="detail"> — {it.detail}</span>}
-                    {(it.links?.length ?? 0) > 0 && (
-                      <span className="row" style={{ marginTop: 6, flexWrap: "wrap" }}>
-                        {it.links!.map((l) => (
-                          <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="btn btn-soft" style={{ minHeight: 34, fontSize: 12.5 }}>{l.label} ↗</a>
-                        ))}
-                      </span>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-
-        {payments.length > 0 && price != null && (
-          <Card pad>
-            <h6 style={{ marginBottom: 2 }}>How you pay</h6>
-            <div className="kv-rows">
-              <div><span className="k">Today</span><span>Nothing</span></div>
-              {payments.map((m) => (
-                <div key={m.key}>
-                  <span className="k">{m.name} · {m.percent_of_contract}%</span>
-                  <span className="mono">{dollars(Math.round((price * m.percent_of_contract!) / 100))}</span>
-                </div>
-              ))}
-            </div>
-            <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>Paid to your contractor, not to us.</p>
-          </Card>
-        )}
-
-        {survey.kinds.length > 0 && survey.allListed == null && (
-          <Notice title="One thing unanswered">You didn&apos;t say whether that is every gas appliance. The plumber will ask — or <button type="button" className="btn btn-ghost" style={{ padding: 0, minHeight: 0 }} onClick={onEdit}>answer it now</button>.</Notice>
-        )}
-
-        <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
-          <button className="btn btn-primary btn-block" onClick={onAccept}>Accept · book at {dollars(price)}</button>
-          <button type="button" className="btn btn-ghost btn-block" onClick={onEdit}>Change my answers</button>
-          <p className="tiny text-muted center" style={{ margin: 0 }}>Next: which home, the house, the photos. Nothing is charged today.</p>
-        </div>
-      </div>
-    </Screen>
+      )}
+    </ProposalView>
   );
 }
 
 // ---- pieces ------------------------------------------------------------------
-function SurveyProgress({ step }: { step: 1 | 2 | 3 }) {
-  return (
-    <div className="survey-progress" aria-label={`Step ${step} of 3`}>
-      <div className="bars">{[1, 2, 3].map((n) => <span key={n} className={n <= step ? "on" : ""} />)}</div>
-      <div className="small text-muted"><strong>Step {step} of 3</strong> · about a minute</div>
-    </div>
-  );
-}
-
-function ChoiceLever({ lever, value, onPick }: { lever: Lever; value: string | undefined; onPick: (k: string) => void }) {
-  return (
-    <section className="survey-q">
-      <h2>{lever.question ?? lever.label}</h2>
-      {lever.control === "seg" ? (
-        <div className="seg" role="radiogroup" aria-label={lever.label}>
-          {lever.options.map((o) => (
-            <label className="seg-opt" key={o.key}>
-              <input type="radio" name={`sv-${lever.key}`} checked={value === o.key} onChange={() => onPick(o.key)} />
-              {o.label}
-            </label>
-          ))}
-        </div>
-      ) : (
-        <div className="stack" style={{ gap: 8 }}>
-          {lever.options.map((o) => (
-            <label className="radio" key={o.key}>
-              <input type="radio" name={`sv-${lever.key}`} checked={value === o.key} onChange={() => onPick(o.key)} />
-              <span className="dot" />
-              <span>{o.label}</span>
-            </label>
-          ))}
-        </div>
-      )}
-      <Delta lever={lever} value={value} />
-    </section>
-  );
-}
+const SurveyProgress = ({ step }: { step: 1 | 2 | 3 }) => <WalkProgress step={step} of={3} />;
 
 function DistanceLever({ lever, ft, onFt }: { lever: Lever; ft: number; onFt: (ft: number) => void }) {
   const { top, max } = bands(lever);
@@ -427,16 +298,6 @@ function DistanceLever({ lever, ft, onFt }: { lever: Lever; ft: number; onFt: (f
       </div>
       <Delta lever={lever} value={o.key} />
     </section>
-  );
-}
-
-function Delta({ lever, value }: { lever: Lever; value: string | undefined }) {
-  const o = lever.options.find((x) => x.key === value);
-  if (!o) return null;
-  return (
-    <p className="tiny text-muted" style={{ margin: "4px 0 0" }}>
-      {o.price_delta_cents === 0 ? (o.is_default ? "Included in the price." : "No change to the price.") : `${dollars(o.price_delta_cents, { sign: true })} to the price.`}
-    </p>
   );
 }
 

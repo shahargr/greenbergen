@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { decodeSelections, encodeSelections, loadCovered, loadPackage, priceFor } from "@shared/catalogue";
+import { asksFirst, decodeSelections, encodeSelections, loadCovered, loadPackage, priceFor } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
 
@@ -37,11 +37,12 @@ export default async function TakePage({ params, searchParams }: { params: Promi
   const bookHref = `/packages/${code}/book${q}`;
   const planHref = `${bookHref}&mode=plan`;
   const priced = pkg.availability === "priced";
-  // A gas job asks its survey first, and the survey ends in this same fork -
-  // turn-key or DIY-assisted - so it skips this screen (migration 235).
+  // A gas job asks its survey first, a guided package walks its photos, and
+  // both end in this same fork - turn-key or DIY - so they skip this screen
+  // (migrations 235, 236).
   // Only while someone covers the trade: without a contractor, turn-key would
   // reach nobody, and this screen says so.
-  if (priced && pkg.needs_gas_survey && (pkg.gas_kinds?.length ?? 0) > 0 && (await loadCovered(pkg.trade))) redirect(bookHref);
+  if (priced && asksFirst(pkg) && (await loadCovered(pkg.trade))) redirect(bookHref);
 
   return (
     <Screen>
