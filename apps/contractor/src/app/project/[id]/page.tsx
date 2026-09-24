@@ -639,7 +639,7 @@ export default async function ProjectPage({
             addTaskHref={lens.rank >= 30
               ? `/project/${id}/task/new?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
             payHref={taskMoney.can_log ? `/project/${id}/pay?back=${encodeURIComponent(keepAs())}` : null}
-            awardHref={manages ? `/project/${id}/award?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
+            libraryHref={manages ? `/project/${id}/library` : null}
             financeHref={manages ? `/project/${id}/finance` : null} />
         )}
 

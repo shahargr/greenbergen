@@ -36,7 +36,11 @@ type Props = {
   tidyCount: number;
   addTaskHref: string | null;
   payHref: string | null;
-  awardHref: string | null;
+  /** The project library (Shahar, 2026-09-24: "Replace Award work panel
+      with project library") - deliveries by trade, in order, folder view
+      with drag-and-drop. Awarding still lives at /project/[id]/award and
+      inside the bid room; it lost the tile, not the page. */
+  libraryHref: string | null;
   /** Financials - the project's own budget → bid → contract screen, for
       whoever runs the job. It took the "Take me there" slot (Shahar,
       2026-09-23): the address in the caption above is still a map link, so
@@ -53,11 +57,12 @@ const Pin = () => <svg {...g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 
 const Sparkle = () => <svg {...g}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
 const Dollar = () => <svg {...g}><path d="M12 3v18M16.5 7.5a3.5 3.5 0 0 0-3.5-2h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3.5 3.5 0 0 1-3.5-2" /></svg>;
-const Award = () => <svg {...g}><path d="M12 3v5M7.5 8L3 15h9zM16.5 8L12 15h9zM3 15a4.5 4.5 0 0 0 9 0M12 15a4.5 4.5 0 0 0 9 0M8 21h8M12 8v13" /></svg>;
+// The library: a folder, because that is what it is.
+const FolderGlyph = () => <svg {...g}><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>;
 // The budget: rising bars, money against a plan.
 const Bars = () => <svg {...g}><path d="M4 21V13M10 21V8M16 21V11M22 21H2" /></svg>;
 
-export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, awardHref, financeHref }: Props) {
+export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, libraryHref, financeHref }: Props) {
   return (
     <section className="qa">
       <div className="qa-head">
@@ -105,9 +110,14 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
             <Dollar /><span>Log payment</span>
           </Link>
         )}
-        {awardHref && (
-          <Link href={awardHref} className="qa-btn">
-            <Award /><span>Award work</span>
+        {/* THE LIBRARY took the award tile (Shahar, 2026-09-24: "Replace
+            Award work panel with project library... hold deliveries by
+            trades by order"). Awards happen in the bid room and at
+            /project/[id]/award; the daily need is finding the survey, the
+            proposal, the signed contract. */}
+        {libraryHref && (
+          <Link href={libraryHref} className="qa-btn">
+            <FolderGlyph /><span>Library</span>
           </Link>
         )}
       </div>
