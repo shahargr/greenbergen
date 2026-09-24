@@ -41,10 +41,10 @@ export default async function FinancePage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string; step?: string; ok?: string; error?: string }>;
+  searchParams: Promise<{ q?: string; step?: string; ok?: string; error?: string; tx?: string }>;
 }) {
   const { id } = await params;
-  const { q, step, ok, error } = await searchParams;
+  const { q, step, ok, error, tx } = await searchParams;
   const supabase = await createClient();
   const [board, { data: boardData }, { data: project }, { data: ledgerData }] = await Promise.all([
     getBoard(),
@@ -98,7 +98,16 @@ export default async function FinancePage({
   // THE AUDIT LIST (Shahar, 2026-09-23): every transaction, and whether it
   // is filed against a contract, a trade, or a budget line. A payment
   // carrying none of the three is UNFILED - nobody can say what it bought.
-  const ledger = ((ledgerData ?? []) as LedgerRow[]);
+  // The audit list sorts by TRANSACTION DATE (Shahar, 2026-09-24), newest
+  // first unless ?tx=oldest flips it. Undated payments sink to the end
+  // either way - a payment with no date is its own small scandal.
+  const oldestFirst = tx === "oldest";
+  const ledger = ((ledgerData ?? []) as LedgerRow[]).slice().sort((a, b) => {
+    if (!a.paid_on && !b.paid_on) return 0;
+    if (!a.paid_on) return 1;
+    if (!b.paid_on) return -1;
+    return oldestFirst ? a.paid_on.localeCompare(b.paid_on) : b.paid_on.localeCompare(a.paid_on);
+  });
   const unfiled = ledger.filter((t) => !t.contract_id && !t.trade && !t.budget_category_id);
 
   // Disabled lines (227) are out of the plan: they count toward nothing
@@ -281,8 +290,17 @@ export default async function FinancePage({
             <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                 <h2 className="card-title" style={{ margin: 0 }}>All payments · {ledger.length}</h2>
-                <span className="small" style={{ color: unfiled.length > 0 ? "var(--color-danger)" : "var(--color-ok)", fontWeight: 700 }}>
-                  {unfiled.length > 0 ? `${unfiled.length} filed against nothing` : "every payment is filed ✓"}
+                <span className="small" style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                  <Link className="text-muted" style={{ whiteSpace: "nowrap" }}
+                    href={`/project/${id}/finance?${new URLSearchParams({
+                      ...(step ? { step } : {}), ...(q ? { q } : {}),
+                      ...(oldestFirst ? {} : { tx: "oldest" }),
+                    }).toString()}`}>
+                    {oldestFirst ? "oldest first ↑" : "newest first ↓"}
+                  </Link>
+                  <span style={{ color: unfiled.length > 0 ? "var(--color-danger)" : "var(--color-ok)", fontWeight: 700 }}>
+                    {unfiled.length > 0 ? `${unfiled.length} filed against nothing` : "every payment is filed ✓"}
+                  </span>
                 </span>
               </div>
               <p className="small text-muted" style={{ margin: 0 }}>
