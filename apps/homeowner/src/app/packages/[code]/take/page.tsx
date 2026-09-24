@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { decodeSelections, encodeSelections, loadPackage, priceFor } from "@shared/catalogue";
+import { asksFirst, decodeSelections, encodeSelections, loadCovered, loadPackage, priceFor } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { usesEvFlow } from "@/lib/ev";
@@ -38,9 +38,13 @@ export default async function TakePage({ params, searchParams }: { params: Promi
   const bookHref = `/packages/${code}/book${q}`;
   const planHref = `${bookHref}&mode=plan`;
   const priced = pkg.availability === "priced";
-  // The EV charger asks this on its own step 3, beside the wall it goes on
-  // (lib/ev.ts), so asking here first would ask twice.
-  if (priced && usesEvFlow(pkg)) redirect(bookHref);
+  // A gas job asks its survey first, a guided package walks its photos, and
+  // both end in this same fork - turn-key or DIY - so they skip this screen
+  // (migrations 235, 236). The EV charger asks it on its own step 3, beside
+  // the wall it goes on (lib/ev.ts).
+  // Only while someone covers the trade: without a contractor, turn-key would
+  // reach nobody, and this screen says so.
+  if (priced && (asksFirst(pkg) || usesEvFlow(pkg)) && (await loadCovered(pkg.trade))) redirect(bookHref);
 
   return (
     <Screen>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { asksFirst, configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { Card, NumberedNotes } from "@shared/ui";
 import { PriceBlock } from "@shared/PriceBlock";
@@ -49,7 +49,10 @@ export function PackageConfigurator({
   // off to the wizard that already runs each of them. The sticky bar and the
   // button at the bottom lead to the same place - two entries to one fork,
   // rather than two different offers depending on where you tapped.
-  const takeHref = `/packages/${pkg.code}/take?sel=${encodeURIComponent(encodeSelections(sel))}`;
+  // A gas job (the generator) goes straight into its three-step survey, a
+  // guided package into its photo walk-through; both end in the same fork
+  // (migrations 235, 236).
+  const takeHref = `/packages/${pkg.code}/${asksFirst(pkg) && covered ? "book" : "take"}?sel=${encodeURIComponent(encodeSelections(sel))}`;
   const primaryHref = takeHref;
   const primaryLabel = covered ? "Get this done" : "Take it on";
 

@@ -284,12 +284,26 @@ export const GeneralContractor = ({ className }: P) => (
   </Frame>
 );
 
+// A garage opening, door rolled up, and the coated floor running out of it
+// in perspective with its flake. The one package drawn from outside a room.
+export const GarageFloor = ({ className }: P) => (
+  <Frame className={className}>
+    <path d="M24 30L60 12l36 18" />
+    <path d="M30 70V33M90 70V33" />
+    <rect x="38" y="36" width="44" height="34" rx="1" />
+    <path d="M38 41h44" opacity=".55" />
+    <path d="M38 70l-18 6h80l-18-6" />
+    <path d="M47 60h3M58 64h3M70 58h3M52 67h3M66 68h3M44 73h3M74 72h3" opacity=".5" />
+    <path d="M14 76h92" opacity=".5" />
+  </Frame>
+);
+
 const MAP: Record<string, (p: P) => React.JSX.Element> = {
   water_heater: WaterHeater, toilet: Toilet, faucet: Faucet, driveway: Driveway, painting: Painting,
   ev_charger: EvCharger, generator: Generator, gutters: Gutters, blinds: Blinds, window: Window, fence: Fence, siding: Siding,
   solar: Solar, basement: Basement, kitchen: Kitchen, bathroom: Bathroom, something_else: SomethingElse,
   salt: Salt, house: House, steps: Steps, check: Checkmark, internet_tv: InternetTv,
-  garage_heater: GarageHeater, sprinklers: Sprinklers, general_contractor: GeneralContractor,
+  garage_heater: GarageHeater, garage_floor: GarageFloor, sprinklers: Sprinklers, general_contractor: GeneralContractor,
 };
 
 export function Illustration({ name, className }: { name: string | null | undefined; className?: string }) {
