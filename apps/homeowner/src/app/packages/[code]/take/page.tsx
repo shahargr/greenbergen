@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { decodeSelections, encodeSelections, loadPackage, priceFor } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
+import { usesEvFlow } from "@/lib/ev";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "How do you want to take it on?" };
@@ -37,6 +38,9 @@ export default async function TakePage({ params, searchParams }: { params: Promi
   const bookHref = `/packages/${code}/book${q}`;
   const planHref = `${bookHref}&mode=plan`;
   const priced = pkg.availability === "priced";
+  // The EV charger asks this on its own step 3, beside the wall it goes on
+  // (lib/ev.ts), so asking here first would ask twice.
+  if (priced && usesEvFlow(pkg)) redirect(bookHref);
 
   return (
     <Screen>

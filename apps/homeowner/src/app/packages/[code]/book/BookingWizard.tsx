@@ -14,6 +14,8 @@ import { TARGET_WINDOWS, targetWindowLabel, type TargetWindow } from "@/lib/plan
 import type { Home, HomeQuota } from "@/lib/me";
 import { withBase } from "@shared/site";
 import { JoinForm } from "@/app/join/JoinForm";
+import { DISTANCE_LEVER, EV_DEFAULTS, evFacts, feetFor, usesEvFlow, type EvAnswers } from "@/lib/ev";
+import { EvNeeds, EvPanel, EvWall, type Way } from "./EvSteps";
 
 // One client-side wizard, so the photos a homeowner takes stay in memory
 // across steps and upload only after the booking row exists (the storage
@@ -36,15 +38,22 @@ import { JoinForm } from "@/app/join/JoinForm";
 // the last step. Photos are files in memory and cannot make that trip;
 // they become the standing request in the inbox, exactly as when a member
 // books from the sofa.
+//
+// THE EV CHARGER HAS ITS OWN MIDDLE (Shahar, 2026-09-24; lib/ev.ts):
+//   home -> (address) -> 1 needs & location -> 2 the panel -> 3 the wall and
+//   turn-key or DIY -> booked, or -> when -> planned.
+// The fork is on its own step 3, so the take page sends it straight here and
+// ?mode=plan only preselects DIY. Posting a saved plan keeps the generic path.
 
 type Geo = { ok: boolean; found?: boolean; matched?: string; county?: string | null; bergen?: boolean | null; city?: string | null };
 type Facts = { sqft: string; year_built: string; beds: string; baths: string };
-type Shot = { file: File; preview: string; state: "ready" | "uploading" | "done" | "failed"; progress: number; error?: string };
-type Step = "home" | "address" | "facts" | "photos" | "budget" | "when" | "join" | "booked";
+export type Shot = { file: File; preview: string; state: "ready" | "uploading" | "done" | "failed"; progress: number; error?: string };
+type Step = "home" | "address" | "facts" | "photos" | "budget" | "when" | "join" | "booked" | "ev_needs" | "ev_panel" | "ev_wall";
 export type WizardMode = "book" | "plan" | "post";
 type Pending = "book" | "plan";
 // What survives the Google round trip: everything typed, nothing captured.
-type Stash = { address: string; unit: string; facts: Facts; budget: string; note: string; when: TargetWindow; geo: Geo | null; pending: Pending };
+// sel, ev and way are the EV charger's (optional: an older stash has none).
+type Stash = { address: string; unit: string; facts: Facts; budget: string; note: string; when: TargetWindow; geo: Geo | null; pending: Pending; sel?: Selections; ev?: EvAnswers; way?: Way };
 
 const stashKey = (code: string) => `gb_wizard:${code}`;
 // Read once per distinct value, so useSyncExternalStore sees a stable
@@ -95,8 +104,14 @@ const BUDGET_BANDS = (price: number | null) => {
   ];
 };
 
-function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, knownFacts, dbReady, signedIn, here, restored }: WizardProps & { restored: Stash | null }) {
+function Wizard({ pkg, selections: initialSel, mode, planned, homes, quota, knownAddress, knownFacts, dbReady, signedIn, here, restored }: WizardProps & { restored: Stash | null }) {
   const router = useRouter();
+  const isEv = mode !== "post" && usesEvFlow(pkg);
+  // The EV flow moves the distance lever from its slider, so the selections
+  // are state; everywhere else they stay what the package page handed in.
+  const [selections, setSelections] = useState<Selections>(restored?.sel ?? initialSel);
+  const [ev, setEv] = useState<EvAnswers>(restored?.ev ?? { ...EV_DEFAULTS, feet: feetFor(initialSel[DISTANCE_LEVER]) });
+  const [way, setWay] = useState<Way>(restored?.way ?? (mode === "plan" ? "diy" : "turnkey"));
   const price = priceFor(pkg, selections);
   const deposit = depositCents(pkg, price);
   const hasHomes = homes.length > 0;
@@ -104,7 +119,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   // Resumed with homes on file: a member came back through Google, so the
   // home picker first; what they typed is kept for "Another address".
   const [step, setStep] = useState<Step>(
-    restored ? (hasHomes ? "home" : restored.pending === "plan" ? "when" : "budget")
+    restored ? (hasHomes ? "home" : restored.pending === "plan" ? "when" : isEv ? "ev_wall" : "budget")
       : mode === "post" ? (knownHouse ? "photos" : "facts") : hasHomes ? "home" : "address");
   const [reusedFacts, setReusedFacts] = useState(mode === "post" && knownHouse);
   // Resumed: the typed address stands, not one of the member's homes.
@@ -130,8 +145,11 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   useEffect(() => { if (restored) { try { sessionStorage.removeItem(stashKey(pkg.code)); } catch {} } }, [restored, pkg.code]);
   const [result, setResult] = useState<{ project_id: string; reply_by: string; offered_count: number; instant_book: boolean; price_cents: number; planned?: boolean } | null>(null);
   const [uploadIssues, setUploadIssues] = useState<string[]>([]);
-  const afterHome: Step = mode === "plan" ? "when" : "facts";
-  const stepLabel = mode === "plan" ? "DIY project" : "Step 2 of 3 · Your home";
+  const afterHome: Step = isEv ? "ev_needs" : mode === "plan" ? "when" : "facts";
+  const stepLabel = isEv ? "Before we start · Your home" : mode === "plan" ? "DIY project" : "Step 2 of 3 · Your home";
+  // What an EV booking records beyond the levers (lib/ev.ts).
+  const distanceLabel = pkg.levers.find((l) => l.key === DISTANCE_LEVER)?.options.find((o) => o.key === selections[DISTANCE_LEVER])?.label ?? null;
+  const evNote = isEv ? { ev: evFacts(ev, distanceLabel) } : {};
 
   // ---- which home --------------------------------------------------------
   function chooseHome(e: React.FormEvent) {
@@ -199,7 +217,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   }
   function stash(action: Pending) {
     try {
-      const s: Stash = { address, unit, facts, budget, note, when, geo, pending: action };
+      const s: Stash = { address, unit, facts, budget, note, when, geo, pending: action, ...(isEv ? { sel: selections, ev, way } : {}) };
       sessionStorage.setItem(stashKey(pkg.code), JSON.stringify(s));
     } catch { /* private mode: Google still works, the typed details do not survive */ }
   }
@@ -211,7 +229,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
     const supabase = createClient();
     const { data, error } = await supabase.rpc("homeowner_book", {
       p_code: pkg.code, p_selections: selections, p_address: homeId && homeId !== "new" ? null : address.trim(), p_unit: null,
-      p_facts: null, p_budget_band: null, p_note: note.trim() || null,
+      p_facts: isEv ? { ...cleanFacts(facts), ...evNote, source: "owner" } : null, p_budget_band: null, p_note: note.trim() || null,
       p_home_project_id: homeId && homeId !== "new" ? homeId : null, p_mode: "plan", p_target_window: when,
     });
     if (error) {
@@ -220,6 +238,8 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
       return;
     }
     if (!data?.ok) { setBusy(""); setErr(friendly(data?.reason)); return; }
+    // The EV flow takes its photos before the fork, so a DIY plan keeps them.
+    if (isEv) setUploadIssues(await uploadPhotos(supabase, data.project_id as string));
     setResult({ project_id: data.project_id as string, reply_by: "", offered_count: 0, instant_book: pkg.instant_book, price_cents: data.price_cents, planned: true });
     setBusy("");
     setStep("booked");
@@ -234,7 +254,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
       ? await supabase.rpc("homeowner_booking_action", { p_project: planned.project_id, p_action: "post" })
       : await supabase.rpc("homeowner_book", {
           p_code: pkg.code, p_selections: selections, p_address: homeId && homeId !== "new" ? null : address.trim(), p_unit: unit.trim() || null,
-          p_facts: { ...cleanFacts(facts), source: geo?.found ? "census-geocoder + owner" : "owner" },
+          p_facts: { ...cleanFacts(facts), ...evNote, source: geo?.found ? "census-geocoder + owner" : "owner" },
           p_budget_band: budget && budget !== "skip" ? BUDGET_BANDS(price).find((b) => b.key === budget)?.label ?? budget : null,
           p_note: note.trim() || null,
           p_home_project_id: homeId && homeId !== "new" ? homeId : null, p_mode: "book", p_target_window: null,
@@ -246,8 +266,18 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
     }
     if (!data?.ok) { setBusy(""); setErr(friendly(data?.reason)); return; }
     const projectId = data.project_id as string;
+    const issues = await uploadPhotos(supabase, projectId);
+    setUploadIssues(issues);
+    setResult({ project_id: projectId, reply_by: data.reply_by, offered_count: data.offered_count, instant_book: data.instant_book, price_cents: data.price_cents });
+    setBusy("");
+    setStep("booked");
+    router.refresh();
+  }
 
-    // Photos go straight to Storage under the job's id, then are recorded.
+  // ---- photos, once the job exists ---------------------------------------
+  // Straight to Storage under the job's id, then recorded. Returns what did
+  // not land; the rest of the booking stands either way.
+  async function uploadPhotos(supabase: ReturnType<typeof createClient>, projectId: string): Promise<string[]> {
     const issues: string[] = [];
     for (const req of pkg.photos) {
       const shot = shots[req.key];
@@ -266,16 +296,12 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
       if (recErr || !added?.ok) { const m = friendly(added?.reason ?? recErr?.message); issues.push(`${req.label}: ${m}`); setShots((s) => ({ ...s, [req.key]: { ...shot, state: "failed", progress: 0, error: m } })); continue; }
       setShots((s) => ({ ...s, [req.key]: { ...shot, state: "done", progress: 100 } }));
     }
-    setUploadIssues(issues);
-    setResult({ project_id: projectId, reply_by: data.reply_by, offered_count: data.offered_count, instant_book: data.instant_book, price_cents: data.price_cents });
-    setBusy("");
-    setStep("booked");
-    router.refresh();
+    return issues;
   }
 
   // ---- screens ----------------------------------------------------------
   if (step === "join") {
-    const back: Step = pending === "plan" ? "when" : "budget";
+    const back: Step = pending === "plan" ? "when" : isEv ? "ev_wall" : "budget";
     return (
       <Screen>
         <AppBar back={() => setStep(back)} />
@@ -321,6 +347,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
           <StatusHero variant="outline" kicker={`DIY · ${targetWindowLabel(when)}`} title={`Your ${pkg.tile_title.toLowerCase()} is in your DIY projects for ${address.split(",")[0] || "your home"}.`}>
             Yours to do, at your pace. Nothing was sent to anyone. Change your mind and one tap makes it turn-key, at that day&apos;s community price.
           </StatusHero>
+          {uploadIssues.length > 0 && <Notice kind="error" title="Saved, but a photo didn&apos;t attach.">{uploadIssues.join("; ")}. Add it again from the project — nothing else is affected.</Notice>}
           <Card pad>
             <div className="kv-rows">
               <div><span className="k">Your reference price</span><span>{dollars(result.price_cents)} · {configLabel(pkg, selections)}</span></div>
@@ -389,6 +416,17 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
           <Link href="/packages" className="btn btn-ghost btn-block">Back to packages</Link>
         </div>
       </Screen>
+    );
+  }
+
+  if (isEv && (step === "ev_needs" || step === "ev_panel" || step === "ev_wall")) {
+    const common = { pkg, sel: selections, price, ev, setEv };
+    if (step === "ev_needs") return <EvNeeds {...common} setSel={setSelections} back={() => setStep(homeId === "new" || !hasHomes ? "address" : "home")} next={() => setStep("ev_panel")} />;
+    if (step === "ev_panel") return <EvPanel {...common} shots={shots} onPick={take} back={() => setStep("ev_needs")} next={() => setStep("ev_wall")} />;
+    return (
+      <EvWall {...common} shots={shots} onPick={take} way={way} setWay={setWay} note={note} setNote={setNote} busy={busy} err={err} restored={!!restored}
+        back={() => setStep("ev_panel")}
+        next={() => { setErr(""); if (way === "diy") setStep("when"); else proceed("book"); }} />
     );
   }
 
@@ -466,7 +504,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   if (step === "when") {
     return (
       <Screen>
-        <AppBar back={() => setStep(homeId === "new" || !hasHomes ? "address" : "home")} />
+        <AppBar back={() => setStep(isEv ? "ev_wall" : homeId === "new" || !hasHomes ? "address" : "home")} />
         <div className="body">
           <StepKicker>DIY project · {address.split(",")[0]}</StepKicker>
           <div className="hero">
