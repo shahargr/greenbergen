@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
-import { configLabel, depositCents, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { configLabel, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Card, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@shared/ui";
@@ -14,6 +14,7 @@ import { TARGET_WINDOWS, targetWindowLabel, type TargetWindow } from "@/lib/plan
 import type { Home, HomeQuota } from "@/lib/me";
 import { withBase } from "@shared/site";
 import { JoinForm } from "@/app/join/JoinForm";
+import { CONTEXT_SLOT, PowerSurvey, Proposal, initialSurvey, surveyApplies, surveyPayload, type Approach, type Plate, type SurveyState } from "./PowerSurvey";
 
 // One client-side wizard, so the photos a homeowner takes stay in memory
 // across steps and upload only after the booking row exists (the storage
@@ -25,6 +26,16 @@ import { JoinForm } from "@/app/join/JoinForm";
 //   plan:  home -> (address) -> when -> planned          (nothing sent)
 //   post:  facts -> photos -> budget -> booked            (a plan, ordered)
 // "home" appears only when the member already has one or more homes.
+//
+// A GAS JOB ASKS FIRST (Shahar, 2026-09-24; migration 235). A package with
+// needs_gas_survey - the standby generator - opens on its three survey steps
+// (PowerSurvey): sizing, the appliances' spec plates, the installation and
+// the choice of turn-key or DIY-assisted. Turn-key shows the proposal - the
+// price and what is included - and then runs "book" as above; DIY-assisted
+// runs "plan". So the mode is state here, not only the URL's: the survey's
+// last answer decides it. Its answers ride along like the photos do and are
+// written once the job exists (homeowner_gas_survey_save, then each plate
+// photo through homeowner_gas_photo_add).
 //
 // THE ACCOUNT IS THE LAST STEP (Shahar, 2026-09-10). A visitor walks every
 // step above without one. The moment they tap Book (or Add to my DIY
@@ -40,11 +51,11 @@ import { JoinForm } from "@/app/join/JoinForm";
 type Geo = { ok: boolean; found?: boolean; matched?: string; county?: string | null; bergen?: boolean | null; city?: string | null };
 type Facts = { sqft: string; year_built: string; beds: string; baths: string };
 type Shot = { file: File; preview: string; state: "ready" | "uploading" | "done" | "failed"; progress: number; error?: string };
-type Step = "home" | "address" | "facts" | "photos" | "budget" | "when" | "join" | "booked";
+type Step = "survey" | "proposal" | "home" | "address" | "facts" | "photos" | "budget" | "when" | "join" | "booked";
 export type WizardMode = "book" | "plan" | "post";
 type Pending = "book" | "plan";
 // What survives the Google round trip: everything typed, nothing captured.
-type Stash = { address: string; unit: string; facts: Facts; budget: string; note: string; when: TargetWindow; geo: Geo | null; pending: Pending };
+type Stash = { address: string; unit: string; facts: Facts; budget: string; note: string; when: TargetWindow; geo: Geo | null; pending: Pending; sel?: Selections; survey?: SurveyState | null };
 
 const stashKey = (code: string) => `gb_wizard:${code}`;
 // Read once per distinct value, so useSyncExternalStore sees a stable
@@ -95,8 +106,15 @@ const BUDGET_BANDS = (price: number | null) => {
   ];
 };
 
-function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, knownFacts, dbReady, signedIn, here, restored }: WizardProps & { restored: Stash | null }) {
+function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes, quota, knownAddress, knownFacts, dbReady, signedIn, here, restored }: WizardProps & { restored: Stash | null }) {
   const router = useRouter();
+  // The survey can move both: its levers change the selections, and its last
+  // answer (turn-key or DIY-assisted) picks the mode.
+  const surveyed = surveyApplies(pkg) && initialMode !== "post";
+  const [selections, setSelections] = useState<Selections>(restored?.sel ?? initialSel);
+  const [mode, setMode] = useState<WizardMode>(restored?.pending === "plan" ? "plan" : restored ? (initialMode === "plan" ? "book" : initialMode) : initialMode);
+  const [survey, setSurvey] = useState<SurveyState | null>(() => (surveyed ? restored?.survey ?? initialSurvey(pkg, initialSel) : null));
+  const [plates, setPlates] = useState<Record<string, Plate[]>>({});
   const price = priceFor(pkg, selections);
   const deposit = depositCents(pkg, price);
   const hasHomes = homes.length > 0;
@@ -105,7 +123,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   // home picker first; what they typed is kept for "Another address".
   const [step, setStep] = useState<Step>(
     restored ? (hasHomes ? "home" : restored.pending === "plan" ? "when" : "budget")
-      : mode === "post" ? (knownHouse ? "photos" : "facts") : hasHomes ? "home" : "address");
+      : mode === "post" ? (knownHouse ? "photos" : "facts") : surveyed ? "survey" : hasHomes ? "home" : "address");
   const [reusedFacts, setReusedFacts] = useState(mode === "post" && knownHouse);
   // Resumed: the typed address stands, not one of the member's homes.
   const [homeId, setHomeId] = useState<string | null>(hasHomes ? homes[0]!.project_id : null);
@@ -131,7 +149,10 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   const [result, setResult] = useState<{ project_id: string; reply_by: string; offered_count: number; instant_book: boolean; price_cents: number; planned?: boolean } | null>(null);
   const [uploadIssues, setUploadIssues] = useState<string[]>([]);
   const afterHome: Step = mode === "plan" ? "when" : "facts";
-  const stepLabel = mode === "plan" ? "DIY project" : "Step 2 of 3 · Your home";
+  const stepLabel = surveyed ? (mode === "plan" ? "DIY-assisted · Your home" : "Booking · Your home") : mode === "plan" ? "DIY project" : "Step 2 of 3 · Your home";
+  // Where the first booking step goes back to: the proposal or the survey
+  // when there was one, else the package page.
+  const entryBack = surveyed ? () => setStep(mode === "plan" ? "survey" : "proposal") : `/packages/${pkg.code}`;
 
   // ---- which home --------------------------------------------------------
   function chooseHome(e: React.FormEvent) {
@@ -199,7 +220,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   }
   function stash(action: Pending) {
     try {
-      const s: Stash = { address, unit, facts, budget, note, when, geo, pending: action };
+      const s: Stash = { address, unit, facts, budget, note, when, geo, pending: action, sel: selections, survey };
       sessionStorage.setItem(stashKey(pkg.code), JSON.stringify(s));
     } catch { /* private mode: Google still works, the typed details do not survive */ }
   }
@@ -220,6 +241,10 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
       return;
     }
     if (!data?.ok) { setBusy(""); setErr(friendly(data?.reason)); return; }
+    // DIY-assisted keeps its survey too: the answers are what the engineering
+    // questions are answered against. The context shot goes with it.
+    const issues = await saveSurvey(data.project_id as string, true);
+    setUploadIssues(issues);
     setResult({ project_id: data.project_id as string, reply_by: "", offered_count: 0, instant_book: pkg.instant_book, price_cents: data.price_cents, planned: true });
     setBusy("");
     setStep("booked");
@@ -266,6 +291,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
       if (recErr || !added?.ok) { const m = friendly(added?.reason ?? recErr?.message); issues.push(`${req.label}: ${m}`); setShots((s) => ({ ...s, [req.key]: { ...shot, state: "failed", progress: 0, error: m } })); continue; }
       setShots((s) => ({ ...s, [req.key]: { ...shot, state: "done", progress: 100 } }));
     }
+    issues.push(...(await saveSurvey(projectId, false)));
     setUploadIssues(issues);
     setResult({ project_id: projectId, reply_by: data.reply_by, offered_count: data.offered_count, instant_book: data.instant_book, price_cents: data.price_cents });
     setBusy("");
@@ -273,7 +299,80 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
     router.refresh();
   }
 
+  // ---- the survey, once the job exists ------------------------------------
+  // The answers go to the house (gas_appliances) and the booking; each plate
+  // photo goes to the job's folder and is linked to its appliance. withContext
+  // uploads the context shot too - the plan path, which does not run the
+  // photo slots the way a booking does. Returns what did not make it.
+  async function saveSurvey(projectId: string, withContext: boolean): Promise<string[]> {
+    if (!survey) return [];
+    const issues: string[] = [];
+    const supabase = createClient();
+    setBusy("Saving your answers…");
+    const { data, error } = await supabase.rpc("homeowner_gas_survey_save", { p_project: projectId, p_survey: surveyPayload(pkg, survey) });
+    if (error || !data?.ok) return [`Your gas appliance answers: ${friendly(data?.reason ?? error?.message)}`];
+    for (const k of survey.kinds) {
+      const label = pkg.gas_kinds?.find((g) => g.key === k)?.label ?? k;
+      for (const [i, plate] of (plates[k] ?? []).entries()) {
+        setBusy(`Uploading the ${label.toLowerCase()} photos…`);
+        const { path, ext } = storagePath(projectId, `gas-${k}-${i + 1}`, plate.file.name);
+        const { error: upErr } = await supabase.storage.from("project-media").upload(path, plate.file, { contentType: plate.file.type || undefined });
+        if (upErr) { issues.push(`${label} photo: ${upErr.message}`); continue; }
+        const { data: added, error: recErr } = await supabase.rpc("homeowner_gas_photo_add", {
+          p_project: projectId, p_kind: k, p_path: path, p_file_name: plate.file.name || `${k}${ext}`,
+          p_mime: plate.file.type || "image/jpeg", p_size: plate.file.size,
+        });
+        if (recErr || !added?.ok) issues.push(`${label} photo: ${friendly(added?.reason ?? recErr?.message)}`);
+      }
+    }
+    const ctx = shots[CONTEXT_SLOT];
+    if (withContext && ctx) {
+      setBusy("Uploading the context shot…");
+      const { path, ext } = storagePath(projectId, CONTEXT_SLOT, ctx.file.name);
+      const { error: upErr } = await supabase.storage.from("project-media").upload(path, ctx.file, { contentType: ctx.file.type || undefined });
+      if (upErr) issues.push(`Context shot: ${upErr.message}`);
+      else {
+        const { data: added, error: recErr } = await supabase.rpc("homeowner_photo_add", {
+          p_project: projectId, p_path: path, p_key: CONTEXT_SLOT, p_file_name: ctx.file.name || `${CONTEXT_SLOT}${ext}`,
+          p_mime: ctx.file.type || "image/jpeg", p_size: ctx.file.size,
+        });
+        if (recErr || !added?.ok) issues.push(`Context shot: ${friendly(added?.reason ?? recErr?.message)}`);
+      }
+    }
+    return issues;
+  }
+
   // ---- screens ----------------------------------------------------------
+  if (step === "survey" && survey) {
+    return (
+      <PowerSurvey
+        pkg={pkg} sel={selections} onSel={setSelections} value={survey} onChange={setSurvey}
+        plates={plates} onPlates={(k, p) => setPlates((all) => ({ ...all, [k]: p }))}
+        context={shots[CONTEXT_SLOT] ?? null}
+        onContext={(f) => {
+          if (f) { take(CONTEXT_SLOT, f); return; }
+          setShots((s) => { const prev = s[CONTEXT_SLOT]; if (prev) URL.revokeObjectURL(prev.preview); return { ...s, [CONTEXT_SLOT]: undefined }; });
+        }}
+        back={`/packages/${pkg.code}?sel=${encodeURIComponent(encodeSelections(selections))}`}
+        onDone={(a: Approach) => {
+          setErr("");
+          if (a === "turnkey") { setMode("book"); setStep("proposal"); }
+          else { setMode("plan"); setStep(hasHomes ? "home" : "address"); }
+          window.scrollTo(0, 0);
+        }}
+      />
+    );
+  }
+
+  if (step === "proposal" && survey) {
+    return (
+      <Proposal pkg={pkg} sel={selections} survey={survey}
+        onBack={() => setStep("survey")}
+        onEdit={() => { setSurvey({ ...survey, step: 1 }); setStep("survey"); window.scrollTo(0, 0); }}
+        onAccept={() => { setStep(hasHomes ? "home" : "address"); window.scrollTo(0, 0); }} />
+    );
+  }
+
   if (step === "join") {
     const back: Step = pending === "plan" ? "when" : "budget";
     return (
@@ -328,6 +427,9 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
               <div><span className="k">Sent to contractors</span><span>Not yet</span></div>
             </div>
           </Card>
+          {uploadIssues.length > 0 && (
+            <Notice kind="error" title="Saved, but not everything attached.">{uploadIssues.join("; ")}. Add it again from the job folder — the plan itself is fine.</Notice>
+          )}
         </div>
         <div className="actions">
           <Link href={`/project/${result.project_id}`} className="btn btn-primary btn-block">See the plan</Link>
@@ -396,7 +498,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
     const canAdd = quota?.can_add ?? true;
     return (
       <Screen>
-        <AppBar back={`/packages/${pkg.code}`} />
+        <AppBar back={entryBack} />
         <form className="body" onSubmit={chooseHome} noValidate>
           <StepKicker>{stepLabel}</StepKicker>
           <div className="hero">
@@ -437,7 +539,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
   if (step === "address") {
     return (
       <Screen>
-        <AppBar back={hasHomes ? () => setStep("home") : `/packages/${pkg.code}`} />
+        <AppBar back={hasHomes ? () => setStep("home") : entryBack} />
         <form className="body" onSubmit={checkAddress} noValidate>
           <StepKicker>{stepLabel}</StepKicker>
           <div className="hero">
@@ -586,7 +688,7 @@ function Wizard({ pkg, selections, mode, planned, homes, quota, knownAddress, kn
     <Screen>
       <AppBar back={() => setStep("photos")} right={<button type="button" className="btn btn-ghost" onClick={() => { setBudget("skip"); proceed("book"); }} disabled={!!busy}>Skip</button>} />
       <div className="body">
-        <StepKicker>Step 3 of 3 · Optional</StepKicker>
+        <StepKicker>{surveyed ? "Last step · Optional" : "Step 3 of 3 · Optional"}</StepKicker>
         <div className="hero">
           <h1>How much would you like to spend?</h1>
           <p className="lead">Totally optional. If we know, we can suggest a smarter approach — a smaller tank, a different fuel, a phased job.</p>

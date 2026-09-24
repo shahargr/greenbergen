@@ -49,7 +49,9 @@ export function PackageConfigurator({
   // off to the wizard that already runs each of them. The sticky bar and the
   // button at the bottom lead to the same place - two entries to one fork,
   // rather than two different offers depending on where you tapped.
-  const takeHref = `/packages/${pkg.code}/take?sel=${encodeURIComponent(encodeSelections(sel))}`;
+  // A gas job (the generator) goes straight into its three-step survey,
+  // which ends in the same fork (migration 235).
+  const takeHref = `/packages/${pkg.code}/${pkg.needs_gas_survey && (pkg.gas_kinds?.length ?? 0) > 0 && covered ? "book" : "take"}?sel=${encodeURIComponent(encodeSelections(sel))}`;
   const primaryHref = takeHref;
   const primaryLabel = covered ? "Get this done" : "Take it on";
 

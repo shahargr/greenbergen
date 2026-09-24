@@ -10,8 +10,11 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./supabase/keys";
 // db/ is applied and as the seed that migration is generated from.
 
 export type Availability = "priced" | "coming_soon" | "quote" | "custom";
-export type LeverOption = { key: string; label: string; price_delta_cents: number; is_default: boolean; chip?: string | null };
-export type Lever = { key: string; label: string; control: "seg" | "radio"; question: string | null; options: LeverOption[] };
+// upto / unit (migration 235): a lever that is a measured quantity - feet from
+// the panel - has a unit, and each option is a band reaching up to its upto
+// (null on the last, open-ended one), so an app can draw a slider over it.
+export type LeverOption = { key: string; label: string; price_delta_cents: number; is_default: boolean; chip?: string | null; upto?: number | null };
+export type Lever = { key: string; label: string; control: "seg" | "radio"; question: string | null; options: LeverOption[]; unit?: string | null };
 export type PhotoReq = { key: string; label: string; hint: string | null };
 // A scope line. work = what gets done; assurance = what comes with it;
 // hardware = what the homeowner buys before the crew arrives, not in the
@@ -45,7 +48,12 @@ export type Package = {
   promote?: boolean;
   // The story the page tells above the price (migration 067).
   sections?: PageSection[];
+  // A gas job asks about the house's gas appliances before the price
+  // (migrations 228-230, 235); gas_kinds are the questions, in order.
+  needs_gas_survey?: boolean;
+  gas_kinds?: GasKind[] | null;
 };
+export type GasKind = { key: string; label: string; hint: string | null; typical_low: number | null; typical_high: number | null };
 export type CommunityService = {
   code: string; name: string; cadence: string; summary: string; description: string; price_cents: number;
   price_label: string; charged: string; season: string; illustration: string;
