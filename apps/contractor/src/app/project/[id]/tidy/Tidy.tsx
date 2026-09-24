@@ -8,21 +8,20 @@ import { shortDate } from "@shared/format";
 
 // TIDY UP: ONE TASK AT A TIME.
 //
-// Shahar (2026-09-17): "the not filed under a trade is a good catch it all. i
-// think having a data improvement process can help a ton... add an AI button
-// that will start a process that takes tasks without trade or assignee, one
-// by one to fix and sort. so it shows one task at a time, allowing to update
-// it correctly."
+// Shahar (2026-09-17): "add an AI button that will start a process that
+// takes tasks without trade or assignee, one by one to fix and sort."
+// Queue and guesses are the database's (portal_tidy_queue, migration 173).
 //
-// The queue comes from the database (portal_tidy_queue, migration 173): the
-// open tasks on the job's family with no trade or no holder, late first,
-// each with a GUESS - the trade whose word is in the task, or the trade of
-// the person the task names - and the reason for the guess, so it can be
-// trusted or ignored in one look. The screen shows one, offers the guess,
-// and moves on. Save is portal_task_edit; nothing here writes a row itself.
+// Restructured 2026-09-24 to his layout: the ACTION leads (the old context
+// line moved into a folded body), then late / on time, then the status with
+// when it last moved - the card that read "flagged completed" was really an
+// In Progress row nobody had touched since Sep 3, and the card now says so.
+// Save saves and stays; Next moves on; the status dropdown closes, parks or
+// re-stages the task where "Call it off" only cancelled.
 type Task = {
   id: string; action: string; notes: string | null; status_note: string | null; status: string;
   priority: string | null; target_date: string | null; created_at: string; created_by: string | null;
+  updated_at: string | null;
   trade: string | null; project_id: string; project: string;
   assignee_id: string | null; assignee: string | null; parent_title: string | null; late: boolean;
   guess: string | null; why: string | null;
@@ -33,16 +32,20 @@ type Person = { contact_id: string; name: string | null; seat: string | null; me
 type Crew = { project_id: string; people: Person[] };
 
 const PRIORITIES = ["High", "Medium", "Low", "No Priority"];
+// The statuses a task can be MOVED to from here. Completed and Cancelled go
+// through their own verbs (portal_close_task / portal_task_cancel) so the
+// close is recorded properly; the rest are portal_task_edit.
+const STATUSES = ["In Progress", "Not Started", "Pending on Others", "Parked", "Completed", "Cancelled"];
 
 export function Tidy({ projectId, projectName, back }: { projectId: string; projectName: string; back: string }) {
   const [queue, setQueue] = useState<Queue | null>(null);
   const [cat, setCat] = useState<CatTrade[]>([]);
   const [crews, setCrews] = useState<Crew[]>([]);
-  const [at, setAt] = useState(0);
   const [done, setDone] = useState(0);
   const [skipped, setSkipped] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [note, setNote] = useState("");
   // The form for the task in front of you.
   const [trade, setTrade] = useState("");
   const [holder, setHolder] = useState("");
@@ -68,8 +71,10 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
     return () => { live = false; };
   }, [projectId]);
 
+  // Always the front of the pile: putting a task behind you means adding it
+  // to skipped, never juggling an index past the end.
   const tasks = (queue?.tasks ?? []).filter((t) => !skipped.includes(t.id));
-  const task = tasks[at] ?? null;
+  const task = tasks[0] ?? null;
 
   // The form follows the task: the guess goes into the trade box, what the
   // task already has stays. Adjusted during render, never in an effect.
@@ -79,7 +84,7 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
     setHolder(task.assignee_id ?? "");
     setDue(task.target_date ?? "");
     setPriority(task.priority && task.priority !== "Missing" ? task.priority : "");
-    setErr("");
+    setErr(""); setNote("");
   }
 
   const people = (crews.find((c) => c.project_id === (task?.project_id ?? projectId))
@@ -87,37 +92,74 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
   const onJob = cat.filter((t) => t.on_job);
   const offJob = cat.filter((t) => !t.on_job);
 
+  function patchLocal(id: string, patch: Partial<Task>) {
+    setQueue((q) => q ? { ...q, tasks: q.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) } : q);
+  }
+  function putBehind(id: string) { setDone((d) => d + 1); setSkipped((s) => [...s, id]); }
+
+  // SAVE SAVES AND STAYS (Shahar, 2026-09-24: "Save and next. Change to
+  // save."). Next is its own button.
   async function save() {
     if (!task) return;
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); setNote("");
     const patch: Record<string, string | null> = {};
     if ((trade || null) !== task.trade) patch.trade = trade || null;
     if ((holder || null) !== task.assignee_id) patch.assignee = holder || null;
     if ((due || null) !== task.target_date) patch.target_date = due || null;
     if (priority && priority !== task.priority) patch.priority = priority;
-    if (Object.keys(patch).length === 0) { setBusy(false); next(); return; }
+    if (Object.keys(patch).length === 0) { setBusy(false); setNote("Nothing changed."); return; }
     const { data, error } = await createClient().rpc("portal_task_edit", { p_action_id: task.id, p_patch: patch });
     setBusy(false);
     if (error) { setErr(friendly(error.message)); return; }
     if (!data?.ok) { setErr(data?.reason ?? "That was not saved."); return; }
-    setDone((d) => d + 1);
-    setSkipped((s) => [...s, task.id]);
+    patchLocal(task.id, {
+      trade: trade || null, assignee_id: holder || null, target_date: due || null,
+      priority: priority || task.priority, updated_at: new Date().toISOString(),
+    });
+    setNote("Saved.");
   }
 
-  async function callOff() {
-    if (!task) return;
-    const reason = window.prompt(`Call off "${task.action}"? Say why, in a few words.`);
-    if (reason === null) return;
-    setBusy(true); setErr("");
-    const { data, error } = await createClient().rpc("portal_task_cancel", { p_action_id: task.id, p_reason: reason || "Not needed" });
+  // THE STATUS DROPDOWN (2026-09-24: "Call it off / cancel. Drop down with
+  // options per action status."). Completed and Cancelled close the task
+  // through their own verbs and put it behind you; the rest re-stage it and
+  // it stays in front, restated on the card.
+  async function setStatus(next: string) {
+    if (!task || !next || next === task.status) return;
+    setBusy(true); setErr(""); setNote("");
+    const c = createClient();
+    if (next === "Completed") {
+      const { data, error } = await c.rpc("portal_close_task", { p_action_id: task.id });
+      setBusy(false);
+      if (error) { setErr(friendly(error.message)); return; }
+      if (data?.ok === false) { setErr(data?.reason ?? "That was not closed."); return; }
+      putBehind(task.id);
+      return;
+    }
+    if (next === "Cancelled") {
+      const reason = window.prompt(`Call off "${task.action}"? Say why, in a few words.`);
+      if (reason === null) { setBusy(false); return; }
+      const { data, error } = await c.rpc("portal_task_cancel", { p_action_id: task.id, p_reason: reason || "Not needed" });
+      setBusy(false);
+      if (error) { setErr(friendly(error.message)); return; }
+      if (!data?.ok) { setErr(data?.reason ?? "That was not called off."); return; }
+      putBehind(task.id);
+      return;
+    }
+    const patch: Record<string, string> = { status: next };
+    if (next === "Pending on Others") {
+      const why = window.prompt("Pending on whom, and for what?");
+      if (why === null) { setBusy(false); return; }
+      if (why.trim()) patch.status_note = why.trim();
+    }
+    const { data, error } = await c.rpc("portal_task_edit", { p_action_id: task.id, p_patch: patch });
     setBusy(false);
     if (error) { setErr(friendly(error.message)); return; }
-    if (!data?.ok) { setErr(data?.reason ?? "That was not called off."); return; }
-    setDone((d) => d + 1);
-    setSkipped((s) => [...s, task.id]);
+    if (!data?.ok) { setErr(data?.reason ?? "That was not saved."); return; }
+    patchLocal(task.id, { status: next, status_note: patch.status_note ?? task.status_note, updated_at: new Date().toISOString() });
+    setNote(`Now ${next.toLowerCase()}.`);
   }
 
-  function next() { setAt((i) => Math.min(i + 1, Math.max(0, tasks.length - 1))); setSkipped((s) => task ? [...s, task.id] : s); }
+  function next() { if (task) setSkipped((s) => [...s, task.id]); }
 
   if (!queue) return <div className="card pad"><div className="small text-muted">Reading the pile…</div></div>;
 
@@ -141,34 +183,49 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
   }
 
   const suggested = !!task.guess && !task.trade;
+  const where = [task.project, task.parent_title ? `part of ${task.parent_title}` : null,
+    task.created_by && !task.created_by.startsWith("system:") ? `opened by ${task.created_by}` : null,
+    `opened ${shortDate(task.created_at)}`].filter(Boolean).join(" · ");
+
   return (
     <div className="stack" style={{ gap: 12 }}>
       <div className="between" style={{ alignItems: "baseline" }}>
         <div className="divider-label" style={{ padding: 0 }}>
-          {done + 1} of {total}{queue.no_trade > 0 ? ` · ${queue.no_trade} without a trade` : ""}{queue.no_holder > 0 ? ` · ${queue.no_holder} nobody holds` : ""}
+          {total - left + 1} of {total}{queue.no_trade > 0 ? ` · ${queue.no_trade} without a trade` : ""}{queue.no_holder > 0 ? ` · ${queue.no_holder} nobody holds` : ""}
         </div>
       </div>
 
       <div className="card pad stack tidy-card" style={{ gap: 10 }}>
+        {/* THE ACTION LEADS (2026-09-24). Then late / on time, then the
+            status with when the task last moved - "In Progress · last moved
+            Sep 3" is the difference between a card that looks stale and one
+            that says it is. The context line the top used to carry sits
+            folded below, with the notes. */}
         <div>
-          <div className="tiny text-muted">
-            {[task.project, task.parent_title ? `part of ${task.parent_title}` : null,
-              task.created_by && !task.created_by.startsWith("system:") ? `opened by ${task.created_by}` : null,
-              shortDate(task.created_at)].filter(Boolean).join(" · ")}
-          </div>
-          <div className="t" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.25, marginTop: 2 }}>
+          <div className="t" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.25 }}>
             <Link href={`/task/${task.id}?back=${encodeURIComponent(`/project/${projectId}/tidy?back=${encodeURIComponent(back)}`)}`}
               style={{ color: "inherit", textDecoration: "none" }}>{task.action}</Link>
           </div>
-          {(task.status_note || task.notes) && (
-            <p className="small text-muted" style={{ margin: "4px 0 0", whiteSpace: "pre-wrap" }}>
-              {(task.status_note || task.notes || "").slice(0, 400)}
-            </p>
-          )}
-          <div className="tiny" style={{ marginTop: 4 }}>
-            {task.late && <span className="tag tag-status" style={{ marginRight: 6 }}>late</span>}
-            {task.target_date ? `Due ${shortDate(task.target_date)}` : "No date"}{task.status !== "Not Started" ? ` · ${task.status}` : ""}
+          <div className="tiny" style={{ marginTop: 4, display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+            {task.late
+              ? <span className="tag tag-status">late</span>
+              : <span className="tag tag-ok">on time</span>}
+            <span className="text-muted">{task.target_date ? `Target ${shortDate(task.target_date)}` : "No target date"}</span>
+            <span>{task.status}{task.updated_at ? ` · last moved ${shortDate(task.updated_at)}` : ""}</span>
           </div>
+          {(task.notes || task.status_note || where) && (
+            <details style={{ marginTop: 6 }}>
+              <summary className="tiny text-muted" style={{ cursor: "pointer" }}>About this task</summary>
+              <div className="small text-muted" style={{ marginTop: 4 }}>
+                {(task.status_note || task.notes) && (
+                  <p style={{ margin: "0 0 4px", whiteSpace: "pre-wrap" }}>
+                    {(task.status_note || task.notes || "").slice(0, 600)}
+                  </p>
+                )}
+                <p className="tiny" style={{ margin: 0 }}>{where}</p>
+              </div>
+            </details>
+          )}
         </div>
 
         {suggested && (
@@ -190,18 +247,24 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
             </select>
           </label>
           <label className="nb-fld">
-            <span>Who holds it{!task.assignee_id && !task.assignee ? " · missing" : ""}</span>
-            <select className="input" value={holder} onChange={(e) => setHolder(e.target.value)}>
-              <option value="">{task.assignee && !task.assignee_id ? `${task.assignee} (assistant)` : "Nobody"}</option>
-              {people.map((p) => (
-                <option key={p.contact_id} value={p.contact_id}>{p.name}{p.me ? " (me)" : ""}{p.seat ? ` · ${p.seat}` : ""}</option>
-              ))}
-            </select>
+            <span>Contact{!task.assignee_id && !task.assignee ? " · missing" : ""}</span>
+            {people.length === 0 ? (
+              <Link className="btn btn-secondary" href={`/project/${projectId}/award?back=${encodeURIComponent(`/project/${projectId}/tidy`)}`}>
+                Nobody on this job yet — add one
+              </Link>
+            ) : (
+              <select className="input" value={holder} onChange={(e) => setHolder(e.target.value)}>
+                <option value="">{task.assignee && !task.assignee_id ? `${task.assignee} (assistant)` : "Nobody"}</option>
+                {people.map((p) => (
+                  <option key={p.contact_id} value={p.contact_id}>{p.name}{p.me ? " (me)" : ""}{p.seat ? ` · ${p.seat}` : ""}</option>
+                ))}
+              </select>
+            )}
           </label>
         </div>
         <div className="tidy-two">
           <label className="nb-fld">
-            <span>When</span>
+            <span>Target completion</span>
             <input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
           </label>
           <label className="nb-fld">
@@ -215,10 +278,16 @@ export function Tidy({ projectId, projectName, back }: { projectId: string; proj
 
         <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           <button type="button" className="btn btn-primary" disabled={busy} style={{ flex: "2 1 auto" }}
-            onClick={() => { void save(); }}>{busy ? "…" : "Save and next"}</button>
-          <button type="button" className="btn btn-secondary" disabled={busy} onClick={next}>Skip</button>
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { void callOff(); }}>Call it off</button>
+            onClick={() => { void save(); }}>{busy ? "…" : "Save"}</button>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={next}>Next</button>
+          <select className="input" style={{ flex: "1 1 130px" }} disabled={busy} value=""
+            aria-label="Move this task to a status"
+            onChange={(e) => { if (e.target.value) void setStatus(e.target.value); }}>
+            <option value="" disabled>Set status…</option>
+            {STATUSES.filter((s) => s !== task.status).map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
+        {note && <p className="tiny" style={{ color: "var(--color-ok)", margin: 0 }}>{note}</p>}
         {err && <p className="tiny" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
       </div>
 
