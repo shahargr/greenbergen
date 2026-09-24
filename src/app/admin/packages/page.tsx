@@ -95,7 +95,7 @@ export default async function AdminPackagesPage({ searchParams }: { searchParams
             </select>
           </label>
           <label className="field" style={{ margin: 0 }}><span className="muted small">Name</span><input className="input" name="name" required placeholder="Pergola" /></label>
-          <label className="field" style={{ margin: 0 }}><span className="muted small">Tile title</span><input className="input" name="tile_title" required placeholder="Pergola" /></label>
+          <label className="field" style={{ margin: 0 }}><span className="muted small">Tile title (optional - the short label on the grid tile; blank uses the name)</span><input className="input" name="tile_title" placeholder="Pergola" /></label>
           <div style={{ gridColumn: "1 / -1" }}><button className="btn">Create the package</button></div>
         </form>
       </div>

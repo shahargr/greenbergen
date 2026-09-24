@@ -43,7 +43,14 @@ export async function savePackage(formData: FormData) {
   const isNew = s(formData, "new") === "1";
   const base = cents(formData.get("base_price"));
   if (base === "x") finish(code, false, "The base price is not a number.");
-  const patch = {
+  // The new-package form carries only code, trade, name and tile title. Send
+  // just those, so admin_package_save keeps its own starting values (More
+  // shelf, coming soon, active, instant book) - a blank tile_group here was
+  // a null that broke the insert, and an absent is_active box read as "off".
+  // A blank tile title takes the name; it can be shortened on the package page.
+  const patch = isNew ? {
+    name: s(formData, "name"), tile_title: s(formData, "tile_title") || s(formData, "name"), trade: s(formData, "trade"),
+  } : {
     name: s(formData, "name"), tile_title: s(formData, "tile_title"), tile_line2: s(formData, "tile_line2"),
     trade: s(formData, "trade"), category: s(formData, "category"), tile_group: s(formData, "tile_group"),
     availability: s(formData, "availability"), base_price_cents: base, config_label: s(formData, "config_label"),
