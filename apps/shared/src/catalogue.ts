@@ -15,7 +15,11 @@ export type Availability = "priced" | "coming_soon" | "quote" | "custom";
 // (null on the last, open-ended one), so an app can draw a slider over it.
 export type LeverOption = { key: string; label: string; price_delta_cents: number; is_default: boolean; chip?: string | null; upto?: number | null };
 export type Lever = { key: string; label: string; control: "seg" | "radio"; question: string | null; options: LeverOption[]; unit?: string | null };
-export type PhotoReq = { key: string; label: string; hint: string | null };
+// step / guide / example_url (migration 236): on a package with guided_photos
+// a slot is taken on one screen of the walk-through - slots sharing a step
+// share a screen - under a one-line instruction over the viewfinder, with an
+// optional reference picture behind it.
+export type PhotoReq = { key: string; label: string; hint: string | null; step?: number | null; guide?: string | null; example_url?: string | null };
 // A scope line. work = what gets done; assurance = what comes with it;
 // hardware = what the homeowner buys before the crew arrives, not in the
 // price, with the suggested product pages (migration 054). kind and links
@@ -52,7 +56,14 @@ export type Package = {
   // (migrations 228-230, 235); gas_kinds are the questions, in order.
   needs_gas_survey?: boolean;
   gas_kinds?: GasKind[] | null;
+  // The booking walks the photos one camera screen at a time (migration 236).
+  guided_photos?: boolean;
 };
+// Does the booking ask its own questions before the price? A gas job asks its
+// survey (migration 235), a guided package walks its photos (236). Either way
+// it ends in the turn-key / DIY fork itself, so the take/ screen is skipped.
+export const guidedApplies = (pkg: Package) => !!pkg.guided_photos && pkg.photos.some((p) => p.step != null);
+export const asksFirst = (pkg: Package) => (!!pkg.needs_gas_survey && (pkg.gas_kinds?.length ?? 0) > 0) || guidedApplies(pkg);
 export type GasKind = { key: string; label: string; hint: string | null; typical_low: number | null; typical_high: number | null };
 export type CommunityService = {
   code: string; name: string; cadence: string; summary: string; description: string; price_cents: number;
