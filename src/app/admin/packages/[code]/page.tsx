@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {deleteRow, savePackage, saveRows, savePackageTrade, removePackageTrade } from "../actions";
 import { PackagePhoto } from "./PackagePhoto";
+import { SaveButton } from "./SaveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -61,8 +62,18 @@ const n = (field: string, key: string) => `${field}__${key}`;
 function Section({ code, kind }: { code: string; kind: string }) {
   return <><input type="hidden" name="code" value={code} /><input type="hidden" name="kind" value={kind} /></>;
 }
-function SaveBar({ children }: { children: React.ReactNode }) {
-  return <div className="pk-acts" style={{ justifyContent: "flex-end", paddingTop: 12 }}><button className="btn">{children}</button></div>;
+function SaveBar({ children, saved }: { children: React.ReactNode; saved: boolean }) {
+  return <div className="pk-acts" style={{ justifyContent: "flex-end", paddingTop: 12 }}><SaveButton saved={saved}>{children}</SaveButton></div>;
+}
+// THE ANSWER SHOWS WHERE YOU ARE. A save comes back scrolled to its own
+// section (?at=lever#lever); its message used to print at the top of the
+// page, out of sight, so a refused save looked like a button that did
+// nothing (Shahar: "unable to save"). A message with no section stays on top.
+function Flash({ error, saved }: { error?: string; saved?: string }) {
+  return <>
+    {error && <p className="card" style={{ borderLeft: "4px solid var(--danger)" }}>{error}</p>}
+    {saved && <p className="card" style={{ borderLeft: "4px solid var(--brand)" }}>{saved}</p>}
+  </>;
 }
 // The remove button lives INSIDE the section's form and points it at
 // deleteRow through formAction, carrying the row's id as its value. It
@@ -73,9 +84,12 @@ function Del({ id, title = "Remove" }: { id: string; title?: string }) {
   return <button formAction={deleteRow} name="delete" value={id} className="btn ghost" title={title} aria-label={title}>✕</button>;
 }
 
-export default async function AdminPackagePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ error?: string; saved?: string }> }) {
+export default async function AdminPackagePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ error?: string; saved?: string; at?: string }> }) {
   const { code } = await params;
-  const { error, saved } = await searchParams;
+  const { error, saved, at } = await searchParams;
+  // The flash of the section that was saved, and whether its button reads Saved.
+  const flash = (id: string) => (at === id ? <Flash error={error} saved={saved} /> : null);
+  const done = (id: string) => at === id && !!saved && !error;
   const supabase = await createClient();
   const [{ data: me }, { data }, { data: trades }, { data: cats }] = await Promise.all([
     supabase.rpc("me"),
@@ -93,8 +107,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       <p className="small"><Link href="/admin/packages">&larr; All packages</Link></p>
       <span className="kicker">Package · {p.trade}{p.covered ? "" : " · nobody approved carries this trade"}</span>
       <h1 style={{ fontSize: 26, margin: "6px 0 4px" }}>{p.name}</h1>
-      {error && <p className="card" style={{ borderLeft: "4px solid var(--danger)" }}>{error}</p>}
-      {saved && <p className="card" style={{ borderLeft: "4px solid var(--brand)" }}>{saved}</p>}
+      {!at && <Flash error={error} saved={saved} />}
 
       {/* 1. THE PACKAGE AND ITS BASIC SETUP */}
       <div className="card" id="package">
@@ -102,6 +115,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         <p className="muted small" style={{ marginTop: 0 }}>
           The base price is what the default configuration costs, services and hardware together. The configuration line says in words what that default is - it is what the homeowner reads next to the price.
         </p>
+        {flash("package")}
         <form action={savePackage} className="pk-row first">
           <input type="hidden" name="code" value={p.code} />
           <F label="Name" w="wide"><input className="input" name="name" defaultValue={p.name} required /></F>
@@ -137,7 +151,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
             <label className="small"><input type="checkbox" name="requires_permit" defaultChecked={p.requires_permit} /> Needs a permit</label>
             <label className="small"><input type="checkbox" name="instant_book" defaultChecked={p.instant_book} /> Instant book</label>
             <label className="small"><input type="checkbox" name="is_active" defaultChecked={p.is_active} /> Active (off retires it everywhere)</label>
-            <button className="btn" style={{ marginLeft: "auto" }}>Save the package</button>
+            <SaveButton saved={done("package")} style={{ marginLeft: "auto" }}>Save the package</SaveButton>
           </div>
         </form>
       </div>
@@ -152,11 +166,12 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           Work lines are what gets done; assurance lines are what comes with it (insurance, warranty). A DIY project shows the work lines as its steps.
           <strong> Hardware</strong> lines are what the homeowner buys and the price does not include - the generator, the switch, the pad - each with the suggested product page at Home Depot and Lowe&apos;s; the package page lists them under &ldquo;What you buy&rdquo;.
         </p>
+        {flash("item")}
         <form action={saveRows}>
           <Section code={p.code} kind="item" />
           {[...p.items.map((it) => ({ k: it.id, it })), { k: "new", it: null }].map(({ k, it }) => (
             <div key={k} className="pk-row">
-              <F label={it ? "Line" : "New line"} span={5}><input className="input" name={n("label", k)} defaultValue={it?.label ?? ""} placeholder={it ? undefined : "Underground gas line from the meter"} required={!!it} /></F>
+              <F label={it ? "Line" : "New line"} span={5}><input className="input" name={n("label", k)} defaultValue={it?.label ?? ""} placeholder={it ? undefined : "e.g. Underground gas line from the meter"} required={!!it} /></F>
               <F label="Detail" span={3}><input className="input" name={n("detail", k)} defaultValue={it?.detail ?? ""} /></F>
               <F label="Kind" span={2}><select className="input" name={n("row_kind", k)} defaultValue={it?.kind ?? "work"}>{ITEM_KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></F>
               <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={it?.sort_order ?? (p.items.at(-1)?.sort_order ?? 0) + 10} /></F>
@@ -165,7 +180,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
               <F label="Lowe's page (hardware only)" span={6}><input className="input" name={n("link_lowes", k)} type="url" defaultValue={storeUrl(it?.links, "Lowe's")} placeholder="https://www.lowes.com/pd/…" /></F>
             </div>
           ))}
-          <SaveBar>Save all lines</SaveBar>
+          <SaveBar saved={done("item")}>Save all lines</SaveBar>
         </form>
       </div>
 
@@ -175,6 +190,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
         <p className="muted small" style={{ marginTop: 0 }}>
           Each lever is one question. Its default answer is the basic setup at +$0; every other answer changes the price by its delta - a longer run, a bigger unit, propane, the contractor supplying the hardware. An add-on that is simply on or off is a two-answer lever (No / Yes). Segment shows the answers side by side; Radio lists them.
         </p>
+        {flash("lever")}
         <form action={saveRows}>
           <Section code={p.code} kind="lever" />
           {p.levers.map((lv) => (
@@ -193,10 +209,10 @@ export default async function AdminPackagePage({ params, searchParams }: { param
                   <div key={k} className="pk-row">
                     <input type="hidden" name={n("rowkind", k)} value="option" />
                     <input type="hidden" name={n("parent", k)} value={lv.id} />
-                    <F label={o ? "Key" : "New answer key"} span={2}><input className="input" name={n("key", k)} defaultValue={o?.key ?? ""} pattern="[a-z0-9_]{1,30}" placeholder={o ? undefined : "underground"} required={!!o} /></F>
-                    <F label="Answer" span={3}><input className="input" name={n("label", k)} defaultValue={o?.label ?? ""} placeholder={o ? undefined : "Underground piping"} required={!!o} /></F>
+                    <F label={o ? "Key" : "New answer key"} span={2}><input className="input" name={n("key", k)} defaultValue={o?.key ?? ""} pattern="[a-z0-9_]{1,30}" placeholder={o ? undefined : "e.g. underground"} required={!!o} /></F>
+                    <F label="Answer" span={3}><input className="input" name={n("label", k)} defaultValue={o?.label ?? ""} placeholder={o ? undefined : "e.g. Underground piping"} required={!!o} /></F>
                     <F label="Chip (short)" span={2}><input className="input" name={n("chip", k)} defaultValue={o?.chip ?? ""} /></F>
-                    <F label={o ? `Price change ($) · ${signed(o.price_delta_cents)}` : "Price change ($, negative for a saving)"} span={2}><input className="input" name={n("price_delta", k)} inputMode="decimal" defaultValue={o ? dollars(o.price_delta_cents) : ""} placeholder={o ? undefined : "850"} /></F>
+                    <F label={o ? `Price change ($) · ${signed(o.price_delta_cents)}` : "Price change ($, negative for a saving)"} span={2}><input className="input" name={n("price_delta", k)} inputMode="decimal" defaultValue={o ? dollars(o.price_delta_cents) : ""} placeholder={o ? undefined : "e.g. 850"} /></F>
                     <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={o?.sort_order ?? (lv.options.at(-1)?.sort_order ?? 0) + 10} /></F>
                     <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_default", k)} defaultChecked={o?.is_default ?? false} /> default</label>
                     {o && <div className="pk-acts"><Del id={o.id} /></div>}
@@ -207,13 +223,13 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           ))}
           <div className="pk-row" style={{ marginTop: 10 }}>
             <input type="hidden" name={n("rowkind", "new")} value="lever" />
-            <F label="New lever key" span={2}><input className="input" name={n("key", "new")} pattern="[a-z0-9_]{1,30}" placeholder="piping" /></F>
-            <F label="Label" span={2}><input className="input" name={n("label", "new")} placeholder="Gas piping" /></F>
-            <F label="Question" span={5}><input className="input" name={n("question", "new")} placeholder="Above ground along the wall, or buried?" /></F>
+            <F label="New lever key" span={2}><input className="input" name={n("key", "new")} pattern="[a-z0-9_]{1,30}" placeholder="e.g. piping" /></F>
+            <F label="Label" span={2}><input className="input" name={n("label", "new")} placeholder="e.g. Gas piping" /></F>
+            <F label="Question" span={5}><input className="input" name={n("question", "new")} placeholder="e.g. Above ground along the wall, or buried?" /></F>
             <F label="Control"><select className="input" name={n("control", "new")} defaultValue="seg"><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
             <F label="Order"><input className="input" name={n("sort_order", "new")} inputMode="numeric" defaultValue={(p.levers.at(-1)?.sort_order ?? 0) + 10} /></F>
           </div>
-          <SaveBar>Save all levers and answers</SaveBar>
+          <SaveBar saved={done("lever")}>Save all levers and answers</SaveBar>
         </form>
       </div>
 
@@ -221,18 +237,19 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       <div className="card" id="photo" style={{ marginTop: 14 }}>
         <h2 className="section-title">Photos we ask for</h2>
         <p className="muted small" style={{ marginTop: 0 }}>What the homeowner photographs so a contractor can confirm the price without a visit.</p>
+        {flash("photo")}
         <form action={saveRows}>
           <Section code={p.code} kind="photo" />
           {[...p.photos.map((ph) => ({ k: ph.id, ph })), { k: "new", ph: null }].map(({ k, ph }) => (
             <div key={k} className="pk-row">
-              <F label={ph ? "Key" : "New key"} span={2}><input className="input" name={n("key", k)} defaultValue={ph?.key ?? ""} placeholder={ph ? undefined : "meter"} required={!!ph} /></F>
-              <F label="Label" span={3}><input className="input" name={n("label", k)} defaultValue={ph?.label ?? ""} placeholder={ph ? undefined : "Gas meter"} required={!!ph} /></F>
+              <F label={ph ? "Key" : "New key"} span={2}><input className="input" name={n("key", k)} defaultValue={ph?.key ?? ""} placeholder={ph ? undefined : "e.g. meter"} required={!!ph} /></F>
+              <F label="Label" span={3}><input className="input" name={n("label", k)} defaultValue={ph?.label ?? ""} placeholder={ph ? undefined : "e.g. Gas meter"} required={!!ph} /></F>
               <F label="Hint" span={5}><input className="input" name={n("hint", k)} defaultValue={ph?.hint ?? ""} /></F>
               <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={ph?.sort_order ?? (p.photos.at(-1)?.sort_order ?? 0) + 10} /></F>
               {ph && <div className="pk-acts"><Del id={ph.id} /></div>}
             </div>
           ))}
-          <SaveBar>Save all photo slots</SaveBar>
+          <SaveBar saved={done("photo")}>Save all photo slots</SaveBar>
         </form>
       </div>
 
@@ -240,21 +257,22 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       <div className="card" id="milestone" style={{ marginTop: 14 }}>
         <h2 className="section-title">The progress line</h2>
         <p className="muted small" style={{ marginTop: 0 }}>Booked and accepted are derived; payment nodes carry a percent of the contract; task nodes are hand-marked (permit issued, inspection passed). Changes apply to new bookings only.</p>
+        {flash("milestone")}
         <form action={saveRows}>
           <Section code={p.code} kind="milestone" />
           {[...p.milestones.map((m) => ({ k: m.id, m })), { k: "new", m: null }].map(({ k, m }) => (
             <div key={k} className="pk-row">
               <F label="#"><input className="input" name={n("sequence_no", k)} inputMode="numeric" defaultValue={m?.sequence_no ?? (p.milestones.at(-1)?.sequence_no ?? 0) + 1} /></F>
-              <F label={m ? "Key" : "New key"} span={2}><input className="input" name={n("key", k)} defaultValue={m?.key ?? ""} placeholder={m ? undefined : "rough_in"} required={!!m} /></F>
+              <F label={m ? "Key" : "New key"} span={2}><input className="input" name={n("key", k)} defaultValue={m?.key ?? ""} placeholder={m ? undefined : "e.g. rough_in"} required={!!m} /></F>
               <F label="Kind"><select className="input" name={n("row_kind", k)} defaultValue={m?.kind ?? "task"}>{M_KINDS.map((x) => <option key={x} value={x}>{x}</option>)}</select></F>
-              <F label="Name" span={3}><input className="input" name={n("name", k)} defaultValue={m?.name ?? ""} placeholder={m ? undefined : "Rough-in inspected"} required={!!m} /></F>
+              <F label="Name" span={3}><input className="input" name={n("name", k)} defaultValue={m?.name ?? ""} placeholder={m ? undefined : "e.g. Rough-in inspected"} required={!!m} /></F>
               <F label="% of contract"><input className="input" name={n("percent_of_contract", k)} inputMode="decimal" defaultValue={m?.percent_of_contract ?? ""} /></F>
               <F label="Typical range" span={2}><input className="input" name={n("typical_range", k)} defaultValue={m?.typical_range ?? ""} /></F>
               {m && <div className="pk-acts"><Del id={m.id} /></div>}
               <F label="What triggers it" span={12}><input className="input" name={n("trigger_description", k)} defaultValue={m?.trigger_description ?? ""} /></F>
             </div>
           ))}
-          <SaveBar>Save the progress line</SaveBar>
+          <SaveBar saved={done("milestone")}>Save the progress line</SaveBar>
         </form>
       </div>
 
@@ -265,13 +283,14 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           Shown in the second half of the package screen. Add more than one active version and each viewer is assigned one, the same one every visit;
           the numbers say which version earns the play, the finish and the booking within fourteen days. A YouTube link embeds; any other https link plays as a file.
         </p>
+        {flash("video")}
         <form action={saveRows}>
           <Section code={p.code} kind="video" />
           {[...p.videos.map((v) => ({ k: v.id, v })), { k: "new", v: null }].map(({ k, v }) => {
             const pct = (x: number) => (v?.shown ? `${Math.round((x / v.shown) * 100)}%` : "—");
             return (
               <div key={k} className="pk-row">
-                <F label={v ? "Version" : "New version"} span={2}><input className="input" name={n("label", k)} defaultValue={v?.label ?? ""} placeholder={v ? undefined : "A - Shahar explains"} required={!!v} /></F>
+                <F label={v ? "Version" : "New version"} span={2}><input className="input" name={n("label", k)} defaultValue={v?.label ?? ""} placeholder={v ? undefined : "e.g. A - Shahar explains"} required={!!v} /></F>
                 <F label="Link (YouTube or a video file)" span={5}><input className="input" name={n("url", k)} type="url" defaultValue={v?.url ?? ""} placeholder={v ? undefined : "https://youtu.be/…"} required={!!v} /></F>
                 <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={v?.sort_order ?? (p.videos.at(-1)?.sort_order ?? 0) + 10} /></F>
                 <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_active", k)} defaultChecked={v?.is_active ?? true} /> on</label>
@@ -284,7 +303,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
               </div>
             );
           })}
-          <SaveBar>Save all versions</SaveBar>
+          <SaveBar saved={done("video")}>Save all versions</SaveBar>
         </form>
       </div>
 

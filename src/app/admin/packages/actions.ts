@@ -16,8 +16,10 @@ async function admin() {
   return supabase;
 }
 
+// ?at= names the section that was saved, so the page prints the message in
+// that section (where the anchor scrolls to) and turns its button to Saved.
 const back = (code: string, msg: string, isError = false, anchor = "") =>
-  `/admin/packages/${encodeURIComponent(code)}?${isError ? "error" : "saved"}=${encodeURIComponent(msg)}${anchor ? `#${anchor}` : ""}`;
+  `/admin/packages/${encodeURIComponent(code)}?${isError ? "error" : "saved"}=${encodeURIComponent(msg)}${anchor ? `&at=${anchor}#${anchor}` : ""}`;
 
 function finish(code: string, ok: boolean, msg: string, anchor = "") {
   revalidatePath("/admin/packages");
@@ -42,7 +44,7 @@ export async function savePackage(formData: FormData) {
   const code = s(formData, "code").toLowerCase();
   const isNew = s(formData, "new") === "1";
   const base = cents(formData.get("base_price"));
-  if (base === "x") finish(code, false, "The base price is not a number.");
+  if (base === "x") finish(code, false, "The base price is not a number.", "package");
   // The new-package form carries only code, trade, name and tile title. Send
   // just those, so admin_package_save keeps its own starting values (More
   // shelf, coming soon, active, instant book) - a blank tile_group here was
@@ -65,9 +67,9 @@ export async function savePackage(formData: FormData) {
   const { data, error } = await supabase.rpc("admin_package_save", { p_code: code, p_patch: patch });
   if (error || data?.ok === false) {
     if (isNew) redirect(`/admin/packages?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Not saved.")}`);
-    finish(code, false, data?.reason ?? error?.message ?? "Not saved.");
+    finish(code, false, data?.reason ?? error?.message ?? "Not saved.", "package");
   }
-  finish(data.code ?? code, true, isNew ? "Package created. Now give it scope lines and levers." : "Package saved.");
+  finish(data.code ?? code, true, isNew ? "Package created. Now give it scope lines and levers." : "Package saved.", isNew ? "" : "package");
 }
 
 // EVERY ROW OF A SECTION AT ONCE (Shahar: "save works on one line at a
