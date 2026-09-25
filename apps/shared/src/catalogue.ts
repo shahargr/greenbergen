@@ -36,7 +36,12 @@ export type MilestoneKind = "booked" | "accepted" | "payment" | "task" | "done";
 export type MilestoneTpl = {
   key: string; kind: MilestoneKind; name: string; sequence_no: number;
   percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null;
+  // PAYMENT TERMS (migration 242): an installment is a percent OR a fixed
+  // amount (contractor-price cents, marked up like every price), due
+  // due_days after due_from. Optional: the static fallback predates them.
+  amount_cents?: number | null; due_days?: number; due_from?: DueFrom;
 };
+export type DueFrom = "milestone" | "accepted" | "posted";
 export type Package = {
   code: string; name: string; tile_title: string; tile_line2: string | null; trade: string | null;
   tile_group: "front" | "more"; availability: Availability; base_price_cents: number | null;
@@ -394,19 +399,44 @@ export const deltaNotes = (pkg: Package, sel: Selections) =>
 // milestones, each a share of the price the homeowner sees, and who each one
 // is handed to. Every screen that says when money is due says it from here,
 // so the proposal, the Book button and the booked screen cannot disagree.
-export const paymentSteps = (pkg: Package, price: number | null) =>
-  pkg.milestones
-    .filter((m) => m.kind === "payment" && m.percent_of_contract)
-    .map((m) => ({ key: m.key, name: m.name, pct: m.percent_of_contract!, cents: price == null ? null : Math.round((price * m.percent_of_contract!) / 100) }));
-export const collectsThroughUs = (pkg: Pick<Package, "collected_by">) => pkg.collected_by === "green_bergen";
-export const payeeName = (pkg: Pick<Package, "collected_by">) => (collectsThroughUs(pkg) ? "Green Bergen" : "your contractor");
-export const payeeLine = (pkg: Pick<Package, "collected_by">) =>
-  collectsThroughUs(pkg) ? "Paid to Green Bergen, which pays the contractor." : "Paid to your contractor.";
+// The same arithmetic as package_stage_amount (migration 242): a fixed
+// installment comes off the top, marked up; percents split what is left;
+// the last percent installment takes the rounding.
+export type PaymentStep = { key: string; name: string; pct: number | null; cents: number | null; due: string | null };
+export function paymentSteps(pkg: Package, price: number | null): PaymentStep[] {
+  const pays = pkg.milestones.filter((m) => m.kind === "payment" && (m.percent_of_contract || m.amount_cents));
+  const fixed = (m: MilestoneTpl) => (m.amount_cents ? customerPrice(m.amount_cents, pkg.markup_pct) ?? 0 : 0);
+  const rest = price == null ? null : price - pays.reduce((a, m) => a + fixed(m), 0);
+  const lastPct = pays.filter((m) => m.percent_of_contract).at(-1)?.key;
+  let given = 0;
+  return pays.map((m) => {
+    let cents: number | null;
+    if (price == null || rest == null) cents = m.amount_cents ? fixed(m) : null;
+    else if (m.amount_cents) cents = fixed(m);
+    else if (m.key === lastPct) cents = price - given;
+    else cents = Math.round((rest * m.percent_of_contract!) / 100);
+    if (cents != null && m.key !== lastPct) given += cents;
+    return { key: m.key, name: m.name, pct: m.amount_cents ? null : m.percent_of_contract, cents, due: dueLabel(m) };
+  });
+}
+// "within 3 days of acceptance", or null when it is due on the milestone.
+export function dueLabel(m: Pick<MilestoneTpl, "due_days" | "due_from">): string | null {
+  const d = m.due_days ?? 0; const from = m.due_from ?? "milestone";
+  const when = d === 0 ? "on" : `within ${d} day${d === 1 ? "" : "s"} of`;
+  if (from === "accepted") return `${when} acceptance`;
+  if (from === "posted") return d === 0 ? "when you book" : `within ${d} day${d === 1 ? "" : "s"} of booking`;
+  return d === 0 ? null : `within ${d} day${d === 1 ? "" : "s"}`;
+}
+type Payee = { collected_by?: "contractor" | "green_bergen" | null };
+export const collectsThroughUs = (x: Payee) => x.collected_by === "green_bergen";
+export const payeeName = (x: Payee) => (collectsThroughUs(x) ? "Green Bergen" : "your contractor");
+export const payeeLine = (x: Payee) =>
+  collectsThroughUs(x) ? "Paid to Green Bergen, which pays the contractor." : "Paid to your contractor.";
 // "You pay your contractor in steps: 20% at date set, then 80% at floor coated."
 export function payPlan(pkg: Package, price: number | null): string {
   const steps = paymentSteps(pkg, price);
   if (steps.length === 0) return `You pay ${payeeName(pkg)} when the work is done.`;
-  const parts = steps.map((s) => `${s.pct}% at ${s.name.toLowerCase()}`).join(", then ");
+  const parts = steps.map((s) => `${s.pct != null ? `${s.pct}%` : s.cents != null ? `$${Math.round(s.cents / 100).toLocaleString()}` : "a set amount"} at ${s.name.toLowerCase()}${s.due ? ` (${s.due})` : ""}`).join(", then ");
   return `You pay ${payeeName(pkg)} ${steps.length === 1 ? "once" : "in steps"}: ${parts}.`;
 }
 export const payPlanLine = (pkg: Package, price: number | null) => `Nothing today. ${payPlan(pkg, price)}`;

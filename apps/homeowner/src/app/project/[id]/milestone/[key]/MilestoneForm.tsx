@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@shared/supabase/client";
-import { dollars } from "@shared/format";
+import { dollars, shortDate } from "@shared/format";
 import { friendly } from "@shared/rpc";
 import { Card, Notice } from "@shared/ui";
 import { markMilestone } from "../../actions";
@@ -12,8 +12,12 @@ import { markMilestone } from "../../actions";
 // marks the milestone and records the payment with the file as evidence.
 type How = "card" | "check" | "cash" | "later";
 
-export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCents, percent, contractor, alreadyDone }: {
-  projectId: string; nodeKey: string; kind: "payment" | "task" | "done"; amountCents: number; totalCents: number; percent: number | null; contractor: string; alreadyDone: boolean;
+// amountCents is what the homeowner hands over (their share of the price
+// they see); payee is who takes it - the contractor, or Green Bergen when
+// the job collects through us (viaUs), which then pays the contractor.
+export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCents, percent, contractor, payee, viaUs, dueOn, alreadyDone }: {
+  projectId: string; nodeKey: string; kind: "payment" | "task" | "done"; amountCents: number; totalCents: number; percent: number | null;
+  contractor: string; payee: string; viaUs: boolean; dueOn: string | null; alreadyDone: boolean;
 }) {
   const [how, setHow] = useState<How>("check");
   const [reference, setReference] = useState("");
@@ -63,7 +67,7 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photo.preview} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
             ) : "Check goes here"}
-            <span className="tag" style={{ position: "absolute", top: 8, left: 8 }}>{how === "cash" ? "Cash receipt from" : "Check to"} {contractor}</span>
+            <span className="tag" style={{ position: "absolute", top: 8, left: 8 }}>{how === "cash" ? "Cash receipt from" : "Check to"} {payee}</span>
             <span className="tag" style={{ position: "absolute", top: 8, right: 8 }}>{dollars(amountCents)} expected</span>
           </div>
           <div className="row" style={{ width: "100%", justifyContent: "space-between", padding: "0 12px" }}>
@@ -92,10 +96,13 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
           <div className="kicker">Due at this {nodeKey === "permit_meeting" ? "meeting" : "point"}</div>
           <div className="price" style={{ padding: 0 }}>
             <div className="big mono" style={{ fontSize: 36 }}>{dollars(amountCents)}</div>
-            <div className="small text-muted">{percent ? `${percent}% of ${dollars(totalCents)} · ` : ""}paid to <strong>{contractor}</strong>. Green Bergen never holds your money.</div>
+            <div className="small text-muted">
+              {percent ? `${percent}% of ${dollars(totalCents)} · ` : ""}paid to <strong>{payee}</strong>{dueOn ? <>, due by {shortDate(dueOn)}</> : null}.{" "}
+              {viaUs ? `Green Bergen pays ${contractor} their share and keeps its fee.` : "It goes straight to them; Green Bergen never holds your money."}
+            </div>
           </div>
           <div className="stack" style={{ gap: 8, marginTop: 12 }}>
-            <label className="radio choice"><input type="radio" name="how_ui" checked={how === "card"} onChange={() => setHow("card")} /><span className="dot" /><span className="txt">Pay by card now<small>Charged directly by {contractor}&apos;s business — not switched on yet</small></span></label>
+            <label className="radio choice"><input type="radio" name="how_ui" checked={how === "card"} onChange={() => setHow("card")} /><span className="dot" /><span className="txt">Pay by card now<small>{viaUs ? "Charged by Green Bergen" : <>Charged directly by {contractor}&apos;s business</>} — not switched on yet</small></span></label>
             <label className="radio choice"><input type="radio" name="how_ui" checked={how === "check" || how === "cash"} onChange={() => setHow("check")} /><span className="dot" /><span className="txt">I paid by check or cash<small>We&apos;ll ask you to photograph the check or receipt</small></span></label>
             <label className="radio choice"><input type="radio" name="how_ui" checked={how === "later"} onChange={() => setHow("later")} /><span className="dot" /><span className="txt">We met, but haven&apos;t settled up yet<small>We&apos;ll remind you tomorrow</small></span></label>
           </div>
@@ -114,7 +121,7 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
               </div>
             </div>
           )}
-          {how === "card" && <Notice>Card payments through the app are coming. For now, pay {contractor} directly — the milestone is still logged when you mark it.</Notice>}
+          {how === "card" && <Notice>Card payments through the app are coming. For now, pay {payee}{viaUs ? "" : " directly"} by check or cash — the milestone is still logged when you mark it.</Notice>}
         </Card>
       )}
 

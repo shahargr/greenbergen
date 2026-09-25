@@ -19,7 +19,11 @@ const storeUrl = (links: StoreLink[] | null | undefined, label: string) => links
 type Option = { id: string; key: string; label: string; chip: string | null; price_delta_cents: number; is_default: boolean; sort_order: number; upto?: number | null };
 type Lever = { id: string; key: string; label: string; control: string; question: string | null; sort_order: number; unit?: string | null; options: Option[] };
 type Photo = { id: string; key: string; label: string; hint: string | null; sort_order: number; step?: number | null; guide?: string | null; example_url?: string | null };
-type Milestone = { id: string; key: string; kind: string; name: string; sequence_no: number; percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null };
+type Milestone = {
+  id: string; key: string; kind: string; name: string; sequence_no: number; percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null;
+  // Payment terms (migration 242): a fixed amount instead of a percent, and when it falls due.
+  amount_cents?: number | null; due_days?: number; due_from?: string;
+};
 // The trades a package needs (187). Equals, not a chain: each is hired and
 // paid on its own while we run the sequence between them.
 type PkgTrade = { id: string; trade: string; need: "required" | "optional"; note: string | null; sort_order: number };
@@ -296,7 +300,12 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       {/* 5. MILESTONES */}
       <div className="card" id="milestone" style={{ marginTop: 14 }}>
         <h2 className="section-title">The progress line</h2>
-        <p className="muted small" style={{ marginTop: 0 }}>Booked and accepted are derived; payment nodes carry a percent of the contract; task nodes are hand-marked (permit issued, inspection passed). Changes apply to new bookings only.</p>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Booked and accepted are derived; task nodes are hand-marked (permit issued, inspection passed). The payment nodes ARE the payment terms: one row per installment,
+          each a percent <em>or</em> a fixed amount at the contractor&apos;s price (the homeowner sees it marked up), due a number of days after the milestone, the
+          contractor accepting, or the booking. Fixed amounts come off the top; the percents split the rest and must add up to 100. A package whose terms do not add up
+          cannot be booked. Changes apply to new bookings only.
+        </p>
         <form action={saveRows}>
           <Section code={p.code} kind="milestone" />
           {[...p.milestones.map((m) => ({ k: m.id, m })), { k: "new", m: null }].map(({ k, m }) => (
@@ -306,6 +315,11 @@ export default async function AdminPackagePage({ params, searchParams }: { param
               <F label="Kind"><select className="input" name={n("row_kind", k)} defaultValue={m?.kind ?? "task"}>{M_KINDS.map((x) => <option key={x} value={x}>{x}</option>)}</select></F>
               <F label="Name" span={3}><input className="input" name={n("name", k)} defaultValue={m?.name ?? ""} placeholder={m ? undefined : "Rough-in inspected"} required={!!m} /></F>
               <F label="% of contract"><input className="input" name={n("percent_of_contract", k)} inputMode="decimal" defaultValue={m?.percent_of_contract ?? ""} /></F>
+              <F label="or fixed $"><input className="input" name={n("amount", k)} inputMode="decimal" defaultValue={m?.amount_cents != null ? (m.amount_cents / 100).toString() : ""} /></F>
+              <F label="Due + days"><input className="input" name={n("due_days", k)} inputMode="numeric" defaultValue={m?.due_days ?? 0} /></F>
+              <F label="after"><select className="input" name={n("due_from", k)} defaultValue={m?.due_from ?? "milestone"}>
+                <option value="milestone">the milestone</option><option value="accepted">acceptance</option><option value="posted">booking</option>
+              </select></F>
               <F label="Typical range" span={2}><input className="input" name={n("typical_range", k)} defaultValue={m?.typical_range ?? ""} /></F>
               {m && <div className="pk-acts"><Del id={m.id} /></div>}
               <F label="What triggers it" span={12}><input className="input" name={n("trigger_description", k)} defaultValue={m?.trigger_description ?? ""} /></F>
