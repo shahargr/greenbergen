@@ -266,3 +266,15 @@ a.seg-opt:focus-visible { outline: 2px solid var(--color-accent); outline-offset
 .pair-tile img.example { opacity: 0.5; }
 .pair-n { position: absolute; top: 6px; left: 6px; z-index: 1; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 6px; background: var(--color-accent); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .pair-label { font-family: var(--font-heading); font-size: 16px; line-height: 1.2; margin-top: 2px; }
+
+/* THE DIY LIST (migration 237). Numbered steps, the detail under each, and
+   small tags for "licensed pro recommended" and "before you go on". */
+.diy-steps { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.diy-steps li { font-size: 14px; }
+.diy-steps .t { font-weight: 700; display: block; }
+.diy-steps .d { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.diy-tag { margin-left: 6px; padding: 1px 7px; font-size: 11px; vertical-align: 1px; }
+/* The checklist names each phase where it starts. flex-wrap lets the
+   heading sit on its own line above the row. */
+.diy-phase-start { flex-wrap: wrap; }
+.diy-phase-start::before { content: attr(data-phase); flex-basis: 100%; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding-top: 6px; }

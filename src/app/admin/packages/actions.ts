@@ -77,10 +77,11 @@ const blank = (kind: string, r: Row) => {
     case "item": return !r.label;
     case "milestone": return !r.key && !r.name;
     case "video": return !r.url && !r.label;
+    case "diy": return !r.step;
     default: return !r.key && !r.label; // lever, option, photo
   }
 };
-const title = (r: Row, key: string) => r.label || r.name || r.key || (isNew(key) ? "the new row" : key.slice(0, 8));
+const title = (r: Row, key: string) => r.label || r.name || r.key || r.step || (isNew(key) ? "the new row" : key.slice(0, 8));
 
 export async function saveRows(formData: FormData) {
   const supabase = await admin();
@@ -114,6 +115,8 @@ export async function saveRows(formData: FormData) {
       percent_of_contract: r.percent_of_contract ?? "", typical_range: r.typical_range ?? "",
       trigger_description: r.trigger_description ?? "",
       url: r.url ?? "", is_active: r.is_active ? "true" : "false",
+      // A DIY list step (migration 237).
+      step: r.step ?? "", phase: r.phase ?? "", needs_pro: r.needs_pro ? "true" : "false", is_gate: r.is_gate ? "true" : "false",
       links: JSON.stringify(
         ([["Home Depot", r.link_home_depot ?? ""], ["Lowe's", r.link_lowes ?? ""]] as [string, string][])
           .filter(([, url]) => url).map(([label, url]) => ({ label, url }))),

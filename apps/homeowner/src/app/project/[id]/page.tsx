@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getMe, TARGET_WINDOWS, targetWindowLabel } from "@/lib/me";
 import { getBooking, type Booking } from "@/lib/booking";
 import { getChecklist } from "@/lib/checklist";
-import { encodeSelections } from "@shared/catalogue";
+import { encodeSelections, loadDiyList } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Avatar, Card, ChevronIcon, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
 import { ProgressLine } from "@shared/ProgressLine";
@@ -11,6 +11,7 @@ import { stopwatch } from "@shared/perf";
 import { PhotoRequest } from "@/components/PhotoRequest";
 import { WaitingCard } from "./WaitingCard";
 import { DiyChecklist } from "./DiyChecklist";
+import { DiyListView, DiyPayCard } from "@/components/DiyListView";
 import { bookingAction, buildChecklist, cancelProject, closeProject, reopenProject, updatePlan } from "./actions";
 import { MarkOpened } from "@shared/MarkOpened";
 
@@ -70,10 +71,15 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // ---- planned: on the list, nothing sent ------------------------------
   if (b.state === "planned") {
     const moved = b.live_price_cents != null && b.live_price_cents !== b.price_cents;
-    // kind comes from the catalogue (blueprint_package_items.kind), so the
-    // split is data, not a list of labels kept in step with the seed here.
+    // A DIY plan no longer carries the contractor's scope (migration 237) -
+    // it gets the package's DIY list. The list is a cached catalogue read.
+    // A plan made before that may still have scope lines; they are the
+    // fallback when a package has no list yet.
+    const diy = b.package_code ? await loadDiyList(b.package_code) : null;
     const steps = b.scope.filter((s) => s.kind !== "assurance");
-    const covered = b.scope.filter((s) => s.kind === "assurance");
+    // What turn-key adds is the package's, not this job's scope - the plan
+    // has none to read it from any more.
+    const covered = (pkg?.items ?? []).filter((it) => it.kind === "assurance").map((it) => ({ item: it.label, detail: it.detail }));
     return (
       <Screen>
         <AppBar back={{ fallback: "/projects" }} title={title} sub={b.address?.split(",")[0] ?? undefined} />
@@ -86,7 +92,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {ok === "reopened" && <div className="banner-ok">Open again, and back on your list.</div>}
           {error && <Notice kind="error">{error}</Notice>}
           <StatusHero variant="neutral" kicker={`DIY · ${targetWindowLabel(b.target_window)}`} title={`Yours since ${shortDate(b.created_at)}. Nobody has been asked yet.`}>
-            Do it at your pace — the scope and the price below are your reference. Changed your mind? One tap makes it turn-key: it goes to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price, and photos and a budget come at that point.
+            Do it at your pace, with the DIY list below — the price is your reference. Changed your mind? One tap makes it turn-key: it goes to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price, and photos and a budget come at that point.
           </StatusHero>
           <Card pad={false}>
             <div className="price">
@@ -110,7 +116,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               yourself nobody carries them. */}
           {checklist && checklist.items.length > 0 ? (
             <DiyChecklist projectId={b.project_id} items={checklist.items} trade={pluralTrade(pkg?.trade, 2)} />
-          ) : (
+          ) : diy ? (
+            <>
+              <DiyListView list={diy} />
+              {/* Planned before the list existed: build the tickable
+                  version from it (homeowner_diy_checklist). */}
+              <form action={buildChecklist}>
+                <input type="hidden" name="project" value={b.project_id} />
+                <button className="btn btn-secondary btn-block">Turn this into a checklist I can tick</button>
+              </form>
+            </>
+          ) : steps.length > 0 ? (
             <Card pad>
               <div className="kicker">Suggested steps for the job</div>
               <ol className="steps" style={{ marginTop: 6 }}>
@@ -118,16 +134,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   <li key={i}><span className="n">{i + 1}</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>
                 ))}
               </ol>
-              <p className="tiny text-muted" style={{ margin: "10px 0 0" }}>
-                The order most {pluralTrade(pkg?.trade, 2)} work in. Yours to change — nothing here is a commitment.
-              </p>
-              {/* Taken before migration 195b, so it never got a list. */}
               <form action={buildChecklist} style={{ marginTop: 12 }}>
                 <input type="hidden" name="project" value={b.project_id} />
                 <button className="btn btn-secondary btn-block">Turn these into a checklist I can tick</button>
               </form>
             </Card>
-          )}
+          ) : null}
+          {diy && <DiyPayCard list={diy} name={title} />}
           {covered.length > 0 && (
             <Card pad soft>
               <div className="kicker">What turn-key adds</div>

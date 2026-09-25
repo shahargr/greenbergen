@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { asksFirst, decodeSelections, encodeSelections, loadCovered, loadPackage, priceFor } from "@shared/catalogue";
+import { asksFirst, decodeSelections, encodeSelections, loadCovered, loadDiyList, loadPackage, priceFor } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { usesEvFlow } from "@/lib/ev";
@@ -29,7 +29,7 @@ export const metadata = { title: "How do you want to take it on?" };
 export default async function TakePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string }> }) {
   const { code } = await params;
   const { sel } = await searchParams;
-  const { pkg } = await loadPackage(code);
+  const [{ pkg }, diy] = await Promise.all([loadPackage(code), loadDiyList(code)]);
   if (!pkg) notFound();
 
   const selections = decodeSelections(pkg, sel);
@@ -71,15 +71,21 @@ export default async function TakePage({ params, searchParams }: { params: Promi
           <Link href={bookHref} className="btn btn-primary btn-block">Have it done for me</Link>
         </Card>
 
-        {/* DIY. No fabricated figure - see the note at the top of this file. */}
+        {/* DIY. No fabricated figure - see the note at the top of this file.
+            What it offers now is the package's DIY list (migration 237): the
+            how-to written for the person doing it, open to read before they
+            commit to anything. */}
         <Card pad>
           <div className="kicker">I do it myself</div>
           <div className="big mono" style={{ margin: "2px 0 0" }}>Parts + your time</div>
           <p className="small text-muted" style={{ margin: "4px 0 10px" }}>
-            You get the checklist we work from — every step in order, which parts need a licensed
-            hand, and which you can do on a Saturday. {priced ? `${dollars(price)} stays on it as your reference, so you always know what you are saving.` : "The scope stays on it as your reference."}{" "}
+            {diy
+              ? `You get the DIY list: ${diy.steps.length} steps, from what to check before you buy anything to how you know it is done, with the steps a licensed pro should do marked. `
+              : "You get a checklist for the job, in order. "}
+            {priced ? `${dollars(price)} stays on it as your reference, so you always know what you are saving.` : ""}{" "}
             Nothing goes to any contractor.
           </p>
+          {diy && <Link href={`/packages/${code}/diy${q}`} className="btn btn-soft btn-block" style={{ marginBottom: 8 }}>Read the DIY list first</Link>}
           <Link href={planHref} className="btn btn-secondary btn-block">Add it to my list as DIY</Link>
         </Card>
 
