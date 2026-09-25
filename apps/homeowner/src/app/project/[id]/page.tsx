@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getMe, TARGET_WINDOWS, targetWindowLabel } from "@/lib/me";
 import { getBooking, type Booking } from "@/lib/booking";
 import { getChecklist } from "@/lib/checklist";
-import { encodeSelections, loadDiyList } from "@shared/catalogue";
+import { customerPrice, encodeSelections, loadDiyList } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Avatar, Card, ChevronIcon, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
 import { ProgressLine } from "@shared/ProgressLine";
@@ -71,7 +71,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // ---- planned: on the list, nothing sent ------------------------------
   if (b.state === "planned") {
     const moved = b.live_price_cents != null && b.live_price_cents !== b.price_cents;
-    // A DIY plan no longer carries the contractor's scope (migration 237) -
+    // A DIY plan no longer carries the contractor's scope (migration 241) -
     // it gets the package's DIY list. The list is a cached catalogue read.
     // A plan made before that may still have scope lines; they are the
     // fallback when a package has no list yet.
@@ -192,7 +192,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <div className="actions">
           <Link href="/packages" className="btn btn-primary btn-block">Browse packages</Link>
           <form action={bookingAction.bind(null, b.project_id, "reopen")}>
-            <button className="btn btn-ghost btn-block">Reopen at {dollars(bump(b.price_cents))}</button>
+            <button className="btn btn-ghost btn-block">Reopen at {dollars(bump(b))}</button>
           </form>
         </div>
       </Screen>
@@ -202,7 +202,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // ---- 11a / 11b matching -----------------------------------------------
   if (b.state === "posted") {
     if (b.no_taker) {
-      const next = bump(b.price_cents);
+      const next = bump(b);
       return (
         <Screen>
           <AppBar brand back={{ fallback: "/projects" }} />
@@ -391,7 +391,9 @@ function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullab
   );
 }
 
-const bump = (cents: number) => Math.ceil((cents * 1.09) / 1000) * 1000;
+// A repost bumps the CONTRACTOR price (homeowner_booking_action); the
+// owner sees that plus the mark-up frozen on the booking.
+const bump = (b: Booking) => customerPrice(Math.ceil(((b.contractor_price_cents ?? b.price_cents) * 1.09) / 1000) * 1000, b.markup_pct) ?? 0;
 const numberWord = (n: number) => ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"][n] ?? String(n);
 const pluralTrade = (trade: string | null | undefined, n: number) => {
   const one = { Plumbing: "plumber", Electrical: "electrician", Painting: "painter", Gutters: "gutter crew", Hardscaping: "paving contractor", Decks: "fence builder" }[trade ?? ""] ?? "contractor";

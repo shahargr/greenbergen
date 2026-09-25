@@ -115,7 +115,7 @@ export async function saveRows(formData: FormData) {
       percent_of_contract: r.percent_of_contract ?? "", typical_range: r.typical_range ?? "",
       trigger_description: r.trigger_description ?? "",
       url: r.url ?? "", is_active: r.is_active ? "true" : "false",
-      // A DIY list step (migration 237).
+      // A DIY list step (migration 241).
       step: r.step ?? "", phase: r.phase ?? "", needs_pro: r.needs_pro ? "true" : "false", is_gate: r.is_gate ? "true" : "false",
       links: JSON.stringify(
         ([["Home Depot", r.link_home_depot ?? ""], ["Lowe's", r.link_lowes ?? ""]] as [string, string][])

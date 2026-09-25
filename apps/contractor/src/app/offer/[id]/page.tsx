@@ -1,3 +1,4 @@
+import { workDetailRows } from "@shared/workDetails";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/me";
@@ -58,6 +59,7 @@ export default async function OfferPage({
   }
 
   const scope = offer.scope ?? [];
+  const details = workDetailRows(offer.work_details);
   const asked = ok === "asked";
 
   return (
@@ -88,7 +90,7 @@ export default async function OfferPage({
 
         <Card pad={false}>
           <div className="price">
-            <div className="kicker">The community price</div>
+            <div className="kicker">What you are paid</div>
             <div className="big mono">{dollars(offer.price_cents)}</div>
             <div className="delta">
               {offer.config_label ?? "the most common setup"}
@@ -103,6 +105,15 @@ export default async function OfferPage({
             <ul className="scope" style={{ marginTop: 4 }}>
               {scope.map((s, i) => <li key={i}><span className="ic">·</span><span>{s}</span></li>)}
             </ul>
+          </Card>
+        )}
+
+        {details.length > 0 && (
+          <Card pad>
+            <div className="kicker">What the homeowner told us</div>
+            <div className="kv-rows" style={{ padding: "2px 0" }}>
+              {details.map((d) => <div key={d.label}><span className="k">{d.label}</span><span>{d.value}</span></div>)}
+            </div>
           </Card>
         )}
 

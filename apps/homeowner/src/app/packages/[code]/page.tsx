@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { decodeSelections, isHardware, loadCovered, loadPackage, loadPackageProcess, loadPackageProducts, type Package } from "@shared/catalogue";
+import { basePrice, decodeSelections, isHardware, loadCovered, loadPackage, loadPackageProcess, loadPackageProducts, type Package } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, CheckIcon, Screen } from "@shared/ui";
@@ -11,6 +11,7 @@ import { QuoteForm } from "./QuoteForm";
 import { PackageVideo } from "./PackageVideo";
 import { Claims, Faq } from "./PackageStory";
 import { PackageProducts } from "./PackageProducts";
+import { priced } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,9 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   const { sel, adjust } = await searchParams;
   // getMe carries signed_in and the homes the quote form's address list is
   // drawn from, so the separate signed-in read is gone.
-  const [{ pkg }, me, products] = await Promise.all([loadPackage(code), getMe(), loadPackageProducts(code)]);
+  const [{ pkg: raw }, me, products] = await Promise.all([loadPackage(code), getMe(), loadPackageProducts(code)]);
+  // Contractor price + this viewer's mark-up, everywhere below (lib/markup.ts).
+  const pkg = raw ? await priced(raw) : null;
   const signedIn = me.signed_in;
   const homes = me.signed_in ? me.homes.map((h) => ({ project_id: h.project_id, address: h.address, name: h.name })) : [];
   if (!pkg) notFound();
@@ -214,7 +217,7 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
     <Screen>
       <AppBar back={back} title={pkg.name} />
       <div className="body">
-        <PackageHero pkg={pkg} signedIn={signedIn} price={pkg.base_price_cents}
+        <PackageHero pkg={pkg} signedIn={signedIn} price={basePrice(pkg)}
           tag={pkg.requires_permit ? <span className="tag tag-accent">Permit package</span> : undefined} />
 
         <PackageConfigurator pkg={pkg} initial={selections} signedIn={signedIn} openAdjust={adjust === "1"} covered={covered}

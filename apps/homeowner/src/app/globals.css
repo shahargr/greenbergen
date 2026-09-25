@@ -267,7 +267,7 @@ a.seg-opt:focus-visible { outline: 2px solid var(--color-accent); outline-offset
 .pair-n { position: absolute; top: 6px; left: 6px; z-index: 1; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 6px; background: var(--color-accent); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .pair-label { font-family: var(--font-heading); font-size: 16px; line-height: 1.2; margin-top: 2px; }
 
-/* THE DIY LIST (migration 237). Numbered steps, the detail under each, and
+/* THE DIY LIST (migration 241). Numbered steps, the detail under each, and
    small tags for "licensed pro recommended" and "before you go on". */
 .diy-steps { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
 .diy-steps li { font-size: 14px; }

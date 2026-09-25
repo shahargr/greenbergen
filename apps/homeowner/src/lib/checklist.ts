@@ -16,7 +16,7 @@ export type ChecklistItem = {
   notes: string | null;
   asks: string | null;
   is_gate: boolean;
-  // From the DIY list step the task was made from (migration 237); null on
+  // From the DIY list step the task was made from (migration 241); null on
   // a checklist built from the scope before the lists existed.
   phase: DiyPhase | null;
   needs_pro: boolean;

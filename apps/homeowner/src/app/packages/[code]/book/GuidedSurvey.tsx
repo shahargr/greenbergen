@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { type Lever, type LeverOption, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
+import { marked, type Lever, type LeverOption, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { Illustration } from "@shared/Illustrations";
 import { AppBar, Card, Screen } from "@shared/ui";
@@ -117,7 +117,7 @@ export function GuidedSurvey({ pkg, sel, onSel, value, onChange, shots, onShot, 
                       onChange={() => { onSel({ ...sel, [size.key]: o.key }); set({ width: "", length: "" }); }} />
                     <span className="big">{o.chip ?? o.label}</span>
                     <span className="tiny text-muted">{bandLine(size, o)}</span>
-                    <span className="tiny">{o.price_delta_cents === 0 ? "Base price" : dollars(o.price_delta_cents, { sign: true })}</span>
+                    <span className="tiny">{o.price_delta_cents === 0 ? "Base price" : dollars(marked(pkg, o.price_delta_cents), { sign: true })}</span>
                   </label>
                 ))}
               </div>
@@ -141,7 +141,7 @@ export function GuidedSurvey({ pkg, sel, onSel, value, onChange, shots, onShot, 
           )}
 
           {pkg.levers.filter((l) => l !== size).map((l) => (
-            <ChoiceLever key={l.key} lever={l} value={sel[l.key]} short onPick={(k) => onSel({ ...sel, [l.key]: k })} />
+            <ChoiceLever key={l.key} pkg={pkg} lever={l} value={sel[l.key]} short onPick={(k) => onSel({ ...sel, [l.key]: k })} />
           ))}
 
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>

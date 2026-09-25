@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { asksFirst, configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { basePrice, asksFirst, configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { Card, NumberedNotes } from "@shared/ui";
 import { PriceBlock } from "@shared/PriceBlock";
@@ -91,7 +91,7 @@ export function PackageConfigurator({
       {story}
 
       <Card pad={false}>
-        <PriceBlock cents={price} was={isDefault ? null : pkg.base_price_cents} config={configLabel(pkg, sel)} delta={deltas} pulse
+        <PriceBlock cents={price} was={isDefault ? null : basePrice(pkg)} config={configLabel(pkg, sel)} delta={deltas} pulse
           kicker={isDefault ? "Community price · most common setup" : "Updated price"} />
       </Card>
 

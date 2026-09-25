@@ -643,6 +643,21 @@ export default async function ProjectPage({
             financeHref={manages ? `/project/${id}/finance` : null} />
         )}
 
+        {/* THE WORK FILE (Shahar, 2026-09-25: "as part of the work file these
+            images should be visible"). A job booked from a package carries
+            what the homeowner photographed and told us - the panel, the spot,
+            the EV charger's answers. It has its own screen because the crew
+            needs it on the day, and this one is about running the job. */}
+        {seat.package_code && (
+          <Link href={`/project/${id}/workfile`} className="card pad row" style={{ gap: 12, alignItems: "center", textDecoration: "none", color: "inherit" }}>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <strong>Work file</strong>
+              <span className="small text-muted" style={{ display: "block" }}>The homeowner&apos;s photos, what they told us, and the scope</span>
+            </span>
+            <ChevronIcon />
+          </Link>
+        )}
+
         {/* Everything you set ONCE - the photo, the scope, when the house
             sells, and how this job ends (Shahar, 2026-09-11: "move the cancel
             this job into the setting of it") - is behind the gear on the

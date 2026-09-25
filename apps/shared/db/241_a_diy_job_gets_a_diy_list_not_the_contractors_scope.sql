@@ -1,5 +1,10 @@
 -- A DIY JOB GETS A DIY LIST, NOT THE CONTRACTOR'S SCOPE.
 --
+-- Numbered 241 in the repo; applied to the database on 2026-09-25 as
+-- 237_a_diy_job_gets_a_diy_list_not_the_contractors_scope (the structure)
+-- and 237_diy_lists_content (the lists), while two other sessions were also
+-- writing a 237.
+--
 -- Shahar, 2026-09-25: "DIY scope should be cleared for ALL packages, and
 -- instead, a detailed DIY list should be provided." The list is free to read,
 -- with a suggested $5 paid by Venmo (his call: show the price, unlock for

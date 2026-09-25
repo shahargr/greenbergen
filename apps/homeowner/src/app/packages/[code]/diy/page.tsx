@@ -7,7 +7,7 @@ import { DiyListView, DiyPayCard } from "@/components/DiyListView";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "DIY list" };
 
-// THE DIY LIST, FOR ANYONE (Shahar, 2026-09-25; migration 237).
+// THE DIY LIST, FOR ANYONE (Shahar, 2026-09-25; migration 241).
 //
 // "DIY scope should be cleared for ALL packages, and instead, a detailed DIY
 // list should be provided." The contractor's scope says who files the permit

@@ -29,7 +29,7 @@ export function DiyChecklist({ projectId, items, trade }: { projectId: string; i
 
       <ul className="stack" style={{ listStyle: "none", padding: 0, margin: "8px 0 0", gap: 2 }}>
         {items.map((it, i) => (
-          // A heading where the DIY list's phase changes (migration 237);
+          // A heading where the DIY list's phase changes (migration 241);
           // a checklist built from scope has no phases and draws none.
           <li key={it.id} className={it.phase && it.phase !== items[i - 1]?.phase ? "diy-phase-start" : undefined} data-phase={it.phase && it.phase !== items[i - 1]?.phase ? phaseLabel(it.phase) ?? undefined : undefined} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--color-hairline, #e8e8e4)" }}>
             {it.done ? (

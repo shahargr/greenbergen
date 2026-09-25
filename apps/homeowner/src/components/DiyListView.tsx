@@ -2,7 +2,7 @@ import { DIY_PHASES, venmoPayLink, type DiyList, type DiyPhase } from "@shared/c
 import { dollars } from "@shared/format";
 import { Card } from "@shared/ui";
 
-// THE DIY LIST, READ-ONLY (migration 237): the four phases in order, each
+// THE DIY LIST, READ-ONLY (migration 241): the four phases in order, each
 // step with its detail, a tag where we recommend a licensed pro, and a tag
 // where nothing after it should start until it is done. The tickable version
 // on a job is DiyChecklist, built from the same rows.

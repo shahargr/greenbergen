@@ -58,6 +58,11 @@ export type Package = {
   gas_kinds?: GasKind[] | null;
   // The booking walks the photos one camera screen at a time (migration 236).
   guided_photos?: boolean;
+  // The VIEWER's mark-up on top of the contractor price (migration 237),
+  // attached per request by the homeowner app - never by the shared cached
+  // read, which is the same for everyone. Unset reads as no mark-up, so the
+  // contractor side keeps seeing contractor prices.
+  markup_pct?: number;
 };
 // Does the booking ask its own questions before the price? A gas job asks its
 // survey (migration 235), a guided package walks its photos (236). Either way
@@ -99,11 +104,28 @@ export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_gr
   // on every lever. What a "from" line says; computed in the database so a
   // price edit moves every panel at once.
   from_price_cents?: number | null;
+  // The viewer's mark-up, attached per request like Package.markup_pct.
+  markup_pct?: number;
 };
 
 // The number after "from": the floor when the database gives it, the base
 // price on the static fallback, nothing when the package has no price.
-export const fromPrice = (t: Tile): number | null => t.from_price_cents ?? t.base_price_cents ?? null;
+export const fromPrice = (t: Tile): number | null => customerPrice(t.from_price_cents ?? t.base_price_cents ?? null, t.markup_pct);
+
+// A MARK-UP ON TOP OF THE CONTRACTOR PRICE (Shahar, 2026-09-25; migration
+// 237). The package's own numbers - base and lever deltas - are what the
+// contractor is paid. The homeowner is shown that plus their mark-up: one
+// setting for everyone (config.markup_pct, 15 by default), or their user
+// group's override. It is collected as a fee on top (rulebook 52 - we never
+// hold the money). The rounding is homeowner_customer_price()'s, to the cent,
+// on the TOTAL, so the number on the button is the number on the booking.
+export const customerPrice = (cents: number | null, pct: number | null | undefined): number | null =>
+  cents == null ? null : cents + Math.round((cents * (pct ?? 0)) / 100);
+// One component shown on its own - a base, a lever answer's delta. Display
+// only: the price is always the total, marked up once.
+export const marked = (pkg: { markup_pct?: number }, cents: number) => Math.round(cents * (1 + (pkg.markup_pct ?? 0) / 100));
+// Attach the viewer's mark-up to what the shared read returned.
+export const withMarkup = <T extends object>(x: T, pct: number): T & { markup_pct: number } => ({ ...x, markup_pct: pct });
 
 // WHAT THE LANDING PAGE FEATURES. Admin's choice first (promote, in shelf
 // order); when nothing is flagged, the first open front-page tiles, so the
@@ -331,7 +353,12 @@ export type Selections = Record<string, string>;
 export const defaultSelections = (pkg: Package): Selections =>
   Object.fromEntries(pkg.levers.map((l) => [l.key, (l.options.find((o) => o.is_default) ?? l.options[0]!).key]));
 
-export const priceFor = (pkg: Package, sel: Selections) => {
+// What the homeowner pays for this configuration: the contractor price
+// (homeowner_price) plus the viewer's mark-up.
+export const priceFor = (pkg: Package, sel: Selections) => customerPrice(contractorPriceFor(pkg, sel), pkg.markup_pct);
+// The basic setup's price, as the homeowner sees it.
+export const basePrice = (pkg: Package) => customerPrice(pkg.base_price_cents, pkg.markup_pct);
+export const contractorPriceFor = (pkg: Package, sel: Selections) => {
   if (pkg.base_price_cents == null) return null;
   let total = pkg.base_price_cents;
   for (const lever of pkg.levers) {
@@ -356,7 +383,7 @@ export const deltaNotes = (pkg: Package, sel: Selections) =>
   pkg.levers
     .map((l) => l.options.find((o) => o.key === sel[l.key]))
     .filter((o): o is LeverOption => !!o && !o.is_default && o.price_delta_cents !== 0)
-    .map((o) => `${o.price_delta_cents > 0 ? "+" : "−"}$${Math.abs(Math.round(o.price_delta_cents / 100)).toLocaleString()} for ${o.label}`);
+    .map((o) => `${o.price_delta_cents > 0 ? "+" : "−"}$${Math.abs(Math.round(marked(pkg, o.price_delta_cents) / 100)).toLocaleString()} for ${o.label}`);
 
 export const depositCents = (pkg: Package, price: number | null) =>
   price != null && pkg.requires_permit && pkg.permit_deposit_pct ? Math.round((price * pkg.permit_deposit_pct) / 100) : null;
@@ -389,15 +416,19 @@ export const decodeSelections = (pkg: Package, raw: string | undefined | null): 
 // bobHero is the photograph behind Ask Bob (migration 193) - its own field,
 // because the landing photograph is a couple in front of a finished house and
 // this one is somebody who knows how to do the work.
-export type PublicSettings = { tagline: string | null; hero: string | null; bobHero: string | null; taglineShown: boolean };
+// markupPct is the one mark-up setting (migration 237) - what a visitor's
+// prices carry; a signed-in member reads their own (my_markup_pct).
+export type PublicSettings = { tagline: string | null; hero: string | null; bobHero: string | null; taglineShown: boolean; markupPct: number };
 
 export async function loadPublicSettings(): Promise<PublicSettings> {
-  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null; bob_hero?: string | null; tagline_shown?: boolean }>("public_settings");
+  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null; bob_hero?: string | null; tagline_shown?: boolean; markup_pct?: number | string | null }>("public_settings");
   return {
     tagline: row?.tagline ?? null,
     hero: row?.hero ?? null,
     bobHero: row?.bob_hero ?? null,
     taglineShown: row?.tagline_shown ?? false,
+    // Until the setting has been read, the default it was created with.
+    markupPct: row?.markup_pct != null ? Number(row.markup_pct) : 15,
   };
 }
 
@@ -406,7 +437,7 @@ export async function loadTagline(): Promise<string | null> {
 }
 
 // ---------------------------------------------------------------------------
-// THE DIY LIST (migration 237). A package's own how-to for the person holding
+// THE DIY LIST (migration 241). A package's own how-to for the person holding
 // the drill - not the contractor's scope, which a DIY plan no longer carries.
 // Free to read (Shahar, 2026-09-25), with a suggested price paid by Venmo;
 // nothing about the payment is recorded. Anon-callable and cached like the

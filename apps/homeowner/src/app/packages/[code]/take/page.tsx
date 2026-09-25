@@ -4,6 +4,7 @@ import { asksFirst, decodeSelections, encodeSelections, loadCovered, loadDiyList
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { usesEvFlow } from "@/lib/ev";
+import { priced as withViewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "How do you want to take it on?" };
@@ -29,7 +30,8 @@ export const metadata = { title: "How do you want to take it on?" };
 export default async function TakePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string }> }) {
   const { code } = await params;
   const { sel } = await searchParams;
-  const [{ pkg }, diy] = await Promise.all([loadPackage(code), loadDiyList(code)]);
+  const [{ pkg: raw }, diy] = await Promise.all([loadPackage(code), loadDiyList(code)]);
+  const pkg = raw ? await withViewerMarkup(raw) : null;
   if (!pkg) notFound();
 
   const selections = decodeSelections(pkg, sel);
@@ -72,7 +74,7 @@ export default async function TakePage({ params, searchParams }: { params: Promi
         </Card>
 
         {/* DIY. No fabricated figure - see the note at the top of this file.
-            What it offers now is the package's DIY list (migration 237): the
+            What it offers now is the package's DIY list (migration 241): the
             how-to written for the person doing it, open to read before they
             commit to anything. */}
         <Card pad>

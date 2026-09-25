@@ -42,6 +42,10 @@ const GROUPS: Group[] = [
         href: "/admin/packages", label: "Fully delivered", note: "Packages",
         icon: <svg {...I}><path d="M21 8 12 3 3 8l9 5 9-5Z" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" /></svg>,
       },
+      {
+        href: "/admin/markup", label: "Mark-up", note: "On top of the contractor",
+        icon: <svg {...I}><path d="M19 5 5 19" /><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="17.5" cy="17.5" r="2.5" /></svg>,
+      },
     ],
   },
   {
