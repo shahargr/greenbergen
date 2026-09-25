@@ -98,13 +98,13 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
             <div className="big mono" style={{ fontSize: 36 }}>{dollars(amountCents)}</div>
             <div className="small text-muted">
               {percent ? `${percent}% of ${dollars(totalCents)} · ` : ""}paid to <strong>{payee}</strong>{dueOn ? <>, due by {shortDate(dueOn)}</> : null}.{" "}
-              {viaUs ? `Green Bergen pays ${contractor} their share and keeps its fee.` : "It goes straight to them; Green Bergen never holds your money."}
+              {viaUs ? `You pay upfront; Green Bergen pays ${contractor} when they accept the job.` : "It goes straight to them; Green Bergen is paid by the contractor for the introduction."}
             </div>
           </div>
           <div className="stack" style={{ gap: 8, marginTop: 12 }}>
             <label className="radio choice"><input type="radio" name="how_ui" checked={how === "card"} onChange={() => setHow("card")} /><span className="dot" /><span className="txt">Pay by card now<small>{viaUs ? "Charged by Green Bergen" : <>Charged directly by {contractor}&apos;s business</>} — not switched on yet</small></span></label>
             <label className="radio choice"><input type="radio" name="how_ui" checked={how === "check" || how === "cash"} onChange={() => setHow("check")} /><span className="dot" /><span className="txt">I paid by check or cash<small>We&apos;ll ask you to photograph the check or receipt</small></span></label>
-            <label className="radio choice"><input type="radio" name="how_ui" checked={how === "later"} onChange={() => setHow("later")} /><span className="dot" /><span className="txt">We met, but haven&apos;t settled up yet<small>We&apos;ll remind you tomorrow</small></span></label>
+            {!viaUs && <label className="radio choice"><input type="radio" name="how_ui" checked={how === "later"} onChange={() => setHow("later")} /><span className="dot" /><span className="txt">We met, but haven&apos;t settled up yet<small>We&apos;ll remind you tomorrow</small></span></label>}
           </div>
           {(how === "check" || how === "cash") && (
             <div className="stack" style={{ marginTop: 12 }}>
@@ -128,7 +128,7 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
       {err && <Notice kind="error">{err}</Notice>}
       <div className="actions" style={{ padding: 0 }}>
         <button type="button" className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy || alreadyDone} onClick={() => void uploadThenSubmit()}>
-          {busy ? <><span className="spin" /> {busy}</> : kind === "payment" ? (how === "later" ? "Mark done" : how === "card" ? "Mark done" : `Mark done & record ${dollars(amountCents)}`) : kind === "done" ? "Close the job" : "Mark done"}
+          {busy ? <><span className="spin" /> {busy}</> : kind === "payment" ? (how === "later" || how === "card" ? (viaUs ? "Not yet" : "Mark done") : viaUs ? `Record ${dollars(amountCents)} paid` : `Mark done & record ${dollars(amountCents)}`) : kind === "done" ? "Close the job" : "Mark done"}
         </button>
       </div>
     </form>

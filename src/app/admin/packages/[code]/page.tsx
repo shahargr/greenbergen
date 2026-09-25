@@ -35,6 +35,8 @@ type Pkg = {
   permit_deposit_pct: number | null; instant_book: boolean; approval_note: string | null; illustration: string | null;
   description: string | null; sort_order: number; is_active: boolean; category: string | null; season_months: number[] | null;
   photo_url: string | null; promote: boolean; collected_by?: string | null;
+  // What is wrong with the payment terms at the base price, or null (migration 243).
+  terms_problem?: string | null;
   covered: boolean; trades: PkgTrade[]; trade_choices: string[]; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[]; videos: Video[];
 };
 
@@ -137,7 +139,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <F label="The homeowner pays each milestone to" w="wide">
             <select className="input" name="collected_by" defaultValue={p.collected_by ?? "contractor"}>
               <option value="contractor">The contractor - who pays Green Bergen the mark-up for the lead</option>
-              <option value="green_bergen">Green Bergen - which keeps the mark-up and pays the contractor</option>
+              <option value="green_bergen">Green Bergen, upfront - it pays the contractor when they accept the job</option>
             </select>
           </F>
           {/* THE FRONT DOOR (052). A photograph of the work - a professional
@@ -258,6 +260,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           contractor accepting, or the booking. Fixed amounts come off the top; the percents split the rest and must add up to 100. A package whose terms do not add up
           cannot be booked. Changes apply to new bookings only.
         </p>
+        {p.terms_problem && <p className="card" style={{ borderLeft: "4px solid var(--danger)", margin: "0 0 10px" }}>These payment terms cannot be booked: {p.terms_problem}.</p>}
         <form action={saveRows}>
           <Section code={p.code} kind="milestone" />
           {[...p.milestones.map((m) => ({ k: m.id, m })), { k: "new", m: null }].map(({ k, m }) => (

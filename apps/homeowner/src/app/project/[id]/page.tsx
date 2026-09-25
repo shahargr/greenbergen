@@ -357,22 +357,24 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 }
 
 function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullable<Booking["progress"]["current"]>; first: string }) {
-  const who = node.kind === "payment" ? `you and ${first}` : node.kind === "task" ? first : "you";
+  const viaUs = b.collected_by === "green_bergen";
+  const who = node.kind === "payment" ? (viaUs ? "you" : `you and ${first}`) : node.kind === "task" ? first : "you";
   // What the homeowner hands over at this milestone: its share of the price
   // they see (the stage amount is the contractor's), to whoever the job says
   // collects it - the job's frozen copy, not the package today (240, 242).
   const amount = node.amount_cents ? dollars(ownerCents(b, node.amount_cents)) : null;
-  const viaUs = b.collected_by === "green_bergen";
   return (
     <Card pad>
       <div className="kicker">Next up · {who}</div>
       <div className="card-title" style={{ fontSize: 20, margin: "4px 0" }}>{node.name}</div>
       <p className="small" style={{ margin: "0 0 10px" }}>
         {node.trigger_description}
-        {node.kind === "payment" && amount && <> <strong>{amount}</strong> is due to {viaUs ? <>Green Bergen, which pays {first}</> : first}{node.due_on ? <> by {shortDate(node.due_on)}</> : null}.</>}
+        {node.kind === "payment" && amount && (viaUs
+          ? <> <strong>{amount}</strong> is due to Green Bergen upfront{node.due_on ? <>, by {shortDate(node.due_on)}</> : null}. Green Bergen pays {first} when they accept the job.</>
+          : <> <strong>{amount}</strong> is due to {first}{node.due_on ? <> by {shortDate(node.due_on)}</> : null}.</>)}
       </p>
       <div className="row" style={{ flexWrap: "wrap" }}>
-        {node.kind === "payment" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{node.key === "permit_meeting" ? "We met — mark it done" : "It's done — mark it"}</Link>}
+        {node.kind === "payment" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{viaUs ? "I've paid — record it" : node.key === "permit_meeting" ? "We met — mark it done" : "It's done — mark it"}</Link>}
         {node.kind === "task" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">Mark it done</Link>}
         {node.kind === "done" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{b.open_tasks.length ? `Wrap up (${b.open_tasks.length} open)` : "Close the job"}</Link>}
         {node.kind === "accepted" && <span className="small text-muted">Waiting on a contractor.</span>}

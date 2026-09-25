@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 // Screen 15 - milestone confirmation and the payment trigger. Marking logs
 // it for both parties and moves the line. The homeowner pays their share of
 // the price they see (stage amount + the job's mark-up) to whoever the job
-// says collects it: the contractor, or Green Bergen, which pays the
-// contractor their share (migrations 240, 242). Card is not wired yet and
-// says so; check or cash is photographed as evidence.
+// says collects it: the contractor, or Green Bergen UPFRONT, which pays the
+// contractor when they accept the job (migrations 240, 242, 243). Card is
+// not wired yet and says so; check or cash is photographed as evidence.
 export default async function MilestonePage({ params, searchParams }: { params: Promise<{ id: string; key: string }>; searchParams: Promise<{ error?: string; done?: string; paid?: string; card?: string; logged?: string }> }) {
   const { id, key } = await params;
   const sp = await searchParams;
@@ -49,7 +49,7 @@ export default async function MilestonePage({ params, searchParams }: { params: 
               <div className="kv-rows" style={{ padding: "4px 14px" }}>
                 <div><span className="k">Paid to</span><span>{payee}</span></div>
                 <div><span className="k">Amount</span><span>{dollars(due)}</span></div>
-                {viaUs && <div><span className="k">To {first}</span><span>Green Bergen pays their share</span></div>}
+                {viaUs && <div><span className="k">To {first}</span><span>paid by Green Bergen when they accept the job</span></div>}
                 <div><span className="k">Remaining</span><span>{remaining > 0 ? `${dollars(remaining)} · due at completion` : "nothing"}</span></div>
               </div>
             </Card>
@@ -68,8 +68,9 @@ export default async function MilestonePage({ params, searchParams }: { params: 
       <div className="body">
         <div className="kicker">Milestone {idx} of {b.progress.total}</div>
         <h2>
-          {node.kind === "payment" && key === "permit_meeting" && `Did you meet ${first} for the permit signing?`}
-          {node.kind === "payment" && key !== "permit_meeting" && `Is the work done?`}
+          {node.kind === "payment" && viaUs && `Your upfront payment to Green Bergen`}
+          {node.kind === "payment" && !viaUs && key === "permit_meeting" && `Did you meet ${first} for the permit signing?`}
+          {node.kind === "payment" && !viaUs && key !== "permit_meeting" && `Is the work done?`}
           {node.kind === "task" && `${node.name}?`}
           {node.kind === "done" && `Close the job?`}
           {(node.kind === "booked" || node.kind === "accepted") && node.name}

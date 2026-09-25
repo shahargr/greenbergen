@@ -430,16 +430,22 @@ export function dueLabel(m: Pick<MilestoneTpl, "due_days" | "due_from">): string
 type Payee = { collected_by?: "contractor" | "green_bergen" | null };
 export const collectsThroughUs = (x: Payee) => x.collected_by === "green_bergen";
 export const payeeName = (x: Payee) => (collectsThroughUs(x) ? "Green Bergen" : "your contractor");
+// The two ways a job is paid (Shahar, 2026-09-25): the homeowner pays the
+// contractor, who pays Green Bergen for the lead; or pays Green Bergen
+// upfront, and Green Bergen pays the contractor when they accept the job.
 export const payeeLine = (x: Payee) =>
-  collectsThroughUs(x) ? "Paid to Green Bergen, which pays the contractor." : "Paid to your contractor.";
+  collectsThroughUs(x) ? "Paid to Green Bergen upfront. Green Bergen pays the contractor when they accept the job." : "Paid to your contractor.";
 // "You pay your contractor in steps: 20% at date set, then 80% at floor coated."
 export function payPlan(pkg: Package, price: number | null): string {
   const steps = paymentSteps(pkg, price);
+  if (collectsThroughUs(pkg)) {
+    return `You pay Green Bergen${price != null ? ` ${`$${Math.round(price / 100).toLocaleString()}`}` : ""} upfront, when you book. Green Bergen pays the contractor when they accept the job.`;
+  }
   if (steps.length === 0) return `You pay ${payeeName(pkg)} when the work is done.`;
   const parts = steps.map((s) => `${s.pct != null ? `${s.pct}%` : s.cents != null ? `$${Math.round(s.cents / 100).toLocaleString()}` : "a set amount"} at ${s.name.toLowerCase()}${s.due ? ` (${s.due})` : ""}`).join(", then ");
   return `You pay ${payeeName(pkg)} ${steps.length === 1 ? "once" : "in steps"}: ${parts}.`;
 }
-export const payPlanLine = (pkg: Package, price: number | null) => `Nothing today. ${payPlan(pkg, price)}`;
+export const payPlanLine = (pkg: Package, price: number | null) => (collectsThroughUs(pkg) ? payPlan(pkg, price) : `Nothing today. ${payPlan(pkg, price)}`);
 
 export const depositCents = (pkg: Package, price: number | null) =>
   price != null && pkg.requires_permit && pkg.permit_deposit_pct ? Math.round((price * pkg.permit_deposit_pct) / 100) : null;

@@ -10,8 +10,8 @@ export const metadata = { title: "Mark-up · Admin" };
 // users to be defined in the Admin portal for now."
 //
 // A package's price in Admin > Packages is the CONTRACTOR's price. The
-// homeowner is shown that plus the mark-up, and pays it as a fee on top
-// (rulebook 52: we never hold the money). A booking freezes the rate it was
+// homeowner is shown that plus the mark-up; who they pay is per package
+// (rulebook 52). A booking freezes the rate it was
 // made at, so changing anything here re-prices nobody who already booked.
 type Member = { app_user_id: string; email: string | null; full_name: string | null };
 type Group = { id: string; name: string; markup_pct: number | null; notes: string | null; is_active: boolean; members: Member[] };
@@ -32,7 +32,8 @@ export default async function AdminMarkupPage({ searchParams }: { searchParams: 
       <h1 style={{ fontSize: 26, margin: "6px 0 4px" }}>Mark-up</h1>
       <p className="muted small" style={{ margin: "0 0 18px", maxWidth: 640 }}>
         Every package price in Fully delivered is what the contractor is paid. Homeowners see that price plus
-        the mark-up, and pay it to Green Bergen as a fee on top — the contractor is still paid directly.
+        the mark-up. Each package says who they pay: the contractor, who pays Green Bergen the mark-up for the
+        lead; or Green Bergen upfront, which keeps the mark-up and pays the contractor when they accept the job.
         A booking keeps the rate it was made at, so a change here applies to new bookings only.
       </p>
 

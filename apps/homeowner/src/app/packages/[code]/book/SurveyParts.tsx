@@ -152,7 +152,7 @@ export function ProposalView({ pkg, sel, setup, children, notice, onBack, onEdit
           <Card pad>
             <h6 style={{ marginBottom: 2 }}>How you pay</h6>
             <div className="kv-rows">
-              <div><span className="k">Today</span><span>Nothing</span></div>
+              {pkg.collected_by !== "green_bergen" && <div><span className="k">Today</span><span>Nothing</span></div>}
               {payments.map((m) => (
                 <div key={m.key}>
                   <span className="k">{m.name}{m.pct != null ? ` · ${m.pct}%` : ""}{m.due ? ` · ${m.due}` : ""}</span>

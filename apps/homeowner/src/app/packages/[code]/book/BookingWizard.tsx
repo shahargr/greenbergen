@@ -507,7 +507,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
             {result.instant_book ? (
               <ul className="scope">
                 <li><span className="ic"><CheckIcon size={18} /></span><span><strong>First to take it gets it, at this price.</strong><br /><span className="text-muted">No deadline and no auction. Your price is held for a week — if it&apos;s still waiting, we re-check and tell you if it moved.</span></span></li>
-                <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Nothing charged today.</strong><br /><span className="text-muted">{payPlan(pkg, result.price_cents)}</span></span></li>
+                <li><span className="ic"><CheckIcon size={18} /></span><span><strong>{pkg.collected_by === "green_bergen" ? "Pay Green Bergen upfront." : "Nothing charged today."}</strong><br /><span className="text-muted">{payPlan(pkg, result.price_cents)}</span></span></li>
               </ul>
             ) : (
               <div className="kv-rows">
