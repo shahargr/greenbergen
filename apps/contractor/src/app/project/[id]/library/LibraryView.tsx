@@ -44,6 +44,7 @@ const freshPath = (projectId: string, name: string) => {
 const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8,
   strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, width: 16, height: 16 };
 const FolderGlyph = () => <svg {...g}><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>;
+const TrashGlyph = () => <svg {...g}><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>;
 
 export function LibraryView({ projectId, folders, loose, trades, urls }: {
   projectId: string;
@@ -102,7 +103,7 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
   // call (portal_project_file_delete), then the bytes - same as the portal's
   // scope files. Unfile stays the gentle option beside it.
   async function deleteFile(f: LibFile) {
-    if (!window.confirm(`Delete ${f.file_name ?? "this file"} for good? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete ${f.file_name ?? "this file"} for good? It also comes off anything it is attached to, and cannot be undone.`)) return;
     setErr("");
     const supabase = createClient();
     const { data, error } = await supabase.rpc("portal_project_file_delete", { p_file_id: f.id });
@@ -165,15 +166,9 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
         </span>
         <span className="tiny text-muted" style={{ whiteSpace: "nowrap" }}>{day(f.created_at)}{f.size_bytes ? ` · ${sz(f.size_bytes)}` : ""}</span>
         {inFolder && f.via === "filed" && (
-          <span style={{ display: "flex", gap: 2 }}>
-            <button type="button" className="btn btn-ghost small" onClick={() => void fileInto(f.id, inFolder.id, true)}>
-              Unfile
-            </button>
-            <button type="button" className="btn btn-ghost small" style={{ color: "var(--color-danger)" }}
-              onClick={() => void deleteFile(f)}>
-              Delete
-            </button>
-          </span>
+          <button type="button" className="btn btn-ghost small" onClick={() => void fileInto(f.id, inFolder.id, true)}>
+            Unfile
+          </button>
         )}
         {!inFolder && folders.length > 0 && (
           <select className="input small" defaultValue="" aria-label={`File ${f.file_name ?? "this"} into a folder`}
@@ -182,6 +177,13 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
             <option value="" disabled>File into…</option>
             {folders.filter((fo) => !fo.auto).map((fo) => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
           </select>
+        )}
+        {(!inFolder || f.via === "filed") && (
+          <button type="button" className="btn btn-ghost small" title="Delete" aria-label={`Delete ${f.file_name ?? "this file"}`}
+            style={{ color: "var(--color-danger)", padding: "4px 6px", alignSelf: "center" }}
+            onClick={() => void deleteFile(f)}>
+            <TrashGlyph />
+          </button>
         )}
       </div>
     );
