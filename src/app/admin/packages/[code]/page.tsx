@@ -38,6 +38,8 @@ const dollars = (c: number | null | undefined) => (c == null ? "" : (c / 100).to
 const signed = (c: number) => (c === 0 ? "included" : `${c > 0 ? "+" : "−"}$${(Math.abs(c) / 100).toLocaleString("en-US")}`);
 const AVAIL = [["priced", "Priced - bookable at the community price"], ["quote", "Quote - a person looks first"], ["custom", "Custom - describe it"], ["coming_soon", "Coming soon - not bookable"]];
 const M_KINDS = ["booked", "accepted", "payment", "task", "done"];
+type DiyRow = { id: string; phase: string; step: string; detail: string | null; needs_pro: boolean; is_gate: boolean; sort_order: number; is_active: boolean };
+const DIY_PHASE_CHOICES: [string, string][] = [["prepare", "Before you start"], ["gather", "What you need"], ["work", "The work"], ["finish", "Finish and check"]];
 
 // Module-level, not created in render (the lint is right: a component made
 // inside a component remounts every time).
@@ -77,12 +79,16 @@ export default async function AdminPackagePage({ params, searchParams }: { param
   const { code } = await params;
   const { error, saved } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data }, { data: trades }, { data: cats }] = await Promise.all([
+  const [{ data: me }, { data }, { data: trades }, { data: cats }, { data: diyRows }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("admin_package", { p_code: code }),
     supabase.from("trades").select("trade").order("sort_order"),
     supabase.from("blueprint_package_categories").select("key, label").order("sort_order"),
+    // The DIY list (migration 241), read straight from its table: everyone
+    // may read it, and admin_package stays the size it is.
+    supabase.from("blueprint_package_diy_steps").select("id, phase, step, detail, needs_pro, is_gate, sort_order, is_active").eq("package_code", code).order("sort_order"),
   ]);
+  const diy = (diyRows ?? []) as DiyRow[];
   if (!me?.is_superadmin) {
     return <main className="wrap" style={{ paddingTop: 48, maxWidth: 560 }}><h1>Packages</h1><p className="muted">This area is for administrators.</p></main>;
   }
@@ -253,6 +259,37 @@ export default async function AdminPackagePage({ params, searchParams }: { param
             </div>
           ))}
           <SaveBar>Save all photo slots</SaveBar>
+        </form>
+      </div>
+
+      {/* 4b. THE DIY LIST (migration 241). What a homeowner who does the job
+          themselves reads and ticks - not the scope above, which is the
+          contractor's. Public at /home/packages/<code>/diy. */}
+      <div className="card" id="diy" style={{ marginTop: 14 }}>
+        <h2 className="section-title">The DIY list</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          The how-to for doing this job yourself, in four phases. &ldquo;Pro&rdquo; marks a step we recommend a licensed professional does;
+          &ldquo;Gate&rdquo; marks one nothing after it should start before. A DIY plan&apos;s checklist is built from these rows when it is made; editing them changes new plans, not ticked ones.
+        </p>
+        <form action={saveRows}>
+          <Section code={p.code} kind="diy" />
+          {[...diy.map((d) => ({ k: d.id, d })), { k: "new", d: null }].map(({ k, d }) => (
+            <div key={k} className="pk-row">
+              <F label="Phase" span={2}>
+                <select className="input" name={n("phase", k)} defaultValue={d?.phase ?? "work"}>
+                  {DIY_PHASE_CHOICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </F>
+              <F label={d ? "Step" : "New step"} span={3}><input className="input" name={n("step", k)} defaultValue={d?.step ?? ""} required={!!d} /></F>
+              <F label="Detail" span={5}><textarea className="input" rows={2} name={n("detail", k)} defaultValue={d?.detail ?? ""} /></F>
+              <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={d?.sort_order ?? (diy.at(-1)?.sort_order ?? 0) + 10} /></F>
+              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("needs_pro", k)} defaultChecked={d?.needs_pro ?? false} /> pro</label>
+              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_gate", k)} defaultChecked={d?.is_gate ?? false} /> gate</label>
+              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_active", k)} defaultChecked={d?.is_active ?? true} /> on</label>
+              {d && <div className="pk-acts"><Del id={d.id} /></div>}
+            </div>
+          ))}
+          <SaveBar>Save the DIY list</SaveBar>
         </form>
       </div>
 
