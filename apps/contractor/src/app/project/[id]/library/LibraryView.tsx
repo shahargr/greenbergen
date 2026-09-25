@@ -24,7 +24,7 @@ export type Folder = {
 
 const ICON: Record<string, string> = { photo: "🖼", video: "🎬", audio: "🎙", document: "📄", other: "📎" };
 const VIA: Record<string, string> = {
-  filed: "filed here", trade: "by trade", contract: "on a contract", proposal: "on a proposal", loose: "",
+  filed: "", trade: "by trade", contract: "on a contract", proposal: "on a proposal", loose: "",
 };
 
 const sz = (n: number | null) => {
@@ -98,6 +98,20 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
     start(() => router.refresh());
   }
 
+  // Delete for good (Shahar, 2026-09-25): the row and its links go in one
+  // call (portal_project_file_delete), then the bytes - same as the portal's
+  // scope files. Unfile stays the gentle option beside it.
+  async function deleteFile(f: LibFile) {
+    if (!window.confirm(`Delete ${f.file_name ?? "this file"} for good? This cannot be undone.`)) return;
+    setErr("");
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_project_file_delete", { p_file_id: f.id });
+    if (error) { setErr(friendly(error.message)); return; }
+    const gone = data as { bucket: string | null; path: string | null } | null;
+    if (gone?.bucket && gone.path) await supabase.storage.from(gone.bucket).remove([gone.path]);
+    start(() => router.refresh());
+  }
+
   async function addFolder(fd: FormData) {
     setErr("");
     const name = String(fd.get("name") ?? "").trim();
@@ -151,9 +165,15 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
         </span>
         <span className="tiny text-muted" style={{ whiteSpace: "nowrap" }}>{day(f.created_at)}{f.size_bytes ? ` · ${sz(f.size_bytes)}` : ""}</span>
         {inFolder && f.via === "filed" && (
-          <button type="button" className="btn btn-ghost small" onClick={() => void fileInto(f.id, inFolder.id, true)}>
-            Unfile
-          </button>
+          <span style={{ display: "flex", gap: 2 }}>
+            <button type="button" className="btn btn-ghost small" onClick={() => void fileInto(f.id, inFolder.id, true)}>
+              Unfile
+            </button>
+            <button type="button" className="btn btn-ghost small" style={{ color: "var(--color-danger)" }}
+              onClick={() => void deleteFile(f)}>
+              Delete
+            </button>
+          </span>
         )}
         {!inFolder && folders.length > 0 && (
           <select className="input small" defaultValue="" aria-label={`File ${f.file_name ?? "this"} into a folder`}
