@@ -136,9 +136,9 @@ export function BookingRow({ b, showHome, delivery = null }: { b: BookingSummary
   // while it is looking, what it came to when it is finished.
   const st = b.progress_label;
   const money =
-    st?.key === "planned" ? `${dollars(b.price_cents)} reference${b.config_label ? ` · ${b.config_label}` : ""}`
-    : st?.key === "finding" ? `${dollars(b.price_cents)} · posted ${shortDate(b.posted_at)}`
-    : st?.key === "done" && b.price_cents > 0 ? `${dollars(b.price_cents)} · ${shortDate(b.done_at)}`
+    st?.key === "planned" ? `${dollars(b.customer_price_cents ?? b.price_cents)} reference${b.config_label ? ` · ${b.config_label}` : ""}`
+    : st?.key === "finding" ? `${dollars(b.customer_price_cents ?? b.price_cents)} · posted ${shortDate(b.posted_at)}`
+    : st?.key === "done" && b.price_cents > 0 ? `${dollars(b.customer_price_cents ?? b.price_cents)} · ${shortDate(b.done_at)}`
     : null;
   const line = [
     showHome && b.address ? b.address.split(",")[0] : null,

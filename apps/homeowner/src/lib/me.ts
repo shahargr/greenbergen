@@ -30,7 +30,7 @@ export type ProgressLabel = { key: string; label: string; detail: string; order:
 
 export type BookingSummary = {
   project_id: string; package_code: string; name: string; tile_title: string; illustration: string;
-  requires_permit: boolean; instant_book: boolean; address: string | null; home_project_id: string; price_cents: number; config_label: string | null;
+  requires_permit: boolean; instant_book: boolean; address: string | null; home_project_id: string; price_cents: number; customer_price_cents?: number | null; config_label: string | null;
   state: BookingState; created_at: string; posted_at: string | null; target_window: TargetWindow | null; reply_by: string | null; accepted_at: string | null;
   closed_at: string | null; done_at: string | null; repost_count: number; offered_count: number; no_taker: boolean;
   // The photo request: how many the package still wants, and the open task

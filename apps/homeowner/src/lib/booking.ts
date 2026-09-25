@@ -35,6 +35,15 @@ export type Booking = {
   project_status: string; price_cents: number; base_price_cents: number; selections: Record<string, string>; config_label: string | null;
   facts: Record<string, unknown> | null; budget_band: string | null; note: string | null;
   state: BookingState; created_at: string; posted_at: string | null; target_window: TargetWindow | null; live_price_cents: number | null;
+  // THE MARK-UP (migration 237). homeowner_booking returns the contractor
+  // price as price_cents and, to the owner, what they pay as
+  // customer_price_cents. getBooking swaps them for the owner, so every
+  // screen here reads price_cents as the homeowner's number; the contractor's
+  // is kept for what is paid to the contractor (milestones, a repost bump).
+  customer_price_cents?: number | null; live_customer_price_cents?: number | null; markup_pct?: number | null;
+  contractor_price_cents?: number;
+  // The EV charger's answers (facts.ev), shown to the crew as well.
+  work_details?: Record<string, string | number | boolean> | null;
   reply_by: string | null; repost_count: number; offered_count: number;
   accepted_at: string | null; closed_at: string | null; close_reason: string | null; done_at: string | null; no_taker: boolean;
   photos: PhotoRequestState | null;
@@ -54,7 +63,16 @@ export async function getBooking(projectId: string): Promise<{ booking: Booking 
     console.error("homeowner_booking:", error.message);
     return { booking: null, missing: false, supabase };
   }
-  return { booking: data ?? null, missing: false, supabase };
+  return { booking: data ? forOwner(data) : null, missing: false, supabase };
+}
+
+// The owner sees what they pay; see the note on Booking.customer_price_cents.
+function forOwner(b: Booking): Booking {
+  if (!b.is_owner || b.customer_price_cents == null) return { ...b, contractor_price_cents: b.price_cents };
+  return {
+    ...b, contractor_price_cents: b.price_cents, price_cents: b.customer_price_cents,
+    live_price_cents: b.live_customer_price_cents ?? b.live_price_cents,
+  };
 }
 
 // Photos in the private bucket are shown by signed URL, one hour.

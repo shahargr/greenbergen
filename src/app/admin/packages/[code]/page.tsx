@@ -100,14 +100,14 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       <div className="card" id="package">
         <h2 className="section-title">The basic setup</h2>
         <p className="muted small" style={{ marginTop: 0 }}>
-          The base price is what the default configuration costs, services and hardware together. The configuration line says in words what that default is - it is what the homeowner reads next to the price.
+          The base price is what the contractor is paid for the default configuration, services and hardware together - every lever delta below is a contractor price too. Homeowners see these plus the mark-up (<a href="/admin/markup">Admin &gt; Mark-up</a>). The configuration line says in words what that default is - it is what the homeowner reads next to the price.
         </p>
         <form action={savePackage} className="pk-row first">
           <input type="hidden" name="code" value={p.code} />
           <F label="Name" w="wide"><input className="input" name="name" defaultValue={p.name} required /></F>
           <F label="Tile title" span={2}><input className="input" name="tile_title" defaultValue={p.tile_title} required /></F>
           <F label="Tile second line" w=""><input className="input" name="tile_line2" defaultValue={p.tile_line2 ?? ""} /></F>
-          <F label="Base price ($)" span={2}><input className="input" name="base_price" inputMode="decimal" defaultValue={dollars(p.base_price_cents)} placeholder="1180" /></F>
+          <F label="Contractor price ($)" span={2}><input className="input" name="base_price" inputMode="decimal" defaultValue={dollars(p.base_price_cents)} placeholder="1180" /></F>
           <F label="State" span={2}>
             <select className="input" name="availability" defaultValue={p.availability}>{AVAIL.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           </F>
