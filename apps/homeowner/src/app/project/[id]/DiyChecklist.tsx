@@ -1,6 +1,7 @@
 import { Card } from "@shared/ui";
 import { tickStep } from "./actions";
 import type { ChecklistItem } from "@/lib/checklist";
+import { phaseLabel } from "@/components/DiyListView";
 
 // THE DIY CHECKLIST, TICKABLE (migrations 195b / 196).
 //
@@ -27,8 +28,10 @@ export function DiyChecklist({ projectId, items, trade }: { projectId: string; i
       </div>
 
       <ul className="stack" style={{ listStyle: "none", padding: 0, margin: "8px 0 0", gap: 2 }}>
-        {items.map((it) => (
-          <li key={it.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--color-hairline, #e8e8e4)" }}>
+        {items.map((it, i) => (
+          // A heading where the DIY list's phase changes (migration 241);
+          // a checklist built from scope has no phases and draws none.
+          <li key={it.id} className={it.phase && it.phase !== items[i - 1]?.phase ? "diy-phase-start" : undefined} data-phase={it.phase && it.phase !== items[i - 1]?.phase ? phaseLabel(it.phase) ?? undefined : undefined} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--color-hairline, #e8e8e4)" }}>
             {it.done ? (
               <span aria-hidden style={{ width: 22, textAlign: "center", lineHeight: "22px" }}>✓</span>
             ) : (
@@ -48,6 +51,7 @@ export function DiyChecklist({ projectId, items, trade }: { projectId: string; i
                 {/* A gate is a step you cannot usefully do out of order - it
                     is worth saying so before somebody buries it. */}
                 {it.is_gate && !it.done && <span className="tag tag-outline" style={{ marginLeft: 6, padding: "1px 7px" }}>before you go on</span>}
+                {it.needs_pro && !it.done && <span className="tag tag-accent" style={{ marginLeft: 6, padding: "1px 7px" }}>licensed pro recommended</span>}
               </span>
               {/* asks is what the step actually needs decided, and it is the
                   most useful thing on the row when you are standing in front
