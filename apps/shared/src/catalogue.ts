@@ -497,3 +497,32 @@ export async function loadPublicSettings(): Promise<PublicSettings> {
 export async function loadTagline(): Promise<string | null> {
   return (await loadPublicSettings()).tagline;
 }
+
+// ---------------------------------------------------------------------------
+// THE DIY LIST (migration 241). A package's own how-to for the person holding
+// the drill - not the contractor's scope, which a DIY plan no longer carries.
+// Free to read (Shahar, 2026-09-25), with a suggested price paid by Venmo;
+// nothing about the payment is recorded. Anon-callable and cached like the
+// rest of the catalogue.
+export type DiyPhase = "prepare" | "gather" | "work" | "finish";
+export type DiyStep = { id: string; phase: DiyPhase; step: string; detail: string | null; needs_pro: boolean; is_gate: boolean };
+export type DiyList = {
+  package: string; name: string; tile_title: string; trade: string | null; requires_permit: boolean;
+  suggested_cents: number | null; venmo: string | null; steps: DiyStep[];
+};
+export const DIY_PHASES: { key: DiyPhase; label: string }[] = [
+  { key: "prepare", label: "Before you start" },
+  { key: "gather", label: "What you need" },
+  { key: "work", label: "The work" },
+  { key: "finish", label: "Finish and check" },
+];
+
+export async function loadDiyList(code: string): Promise<DiyList | null> {
+  const row = await catalogueRpc<DiyList | null>("homeowner_diy_list", { p_code: code });
+  return row && typeof row === "object" && Array.isArray(row.steps) && row.steps.length > 0 ? row : null;
+}
+
+// Opens the Venmo app on a phone (the web page elsewhere) with the payee,
+// the amount and a note filled in.
+export const venmoPayLink = (handle: string, cents: number, note: string) =>
+  `https://venmo.com/${encodeURIComponent(handle)}?${new URLSearchParams({ txn: "pay", amount: (cents / 100).toFixed(2), note }).toString()}`;

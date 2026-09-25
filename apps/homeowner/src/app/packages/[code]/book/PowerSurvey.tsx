@@ -228,7 +228,7 @@ export function PowerSurvey({
             <label className="approach-card">
               <input type="radio" name="approach" checked={s.approach === "diy"} onChange={() => set({ approach: "diy" })} />
               <span className="kicker">DIY-assisted</span>
-              <span className="small">You manage the permits and the pad. We point you to the generator to buy, and your survey stays on the project for engineering questions.</span>
+              <span className="small">You manage the permits and the pad, following our step-by-step DIY list. We point you to the generator to buy, and your survey stays on the project for engineering questions.</span>
               <span className="mono approach-price">Parts + your time</span>
             </label>
           </div>
