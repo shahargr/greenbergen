@@ -90,6 +90,11 @@ Vercel env settings, entered by Shahar.
 
 Never commit or push without Shahar's say-so. No PRs unless asked.
 
+One push per finished piece of work, never per commit: every push to main
+builds three Vercel projects against a 100-a-day cap. Branch pushes build
+nothing (`git.deploymentEnabled` in each `vercel.json`), so check a branch
+locally. Rulebook 08, help topic `repos`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
