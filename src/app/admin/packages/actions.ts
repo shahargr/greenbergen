@@ -16,8 +16,10 @@ async function admin() {
   return supabase;
 }
 
+// ?at= names the section that was saved, so the page prints the message in
+// that section (where the anchor scrolls to) and turns its button to Saved.
 const back = (code: string, msg: string, isError = false, anchor = "") =>
-  `/admin/packages/${encodeURIComponent(code)}?${isError ? "error" : "saved"}=${encodeURIComponent(msg)}${anchor ? `#${anchor}` : ""}`;
+  `/admin/packages/${encodeURIComponent(code)}?${isError ? "error" : "saved"}=${encodeURIComponent(msg)}${anchor ? `&at=${anchor}#${anchor}` : ""}`;
 
 function finish(code: string, ok: boolean, msg: string, anchor = "") {
   revalidatePath("/admin/packages");
@@ -42,8 +44,15 @@ export async function savePackage(formData: FormData) {
   const code = s(formData, "code").toLowerCase();
   const isNew = s(formData, "new") === "1";
   const base = cents(formData.get("base_price"));
-  if (base === "x") finish(code, false, "The base price is not a number.");
-  const patch = {
+  if (base === "x") finish(code, false, "The base price is not a number.", "package");
+  // The new-package form carries only code, trade, name and tile title. Send
+  // just those, so admin_package_save keeps its own starting values (More
+  // shelf, coming soon, active, instant book) - a blank tile_group here was
+  // a null that broke the insert, and an absent is_active box read as "off".
+  // A blank tile title takes the name; it can be shortened on the package page.
+  const patch = isNew ? {
+    name: s(formData, "name"), tile_title: s(formData, "tile_title") || s(formData, "name"), trade: s(formData, "trade"),
+  } : {
     name: s(formData, "name"), tile_title: s(formData, "tile_title"), tile_line2: s(formData, "tile_line2"),
     trade: s(formData, "trade"), category: s(formData, "category"), tile_group: s(formData, "tile_group"),
     availability: s(formData, "availability"), base_price_cents: base, config_label: s(formData, "config_label"),
@@ -54,19 +63,17 @@ export async function savePackage(formData: FormData) {
     // The landing page (052): whether to feature it. The photograph is
     // saved on its own by setPackagePhoto, so this form never clears it.
     promote: b(formData, "promote"),
-    // Who the homeowner pays each milestone to (migration 240). Blank (the
-    // new-package form) leaves the database default, the contractor.
+    // Who the homeowner pays each milestone to (migration 240).
     collected_by: s(formData, "collected_by"),
-    // How the booking opens (migrations 235, 236). Only this form carries
-    // them; the new-package form leaves both off.
-    ...(formData.has("code") && !isNew ? { guided_photos: b(formData, "guided_photos"), needs_gas_survey: b(formData, "needs_gas_survey") } : {}),
+    // How the booking opens (migrations 235, 236, 241).
+    guided_photos: b(formData, "guided_photos"), needs_gas_survey: b(formData, "needs_gas_survey"),
   };
   const { data, error } = await supabase.rpc("admin_package_save", { p_code: code, p_patch: patch });
   if (error || data?.ok === false) {
     if (isNew) redirect(`/admin/packages?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Not saved.")}`);
-    finish(code, false, data?.reason ?? error?.message ?? "Not saved.");
+    finish(code, false, data?.reason ?? error?.message ?? "Not saved.", "package");
   }
-  finish(data.code ?? code, true, isNew ? "Package created. Now give it scope lines and levers." : "Package saved.");
+  finish(data.code ?? code, true, isNew ? "Package created. Now give it scope lines and levers." : "Package saved.", isNew ? "" : "package");
 }
 
 // EVERY ROW OF A SECTION AT ONCE (Shahar: "save works on one line at a
