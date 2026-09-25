@@ -3,6 +3,7 @@ import { decodeSelections, loadPackage } from "@shared/catalogue";
 import { getMe, type TargetWindow } from "@/lib/me";
 import { getBooking } from "@/lib/booking";
 import { BookingWizard, type WizardMode } from "./BookingWizard";
+import { priced } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Book" };
@@ -19,7 +20,8 @@ export const metadata = { title: "Book" };
 export default async function BookPage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string; mode?: string; from?: string; resume?: string }> }) {
   const { code } = await params;
   const { sel, mode: modeParam, from, resume } = await searchParams;
-  const [{ pkg }, me] = await Promise.all([loadPackage(code), getMe()]);
+  const [{ pkg: raw }, me] = await Promise.all([loadPackage(code), getMe()]);
+  const pkg = raw ? await priced(raw) : null;
   if (!pkg || pkg.availability !== "priced") notFound();
   const here = `/packages/${code}/book?${new URLSearchParams({ ...(sel ? { sel } : {}), ...(modeParam ? { mode: modeParam } : {}), ...(from ? { from } : {}) }).toString()}`;
   if (from && !me.signed_in) redirect(`/login?next=${encodeURIComponent(here)}`);

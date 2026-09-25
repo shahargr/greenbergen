@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadPackage, loadPackageProcess } from "@shared/catalogue";
 import { AppBar, Card, Screen } from "@shared/ui";
+import { priced } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,8 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 
 export default async function PackageProcessPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const [proc, { pkg }] = await Promise.all([loadPackageProcess(code), loadPackage(code)]);
+  const [proc, { pkg: raw }] = await Promise.all([loadPackageProcess(code), loadPackage(code)]);
+  const pkg = raw ? await priced(raw) : null;
   if (!pkg) notFound();
 
   const back = `/packages/${code}`;

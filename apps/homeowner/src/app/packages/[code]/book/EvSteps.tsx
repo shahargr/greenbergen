@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { configLabel, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
+import { marked, configLabel, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { AppBar, Notice, Screen } from "@shared/ui";
 import {
@@ -86,7 +86,7 @@ export function EvNeeds({ pkg, sel, setSel, price, ev, setEv, back, next }: Comm
           </div>
           <p className="hint">
             The way the wire would run, not a straight line. {band.label}
-            {band.price_delta_cents ? ` · ${dollars(band.price_delta_cents, { sign: true })}` : " · included"}
+            {band.price_delta_cents ? ` · ${dollars(marked(pkg, band.price_delta_cents), { sign: true })}` : " · included"}
           </p>
         </div>
 

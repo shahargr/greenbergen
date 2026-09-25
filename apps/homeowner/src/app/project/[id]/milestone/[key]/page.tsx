@@ -89,7 +89,7 @@ export default async function MilestonePage({ params, searchParams }: { params: 
         {(node.kind === "booked" || node.kind === "accepted") ? (
           <Notice>This step marks itself{node.kind === "accepted" ? " when a contractor accepts" : ""}.</Notice>
         ) : (
-          <MilestoneForm projectId={id} nodeKey={key} kind={node.kind} amountCents={node.amount_cents ?? 0} totalCents={b.price_cents} percent={node.percent_of_contract} contractor={cname} alreadyDone={node.status === "done" && !node.unsettled} />
+          <MilestoneForm projectId={id} nodeKey={key} kind={node.kind} amountCents={node.amount_cents ?? 0} totalCents={b.contractor_price_cents ?? b.price_cents} percent={node.percent_of_contract} contractor={cname} alreadyDone={node.status === "done" && !node.unsettled} />
         )}
       </div>
     </Screen>

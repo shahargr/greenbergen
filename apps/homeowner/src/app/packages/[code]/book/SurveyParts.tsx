@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { configLabel, deltaNotes, isHardware, priceFor, type Lever, type LeverOption, type Package, type Selections } from "@shared/catalogue";
+import { basePrice, marked, configLabel, deltaNotes, isHardware, priceFor, type Lever, type LeverOption, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { PriceBlock } from "@shared/PriceBlock";
 import { AppBar, Card, CheckIcon, Screen, StepKicker } from "@shared/ui";
@@ -22,7 +22,7 @@ export function WalkProgress({ step, of, time = "about a minute" }: { step: numb
 
 // short: segments read the options' chips ("Cracked") and the line under
 // them spells the chosen one out ("Cracks wider than a hairline").
-export function ChoiceLever({ lever, value, onPick, short = false }: { lever: Lever; value: string | undefined; onPick: (k: string) => void; short?: boolean }) {
+export function ChoiceLever({ pkg, lever, value, onPick, short = false }: { pkg: Package; lever: Lever; value: string | undefined; onPick: (k: string) => void; short?: boolean }) {
   return (
     <section className="survey-q">
       <h2>{lever.question ?? lever.label}</h2>
@@ -46,18 +46,19 @@ export function ChoiceLever({ lever, value, onPick, short = false }: { lever: Le
           ))}
         </div>
       )}
-      <Delta lever={lever} value={value} spell={short} />
+      <Delta pkg={pkg} lever={lever} value={value} spell={short} />
     </section>
   );
 }
 
-export function Delta({ lever, value, spell = false }: { lever: Lever; value: string | undefined; spell?: boolean }) {
+// pkg carries the viewer's mark-up, so a delta reads as the homeowner pays it.
+export function Delta({ pkg, lever, value, spell = false }: { pkg: Package; lever: Lever; value: string | undefined; spell?: boolean }) {
   const o = lever.options.find((x) => x.key === value);
   if (!o) return null;
   return (
     <p className="tiny text-muted" style={{ margin: "4px 0 0" }}>
       {spell && o.chip && o.chip !== o.label ? `${o.label}. ` : ""}
-      {o.price_delta_cents === 0 ? (o.is_default ? "Included in the price." : "No change to the price.") : `${dollars(o.price_delta_cents, { sign: true })} to the price.`}
+      {o.price_delta_cents === 0 ? (o.is_default ? "Included in the price." : "No change to the price.") : `${dollars(marked(pkg, o.price_delta_cents), { sign: true })} to the price.`}
     </p>
   );
 }
@@ -88,7 +89,7 @@ export function ProposalView({ pkg, sel, setup, children, notice, onBack, onEdit
         </div>
 
         <Card pad={false}>
-          <PriceBlock cents={price} was={deltas.length ? pkg.base_price_cents : null} config={configLabel(pkg, sel)} delta={deltas} kicker="Community price · turn-key" />
+          <PriceBlock cents={price} was={deltas.length ? basePrice(pkg) : null} config={configLabel(pkg, sel)} delta={deltas} kicker="Community price · turn-key" />
         </Card>
 
         <Card pad>
@@ -102,7 +103,7 @@ export function ProposalView({ pkg, sel, setup, children, notice, onBack, onEdit
                   <span className="k">{l.label}</span>
                   <span style={{ textAlign: "right" }}>
                     {setup?.(l, o) ?? o.label}
-                    {o.price_delta_cents !== 0 && <span className="text-muted"> · {dollars(o.price_delta_cents, { sign: true })}</span>}
+                    {o.price_delta_cents !== 0 && <span className="text-muted"> · {dollars(marked(pkg, o.price_delta_cents), { sign: true })}</span>}
                   </span>
                 </div>
               );

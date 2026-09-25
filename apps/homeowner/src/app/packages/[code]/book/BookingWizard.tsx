@@ -278,7 +278,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
     // questions are answered against. Any photo already taken goes with it.
     const issues = [...(await uploadShots(data.project_id as string)), ...(await saveSurvey(data.project_id as string))];
     setUploadIssues(issues);
-    setResult({ project_id: data.project_id as string, reply_by: "", offered_count: 0, instant_book: pkg.instant_book, price_cents: data.price_cents, planned: true });
+    setResult({ project_id: data.project_id as string, reply_by: "", offered_count: 0, instant_book: pkg.instant_book, price_cents: data.customer_price_cents ?? data.price_cents, planned: true });
     setBusy("");
     setStep("booked");
     router.refresh();
@@ -308,7 +308,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
     const issues = await uploadShots(projectId);
     issues.push(...(await saveSurvey(projectId)));
     setUploadIssues(issues);
-    setResult({ project_id: projectId, reply_by: data.reply_by, offered_count: data.offered_count, instant_book: data.instant_book, price_cents: data.price_cents });
+    setResult({ project_id: projectId, reply_by: data.reply_by, offered_count: data.offered_count, instant_book: data.instant_book, price_cents: data.customer_price_cents ?? data.price_cents });
     setBusy("");
     setStep("booked");
     router.refresh();

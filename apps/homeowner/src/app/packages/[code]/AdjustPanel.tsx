@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { deltaNotes, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { basePrice, marked, deltaNotes, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { CloseIcon } from "@shared/ui";
 
@@ -58,14 +58,14 @@ export function AdjustPanel({ pkg, value, onChange, onClose }: { pkg: Package; v
                       <label className="radio" key={o.key}>
                         <input type="radio" name={`lv-${lever.key}`} checked={value[lever.key] === o.key} onChange={() => set(lever.key, o.key)} />
                         <span className="dot" />
-                        <span>{o.label}{o.price_delta_cents !== 0 && <span className="text-muted small"> · {dollars(o.price_delta_cents, { sign: true })}</span>}</span>
+                        <span>{o.label}{o.price_delta_cents !== 0 && <span className="text-muted small"> · {dollars(marked(pkg, o.price_delta_cents), { sign: true })}</span>}</span>
                       </label>
                     ))}
                   </div>
                 )}
               </div>
             ))}
-          <PriceFooter price={price} base={pkg.base_price_cents} deltas={deltas} />
+          <PriceFooter price={price} base={basePrice(pkg)} deltas={deltas} />
           <button type="button" className="btn btn-primary btn-block" onClick={onClose}>Use this setup</button>
         </div>
       </div>
