@@ -108,6 +108,8 @@ export async function saveRows(formData: FormData) {
     if (isNew(key) && blank(rowKind, r)) continue;
     const delta = cents(r.price_delta ?? null);
     if (delta === "x") { problems.push(`${title(r, key)}: the price change is not a number.`); continue; }
+    const fixed = cents(r.amount ?? null);
+    if (fixed === "x") { problems.push(`${title(r, key)}: the fixed amount is not a number.`); continue; }
     const patch: Record<string, string> = {
       label: r.label ?? "", detail: r.detail ?? "", kind: r.row_kind ?? "",
       key: r.key ?? "", question: r.question ?? "", control: r.control ?? "",
@@ -115,6 +117,8 @@ export async function saveRows(formData: FormData) {
       hint: r.hint ?? "", sort_order: r.sort_order ?? "",
       name: r.name ?? "", sequence_no: r.sequence_no ?? "",
       percent_of_contract: r.percent_of_contract ?? "", typical_range: r.typical_range ?? "",
+      // Payment terms (migration 242): a fixed installment, and when it is due.
+      amount_cents: fixed, due_days: r.due_days ?? "", due_from: r.due_from ?? "",
       trigger_description: r.trigger_description ?? "",
       url: r.url ?? "", is_active: r.is_active ? "true" : "false",
       links: JSON.stringify(

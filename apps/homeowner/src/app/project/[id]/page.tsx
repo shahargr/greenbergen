@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getMe, TARGET_WINDOWS, targetWindowLabel } from "@/lib/me";
-import { getBooking, type Booking } from "@/lib/booking";
+import { getBooking, ownerCents, type Booking } from "@/lib/booking";
 import { getChecklist } from "@/lib/checklist";
 import { customerPrice, encodeSelections } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
@@ -359,17 +359,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullable<Booking["progress"]["current"]>; first: string }) {
   const who = node.kind === "payment" ? `you and ${first}` : node.kind === "task" ? first : "you";
   // What the homeowner hands over at this milestone: its share of the price
-  // they see (the stage amount is the contractor's), to whoever the package
-  // says collects it (migration 240).
-  const amount = node.amount_cents ? dollars(customerPrice(node.amount_cents, b.is_owner ? b.markup_pct : 0)) : null;
-  const viaUs = b.package?.collected_by === "green_bergen";
+  // they see (the stage amount is the contractor's), to whoever the job says
+  // collects it - the job's frozen copy, not the package today (240, 242).
+  const amount = node.amount_cents ? dollars(ownerCents(b, node.amount_cents)) : null;
+  const viaUs = b.collected_by === "green_bergen";
   return (
     <Card pad>
       <div className="kicker">Next up · {who}</div>
       <div className="card-title" style={{ fontSize: 20, margin: "4px 0" }}>{node.name}</div>
       <p className="small" style={{ margin: "0 0 10px" }}>
         {node.trigger_description}
-        {node.kind === "payment" && amount && <> <strong>{amount}</strong> is due to {viaUs ? <>Green Bergen, which pays {first}</> : first}.</>}
+        {node.kind === "payment" && amount && <> <strong>{amount}</strong> is due to {viaUs ? <>Green Bergen, which pays {first}</> : first}{node.due_on ? <> by {shortDate(node.due_on)}</> : null}.</>}
       </p>
       <div className="row" style={{ flexWrap: "wrap" }}>
         {node.kind === "payment" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{node.key === "permit_meeting" ? "We met — mark it done" : "It's done — mark it"}</Link>}
@@ -391,7 +391,7 @@ const pluralTrade = (trade: string | null | undefined, n: number) => {
   return n === 1 ? one : one.endsWith("crew") ? one + "s" : one + "s";
 };
 const paidSummary = (b: Booking) => {
-  const paid = b.stages.filter((s) => s.status === "Paid" || s.settlement_status === "paid").reduce((a, s) => a + s.amount_cents, 0);
+  const paid = b.stages.filter((s) => s.status === "Paid" || s.settlement_status === "paid").reduce((a, s) => a + ownerCents(b, s.amount_cents), 0);
   return paid > 0 ? ` · paid ${dollars(paid)}` : "";
 };
 

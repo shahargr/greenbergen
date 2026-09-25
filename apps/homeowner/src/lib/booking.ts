@@ -2,12 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@shared/supabase/server";
 import { isMissingFunction, rpc } from "@shared/rpc";
 import { timed } from "@shared/perf";
-import type { Package } from "@shared/catalogue";
+import { customerPrice, type Package } from "@shared/catalogue";
 import type { BookingState, Progress, TargetWindow } from "@/lib/me";
 
 export type Stage = {
   id: string; name: string; sequence_no: number | null; amount_cents: number; percent: number | null; status: string;
-  settlement_status: string; paid_at: string | null; approved_at: string | null; trigger: string | null;
+  settlement_status: string; paid_at: string | null; approved_at: string | null; trigger: string | null; due_on?: string | null;
   evidence: { file_id: string; path: string; kind: string }[];
 };
 export type JobFile = { id: string; path: string; bucket: string; kind: string; mime: string | null; caption: string | null; created_at: string; by_me: boolean; by: string | null; role: string | null };
@@ -42,6 +42,9 @@ export type Booking = {
   // is kept for what is paid to the contractor (milestones, a repost bump).
   customer_price_cents?: number | null; live_customer_price_cents?: number | null; markup_pct?: number | null;
   contractor_price_cents?: number;
+  // Who the homeowner pays each milestone to - the JOB's copy, frozen when
+  // it was posted (migration 240/242), not the package's setting today.
+  collected_by?: "contractor" | "green_bergen" | null;
   // The EV charger's answers (facts.ev), shown to the crew as well.
   work_details?: Record<string, string | number | boolean> | null;
   reply_by: string | null; repost_count: number; offered_count: number;
@@ -84,5 +87,10 @@ export async function signedUrls(supabase: SupabaseClient, paths: string[]): Pro
   for (const row of data ?? []) if (row.path && row.signedUrl) out[row.path] = row.signedUrl;
   return out;
 }
+
+// What the homeowner hands over for a stage: its share of the price they
+// see, the contractor's stage amount plus the job's mark-up (rule 52). The
+// same rounding as stage_payment_quote. The contractor sees their own.
+export const ownerCents = (b: Booking, cents: number) => (b.is_owner ? customerPrice(cents, b.markup_pct) ?? cents : cents);
 
 export const bookingHeadline = (b: Booking) => b.package?.name ?? b.package_code;

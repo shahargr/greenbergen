@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getBooking, signedUrls } from "@/lib/booking";
+import { getBooking, ownerCents, signedUrls } from "@/lib/booking";
 import { formsFor } from "@/lib/forms";
 import { dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Card, ChevronIcon, Screen } from "@shared/ui";
@@ -89,11 +89,11 @@ export default async function FolderPage({ params }: { params: Promise<{ id: str
 
         <section id="evidence" className="stack" style={{ gap: 6 }}>
           <div className="divider-label">Payment evidence</div>
-          {paidStages.length === 0 && evidence.length === 0 ? <p className="small text-muted" style={{ margin: 0 }}>Nothing yet. When you pay {first}, the receipt or a photo of the check lands here.</p> : (
+          {paidStages.length === 0 && evidence.length === 0 ? <p className="small text-muted" style={{ margin: 0 }}>Nothing yet. When you pay {b.collected_by === "green_bergen" ? "Green Bergen" : first}, the receipt or a photo of the check lands here.</p> : (
             <Card pad={false}>
               <div className="kv-rows" style={{ padding: "4px 14px" }}>
                 {b.stages.filter((s) => s.status !== "Planned").map((s) => (
-                  <div key={s.id}><span>{s.name}</span><span>{dollars(s.amount_cents)} · {s.status === "Paid" || s.settlement_status === "paid" ? `paid ${shortDate(s.paid_at)}` : s.status.toLowerCase()}</span></div>
+                  <div key={s.id}><span>{s.name}</span><span>{dollars(ownerCents(b, s.amount_cents))} · {s.status === "Paid" || s.settlement_status === "paid" ? `paid ${shortDate(s.paid_at)}` : s.status.toLowerCase()}</span></div>
                 ))}
               </div>
               {evidence.length > 0 && (

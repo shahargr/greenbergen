@@ -155,7 +155,7 @@ export function ProposalView({ pkg, sel, setup, children, notice, onBack, onEdit
               <div><span className="k">Today</span><span>Nothing</span></div>
               {payments.map((m) => (
                 <div key={m.key}>
-                  <span className="k">{m.name} · {m.pct}%</span>
+                  <span className="k">{m.name}{m.pct != null ? ` · ${m.pct}%` : ""}{m.due ? ` · ${m.due}` : ""}</span>
                   <span className="mono">{dollars(m.cents)}</span>
                 </div>
               ))}
