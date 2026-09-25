@@ -358,14 +358,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
 function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullable<Booking["progress"]["current"]>; first: string }) {
   const who = node.kind === "payment" ? `you and ${first}` : node.kind === "task" ? first : "you";
-  const amount = node.amount_cents ? dollars(node.amount_cents) : null;
+  // What the homeowner hands over at this milestone: its share of the price
+  // they see (the stage amount is the contractor's), to whoever the package
+  // says collects it (migration 240).
+  const amount = node.amount_cents ? dollars(customerPrice(node.amount_cents, b.is_owner ? b.markup_pct : 0)) : null;
+  const viaUs = b.package?.collected_by === "green_bergen";
   return (
     <Card pad>
       <div className="kicker">Next up · {who}</div>
       <div className="card-title" style={{ fontSize: 20, margin: "4px 0" }}>{node.name}</div>
       <p className="small" style={{ margin: "0 0 10px" }}>
         {node.trigger_description}
-        {node.kind === "payment" && amount && <> <strong>{amount}</strong> is due to {first} — card, check or cash. Green Bergen never holds it.</>}
+        {node.kind === "payment" && amount && <> <strong>{amount}</strong> is due to {viaUs ? <>Green Bergen, which pays {first}</> : first}.</>}
       </p>
       <div className="row" style={{ flexWrap: "wrap" }}>
         {node.kind === "payment" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{node.key === "permit_meeting" ? "We met — mark it done" : "It's done — mark it"}</Link>}

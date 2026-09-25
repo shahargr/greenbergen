@@ -54,6 +54,9 @@ export async function savePackage(formData: FormData) {
     // The landing page (052): whether to feature it. The photograph is
     // saved on its own by setPackagePhoto, so this form never clears it.
     promote: b(formData, "promote"),
+    // Who the homeowner pays each milestone to (migration 240). Blank (the
+    // new-package form) leaves the database default, the contractor.
+    collected_by: s(formData, "collected_by"),
   };
   const { data, error } = await supabase.rpc("admin_package_save", { p_code: code, p_patch: patch });
   if (error || data?.ok === false) {

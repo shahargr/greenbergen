@@ -63,6 +63,11 @@ export type Package = {
   // read, which is the same for everyone. Unset reads as no mark-up, so the
   // contractor side keeps seeing contractor prices.
   markup_pct?: number;
+  // Who the homeowner pays each payment milestone to (migration 240): the
+  // contractor (who owes Green Bergen the mark-up for the lead), or Green
+  // Bergen (which keeps the mark-up and pays the contractor the rest).
+  // Optional: the static fallback predates it, and absent means contractor.
+  collected_by?: "contractor" | "green_bergen" | null;
 };
 // Does the booking ask its own questions before the price? A gas job asks its
 // survey (migration 235), a guided package walks its photos (236). Either way
@@ -384,6 +389,27 @@ export const deltaNotes = (pkg: Package, sel: Selections) =>
     .map((l) => l.options.find((o) => o.key === sel[l.key]))
     .filter((o): o is LeverOption => !!o && !o.is_default && o.price_delta_cents !== 0)
     .map((o) => `${o.price_delta_cents > 0 ? "+" : "−"}$${Math.abs(Math.round(marked(pkg, o.price_delta_cents) / 100)).toLocaleString()} for ${o.label}`);
+
+// HOW THE HOMEOWNER PAYS (Shahar, 2026-09-25). The package's payment
+// milestones, each a share of the price the homeowner sees, and who each one
+// is handed to. Every screen that says when money is due says it from here,
+// so the proposal, the Book button and the booked screen cannot disagree.
+export const paymentSteps = (pkg: Package, price: number | null) =>
+  pkg.milestones
+    .filter((m) => m.kind === "payment" && m.percent_of_contract)
+    .map((m) => ({ key: m.key, name: m.name, pct: m.percent_of_contract!, cents: price == null ? null : Math.round((price * m.percent_of_contract!) / 100) }));
+export const collectsThroughUs = (pkg: Pick<Package, "collected_by">) => pkg.collected_by === "green_bergen";
+export const payeeName = (pkg: Pick<Package, "collected_by">) => (collectsThroughUs(pkg) ? "Green Bergen" : "your contractor");
+export const payeeLine = (pkg: Pick<Package, "collected_by">) =>
+  collectsThroughUs(pkg) ? "Paid to Green Bergen, which pays the contractor." : "Paid to your contractor.";
+// "You pay your contractor in steps: 20% at date set, then 80% at floor coated."
+export function payPlan(pkg: Package, price: number | null): string {
+  const steps = paymentSteps(pkg, price);
+  if (steps.length === 0) return `You pay ${payeeName(pkg)} when the work is done.`;
+  const parts = steps.map((s) => `${s.pct}% at ${s.name.toLowerCase()}`).join(", then ");
+  return `You pay ${payeeName(pkg)} ${steps.length === 1 ? "once" : "in steps"}: ${parts}.`;
+}
+export const payPlanLine = (pkg: Package, price: number | null) => `Nothing today. ${payPlan(pkg, price)}`;
 
 export const depositCents = (pkg: Package, price: number | null) =>
   price != null && pkg.requires_permit && pkg.permit_deposit_pct ? Math.round((price * pkg.permit_deposit_pct) / 100) : null;

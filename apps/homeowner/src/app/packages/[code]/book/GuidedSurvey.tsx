@@ -160,7 +160,7 @@ export function GuidedSurvey({ pkg, sel, onSel, value, onChange, shots, onShot, 
   const missing = group.filter((p) => !shots[p.key]).length;
   return (
     <Screen>
-      <AppBar back={() => go(s.step - 1)} title={pkg.tile_title} sub={`Photos · ${i + 1} of ${groups.length}`} />
+      <AppBar back={() => go(s.step - 1)} title={pkg.tile_title} sub="Your photos" />
       <div className="body">
         <div className="walk-head">
           <h1>Step {i + 2}: {groupTitle(group)}</h1>
@@ -265,6 +265,7 @@ function Viewfinder({ slot, shot, onShot, art }: { slot: PhotoReq; shot: Taken; 
 }
 
 function PairTile({ n, slot, label, shot, onShot }: { n: number; slot: PhotoReq; label: string; shot: Taken; onShot: (f: File | null) => void }) {
+  const cam = useRef<HTMLInputElement>(null);
   const pick = useRef<HTMLInputElement>(null);
   const [head, line] = splitGuide(slot.guide ?? "");
   return (
@@ -281,9 +282,13 @@ function PairTile({ n, slot, label, shot, onShot }: { n: number; slot: PhotoReq;
           <UploadIcon />
         )}
       </button>
+      {/* The camera directly, as on the single viewfinder; the tile itself
+          takes or uploads. A sibling, since a button cannot hold a button. */}
+      <button type="button" className="vf-cam pair-cam" aria-label={`Open the camera: ${slot.label}`} onClick={() => cam.current?.click()}><CameraIcon /></button>
       <strong className="pair-label">{label}</strong>
       <span className="small text-muted">{slot.hint ?? [head, line].filter(Boolean).join(" ")}</span>
       {shot && <button type="button" className="btn btn-ghost" style={{ minHeight: 0, padding: 0, alignSelf: "flex-start" }} onClick={() => onShot(null)}>Remove</button>}
+      <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onShot(f); e.target.value = ""; }} />
       <input ref={pick} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onShot(f); e.target.value = ""; }} />
     </div>
   );

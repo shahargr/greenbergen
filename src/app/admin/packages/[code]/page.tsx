@@ -30,7 +30,7 @@ type Pkg = {
   availability: string; base_price_cents: number | null; config_label: string | null; requires_permit: boolean;
   permit_deposit_pct: number | null; instant_book: boolean; approval_note: string | null; illustration: string | null;
   description: string | null; sort_order: number; is_active: boolean; category: string | null; season_months: number[] | null;
-  photo_url: string | null; promote: boolean;
+  photo_url: string | null; promote: boolean; collected_by?: string | null;
   covered: boolean; trades: PkgTrade[]; trade_choices: string[]; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[]; videos: Video[];
 };
 
@@ -127,6 +127,15 @@ export default async function AdminPackagePage({ params, searchParams }: { param
           <F label="Season months (e.g. 10,11; blank = all year)" span={2}><input className="input" name="season_months" defaultValue={(p.season_months ?? []).join(",")} /></F>
           <F label="Permit deposit %" w="narrow"><input className="input" name="permit_deposit_pct" inputMode="decimal" defaultValue={p.permit_deposit_pct ?? ""} /></F>
           <F label="Approval note" w="wide"><input className="input" name="approval_note" defaultValue={p.approval_note ?? ""} /></F>
+          {/* WHO COLLECTS (migration 240). The homeowner sees the contractor
+              price plus the mark-up either way; this says who they hand each
+              payment milestone to. Frozen onto the job when it is posted. */}
+          <F label="The homeowner pays each milestone to" w="wide">
+            <select className="input" name="collected_by" defaultValue={p.collected_by ?? "contractor"}>
+              <option value="contractor">The contractor - who pays Green Bergen the mark-up for the lead</option>
+              <option value="green_bergen">Green Bergen - which keeps the mark-up and pays the contractor</option>
+            </select>
+          </F>
           {/* THE FRONT DOOR (052). A photograph of the work - a professional
               at it, in a house - shown large on the homeowner landing page
               when this package is promoted. Uploaded from here, shrunk in

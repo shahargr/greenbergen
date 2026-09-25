@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
-import { configLabel, depositCents, encodeSelections, guidedApplies, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { configLabel, encodeSelections, guidedApplies, payPlan, payPlanLine, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars, shortDate } from "@shared/format";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Card, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@shared/ui";
@@ -140,7 +140,6 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
   const [ev, setEv] = useState<EvAnswers>(restored?.ev ?? { ...EV_DEFAULTS, feet: feetFor(initialSel[DISTANCE_LEVER]) });
   const [way, setWay] = useState<Way>(restored?.way ?? (initialMode === "plan" ? "diy" : "turnkey"));
   const price = priceFor(pkg, selections);
-  const deposit = depositCents(pkg, price);
   const hasHomes = homes.length > 0;
   const knownHouse = told(knownFacts);
   // Resumed with homes on file: a member came back through Google, so the
@@ -508,7 +507,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
             {result.instant_book ? (
               <ul className="scope">
                 <li><span className="ic"><CheckIcon size={18} /></span><span><strong>First to take it gets it, at this price.</strong><br /><span className="text-muted">No deadline and no auction. Your price is held for a week — if it&apos;s still waiting, we re-check and tell you if it moved.</span></span></li>
-                <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Nothing charged today.</strong><br /><span className="text-muted">{pkg.requires_permit ? `${pkg.permit_deposit_pct}% is due at the permit meeting, paid to your contractor.` : "You pay your contractor when the work is done."}</span></span></li>
+                <li><span className="ic"><CheckIcon size={18} /></span><span><strong>Nothing charged today.</strong><br /><span className="text-muted">{payPlan(pkg, result.price_cents)}</span></span></li>
               </ul>
             ) : (
               <div className="kv-rows">
@@ -774,7 +773,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
           <button className={`btn btn-primary btn-block  ${busy ? "busy" : ""}`} disabled={!!busy} onClick={() => proceed("book")}>
             {busy ? <><span className="spin" /> {busy}</> : mode === "post" ? `Post it at ${dollars(price)}` : pkg.instant_book ? `Book at ${dollars(price)}` : `Request at ${dollars(price)}`}
           </button>
-          {!busy && <p className="tiny text-muted center" style={{ margin: 0 }}>{pkg.requires_permit ? `Nothing today. ${dollars(deposit)} at the permit meeting, to the contractor.` : "Nothing today. You pay the contractor when it's done."}</p>}
+          {!busy && <p className="tiny text-muted center" style={{ margin: 0 }}>{payPlanLine(pkg, price)}</p>}
         </div>
       </div>
     </Screen>

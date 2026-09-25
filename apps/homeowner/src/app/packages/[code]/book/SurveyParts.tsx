@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { basePrice, marked, configLabel, deltaNotes, isHardware, priceFor, type Lever, type LeverOption, type Package, type Selections } from "@shared/catalogue";
+import { basePrice, marked, configLabel, deltaNotes, isHardware, payeeLine, paymentSteps, priceFor, type Lever, type LeverOption, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { PriceBlock } from "@shared/PriceBlock";
 import { AppBar, Card, CheckIcon, Screen, StepKicker } from "@shared/ui";
@@ -76,7 +76,7 @@ export function ProposalView({ pkg, sel, setup, children, notice, onBack, onEdit
 }) {
   const price = priceFor(pkg, sel);
   const deltas = deltaNotes(pkg, sel);
-  const payments = pkg.milestones.filter((m) => m.kind === "payment" && m.percent_of_contract);
+  const payments = paymentSteps(pkg, price);
 
   return (
     <Screen>
@@ -155,12 +155,12 @@ export function ProposalView({ pkg, sel, setup, children, notice, onBack, onEdit
               <div><span className="k">Today</span><span>Nothing</span></div>
               {payments.map((m) => (
                 <div key={m.key}>
-                  <span className="k">{m.name} · {m.percent_of_contract}%</span>
-                  <span className="mono">{dollars(Math.round((price * m.percent_of_contract!) / 100))}</span>
+                  <span className="k">{m.name} · {m.pct}%</span>
+                  <span className="mono">{dollars(m.cents)}</span>
                 </div>
               ))}
             </div>
-            <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>Paid to your contractor, not to us.</p>
+            <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>{payeeLine(pkg)}</p>
           </Card>
         )}
 
