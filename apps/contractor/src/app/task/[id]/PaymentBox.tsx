@@ -125,8 +125,14 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
   // one sits on top says which way the money went.
   const mine = (
     <label className="field" style={{ marginBottom: 0 }}>
+      {/* SOURCE AND DESTINATION, not From and To (Shahar, 2026-09-22). Same
+          two slots, same rule: one end is always your account and the other
+          always theirs, and which one is the source says which way the money
+          went. "From/To" read as a pair of adjacent boxes; source and
+          destination read as the two ends of a movement, which is what they
+          are. */}
       <span className="field-label">
-        {credit ? "To — your account" : "From — your account"}
+        {credit ? "Destination — your account" : "Source — your account"}
       </span>
       {/* THE NAME OF THIS FIELD IS THE DIRECTION. Your account is the source
           when you paid and the destination when they paid you back, so the
@@ -140,7 +146,7 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
   );
   const theirs = (
     <label className="field" style={{ marginBottom: 0 }}>
-      <span className="field-label">{credit ? "From — the other side" : "To — the other side"}</span>
+      <span className="field-label">{credit ? "Source — the other side" : "Destination — the other side"}</span>
       {/* A LIST, NOT A TYPING BOX (Shahar, 2026-09-21: "the name should be a
           drop down, but the trader be listed as default value in the top so
           it is easier to select them").
@@ -230,8 +236,15 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
       </div>
 
       <label className="field">
-        <span className="field-label">Note <span className="text-muted">(optional)</span></span>
-        <input className="input" name="notes" placeholder={credit ? "What was returned, and what it was credited against" : "Anything worth remembering about this purchase"} />
+        {/* DESCRIPTION, AND IT IS REQUIRED (Shahar, 2026-09-22). As an
+            optional "Note" it was blank on most payments, which is how a
+            ledger becomes a column of amounts with nothing to tell one
+            $480 cheque from another six months later. One line about what
+            the money bought costs seconds now and answers the question
+            every time it is asked afterwards. */}
+        <span className="field-label">Description <span className="req">required</span></span>
+        <input className="input" name="notes" required={started}
+          placeholder={credit ? "What was returned, and what it was credited against" : "What this bought — the materials, the stage of work, the invoice"} />
       </label>
 
       {/* The receipt, the order confirmation, a photo of the thing. It is

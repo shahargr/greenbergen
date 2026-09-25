@@ -29,6 +29,11 @@ type Props = {
   /** The address ALONE, when there is one and it is this person's to see -
       what a map application can be handed. */
   address: string | null;
+  /** The package's process, and how many of its steps are still to do
+      (migration 233). A job taken from a package has an order to it, and
+      that order is the first thing you want, not the fifth. */
+  stepsHref: string | null;
+  stepsLeft: number;
   visitHref: string | null;
   visitsToday: number;
   /** The tidy-up process (migration 173), and how many tasks wait in it. */
@@ -55,6 +60,8 @@ const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWi
 const Pin = () => <svg {...g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" /></svg>;
 // The tidy-up: a sparkle, the sign every phone uses for "let it sort this".
 const Sparkle = () => <svg {...g}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" /></svg>;
+// The process: a list with its place marked. Steps, in order, one of them now.
+const Steps = () => <svg {...g}><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="12" r="1.8" fill="currentColor" stroke="none" /><path d="M4.5 4.5v4M4.5 15.5v4" /></svg>;
 const Plus = () => <svg {...g}><path d="M12 5v14M5 12h14" /></svg>;
 const Dollar = () => <svg {...g}><path d="M12 3v18M16.5 7.5a3.5 3.5 0 0 0-3.5-2h-2a3 3 0 0 0 0 6h2a3 3 0 0 1 0 6h-2a3.5 3.5 0 0 1-3.5-2" /></svg>;
 // The library: a folder, because that is what it is.
@@ -62,7 +69,7 @@ const FolderGlyph = () => <svg {...g}><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 
 // The budget: rising bars, money against a plan.
 const Bars = () => <svg {...g}><path d="M4 21V13M10 21V8M16 21V11M22 21H2" /></svg>;
 
-export function QuickActions({ standing, where, address, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, libraryHref, financeHref }: Props) {
+export function QuickActions({ standing, where, address, stepsHref, stepsLeft, visitHref, visitsToday, tidyHref, tidyCount, addTaskHref, payHref, libraryHref, financeHref }: Props) {
   return (
     <section className="qa">
       <div className="qa-head">
@@ -74,6 +81,16 @@ export function QuickActions({ standing, where, address, visitHref, visitsToday,
           : <span className="where">{where}</span>)}
       </div>
       <div className="qa-grid">
+        {/* STEP BY STEP, FIRST. Shahar (2026-09-22) walking the DIY
+            generator: "for all this we need step by step ui." On a job taken
+            from a package the order IS the job, so it leads - a seventh tile
+            on package jobs only (Shahar, 2026-09-25). */}
+        {stepsHref && (
+          <Link href={stepsHref} className="qa-btn">
+            <Steps /><span>Step by step</span>
+            {stepsLeft > 0 && <span className="n">{stepsLeft}</span>}
+          </Link>
+        )}
         {visitHref && (
           <Link href={visitHref} className="qa-btn">
             <Pin /><span>Site visit</span>
