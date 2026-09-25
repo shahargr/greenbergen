@@ -16,9 +16,9 @@ type StoreLink = { label: string; url: string };
 type Item = { id: string; label: string; detail: string | null; kind: string; sort_order: number; links: StoreLink[] };
 const ITEM_KINDS: [string, string][] = [["work", "Work"], ["assurance", "Assurance"], ["hardware", "Hardware (you buy)"]];
 const storeUrl = (links: StoreLink[] | null | undefined, label: string) => links?.find((l) => l.label === label)?.url ?? "";
-type Option = { id: string; key: string; label: string; chip: string | null; price_delta_cents: number; is_default: boolean; sort_order: number };
-type Lever = { id: string; key: string; label: string; control: string; question: string | null; sort_order: number; options: Option[] };
-type Photo = { id: string; key: string; label: string; hint: string | null; sort_order: number };
+type Option = { id: string; key: string; label: string; chip: string | null; price_delta_cents: number; is_default: boolean; sort_order: number; upto?: number | null };
+type Lever = { id: string; key: string; label: string; control: string; question: string | null; sort_order: number; unit?: string | null; options: Option[] };
+type Photo = { id: string; key: string; label: string; hint: string | null; sort_order: number; step?: number | null; guide?: string | null; example_url?: string | null };
 type Milestone = {
   id: string; key: string; kind: string; name: string; sequence_no: number; percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null;
   // Payment terms (migration 242): a fixed amount instead of a percent, and when it falls due.
@@ -34,7 +34,7 @@ type Pkg = {
   availability: string; base_price_cents: number | null; config_label: string | null; requires_permit: boolean;
   permit_deposit_pct: number | null; instant_book: boolean; approval_note: string | null; illustration: string | null;
   description: string | null; sort_order: number; is_active: boolean; category: string | null; season_months: number[] | null;
-  photo_url: string | null; promote: boolean; collected_by?: string | null;
+  photo_url: string | null; promote: boolean; collected_by?: string | null; guided_photos?: boolean; needs_gas_survey?: boolean;
   covered: boolean; trades: PkgTrade[]; trade_choices: string[]; items: Item[]; levers: Lever[]; photos: Photo[]; milestones: Milestone[]; contractors: Server[]; videos: Video[];
 };
 
@@ -42,6 +42,8 @@ const dollars = (c: number | null | undefined) => (c == null ? "" : (c / 100).to
 const signed = (c: number) => (c === 0 ? "included" : `${c > 0 ? "+" : "−"}$${(Math.abs(c) / 100).toLocaleString("en-US")}`);
 const AVAIL = [["priced", "Priced - bookable at the community price"], ["quote", "Quote - a person looks first"], ["custom", "Custom - describe it"], ["coming_soon", "Coming soon - not bookable"]];
 const M_KINDS = ["booked", "accepted", "payment", "task", "done"];
+type DiyRow = { id: string; phase: string; step: string; detail: string | null; needs_pro: boolean; is_gate: boolean; sort_order: number; is_active: boolean };
+const DIY_PHASE_CHOICES: [string, string][] = [["prepare", "Before you start"], ["gather", "What you need"], ["work", "The work"], ["finish", "Finish and check"]];
 
 // Module-level, not created in render (the lint is right: a component made
 // inside a component remounts every time).
@@ -81,12 +83,16 @@ export default async function AdminPackagePage({ params, searchParams }: { param
   const { code } = await params;
   const { error, saved } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data }, { data: trades }, { data: cats }] = await Promise.all([
+  const [{ data: me }, { data }, { data: trades }, { data: cats }, { data: diyRows }] = await Promise.all([
     supabase.rpc("me"),
     supabase.rpc("admin_package", { p_code: code }),
     supabase.from("trades").select("trade").order("sort_order"),
     supabase.from("blueprint_package_categories").select("key, label").order("sort_order"),
+    // The DIY list (migration 241), read straight from its table: everyone
+    // may read it, and admin_package stays the size it is.
+    supabase.from("blueprint_package_diy_steps").select("id, phase, step, detail, needs_pro, is_gate, sort_order, is_active").eq("package_code", code).order("sort_order"),
   ]);
+  const diy = (diyRows ?? []) as DiyRow[];
   if (!me?.is_superadmin) {
     return <main className="wrap" style={{ paddingTop: 48, maxWidth: 560 }}><h1>Packages</h1><p className="muted">This area is for administrators.</p></main>;
   }
@@ -149,6 +155,11 @@ export default async function AdminPackagePage({ params, searchParams }: { param
             <label className="small"><input type="checkbox" name="promote" defaultChecked={p.promote} /> Feature on the landing page</label>
             <label className="small"><input type="checkbox" name="requires_permit" defaultChecked={p.requires_permit} /> Needs a permit</label>
             <label className="small"><input type="checkbox" name="instant_book" defaultChecked={p.instant_book} /> Instant book</label>
+            {/* How the booking opens (migrations 235, 236): the gas survey,
+                or the photos one camera screen at a time (the photo slots'
+                Step column below decides the screens). */}
+            <label className="small"><input type="checkbox" name="guided_photos" defaultChecked={!!p.guided_photos} /> Guided photos</label>
+            <label className="small"><input type="checkbox" name="needs_gas_survey" defaultChecked={!!p.needs_gas_survey} /> Gas survey first</label>
             <label className="small"><input type="checkbox" name="is_active" defaultChecked={p.is_active} /> Active (off retires it everywhere)</label>
             <button className="btn" style={{ marginLeft: "auto" }}>Save the package</button>
           </div>
@@ -198,6 +209,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
                 <F label="Label" span={2}><input className="input" name={n("label", lv.id)} defaultValue={lv.label} required /></F>
                 <F label="The question the homeowner is asked" span={5}><input className="input" name={n("question", lv.id)} defaultValue={lv.question ?? ""} /></F>
                 <F label="Control"><select className="input" name={n("control", lv.id)} defaultValue={lv.control}><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
+                <F label="Unit (ft, sqft)"><input className="input" name={n("unit", lv.id)} defaultValue={lv.unit ?? ""} pattern="[a-z]{0,8}" /></F>
                 <F label="Order"><input className="input" name={n("sort_order", lv.id)} inputMode="numeric" defaultValue={lv.sort_order} /></F>
                 <div className="pk-acts"><Del id={lv.id} title="Remove the lever and its options" /></div>
               </div>
@@ -210,6 +222,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
                     <F label="Answer" span={3}><input className="input" name={n("label", k)} defaultValue={o?.label ?? ""} placeholder={o ? undefined : "Underground piping"} required={!!o} /></F>
                     <F label="Chip (short)" span={2}><input className="input" name={n("chip", k)} defaultValue={o?.chip ?? ""} /></F>
                     <F label={o ? `Price change ($) · ${signed(o.price_delta_cents)}` : "Price change ($, negative for a saving)"} span={2}><input className="input" name={n("price_delta", k)} inputMode="decimal" defaultValue={o ? dollars(o.price_delta_cents) : ""} placeholder={o ? undefined : "850"} /></F>
+                    {lv.unit && <F label={`Up to (${lv.unit}; blank = open end)`}><input className="input" name={n("upto", k)} inputMode="decimal" defaultValue={o?.upto ?? ""} /></F>}
                     <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={o?.sort_order ?? (lv.options.at(-1)?.sort_order ?? 0) + 10} /></F>
                     <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_default", k)} defaultChecked={o?.is_default ?? false} /> default</label>
                     {o && <div className="pk-acts"><Del id={o.id} /></div>}
@@ -224,6 +237,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
             <F label="Label" span={2}><input className="input" name={n("label", "new")} placeholder="Gas piping" /></F>
             <F label="Question" span={5}><input className="input" name={n("question", "new")} placeholder="Above ground along the wall, or buried?" /></F>
             <F label="Control"><select className="input" name={n("control", "new")} defaultValue="seg"><option value="seg">Segment</option><option value="radio">Radio</option></select></F>
+            <F label="Unit (ft, sqft)"><input className="input" name={n("unit", "new")} pattern="[a-z]{0,8}" /></F>
             <F label="Order"><input className="input" name={n("sort_order", "new")} inputMode="numeric" defaultValue={(p.levers.at(-1)?.sort_order ?? 0) + 10} /></F>
           </div>
           <SaveBar>Save all levers and answers</SaveBar>
@@ -233,7 +247,7 @@ export default async function AdminPackagePage({ params, searchParams }: { param
       {/* 4. PHOTOS */}
       <div className="card" id="photo" style={{ marginTop: 14 }}>
         <h2 className="section-title">Photos we ask for</h2>
-        <p className="muted small" style={{ marginTop: 0 }}>What the homeowner photographs so a contractor can confirm the price without a visit.</p>
+        <p className="muted small" style={{ marginTop: 0 }}>What the homeowner photographs so a contractor can confirm the price without a visit. With Guided photos on, each Step is one camera screen (slots sharing a step sit side by side; blank = only on the ordinary photos list), the Guide is the line over the viewfinder - its first sentence is the headline - and the Example is an https picture behind it.</p>
         <form action={saveRows}>
           <Section code={p.code} kind="photo" />
           {[...p.photos.map((ph) => ({ k: ph.id, ph })), { k: "new", ph: null }].map(({ k, ph }) => (
@@ -241,11 +255,45 @@ export default async function AdminPackagePage({ params, searchParams }: { param
               <F label={ph ? "Key" : "New key"} span={2}><input className="input" name={n("key", k)} defaultValue={ph?.key ?? ""} placeholder={ph ? undefined : "meter"} required={!!ph} /></F>
               <F label="Label" span={3}><input className="input" name={n("label", k)} defaultValue={ph?.label ?? ""} placeholder={ph ? undefined : "Gas meter"} required={!!ph} /></F>
               <F label="Hint" span={5}><input className="input" name={n("hint", k)} defaultValue={ph?.hint ?? ""} /></F>
+              <F label="Step" w="narrow"><input className="input" name={n("step", k)} inputMode="numeric" defaultValue={ph?.step ?? ""} /></F>
+              <F label="Guide (viewfinder line)" span={3}><input className="input" name={n("guide", k)} maxLength={120} defaultValue={ph?.guide ?? ""} placeholder="Step back 15 ft. Capture the entire opening." /></F>
+              <F label="Example picture (https)" span={2}><input className="input" name={n("example_url", k)} defaultValue={ph?.example_url ?? ""} /></F>
               <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={ph?.sort_order ?? (p.photos.at(-1)?.sort_order ?? 0) + 10} /></F>
               {ph && <div className="pk-acts"><Del id={ph.id} /></div>}
             </div>
           ))}
           <SaveBar>Save all photo slots</SaveBar>
+        </form>
+      </div>
+
+      {/* 4b. THE DIY LIST (migration 241). What a homeowner who does the job
+          themselves reads and ticks - not the scope above, which is the
+          contractor's. Public at /home/packages/<code>/diy. */}
+      <div className="card" id="diy" style={{ marginTop: 14 }}>
+        <h2 className="section-title">The DIY list</h2>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          The how-to for doing this job yourself, in four phases. &ldquo;Pro&rdquo; marks a step we recommend a licensed professional does;
+          &ldquo;Gate&rdquo; marks one nothing after it should start before. A DIY plan&apos;s checklist is built from these rows when it is made; editing them changes new plans, not ticked ones.
+        </p>
+        <form action={saveRows}>
+          <Section code={p.code} kind="diy" />
+          {[...diy.map((d) => ({ k: d.id, d })), { k: "new", d: null }].map(({ k, d }) => (
+            <div key={k} className="pk-row">
+              <F label="Phase" span={2}>
+                <select className="input" name={n("phase", k)} defaultValue={d?.phase ?? "work"}>
+                  {DIY_PHASE_CHOICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </F>
+              <F label={d ? "Step" : "New step"} span={3}><input className="input" name={n("step", k)} defaultValue={d?.step ?? ""} required={!!d} /></F>
+              <F label="Detail" span={5}><textarea className="input" rows={2} name={n("detail", k)} defaultValue={d?.detail ?? ""} /></F>
+              <F label="Order"><input className="input" name={n("sort_order", k)} inputMode="numeric" defaultValue={d?.sort_order ?? (diy.at(-1)?.sort_order ?? 0) + 10} /></F>
+              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("needs_pro", k)} defaultChecked={d?.needs_pro ?? false} /> pro</label>
+              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_gate", k)} defaultChecked={d?.is_gate ?? false} /> gate</label>
+              <label className="small" style={{ paddingBottom: 8 }}><input type="checkbox" name={n("is_active", k)} defaultChecked={d?.is_active ?? true} /> on</label>
+              {d && <div className="pk-acts"><Del id={d.id} /></div>}
+            </div>
+          ))}
+          <SaveBar>Save the DIY list</SaveBar>
         </form>
       </div>
 

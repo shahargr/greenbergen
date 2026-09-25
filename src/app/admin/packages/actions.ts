@@ -57,6 +57,9 @@ export async function savePackage(formData: FormData) {
     // Who the homeowner pays each milestone to (migration 240). Blank (the
     // new-package form) leaves the database default, the contractor.
     collected_by: s(formData, "collected_by"),
+    // How the booking opens (migrations 235, 236). Only this form carries
+    // them; the new-package form leaves both off.
+    ...(formData.has("code") && !isNew ? { guided_photos: b(formData, "guided_photos"), needs_gas_survey: b(formData, "needs_gas_survey") } : {}),
   };
   const { data, error } = await supabase.rpc("admin_package_save", { p_code: code, p_patch: patch });
   if (error || data?.ok === false) {
@@ -80,10 +83,11 @@ const blank = (kind: string, r: Row) => {
     case "item": return !r.label;
     case "milestone": return !r.key && !r.name;
     case "video": return !r.url && !r.label;
+    case "diy": return !r.step;
     default: return !r.key && !r.label; // lever, option, photo
   }
 };
-const title = (r: Row, key: string) => r.label || r.name || r.key || (isNew(key) ? "the new row" : key.slice(0, 8));
+const title = (r: Row, key: string) => r.label || r.name || r.key || r.step || (isNew(key) ? "the new row" : key.slice(0, 8));
 
 export async function saveRows(formData: FormData) {
   const supabase = await admin();
@@ -121,9 +125,14 @@ export async function saveRows(formData: FormData) {
       amount_cents: fixed, due_days: r.due_days ?? "", due_from: r.due_from ?? "",
       trigger_description: r.trigger_description ?? "",
       url: r.url ?? "", is_active: r.is_active ? "true" : "false",
+      // A DIY list step (migration 241).
+      step: r.step ?? "", phase: r.phase ?? "", needs_pro: r.needs_pro ? "true" : "false", is_gate: r.is_gate ? "true" : "false",
       links: JSON.stringify(
         ([["Home Depot", r.link_home_depot ?? ""], ["Lowe's", r.link_lowes ?? ""]] as [string, string][])
           .filter(([, url]) => url).map(([label, url]) => ({ label, url }))),
+      // Sent only when the form has the field, so a row whose form does not
+      // show it keeps what it has (migration 241).
+      ...Object.fromEntries((["unit", "upto", "step", "guide", "example_url"] as const).filter((f) => r[f] !== undefined).map((f) => [f, r[f]!])),
     };
     const { data, error } = await supabase.rpc("admin_package_row_save", {
       p_kind: rowKind, p_id: isNew(key) ? null : key, p_parent: r.parent || code, p_patch: patch,
