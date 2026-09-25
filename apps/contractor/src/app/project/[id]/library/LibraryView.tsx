@@ -24,7 +24,7 @@ export type Folder = {
 
 const ICON: Record<string, string> = { photo: "🖼", video: "🎬", audio: "🎙", document: "📄", other: "📎" };
 const VIA: Record<string, string> = {
-  filed: "filed here", trade: "by trade", contract: "on a contract", proposal: "on a proposal", loose: "",
+  filed: "", trade: "by trade", contract: "on a contract", proposal: "on a proposal", loose: "",
 };
 
 const sz = (n: number | null) => {
@@ -44,6 +44,7 @@ const freshPath = (projectId: string, name: string) => {
 const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8,
   strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true, width: 16, height: 16 };
 const FolderGlyph = () => <svg {...g}><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>;
+const TrashGlyph = () => <svg {...g}><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>;
 
 export function LibraryView({ projectId, folders, loose, trades, urls }: {
   projectId: string;
@@ -95,6 +96,20 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
     const supabase = createClient();
     const { data, error } = await supabase.rpc("portal_library_file", { p_file: fileId, p_folder: folderId, p_unfile: unfile });
     if (error || data?.ok === false) { setErr(data?.reason ?? friendly(error?.message ?? "That did not save.")); return; }
+    start(() => router.refresh());
+  }
+
+  // Delete for good (Shahar, 2026-09-25): the row and its links go in one
+  // call (portal_project_file_delete), then the bytes - same as the portal's
+  // scope files. Unfile stays the gentle option beside it.
+  async function deleteFile(f: LibFile) {
+    if (!window.confirm(`Delete ${f.file_name ?? "this file"} for good? It also comes off anything it is attached to, and cannot be undone.`)) return;
+    setErr("");
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_project_file_delete", { p_file_id: f.id });
+    if (error) { setErr(friendly(error.message)); return; }
+    const gone = data as { bucket: string | null; path: string | null } | null;
+    if (gone?.bucket && gone.path) await supabase.storage.from(gone.bucket).remove([gone.path]);
     start(() => router.refresh());
   }
 
@@ -162,6 +177,13 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
             <option value="" disabled>File into…</option>
             {folders.filter((fo) => !fo.auto).map((fo) => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
           </select>
+        )}
+        {(!inFolder || f.via === "filed") && (
+          <button type="button" className="btn btn-ghost small" title="Delete" aria-label={`Delete ${f.file_name ?? "this file"}`}
+            style={{ color: "var(--color-danger)", padding: "4px 6px", alignSelf: "center" }}
+            onClick={() => void deleteFile(f)}>
+            <TrashGlyph />
+          </button>
         )}
       </div>
     );
