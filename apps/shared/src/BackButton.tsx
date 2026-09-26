@@ -38,7 +38,10 @@ export function BackButton({ fallback }: { fallback: string }) {
     let floor = NaN;
     try { floor = Number(sessionStorage.getItem(KEY)); } catch { /* storage blocked */ }
     if (Number.isFinite(floor) && floor > 0 && window.history.length > floor) router.back();
-    else router.push(fallback);
+    // REPLACE, NOT PUSH. A pushed fallback leaves this page behind it, and
+    // the fallback's own arrow - history first - walks straight back here:
+    // two screens pointing at each other with no way out (2026-09-26).
+    else router.replace(fallback);
   };
   return (
     <button type="button" onClick={go} className="btn btn-ghost btn-icon" aria-label="Back">

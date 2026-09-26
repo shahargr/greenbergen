@@ -38,7 +38,11 @@ async function Decide() {
   const place = door
     ? await supabase.rpc("my_last_place", { p_door: doorForDb(door) })
     : null;
-  const back = place && !place.error ? (place.data as string | null) : null;
+  const stored = place && !place.error ? (place.data as string | null) : null;
+  // NEVER BACK INTO A PURCHASE FUNNEL. RememberPlace no longer stamps the
+  // booking wizard, but a stamp written before it stopped still would, and
+  // the wizard cannot resume from a path anyway (its steps live in memory).
+  const back = stored && !/^(\/home)?\/packages\/[^/]+\/(book|take)(\/|$)/.test(stored) ? stored : null;
   return <GoTo href={back ?? landing(doors)} />;
 }
 

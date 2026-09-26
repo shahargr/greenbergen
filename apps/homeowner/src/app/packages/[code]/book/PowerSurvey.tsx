@@ -117,7 +117,7 @@ export function PowerSurvey({
   value: SurveyState; onChange: (s: SurveyState) => void;
   plates: Record<string, Plate[]>; onPlates: (kind: string, files: Plate[]) => void;
   context: Plate | null; onContext: (file: File | null) => void;
-  back: string; onDone: (a: Approach) => void;
+  back: { fallback: string }; onDone: (a: Approach) => void;
 }) {
   const s = value;
   const set = (patch: Partial<SurveyState>) => onChange({ ...s, ...patch });

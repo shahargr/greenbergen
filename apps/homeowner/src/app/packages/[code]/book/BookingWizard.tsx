@@ -181,7 +181,13 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
   // What an EV booking records beyond the levers (lib/ev.ts).
   const distanceLabel = pkg.levers.find((l) => l.key === DISTANCE_LEVER)?.options.find((o) => o.key === selections[DISTANCE_LEVER])?.label ?? null;
   const evNote = isEv ? { ev: evFacts(ev, distanceLabel) } : {};
-  const entryBack = surveyed ? () => setStep(mode === "plan" && !guided ? "survey" : "proposal") : `/packages/${pkg.code}`;
+  // THE WAY OUT GOES BACK, IT DOES NOT GO FORWARD. The package page's own
+  // arrow walks history (BackButton), so a plain link out of here pushed the
+  // package page on top of this one and its arrow walked straight back in:
+  // package -> book -> package -> book, with no exit (Shahar, 2026-09-26:
+  // "the system force me to stay in the generator purchase funnel"). The
+  // survey's first screen and the first booking step leave the same way.
+  const entryBack = surveyed ? () => setStep(mode === "plan" && !guided ? "survey" : "proposal") : { fallback: `/packages/${pkg.code}` };
 
   // ---- which home --------------------------------------------------------
   function chooseHome(e: React.FormEvent) {
@@ -381,7 +387,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
         plates={plates} onPlates={(k, p) => setPlates((all) => ({ ...all, [k]: p }))}
         context={shots[CONTEXT_SLOT] ?? null}
         onContext={(f) => { if (f) take(CONTEXT_SLOT, f); else drop(CONTEXT_SLOT); }}
-        back={`/packages/${pkg.code}?sel=${encodeURIComponent(encodeSelections(selections))}`}
+        back={{ fallback: `/packages/${pkg.code}?sel=${encodeURIComponent(encodeSelections(selections))}` }}
         onDone={(a: Approach) => {
           setErr("");
           if (a === "turnkey") { setMode("book"); setStep("proposal"); }
@@ -397,7 +403,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
       <GuidedSurvey
         pkg={pkg} sel={selections} onSel={setSelections} value={walk} onChange={setWalk}
         shots={shots} onShot={(k, f) => { if (f) { take(k, f); return; } drop(k); }}
-        back={`/packages/${pkg.code}?sel=${encodeURIComponent(encodeSelections(selections))}`}
+        back={{ fallback: `/packages/${pkg.code}?sel=${encodeURIComponent(encodeSelections(selections))}` }}
         onDone={() => { setErr(""); setMode("book"); setStep("proposal"); window.scrollTo(0, 0); }}
       />
     );

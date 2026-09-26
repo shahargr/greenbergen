@@ -80,7 +80,7 @@ export function GuidedSurvey({ pkg, sel, onSel, value, onChange, shots, onShot, 
   pkg: Package; sel: Selections; onSel: (s: Selections) => void;
   value: WalkState; onChange: (s: WalkState) => void;
   shots: Record<string, Taken>; onShot: (key: string, file: File | null) => void;
-  back: string; onDone: () => void;
+  back: { fallback: string }; onDone: () => void;
 }) {
   const s = value;
   const set = (patch: Partial<WalkState>) => onChange({ ...s, ...patch });

@@ -39,6 +39,12 @@ export function RememberPlace({ door }: { door: "homeowner" | "expert" | "portal
     // person straight back out again, and /after-login returning itself is a
     // loop with no exit.
     if (/^(\/home|\/pro|\/build)?\/(login|join|welcome|auth|after-login)(\/|$)/.test(path)) return;
+    // Nor a purchase funnel. The booking wizard keeps its steps in memory,
+    // so resuming it lands on its first screen with nothing filled in - and
+    // every sign-in then opened the generator survey instead of home, even
+    // after a sign-out (Shahar, 2026-09-26). The page before it stays the
+    // stamp: the package, or wherever they were.
+    if (/^(\/home)?\/packages\/[^/]+\/(book|take)(\/|$)/.test(path)) return;
 
     last.current = path;
     // A uuid anywhere in the path means the page belongs to a project, which
