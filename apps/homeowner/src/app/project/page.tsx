@@ -7,6 +7,7 @@ import { Scene, SceneMore } from "@/components/Scene";
 import { BobSearch } from "@/components/BobSearch";
 import { rowsFor } from "@/components/ProjectRows";
 import { stopwatch } from "@shared/perf";
+import { pricedAll } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Green Bergen" };
@@ -38,12 +39,13 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // The catalogue is template data behind a shared cache and it is read with
   // the ANON key, so it answers for a visitor with no session exactly as it
   // does for a member. That is what lets this screen render signed out.
-  const [me, { tiles }, settings] = await Promise.all([
+  const [me, { tiles: rawTiles }, settings] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("tiles", () => loadTiles()),
     w.step("settings", () => loadPublicSettings()),
   ]);
   w.done();
+  const tiles = await pricedAll(rawTiles);
 
   // NO REDIRECT ANY MORE. Shahar (2026-09-19): "if i am not logged in, so a
   // call to action to log in after the promoted ones." This screen used to

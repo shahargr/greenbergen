@@ -1,6 +1,7 @@
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { timed } from "@shared/perf";
+import type { DiyPhase } from "@shared/catalogue";
 
 // THE DIY CHECKLIST (migrations 195b, 196).
 //
@@ -15,6 +16,10 @@ export type ChecklistItem = {
   notes: string | null;
   asks: string | null;
   is_gate: boolean;
+  // From the DIY list step the task was made from (migration 241); null on
+  // a checklist built from the scope before the lists existed.
+  phase: DiyPhase | null;
+  needs_pro: boolean;
   done: boolean;
 };
 

@@ -44,6 +44,13 @@ type Line = {
   evidence: unknown[];
 };
 
+// Only the counts off portal_gas_survey - the rows and their photographs are
+// the survey screen's business, not the wizard's.
+type GasSummary = {
+  asked: boolean; of: number; answered: number;
+  total_btuh: number; total_is_partial: boolean;
+};
+
 export default async function ScopePage({
   params, searchParams,
 }: {
@@ -55,7 +62,7 @@ export default async function ScopePage({
 
   const w = stopwatch("/project/[id]/scope");
   const supabase = await createClient();
-  const [board, { data: tradeData }, { data: candData }, { data: lineData }, { data: mayEdit }] = await Promise.all([
+  const [board, { data: tradeData }, { data: candData }, { data: lineData }, { data: mayEdit }, { data: gasData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("trades", () => rpc<TradeRow[]>(supabase, "portal_scope_trades", { p_project: id })),
     w.step("candidates", () => rpc<Candidate[]>(supabase, "portal_scope_candidates", { p_project: id })),
@@ -67,6 +74,8 @@ export default async function ScopePage({
     // Matching it against owner/manager/collaborator hides the controls from
     // the very people who may use them.
     w.step("mayEdit", () => rpc<boolean>(supabase, "can_edit_project", { p_project_id: id })),
+    // Counts only - the survey's own screen pays for the photographs.
+    w.step("gas", () => rpc<GasSummary>(supabase, "portal_gas_survey", { p_project: id })),
   ]);
   w.done();
   if (!board.signed_in) redirect(`/login?next=${encodeURIComponent(`/project/${id}/scope`)}`);
@@ -78,6 +87,7 @@ export default async function ScopePage({
   const trades = tradeData ?? [];
   const candidates = candData ?? [];
   const lines = lineData ?? [];
+  const gas = gasData ?? null;
 
   const chosen = trades.filter((t) => t.chosen);
   const scoped = chosen.filter((t) => t.scope_lines > 0);
@@ -377,6 +387,35 @@ export default async function ScopePage({
               </form>
             </Card>
           </section>
+        )}
+
+        {/* WHAT THE HOUSE ALREADY BURNS, on a gas job and nowhere else.
+            Shahar (2026-09-21): "where the scope of the project is defined,
+            the user should be asked to upload info on existing gas devices."
+
+            It sits ABOVE evidence rather than below it because on a generator
+            job it is not proof of work done - it is the input the plumber and
+            the electrician are both blocked on, and the number the meter
+            question turns on. Unanswered, it says so in red. Which jobs ask
+            at all is blueprint_packages.needs_gas_survey (migration 230), not
+            a rule kept in here. */}
+        {gas?.asked && (
+          <Link href={`/project/${id}/scope/gas`} className="home-row">
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="t">What the house burns</span>
+              <span className="m" style={{ display: "block" }}>
+                {gas.answered === 0
+                  ? `Not started — ${gas.of} gas appliances to go through, with a photo of each plate`
+                  : gas.answered < gas.of
+                    ? `${gas.answered} of ${gas.of} answered · the total so far is short`
+                    : gas.total_is_partial
+                      ? `All ${gas.of} answered, but some are missing a rating`
+                      : `All ${gas.of} answered · ${Math.round(gas.total_btuh).toLocaleString("en-US")} BTU/hr`}
+              </span>
+            </span>
+            {gas.answered < gas.of && <span className="tag tag-danger">{gas.of - gas.answered}</span>}
+            <ChevronIcon />
+          </Link>
         )}
 
         {/* Evidence lives on its own screen - a signed URL per file is not a

@@ -36,7 +36,12 @@ export type MilestoneKind = "booked" | "accepted" | "payment" | "task" | "done";
 export type MilestoneTpl = {
   key: string; kind: MilestoneKind; name: string; sequence_no: number;
   percent_of_contract: number | null; typical_range: string | null; trigger_description: string | null;
+  // PAYMENT TERMS (migration 242): an installment is a percent OR a fixed
+  // amount (contractor-price cents, marked up like every price), due
+  // due_days after due_from. Optional: the static fallback predates them.
+  amount_cents?: number | null; due_days?: number; due_from?: DueFrom;
 };
+export type DueFrom = "milestone" | "accepted" | "posted";
 export type Package = {
   code: string; name: string; tile_title: string; tile_line2: string | null; trade: string | null;
   tile_group: "front" | "more"; availability: Availability; base_price_cents: number | null;
@@ -58,6 +63,16 @@ export type Package = {
   gas_kinds?: GasKind[] | null;
   // The booking walks the photos one camera screen at a time (migration 236).
   guided_photos?: boolean;
+  // The VIEWER's mark-up on top of the contractor price (migration 237),
+  // attached per request by the homeowner app - never by the shared cached
+  // read, which is the same for everyone. Unset reads as no mark-up, so the
+  // contractor side keeps seeing contractor prices.
+  markup_pct?: number;
+  // Who the homeowner pays each payment milestone to (migration 240): the
+  // contractor (who owes Green Bergen the mark-up for the lead), or Green
+  // Bergen (which keeps the mark-up and pays the contractor the rest).
+  // Optional: the static fallback predates it, and absent means contractor.
+  collected_by?: "contractor" | "green_bergen" | null;
 };
 // Does the booking ask its own questions before the price? A gas job asks its
 // survey (migration 235), a guided package walks its photos (236). Either way
@@ -99,11 +114,28 @@ export type Tile = Pick<Package, "code" | "tile_title" | "tile_line2" | "tile_gr
   // on every lever. What a "from" line says; computed in the database so a
   // price edit moves every panel at once.
   from_price_cents?: number | null;
+  // The viewer's mark-up, attached per request like Package.markup_pct.
+  markup_pct?: number;
 };
 
 // The number after "from": the floor when the database gives it, the base
 // price on the static fallback, nothing when the package has no price.
-export const fromPrice = (t: Tile): number | null => t.from_price_cents ?? t.base_price_cents ?? null;
+export const fromPrice = (t: Tile): number | null => customerPrice(t.from_price_cents ?? t.base_price_cents ?? null, t.markup_pct);
+
+// A MARK-UP ON TOP OF THE CONTRACTOR PRICE (Shahar, 2026-09-25; migration
+// 237). The package's own numbers - base and lever deltas - are what the
+// contractor is paid. The homeowner is shown that plus their mark-up: one
+// setting for everyone (config.markup_pct, 15 by default), or their user
+// group's override. It is collected as a fee on top (rulebook 52 - we never
+// hold the money). The rounding is homeowner_customer_price()'s, to the cent,
+// on the TOTAL, so the number on the button is the number on the booking.
+export const customerPrice = (cents: number | null, pct: number | null | undefined): number | null =>
+  cents == null ? null : cents + Math.round((cents * (pct ?? 0)) / 100);
+// One component shown on its own - a base, a lever answer's delta. Display
+// only: the price is always the total, marked up once.
+export const marked = (pkg: { markup_pct?: number }, cents: number) => Math.round(cents * (1 + (pkg.markup_pct ?? 0) / 100));
+// Attach the viewer's mark-up to what the shared read returned.
+export const withMarkup = <T extends object>(x: T, pct: number): T & { markup_pct: number } => ({ ...x, markup_pct: pct });
 
 // WHAT THE LANDING PAGE FEATURES. Admin's choice first (promote, in shelf
 // order); when nothing is flagged, the first open front-page tiles, so the
@@ -331,7 +363,12 @@ export type Selections = Record<string, string>;
 export const defaultSelections = (pkg: Package): Selections =>
   Object.fromEntries(pkg.levers.map((l) => [l.key, (l.options.find((o) => o.is_default) ?? l.options[0]!).key]));
 
-export const priceFor = (pkg: Package, sel: Selections) => {
+// What the homeowner pays for this configuration: the contractor price
+// (homeowner_price) plus the viewer's mark-up.
+export const priceFor = (pkg: Package, sel: Selections) => customerPrice(contractorPriceFor(pkg, sel), pkg.markup_pct);
+// The basic setup's price, as the homeowner sees it.
+export const basePrice = (pkg: Package) => customerPrice(pkg.base_price_cents, pkg.markup_pct);
+export const contractorPriceFor = (pkg: Package, sel: Selections) => {
   if (pkg.base_price_cents == null) return null;
   let total = pkg.base_price_cents;
   for (const lever of pkg.levers) {
@@ -356,7 +393,59 @@ export const deltaNotes = (pkg: Package, sel: Selections) =>
   pkg.levers
     .map((l) => l.options.find((o) => o.key === sel[l.key]))
     .filter((o): o is LeverOption => !!o && !o.is_default && o.price_delta_cents !== 0)
-    .map((o) => `${o.price_delta_cents > 0 ? "+" : "−"}$${Math.abs(Math.round(o.price_delta_cents / 100)).toLocaleString()} for ${o.label}`);
+    .map((o) => `${o.price_delta_cents > 0 ? "+" : "−"}$${Math.abs(Math.round(marked(pkg, o.price_delta_cents) / 100)).toLocaleString()} for ${o.label}`);
+
+// HOW THE HOMEOWNER PAYS (Shahar, 2026-09-25). The package's payment
+// milestones, each a share of the price the homeowner sees, and who each one
+// is handed to. Every screen that says when money is due says it from here,
+// so the proposal, the Book button and the booked screen cannot disagree.
+// The same arithmetic as package_stage_amount (migration 242): a fixed
+// installment comes off the top, marked up; percents split what is left;
+// the last percent installment takes the rounding.
+export type PaymentStep = { key: string; name: string; pct: number | null; cents: number | null; due: string | null };
+export function paymentSteps(pkg: Package, price: number | null): PaymentStep[] {
+  const pays = pkg.milestones.filter((m) => m.kind === "payment" && (m.percent_of_contract || m.amount_cents));
+  const fixed = (m: MilestoneTpl) => (m.amount_cents ? customerPrice(m.amount_cents, pkg.markup_pct) ?? 0 : 0);
+  const rest = price == null ? null : price - pays.reduce((a, m) => a + fixed(m), 0);
+  const lastPct = pays.filter((m) => m.percent_of_contract).at(-1)?.key;
+  let given = 0;
+  return pays.map((m) => {
+    let cents: number | null;
+    if (price == null || rest == null) cents = m.amount_cents ? fixed(m) : null;
+    else if (m.amount_cents) cents = fixed(m);
+    else if (m.key === lastPct) cents = price - given;
+    else cents = Math.round((rest * m.percent_of_contract!) / 100);
+    if (cents != null && m.key !== lastPct) given += cents;
+    return { key: m.key, name: m.name, pct: m.amount_cents ? null : m.percent_of_contract, cents, due: dueLabel(m) };
+  });
+}
+// "within 3 days of acceptance", or null when it is due on the milestone.
+export function dueLabel(m: Pick<MilestoneTpl, "due_days" | "due_from">): string | null {
+  const d = m.due_days ?? 0; const from = m.due_from ?? "milestone";
+  const when = d === 0 ? "on" : `within ${d} day${d === 1 ? "" : "s"} of`;
+  if (from === "accepted") return `${when} acceptance`;
+  if (from === "posted") return d === 0 ? "when you book" : `within ${d} day${d === 1 ? "" : "s"} of booking`;
+  return d === 0 ? null : `within ${d} day${d === 1 ? "" : "s"}`;
+}
+type Payee = { collected_by?: "contractor" | "green_bergen" | null };
+export const collectsThroughUs = (x: Payee) => x.collected_by === "green_bergen";
+export const payeeName = (x: Payee) => (collectsThroughUs(x) ? "Green Bergen" : "your contractor");
+// The two ways a job is paid (Shahar, 2026-09-25): the homeowner pays the
+// contractor, who pays Green Bergen for the lead; or pays Green Bergen
+// upfront, and Green Bergen pays the contractor when they accept the job.
+export const payeeLine = (x: Payee) =>
+  collectsThroughUs(x) ? "Paid to Green Bergen upfront. Green Bergen pays the contractor when they accept the job." : "Paid to your contractor.";
+// "You pay your contractor in steps: 20% at date set, then 80% at floor coated."
+export function payPlan(pkg: Package, price: number | null): string {
+  const steps = paymentSteps(pkg, price);
+  if (collectsThroughUs(pkg)) {
+    return `You pay Green Bergen${price != null ? ` ${`$${Math.round(price / 100).toLocaleString()}`}` : ""} upfront, when you book. Green Bergen pays the contractor when they accept the job.`;
+  }
+  if (steps.length === 0) return `You pay ${payeeName(pkg)} when the work is done.`;
+  const parts = steps.map((s) => `${s.pct != null ? `${s.pct}%` : s.cents != null ? `$${Math.round(s.cents / 100).toLocaleString()}` : "a set amount"} at ${s.name.toLowerCase()}${s.due ? ` (${s.due})` : ""}`).join(", then ");
+  return `You pay ${payeeName(pkg)} ${steps.length === 1 ? "once" : "in steps"}: ${parts}.`;
+}
+export const payPlanLine = (pkg: Package, price: number | null) => (collectsThroughUs(pkg) ? payPlan(pkg, price) : `Nothing today. ${payPlan(pkg, price)}`);
 
 export const depositCents = (pkg: Package, price: number | null) =>
   price != null && pkg.requires_permit && pkg.permit_deposit_pct ? Math.round((price * pkg.permit_deposit_pct) / 100) : null;
@@ -389,18 +478,51 @@ export const decodeSelections = (pkg: Package, raw: string | undefined | null): 
 // bobHero is the photograph behind Ask Bob (migration 193) - its own field,
 // because the landing photograph is a couple in front of a finished house and
 // this one is somebody who knows how to do the work.
-export type PublicSettings = { tagline: string | null; hero: string | null; bobHero: string | null; taglineShown: boolean };
+// markupPct is the one mark-up setting (migration 237) - what a visitor's
+// prices carry; a signed-in member reads their own (my_markup_pct).
+export type PublicSettings = { tagline: string | null; hero: string | null; bobHero: string | null; taglineShown: boolean; markupPct: number };
 
 export async function loadPublicSettings(): Promise<PublicSettings> {
-  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null; bob_hero?: string | null; tagline_shown?: boolean }>("public_settings");
+  const row = await catalogueRpc<{ tagline?: string | null; hero?: string | null; bob_hero?: string | null; tagline_shown?: boolean; markup_pct?: number | string | null }>("public_settings");
   return {
     tagline: row?.tagline ?? null,
     hero: row?.hero ?? null,
     bobHero: row?.bob_hero ?? null,
     taglineShown: row?.tagline_shown ?? false,
+    // Until the setting has been read, the default it was created with.
+    markupPct: row?.markup_pct != null ? Number(row.markup_pct) : 15,
   };
 }
 
 export async function loadTagline(): Promise<string | null> {
   return (await loadPublicSettings()).tagline;
 }
+
+// ---------------------------------------------------------------------------
+// THE DIY LIST (migration 241). A package's own how-to for the person holding
+// the drill - not the contractor's scope, which a DIY plan no longer carries.
+// Free to read (Shahar, 2026-09-25), with a suggested price paid by Venmo;
+// nothing about the payment is recorded. Anon-callable and cached like the
+// rest of the catalogue.
+export type DiyPhase = "prepare" | "gather" | "work" | "finish";
+export type DiyStep = { id: string; phase: DiyPhase; step: string; detail: string | null; needs_pro: boolean; is_gate: boolean };
+export type DiyList = {
+  package: string; name: string; tile_title: string; trade: string | null; requires_permit: boolean;
+  suggested_cents: number | null; venmo: string | null; steps: DiyStep[];
+};
+export const DIY_PHASES: { key: DiyPhase; label: string }[] = [
+  { key: "prepare", label: "Before you start" },
+  { key: "gather", label: "What you need" },
+  { key: "work", label: "The work" },
+  { key: "finish", label: "Finish and check" },
+];
+
+export async function loadDiyList(code: string): Promise<DiyList | null> {
+  const row = await catalogueRpc<DiyList | null>("homeowner_diy_list", { p_code: code });
+  return row && typeof row === "object" && Array.isArray(row.steps) && row.steps.length > 0 ? row : null;
+}
+
+// Opens the Venmo app on a phone (the web page elsewhere) with the payee,
+// the amount and a note filled in.
+export const venmoPayLink = (handle: string, cents: number, note: string) =>
+  `https://venmo.com/${encodeURIComponent(handle)}?${new URLSearchParams({ txn: "pay", amount: (cents / 100).toFixed(2), note }).toString()}`;

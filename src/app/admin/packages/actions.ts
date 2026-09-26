@@ -16,8 +16,10 @@ async function admin() {
   return supabase;
 }
 
+// ?at= names the section that was saved, so the page prints the message in
+// that section (where the anchor scrolls to) and turns its button to Saved.
 const back = (code: string, msg: string, isError = false, anchor = "") =>
-  `/admin/packages/${encodeURIComponent(code)}?${isError ? "error" : "saved"}=${encodeURIComponent(msg)}${anchor ? `#${anchor}` : ""}`;
+  `/admin/packages/${encodeURIComponent(code)}?${isError ? "error" : "saved"}=${encodeURIComponent(msg)}${anchor ? `&at=${anchor}#${anchor}` : ""}`;
 
 function finish(code: string, ok: boolean, msg: string, anchor = "") {
   revalidatePath("/admin/packages");
@@ -42,8 +44,15 @@ export async function savePackage(formData: FormData) {
   const code = s(formData, "code").toLowerCase();
   const isNew = s(formData, "new") === "1";
   const base = cents(formData.get("base_price"));
-  if (base === "x") finish(code, false, "The base price is not a number.");
-  const patch = {
+  if (base === "x") finish(code, false, "The base price is not a number.", "package");
+  // The new-package form carries only code, trade, name and tile title. Send
+  // just those, so admin_package_save keeps its own starting values (More
+  // shelf, coming soon, active, instant book) - a blank tile_group here was
+  // a null that broke the insert, and an absent is_active box read as "off".
+  // A blank tile title takes the name; it can be shortened on the package page.
+  const patch = isNew ? {
+    name: s(formData, "name"), tile_title: s(formData, "tile_title") || s(formData, "name"), trade: s(formData, "trade"),
+  } : {
     name: s(formData, "name"), tile_title: s(formData, "tile_title"), tile_line2: s(formData, "tile_line2"),
     trade: s(formData, "trade"), category: s(formData, "category"), tile_group: s(formData, "tile_group"),
     availability: s(formData, "availability"), base_price_cents: base, config_label: s(formData, "config_label"),
@@ -54,13 +63,17 @@ export async function savePackage(formData: FormData) {
     // The landing page (052): whether to feature it. The photograph is
     // saved on its own by setPackagePhoto, so this form never clears it.
     promote: b(formData, "promote"),
+    // Who the homeowner pays each milestone to (migration 240).
+    collected_by: s(formData, "collected_by"),
+    // How the booking opens (migrations 235, 236, 241).
+    guided_photos: b(formData, "guided_photos"), needs_gas_survey: b(formData, "needs_gas_survey"),
   };
   const { data, error } = await supabase.rpc("admin_package_save", { p_code: code, p_patch: patch });
   if (error || data?.ok === false) {
     if (isNew) redirect(`/admin/packages?error=${encodeURIComponent(data?.reason ?? error?.message ?? "Not saved.")}`);
-    finish(code, false, data?.reason ?? error?.message ?? "Not saved.");
+    finish(code, false, data?.reason ?? error?.message ?? "Not saved.", "package");
   }
-  finish(data.code ?? code, true, isNew ? "Package created. Now give it scope lines and levers." : "Package saved.");
+  finish(data.code ?? code, true, isNew ? "Package created. Now give it scope lines and levers." : "Package saved.", isNew ? "" : "package");
 }
 
 // EVERY ROW OF A SECTION AT ONCE (Shahar: "save works on one line at a
@@ -77,10 +90,11 @@ const blank = (kind: string, r: Row) => {
     case "item": return !r.label;
     case "milestone": return !r.key && !r.name;
     case "video": return !r.url && !r.label;
+    case "diy": return !r.step;
     default: return !r.key && !r.label; // lever, option, photo
   }
 };
-const title = (r: Row, key: string) => r.label || r.name || r.key || (isNew(key) ? "the new row" : key.slice(0, 8));
+const title = (r: Row, key: string) => r.label || r.name || r.key || r.step || (isNew(key) ? "the new row" : key.slice(0, 8));
 
 export async function saveRows(formData: FormData) {
   const supabase = await admin();
@@ -105,6 +119,8 @@ export async function saveRows(formData: FormData) {
     if (isNew(key) && blank(rowKind, r)) continue;
     const delta = cents(r.price_delta ?? null);
     if (delta === "x") { problems.push(`${title(r, key)}: the price change is not a number.`); continue; }
+    const fixed = cents(r.amount ?? null);
+    if (fixed === "x") { problems.push(`${title(r, key)}: the fixed amount is not a number.`); continue; }
     const patch: Record<string, string> = {
       label: r.label ?? "", detail: r.detail ?? "", kind: r.row_kind ?? "",
       key: r.key ?? "", question: r.question ?? "", control: r.control ?? "",
@@ -112,11 +128,18 @@ export async function saveRows(formData: FormData) {
       hint: r.hint ?? "", sort_order: r.sort_order ?? "",
       name: r.name ?? "", sequence_no: r.sequence_no ?? "",
       percent_of_contract: r.percent_of_contract ?? "", typical_range: r.typical_range ?? "",
+      // Payment terms (migration 242): a fixed installment, and when it is due.
+      amount_cents: fixed, due_days: r.due_days ?? "", due_from: r.due_from ?? "",
       trigger_description: r.trigger_description ?? "",
       url: r.url ?? "", is_active: r.is_active ? "true" : "false",
+      // A DIY list step (migration 241).
+      step: r.step ?? "", phase: r.phase ?? "", needs_pro: r.needs_pro ? "true" : "false", is_gate: r.is_gate ? "true" : "false",
       links: JSON.stringify(
         ([["Home Depot", r.link_home_depot ?? ""], ["Lowe's", r.link_lowes ?? ""]] as [string, string][])
           .filter(([, url]) => url).map(([label, url]) => ({ label, url }))),
+      // Sent only when the form has the field, so a row whose form does not
+      // show it keeps what it has (migration 241).
+      ...Object.fromEntries((["unit", "upto", "step", "guide", "example_url"] as const).filter((f) => r[f] !== undefined).map((f) => [f, r[f]!])),
     };
     const { data, error } = await supabase.rpc("admin_package_row_save", {
       p_kind: rowKind, p_id: isNew(key) ? null : key, p_parent: r.parent || code, p_patch: patch,

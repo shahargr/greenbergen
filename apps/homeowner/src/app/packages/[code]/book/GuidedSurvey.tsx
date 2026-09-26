@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { type Lever, type LeverOption, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
+import { marked, type Lever, type LeverOption, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { Illustration } from "@shared/Illustrations";
 import { AppBar, Card, Screen } from "@shared/ui";
@@ -117,7 +117,7 @@ export function GuidedSurvey({ pkg, sel, onSel, value, onChange, shots, onShot, 
                       onChange={() => { onSel({ ...sel, [size.key]: o.key }); set({ width: "", length: "" }); }} />
                     <span className="big">{o.chip ?? o.label}</span>
                     <span className="tiny text-muted">{bandLine(size, o)}</span>
-                    <span className="tiny">{o.price_delta_cents === 0 ? "Base price" : dollars(o.price_delta_cents, { sign: true })}</span>
+                    <span className="tiny">{o.price_delta_cents === 0 ? "Base price" : dollars(marked(pkg, o.price_delta_cents), { sign: true })}</span>
                   </label>
                 ))}
               </div>
@@ -141,7 +141,7 @@ export function GuidedSurvey({ pkg, sel, onSel, value, onChange, shots, onShot, 
           )}
 
           {pkg.levers.filter((l) => l !== size).map((l) => (
-            <ChoiceLever key={l.key} lever={l} value={sel[l.key]} short onPick={(k) => onSel({ ...sel, [l.key]: k })} />
+            <ChoiceLever key={l.key} pkg={pkg} lever={l} value={sel[l.key]} short onPick={(k) => onSel({ ...sel, [l.key]: k })} />
           ))}
 
           <div className="actions" style={{ padding: 0, marginTop: "auto" }}>
@@ -160,7 +160,7 @@ export function GuidedSurvey({ pkg, sel, onSel, value, onChange, shots, onShot, 
   const missing = group.filter((p) => !shots[p.key]).length;
   return (
     <Screen>
-      <AppBar back={() => go(s.step - 1)} title={pkg.tile_title} sub={`Photos · ${i + 1} of ${groups.length}`} />
+      <AppBar back={() => go(s.step - 1)} title={pkg.tile_title} sub="Your photos" />
       <div className="body">
         <div className="walk-head">
           <h1>Step {i + 2}: {groupTitle(group)}</h1>
@@ -265,6 +265,7 @@ function Viewfinder({ slot, shot, onShot, art }: { slot: PhotoReq; shot: Taken; 
 }
 
 function PairTile({ n, slot, label, shot, onShot }: { n: number; slot: PhotoReq; label: string; shot: Taken; onShot: (f: File | null) => void }) {
+  const cam = useRef<HTMLInputElement>(null);
   const pick = useRef<HTMLInputElement>(null);
   const [head, line] = splitGuide(slot.guide ?? "");
   return (
@@ -281,9 +282,13 @@ function PairTile({ n, slot, label, shot, onShot }: { n: number; slot: PhotoReq;
           <UploadIcon />
         )}
       </button>
+      {/* The camera directly, as on the single viewfinder; the tile itself
+          takes or uploads. A sibling, since a button cannot hold a button. */}
+      <button type="button" className="vf-cam pair-cam" aria-label={`Open the camera: ${slot.label}`} onClick={() => cam.current?.click()}><CameraIcon /></button>
       <strong className="pair-label">{label}</strong>
       <span className="small text-muted">{slot.hint ?? [head, line].filter(Boolean).join(" ")}</span>
       {shot && <button type="button" className="btn btn-ghost" style={{ minHeight: 0, padding: 0, alignSelf: "flex-start" }} onClick={() => onShot(null)}>Remove</button>}
+      <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onShot(f); e.target.value = ""; }} />
       <input ref={pick} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onShot(f); e.target.value = ""; }} />
     </div>
   );

@@ -1,6 +1,7 @@
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { timed } from "@shared/perf";
+import type { WorkDetails } from "@shared/workDetails";
 
 // The offer feed, and one offer out of it.
 //
@@ -16,6 +17,9 @@ export type Offer = {
   // Set while this contractor holds the job alone - they called the lowest
   // price for the package's basic setup (migration 046). Null otherwise.
   first_refusal_until?: string | null;
+  // What the homeowner told us about the work - the EV charger's answers
+  // (migration 238). Never an address.
+  work_details?: WorkDetails | null;
 };
 
 export async function loadOffers(): Promise<Offer[]> {

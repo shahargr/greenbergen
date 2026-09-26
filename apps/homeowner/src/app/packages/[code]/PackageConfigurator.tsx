@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { asksFirst, configLabel, deltaNotes, depositCents, encodeSelections, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { basePrice, asksFirst, configLabel, deltaNotes, encodeSelections, payPlanLine, priceFor, type Package, type Selections } from "@shared/catalogue";
 import { dollars } from "@shared/format";
 import { Card, NumberedNotes } from "@shared/ui";
 import { PriceBlock } from "@shared/PriceBlock";
@@ -38,7 +38,6 @@ export function PackageConfigurator({
   const [sel, setSel] = useState<Selections>(initial);
   const [open, setOpen] = useState(openAdjust);
   const price = priceFor(pkg, sel);
-  const deposit = depositCents(pkg, price);
   const deltas = useMemo(() => deltaNotes(pkg, sel), [pkg, sel]);
   const isDefault = deltas.length === 0 && configLabel(pkg, sel) === (pkg.config_label ?? "most common setup");
 
@@ -63,12 +62,11 @@ export function PackageConfigurator({
   }
   if (pkg.requires_permit) {
     notes.push(<>A town permit is required. Your contractor meets you to sign the papers.</>);
-    notes.push(<>{pkg.permit_deposit_pct}% ({dollars(deposit)}) is due when the permit process begins — paid to the contractor, not to us.</>);
     notes.push(<>Permits take a few weeks. Matching a contractor usually takes a day or two.</>);
   } else {
-    notes.push(<>Nothing is charged today. You pay the contractor when the work is done — card, check or cash.</>);
     notes.push(<>First to accept at this price gets it; nobody can counter-offer, and there is no deadline on your side.</>);
   }
+  notes.push(<>{payPlanLine(pkg, price)}</>);
   if (!pkg.instant_book && pkg.approval_note) notes.push(<>{pkg.approval_note}</>);
 
   return (
@@ -91,7 +89,7 @@ export function PackageConfigurator({
       {story}
 
       <Card pad={false}>
-        <PriceBlock cents={price} was={isDefault ? null : pkg.base_price_cents} config={configLabel(pkg, sel)} delta={deltas} pulse
+        <PriceBlock cents={price} was={isDefault ? null : basePrice(pkg)} config={configLabel(pkg, sel)} delta={deltas} pulse
           kicker={isDefault ? "Community price · most common setup" : "Updated price"} />
       </Card>
 

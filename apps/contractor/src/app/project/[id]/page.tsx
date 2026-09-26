@@ -38,6 +38,9 @@ export const dynamic = "force-dynamic";
 // you are only ever looking at one. Every number is still computed in the
 // database - portal_finance_rollup, portal_bid_packages, portal_tasks,
 // portal_site_week - so this screen decides what to show and nothing more.
+/** Only what the Step by step tile needs off portal_project_steps (233). */
+type StepRun = { parent_id: string | null; total: number; done: number };
+
 type Rollup = {
   contracted?: number | null; paid?: number | null; owed?: number | null;
   approved?: number | null; stages?: number | null; open_stages?: number | null;
@@ -92,9 +95,11 @@ export default async function ProjectPage({
   // the domain, and this screen wants the whole property anyway (see below),
   // which a project-scoped portal_tasks could not answer without one call
   // per job beneath it.
-  const [board, { data: pkgData }, { data: rollupData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }, { data: prefsData }] = await Promise.all([
+  const [board, { data: pkgData }, { data: rollupData }, { data: weekData }, { data: visitData }, { data: moneyData }, { data: spineData }, { data: prefsData }, { data: runData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
     w.step("bids", () => rpc<BidPackage[]>(supabase, "portal_bid_packages", { p_project: id })),
+    // The package's process, for the Step by step tile: how many of its
+    // steps are left, and whether there is one at all (migration 233).
     w.step("finance", () => rpc<Rollup>(supabase, "portal_finance_rollup", { p_project_id: id })),
     // Who is on site this week, and the record of who has been (migration 068).
     w.step("week", () => rpc<SiteWeek>(supabase, "portal_site_week", { p_project: id })),
@@ -117,10 +122,13 @@ export default async function ProjectPage({
     w.step("spine", () => rpc<Spine>(supabase, "portal_project_trades", { p_project: id })),
     // Which panels this person pulled up or folded away here (migration 173).
     w.step("prefs", () => rpc<PanelPrefs>(supabase, "portal_panel_prefs", { p_project: id })),
+    w.step("run", () => rpc<StepRun>(supabase, "portal_project_steps", { p_project: id })),
   ]);
   if (!board.signed_in) redirect(`/login?next=/project/${id}`);
   const prefs: PanelPrefs = prefsData && Array.isArray(prefsData.shown)
     ? prefsData : { shown: [], hidden: [] };
+  // Only the counts - the runner itself is its own screen.
+  const run = runData ?? null;
 
   const seat = board.seats.find((s) => s.project_id === id);
   if (!seat) notFound();
@@ -632,6 +640,8 @@ export default async function ProjectPage({
             standing={[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
             where={seat.address ?? seat.parent_name ?? null}
             address={seat.address ?? null}
+            stepsHref={run?.parent_id ? `/project/${id}/steps` : null}
+            stepsLeft={run ? Math.max(0, run.total - run.done) : 0}
             // ITS OWN SCREEN (Shahar, 2026-09-25: "site visit does not work").
             // It used to light the visits panel, which draws at the foot of
             // this page under the trades - so the tap looked like nothing.
@@ -644,6 +654,21 @@ export default async function ProjectPage({
             payHref={taskMoney.can_log ? `/project/${id}/pay?back=${encodeURIComponent(keepAs())}` : null}
             libraryHref={manages ? `/project/${id}/library` : null}
             financeHref={manages ? `/project/${id}/finance` : null} />
+        )}
+
+        {/* THE WORK FILE (Shahar, 2026-09-25: "as part of the work file these
+            images should be visible"). A job booked from a package carries
+            what the homeowner photographed and told us - the panel, the spot,
+            the EV charger's answers. It has its own screen because the crew
+            needs it on the day, and this one is about running the job. */}
+        {seat.package_code && (
+          <Link href={`/project/${id}/workfile`} className="card pad row" style={{ gap: 12, alignItems: "center", textDecoration: "none", color: "inherit" }}>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <strong>Work file</strong>
+              <span className="small text-muted" style={{ display: "block" }}>The homeowner&apos;s photos, what they told us, and the scope</span>
+            </span>
+            <ChevronIcon />
+          </Link>
         )}
 
         {/* Everything you set ONCE - the photo, the scope, when the house
@@ -910,6 +935,20 @@ export default async function ProjectPage({
                 <span className="t">Open the ledger</span>
                 <span className="m" style={{ display: "block" }}>
                   {manages ? "Milestones, approvals, what was paid, changes to decide" : "Your milestones, request a payment, ask for a change"}
+                </span>
+              </span>
+              <ChevronIcon />
+            </Link>
+            {/* WHAT WAS INSTALLED, beside the money because it is the other
+                thing that has to be right before a final payment goes out.
+                Every trade's contract carries the requirement (migration 232),
+                and this is where the trade that did the work fills it in. */}
+            <Link href={`/project/${id}/parts`} className="home-row">
+              <span className="grow" style={{ minWidth: 0 }}>
+                <span className="t">Parts &amp; warranty</span>
+                <span className="m" style={{ display: "block" }}>
+                  Every piece of equipment installed here — model, serial, who put it in, its
+                  warranty and a photo — and whose workmanship warranty follows the house
                 </span>
               </span>
               <ChevronIcon />

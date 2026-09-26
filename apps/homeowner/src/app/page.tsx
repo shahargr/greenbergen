@@ -11,6 +11,7 @@ import { loadCompany, type House } from "@/lib/showcase";
 import { HomeHero } from "@/components/HomeHero";
 import { Scene, SceneMore } from "@/components/Scene";
 import { BuildWithUs } from "./BuildWithUs";
+import { pricedAll } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,8 @@ type RefPreview = { ok: boolean; first?: string; name?: string; line?: string };
 export default async function Landing({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string }> }) {
   const { ref, name } = await searchParams;
   const supabase = await createClient();
-  const [signedIn, settings, { tiles }, company] = await Promise.all([isSignedIn(supabase), loadPublicSettings(), loadTiles(), loadCompany()]);
+  const [signedIn, settings, { tiles: raw }, company] = await Promise.all([isSignedIn(supabase), loadPublicSettings(), loadTiles(), loadCompany()]);
+  const tiles = await pricedAll(raw);
   // A member does not need the shop window: signed in, this front page is
   // their own home screen instead. Deciding which door a person belongs in
   // happens ONCE, at sign-in, in landing() on the portal.

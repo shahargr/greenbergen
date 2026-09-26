@@ -19,12 +19,16 @@ and business logic live in the Supabase database below.
 ## Before anything else
 
 Load the shared memory baseline from Supabase (project ref `oznqiwldgjrykadqsriv`),
-every session, unconditionally:
+every session, unconditionally, in ONE call (rulebook `01_session_start`):
 
-1. All rows of `public.rulebook`, ordered by `section_key`.
-2. The `public.help` table (index first; pull `content` for the topics you need).
+1. The full body of `public.rulebook` sections 00-07; `section_key` and
+   `title` of every other row.
+2. The `public.help` index - topic, title, applies_to, doc_type.
    Topic `repos` records the repo story; topic `access` the auth model.
-3. The schema - columns, CHECK constraints, triggers.
+
+On demand, once per session: a rulebook family's bodies before working
+under it, a help topic's `content` before acting on its convention, and a
+table's schema (columns, CHECK constraints, triggers) before writing to it.
 
 No version comparison. Rebuild every time.
 
@@ -89,6 +93,11 @@ Vercel env settings, entered by Shahar.
 ## Git
 
 Never commit or push without Shahar's say-so. No PRs unless asked.
+
+One push per finished piece of work, never per commit: every push to main
+builds three Vercel projects against a 100-a-day cap. Branch pushes build
+nothing (`git.deploymentEnabled` in each `vercel.json`), so check a branch
+locally. Rulebook 08, help topic `repos`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

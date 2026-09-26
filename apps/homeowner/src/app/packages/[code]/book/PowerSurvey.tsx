@@ -128,9 +128,9 @@ export function PowerSurvey({
   const price = priceFor(pkg, sel);
 
   const lever = (l: Lever) => isBanded(l)
-    ? <DistanceLever key={l.key} lever={l} ft={s.feet[l.key] ?? feetFor(l, sel[l.key])}
+    ? <DistanceLever key={l.key} pkg={pkg} lever={l} ft={s.feet[l.key] ?? feetFor(l, sel[l.key])}
         onFt={(ft) => { set({ feet: { ...s.feet, [l.key]: ft } }); onSel({ ...sel, [l.key]: optionFor(l, ft).key }); }} />
-    : <ChoiceLever key={l.key} lever={l} value={sel[l.key]} onPick={(k) => onSel({ ...sel, [l.key]: k })} />;
+    : <ChoiceLever key={l.key} pkg={pkg} lever={l} value={sel[l.key]} onPick={(k) => onSel({ ...sel, [l.key]: k })} />;
 
   if (s.step === 1) {
     const [first, ...rest] = leversOn(pkg, 1);
@@ -228,7 +228,7 @@ export function PowerSurvey({
             <label className="approach-card">
               <input type="radio" name="approach" checked={s.approach === "diy"} onChange={() => set({ approach: "diy" })} />
               <span className="kicker">DIY-assisted</span>
-              <span className="small">You manage the permits and the pad. We point you to the generator to buy, and your survey stays on the project for engineering questions.</span>
+              <span className="small">You manage the permits and the pad, following our step-by-step DIY list. We point you to the generator to buy, and your survey stays on the project for engineering questions.</span>
               <span className="mono approach-price">Parts + your time</span>
             </label>
           </div>
@@ -280,7 +280,7 @@ export function Proposal({ pkg, sel, survey, onBack, onEdit, onAccept }: {
 // ---- pieces ------------------------------------------------------------------
 const SurveyProgress = ({ step }: { step: 1 | 2 | 3 }) => <WalkProgress step={step} of={3} />;
 
-function DistanceLever({ lever, ft, onFt }: { lever: Lever; ft: number; onFt: (ft: number) => void }) {
+function DistanceLever({ pkg, lever, ft, onFt }: { pkg: Package; lever: Lever; ft: number; onFt: (ft: number) => void }) {
   const { top, max } = bands(lever);
   const stops: number[] = [];
   for (let v = STEP_FT; v <= max; v += STEP_FT) stops.push(v);
@@ -296,7 +296,7 @@ function DistanceLever({ lever, ft, onFt }: { lever: Lever; ft: number; onFt: (f
           {stops.filter((v) => v === STEP_FT || v % 10 === 0 || v === max).map((v) => <span key={v}>{v > top ? `${top}+` : v}</span>)}
         </div>
       </div>
-      <Delta lever={lever} value={o.key} />
+      <Delta pkg={pkg} lever={lever} value={o.key} />
     </section>
   );
 }

@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getMe, TARGET_WINDOWS, targetWindowLabel } from "@/lib/me";
-import { getBooking, type Booking } from "@/lib/booking";
+import { getBooking, ownerCents, type Booking } from "@/lib/booking";
 import { getChecklist } from "@/lib/checklist";
-import { encodeSelections } from "@shared/catalogue";
+import { customerPrice, encodeSelections, loadDiyList } from "@shared/catalogue";
 import { ago, dayClock, dollars, shortDate } from "@shared/format";
 import { AppBar, Avatar, Card, ChevronIcon, Notice, NumberedNotes, Screen, StatusHero } from "@shared/ui";
 import { ProgressLine } from "@shared/ProgressLine";
@@ -11,6 +11,7 @@ import { stopwatch } from "@shared/perf";
 import { PhotoRequest } from "@/components/PhotoRequest";
 import { WaitingCard } from "./WaitingCard";
 import { DiyChecklist } from "./DiyChecklist";
+import { DiyListView, DiyPayCard } from "@/components/DiyListView";
 import { bookingAction, buildChecklist, cancelProject, closeProject, reopenProject, updatePlan } from "./actions";
 import { MarkOpened } from "@shared/MarkOpened";
 
@@ -70,10 +71,15 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // ---- planned: on the list, nothing sent ------------------------------
   if (b.state === "planned") {
     const moved = b.live_price_cents != null && b.live_price_cents !== b.price_cents;
-    // kind comes from the catalogue (blueprint_package_items.kind), so the
-    // split is data, not a list of labels kept in step with the seed here.
+    // A DIY plan no longer carries the contractor's scope (migration 241) -
+    // it gets the package's DIY list. The list is a cached catalogue read.
+    // A plan made before that may still have scope lines; they are the
+    // fallback when a package has no list yet.
+    const diy = b.package_code ? await loadDiyList(b.package_code) : null;
     const steps = b.scope.filter((s) => s.kind !== "assurance");
-    const covered = b.scope.filter((s) => s.kind === "assurance");
+    // What turn-key adds is the package's, not this job's scope - the plan
+    // has none to read it from any more.
+    const covered = (pkg?.items ?? []).filter((it) => it.kind === "assurance").map((it) => ({ item: it.label, detail: it.detail }));
     return (
       <Screen>
         <AppBar back={{ fallback: "/projects" }} title={title} sub={b.address?.split(",")[0] ?? undefined} />
@@ -86,7 +92,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {ok === "reopened" && <div className="banner-ok">Open again, and back on your list.</div>}
           {error && <Notice kind="error">{error}</Notice>}
           <StatusHero variant="neutral" kicker={`DIY · ${targetWindowLabel(b.target_window)}`} title={`Yours since ${shortDate(b.created_at)}. Nobody has been asked yet.`}>
-            Do it at your pace — the scope and the price below are your reference. Changed your mind? One tap makes it turn-key: it goes to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price, and photos and a budget come at that point.
+            Do it at your pace, with the DIY list below — the price is your reference. Changed your mind? One tap makes it turn-key: it goes to the community&apos;s {pluralTrade(pkg?.trade, 2)} at that day&apos;s price, and photos and a budget come at that point.
           </StatusHero>
           <Card pad={false}>
             <div className="price">
@@ -110,7 +116,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               yourself nobody carries them. */}
           {checklist && checklist.items.length > 0 ? (
             <DiyChecklist projectId={b.project_id} items={checklist.items} trade={pluralTrade(pkg?.trade, 2)} />
-          ) : (
+          ) : diy ? (
+            <>
+              <DiyListView list={diy} />
+              {/* Planned before the list existed: build the tickable
+                  version from it (homeowner_diy_checklist). */}
+              <form action={buildChecklist}>
+                <input type="hidden" name="project" value={b.project_id} />
+                <button className="btn btn-secondary btn-block">Turn this into a checklist I can tick</button>
+              </form>
+            </>
+          ) : steps.length > 0 ? (
             <Card pad>
               <div className="kicker">Suggested steps for the job</div>
               <ol className="steps" style={{ marginTop: 6 }}>
@@ -118,16 +134,13 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   <li key={i}><span className="n">{i + 1}</span><span>{si.item}{si.detail && <span className="detail"> — {si.detail}</span>}</span></li>
                 ))}
               </ol>
-              <p className="tiny text-muted" style={{ margin: "10px 0 0" }}>
-                The order most {pluralTrade(pkg?.trade, 2)} work in. Yours to change — nothing here is a commitment.
-              </p>
-              {/* Taken before migration 195b, so it never got a list. */}
               <form action={buildChecklist} style={{ marginTop: 12 }}>
                 <input type="hidden" name="project" value={b.project_id} />
                 <button className="btn btn-secondary btn-block">Turn these into a checklist I can tick</button>
               </form>
             </Card>
-          )}
+          ) : null}
+          {diy && <DiyPayCard list={diy} name={title} />}
           {covered.length > 0 && (
             <Card pad soft>
               <div className="kicker">What turn-key adds</div>
@@ -179,7 +192,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <div className="actions">
           <Link href="/packages" className="btn btn-primary btn-block">Browse packages</Link>
           <form action={bookingAction.bind(null, b.project_id, "reopen")}>
-            <button className="btn btn-ghost btn-block">Reopen at {dollars(bump(b.price_cents))}</button>
+            <button className="btn btn-ghost btn-block">Reopen at {dollars(bump(b))}</button>
           </form>
         </div>
       </Screen>
@@ -189,7 +202,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   // ---- 11a / 11b matching -----------------------------------------------
   if (b.state === "posted") {
     if (b.no_taker) {
-      const next = bump(b.price_cents);
+      const next = bump(b);
       return (
         <Screen>
           <AppBar brand back={{ fallback: "/projects" }} />
@@ -357,18 +370,24 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 }
 
 function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullable<Booking["progress"]["current"]>; first: string }) {
-  const who = node.kind === "payment" ? `you and ${first}` : node.kind === "task" ? first : "you";
-  const amount = node.amount_cents ? dollars(node.amount_cents) : null;
+  const viaUs = b.collected_by === "green_bergen";
+  const who = node.kind === "payment" ? (viaUs ? "you" : `you and ${first}`) : node.kind === "task" ? first : "you";
+  // What the homeowner hands over at this milestone: its share of the price
+  // they see (the stage amount is the contractor's), to whoever the job says
+  // collects it - the job's frozen copy, not the package today (240, 242).
+  const amount = node.amount_cents ? dollars(ownerCents(b, node.amount_cents)) : null;
   return (
     <Card pad>
       <div className="kicker">Next up · {who}</div>
       <div className="card-title" style={{ fontSize: 20, margin: "4px 0" }}>{node.name}</div>
       <p className="small" style={{ margin: "0 0 10px" }}>
         {node.trigger_description}
-        {node.kind === "payment" && amount && <> <strong>{amount}</strong> is due to {first} — card, check or cash. Green Bergen never holds it.</>}
+        {node.kind === "payment" && amount && (viaUs
+          ? <> <strong>{amount}</strong> is due to Green Bergen upfront{node.due_on ? <>, by {shortDate(node.due_on)}</> : null}. Green Bergen pays {first} when they accept the job.</>
+          : <> <strong>{amount}</strong> is due to {first}{node.due_on ? <> by {shortDate(node.due_on)}</> : null}.</>)}
       </p>
       <div className="row" style={{ flexWrap: "wrap" }}>
-        {node.kind === "payment" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{node.key === "permit_meeting" ? "We met — mark it done" : "It's done — mark it"}</Link>}
+        {node.kind === "payment" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{viaUs ? "I've paid — record it" : node.key === "permit_meeting" ? "We met — mark it done" : "It's done — mark it"}</Link>}
         {node.kind === "task" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">Mark it done</Link>}
         {node.kind === "done" && <Link href={`/project/${b.project_id}/milestone/${node.key}`} className="btn btn-primary">{b.open_tasks.length ? `Wrap up (${b.open_tasks.length} open)` : "Close the job"}</Link>}
         {node.kind === "accepted" && <span className="small text-muted">Waiting on a contractor.</span>}
@@ -378,14 +397,16 @@ function NextUp({ booking: b, node, first }: { booking: Booking; node: NonNullab
   );
 }
 
-const bump = (cents: number) => Math.ceil((cents * 1.09) / 1000) * 1000;
+// A repost bumps the CONTRACTOR price (homeowner_booking_action); the
+// owner sees that plus the mark-up frozen on the booking.
+const bump = (b: Booking) => customerPrice(Math.ceil(((b.contractor_price_cents ?? b.price_cents) * 1.09) / 1000) * 1000, b.markup_pct) ?? 0;
 const numberWord = (n: number) => ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"][n] ?? String(n);
 const pluralTrade = (trade: string | null | undefined, n: number) => {
   const one = { Plumbing: "plumber", Electrical: "electrician", Painting: "painter", Gutters: "gutter crew", Hardscaping: "paving contractor", Decks: "fence builder" }[trade ?? ""] ?? "contractor";
   return n === 1 ? one : one.endsWith("crew") ? one + "s" : one + "s";
 };
 const paidSummary = (b: Booking) => {
-  const paid = b.stages.filter((s) => s.status === "Paid" || s.settlement_status === "paid").reduce((a, s) => a + s.amount_cents, 0);
+  const paid = b.stages.filter((s) => s.status === "Paid" || s.settlement_status === "paid").reduce((a, s) => a + ownerCents(b, s.amount_cents), 0);
   return paid > 0 ? ` · paid ${dollars(paid)}` : "";
 };
 
