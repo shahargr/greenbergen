@@ -32,7 +32,7 @@ export type Visit = {
 // it is a single collapsed line underneath: enough to know when someone was
 // last here, one tap to read it, no space when you do not care. Everything
 // older is behind a second line.
-export function SiteVisits({ projectId, visits, urls, canLog, today, address }: {
+export function SiteVisits({ projectId, visits, urls, canLog, today, address, back }: {
   projectId: string;
   visits: Visit[];
   urls: Record<string, string>;
@@ -41,6 +41,9 @@ export function SiteVisits({ projectId, visits, urls, canLog, today, address }: 
   /** The job's address, when this person may see it - the panel's first row
       takes you there (Shahar, 2026-09-17). */
   address?: string | null;
+  /** Where the forms land after saving - the site-visit screen posts its own
+      address; the project's visits panel is the default. */
+  back?: string;
 }) {
   const mine = visits.filter((v) => v.on_date === today && v.mine);
   const todays = mine[0] ?? visits.find((v) => v.on_date === today) ?? null;
@@ -83,6 +86,7 @@ export function SiteVisits({ projectId, visits, urls, canLog, today, address }: 
               <button type="button" className="btn btn-ghost small" onClick={() => setEditing(true)}>Edit</button>
               <form action={deleteVisit.bind(null, projectId, todays.id)}
                 onSubmit={(e) => { if (!confirm("Remove today's visit? The photos stay on the project.")) e.preventDefault(); }}>
+                {back && <input type="hidden" name="back" value={back} />}
                 <button className="btn btn-ghost small btn-danger">Delete</button>
               </form>
             </div>
@@ -90,11 +94,11 @@ export function SiteVisits({ projectId, visits, urls, canLog, today, address }: 
         </div>
       ) : todays && editing ? (
         <div className="card pad tight">
-          <VisitForm projectId={projectId} visit={todays} onCancel={() => setEditing(false)} />
+          <VisitForm projectId={projectId} visit={todays} onCancel={() => setEditing(false)} back={back} />
         </div>
       ) : canLog ? (
         <div className="card pad tight">
-          <VisitForm projectId={projectId} onCancel={null} />
+          <VisitForm projectId={projectId} onCancel={null} back={back} />
         </div>
       ) : (
         <div className="card soft pad"><div className="small">Nothing logged today.</div></div>
@@ -177,8 +181,8 @@ function Files({ files, urls, top }: {
 // One box for both jobs. Writing today's visit needs no date - it is today;
 // back-dating one is a rarer thing and hides behind a line rather than
 // costing a field on every visit.
-function VisitForm({ projectId, visit, onCancel }: {
-  projectId: string; visit?: Visit; onCancel: (() => void) | null;
+function VisitForm({ projectId, visit, onCancel, back }: {
+  projectId: string; visit?: Visit; onCancel: (() => void) | null; back?: string;
 }) {
   const [files, setFiles] = useState<Attached[]>([]);
   const [text, setText] = useState(visit?.note ?? "");
@@ -191,6 +195,7 @@ function VisitForm({ projectId, visit, onCancel }: {
       <textarea name="note" rows={2} className="input" value={text} onChange={(e) => setText(e.target.value)}
         placeholder="What did you see? Who was here, what moved, what is blocked…" />
       <input type="hidden" name="file_ids" value={files.map((f) => f.id).join(",")} />
+      {back && <input type="hidden" name="back" value={back} />}
 
       {!visit && otherDay && (
         <label className="field" style={{ marginBottom: 0 }}>

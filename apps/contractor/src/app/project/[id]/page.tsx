@@ -632,7 +632,10 @@ export default async function ProjectPage({
             standing={[manages ? "You run this" : seatLabel(seat) ?? "Your seat", seat.status, seat.stage].filter(Boolean).join(" · ")}
             where={seat.address ?? seat.parent_name ?? null}
             address={seat.address ?? null}
-            visitHref={offered.includes("visits") ? panelHref("visits") : null}
+            // ITS OWN SCREEN (Shahar, 2026-09-25: "site visit does not work").
+            // It used to light the visits panel, which draws at the foot of
+            // this page under the trades - so the tap looked like nothing.
+            visitHref={offered.includes("visits") ? `/project/${id}/visit` : null}
             visitsToday={visitsToday}
             tidyHref={manages ? `/project/${id}/tidy?back=${encodeURIComponent(keepAs(`/project/${id}`))}` : null}
             tidyCount={spine.untagged.open}
@@ -861,7 +864,7 @@ export default async function ProjectPage({
                     <ChevronIcon />
                   </Link>
                 )}
-                <Link href={panelHref("visits")} className="home-row">
+                <Link href={`/project/${id}/visit`} className="home-row">
                   <span className="grow" style={{ minWidth: 0 }}>
                     <span className="t">
                       {visits.some((v) => v.on_date === today) ? "Today's site visit" : "Log today's site visit"}

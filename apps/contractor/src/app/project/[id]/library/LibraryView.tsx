@@ -172,8 +172,9 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
       {err && <p className="small" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
       {busy && <p className="small text-muted" style={{ margin: 0 }}>{busy}</p>}
 
-      {/* THE SHELVES, in his order. A tile is also a drop target: let go of a
-          file on it and it lands inside. */}
+      {/* THE SHELVES, in build order - one per trade on the project, plus
+          Permits and the standard set (migration 237). A tile is also a drop
+          target: let go of a file on it and it lands inside. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
         {folders.map((f) => (
           <button key={f.id} type="button"
