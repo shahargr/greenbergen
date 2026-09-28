@@ -9,6 +9,9 @@ import { friendly } from "@shared/rpc";
 // the proxy and every screen see the same thing on the very next request.
 export async function signOut() {
   const supabase = await createClient();
+  // Drop any admin view-as first: it is keyed to the real user, not the
+  // session, and otherwise survives into the next sign-in.
+  await supabase.rpc("end_view_as");
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/");

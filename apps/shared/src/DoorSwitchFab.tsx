@@ -3,7 +3,6 @@ import { loadDoors } from "./doors.server";
 import { createClient } from "./supabase/server";
 import { isSignedIn } from "./supabase/session";
 import { DoorIcon } from "./ui";
-import { rpc } from "./rpc";
 
 // THE DOOR SWITCH, FLOATING (Shahar, 2026-09-19).
 //
@@ -39,17 +38,9 @@ export async function DoorSwitchFab({ current }: { current: DoorKey }) {
   const others = DOOR_ORDER.filter((k) => doors.held.includes(k) && k !== current);
   if (others.length === 0) return null;
 
-  // BACK WHERE YOU WERE IN THAT SEAT (migration 199). Shahar: "when i change
-  // my seat i can go back where i was before." The switcher used to send
-  // everybody to the door's front page, which is the one thing somebody
-  // changing seats almost never wants - they are going back to something.
-  //
-  // One read for all three doors: this is a menu, it draws every row at
-  // once, and a call per door would be three round trips on one tap.
-  // my_last_place is RLS-bound per door, so a seat that lost its project
-  // simply comes back null and the row falls to the door's own entry.
-  const { data: places } = await rpc<Record<string, string | null>>(supabase, "my_last_places");
-  const backTo = (k: DoorKey) => places?.[k] ?? DOORS[k].entry;
+  // "Back where you were in that seat" (migration 199) is OFF (Shahar
+  // 2026-09-28) along with RememberPlace; every row opens the door's entry.
+  const backTo = (k: DoorKey) => DOORS[k].entry;
 
   return (
     <details className="door-fab">

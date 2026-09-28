@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { createClient } from "@/lib/supabase/server";
-import { doorForDb, landing, landingDoor } from "@/lib/doors";
+import { landing } from "@/lib/doors";
 import { loadDoors } from "@/lib/doors.server";
 import { GoTo } from "./GoTo";
 
@@ -25,25 +25,18 @@ export const metadata = { title: "Signing you in" };
 
 async function Decide() {
   const supabase = await createClient();
+  // A FRESH SIGN-IN IS ALWAYS YOU. An admin's view-as / act-as row
+  // (admin_view_state) outlived sign-out for up to an hour, so signing back
+  // in landed as the borrowed person - Shahar stuck as Alex (2026-09-28).
+  // end_view_as() only ever deletes the caller's own row; for everyone
+  // else it is a no-op.
+  await supabase.rpc("end_view_as");
   const doors = await loadDoors();
-  // THE DOOR FIRST, THEN THE JOB, and the order is forced: the memory is per
-  // door (migration 198), so there is nothing to ask for until we know which
-  // seat this sign-in lands in. Two round trips instead of one, on a screen
-  // that is already painting - see GoTo.tsx.
-  const door = landingDoor(doors);
-  // THE PAGE, NOT THE PROJECT (migration 199). my_last_place returns a
-  // host-absolute path already, and it is RLS-bound: a revoked seat or a
-  // trashed project comes back null and we fall through to the door's own
-  // entry rather than sending somebody somewhere they can no longer go.
-  const place = door
-    ? await supabase.rpc("my_last_place", { p_door: doorForDb(door) })
-    : null;
-  const stored = place && !place.error ? (place.data as string | null) : null;
-  // NEVER BACK INTO A PURCHASE FUNNEL. RememberPlace no longer stamps the
-  // booking wizard, but a stamp written before it stopped still would, and
-  // the wizard cannot resume from a path anyway (its steps live in memory).
-  const back = stored && !/^(\/home)?\/packages\/[^/]+\/(book|take)(\/|$)/.test(stored) ? stored : null;
-  return <GoTo href={back ?? landing(doors)} />;
+  // "WHERE I WAS" RESUME IS OFF (Shahar 2026-09-28): it sent a re-sign-in
+  // back into the previous seat's page. Migration 199 (my_last_place) and
+  // RememberPlace stay in the tree for when it is rebuilt; a sign-in lands
+  // on the door's own entry until then.
+  return <GoTo href={landing(doors)} />;
 }
 
 export default function AfterLogin() {

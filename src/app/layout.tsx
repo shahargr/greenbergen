@@ -4,7 +4,6 @@ import { BuildState } from "@/components/BuildState";
 import { DoorSwitchFab } from "@/components/DoorSwitchFab";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
-import { RememberPlace } from "@/components/RememberPlace";
 
 export const metadata: Metadata = {
   title: "Green Bergen",
@@ -18,7 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {/* Remembers where this seat was last standing (migration 199). */}
-        <RememberPlace door="portal" />
+        {/* RememberPlace is OFF (Shahar 2026-09-28) - see after-login. */}
         {children}
         <FootBar />
         {/* THE DOOR SWITCH FLOATS (2026-09-19). Shahar, testing three seats:
