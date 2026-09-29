@@ -1051,3 +1051,57 @@
   .ledger-row { grid-template-columns: minmax(0, 1.7fr) 78px 80px 80px 110px 90px 58px; }
   .ledger-wide { display: block; }
 }
+
+/* THE SITE VISIT (migration 238): the walk-round as its own screen. Stats,
+   a row of things to log, then a card per live trade. */
+.sv-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.sv-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px;
+  border-radius: var(--radius-input); background: var(--color-surface); border: 1px solid var(--color-divider);
+}
+.sv-stat .n { font: 800 18px/1 var(--font-heading); color: var(--color-text); }
+.sv-stat .l { font-size: 10.5px; color: var(--muted); text-align: center; line-height: 1.15; }
+.sv-stat.late .n { color: var(--color-status); }
+.sv-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 640px) { .sv-modes { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.sv-mode {
+  min-height: 44px; padding: 6px 4px; border-radius: var(--radius-input);
+  border: 1.5px solid var(--color-divider-strong); background: var(--color-bg); color: var(--color-text);
+  font: 700 13px/1.1 var(--font-body); cursor: pointer;
+}
+.sv-mode:hover { border-color: var(--color-text); }
+.sv-mode.on { background: var(--color-text); color: var(--color-bg); border-color: var(--color-text); }
+.sv-mode:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.sv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sv-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 12px; font-weight: 700;
+  border-radius: var(--radius-pill); background: var(--color-ok-soft); color: var(--color-text);
+}
+.sv-chip .m { font-weight: 500; color: var(--muted); }
+.sv .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-ok); flex: none; display: inline-block; }
+.sv-trade { background: var(--color-surface); border: 1px solid var(--color-divider); border-radius: var(--radius-tile); }
+.sv-trade > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 11px 12px; }
+.sv-trade > summary::-webkit-details-marker { display: none; }
+.sv-trade > summary .t { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; }
+.sv-trade > summary .m { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.sv-trade > summary .chev { transition: transform .15s; color: var(--muted); display: inline-flex; }
+.sv-trade[open] > summary .chev { transform: rotate(90deg); }
+.sv-counts { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.sv-counts .late, .sv-late { color: var(--color-status); }
+.sv-counts .punch { color: var(--color-bid); }
+.sv-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.sv-line, .sv-feed {
+  display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 8px;
+  color: inherit; text-decoration: none; background: var(--color-bg);
+}
+.sv-feed { flex-direction: row; align-items: flex-start; gap: 8px; }
+a.sv-line:hover, a.sv-feed:hover { background: var(--color-soft-2); }
+.sv-line .t, .sv-feed .t { font-size: 13px; font-weight: 600; display: block; }
+.sv-line .m, .sv-feed .m { font-size: 11.5px; color: var(--muted); display: block; }
+.sv-what {
+  flex: none; min-width: 52px; text-align: center; font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .03em; padding: 2px 6px; border-radius: var(--radius-pill); background: var(--color-soft-2); color: var(--muted);
+}
+.sv-what.done { background: var(--color-ok-soft); color: var(--color-ok); }
+.sv-what.permit { background: var(--color-bid-soft); color: var(--color-bid); }
+.sv-what.on_site { background: var(--color-soon-soft); color: var(--color-soon); }

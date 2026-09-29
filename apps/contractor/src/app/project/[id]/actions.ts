@@ -23,6 +23,17 @@ const here = (projectId: string, params: Record<string, string> = {}) => {
   return `/project/${projectId}${q ? `?${q}` : ""}`;
 };
 
+// Where a visit form lands afterwards: back on the site-visit screen when it
+// was sent from there (it posts `back`), the project's visits panel otherwise.
+const visitBack = (projectId: string, formData: FormData | undefined, params: Record<string, string>) => {
+  const b = String(formData?.get("back") ?? "");
+  if (b.startsWith(`/project/${projectId}/`) && !b.includes("//", 1)) {
+    const q = new URLSearchParams(params).toString();
+    return `${b}${b.includes("?") ? "&" : "?"}${q}`;
+  }
+  return here(projectId, { panel: "visits", ...params });
+};
+
 export async function logVisit(projectId: string, formData: FormData) {
   const supabase = await createClient();
   const files = ids(formData.get("file_ids"));
@@ -32,11 +43,11 @@ export async function logVisit(projectId: string, formData: FormData) {
     p_file_ids: files.length > 0 ? files : null,
     p_on: txt(formData.get("on_date")),
   });
-  revalidatePath(`/project/${projectId}`);
+  revalidatePath(`/project/${projectId}`, "layout");
   revalidatePath("/");
-  if (error) redirect(here(projectId, { panel: "visits", error: friendly(error.message, "That visit did not save.") }));
-  if (!data?.ok) redirect(here(projectId, { panel: "visits", error: data?.reason ?? "That visit did not save." }));
-  redirect(here(projectId, { panel: "visits", ok: "visit" }));
+  if (error) redirect(visitBack(projectId, formData, { error: friendly(error.message, "That visit did not save.") }));
+  if (!data?.ok) redirect(visitBack(projectId, formData, { error: data?.reason ?? "That visit did not save." }));
+  redirect(visitBack(projectId, formData, { ok: "visit" }));
 }
 
 export async function editVisit(projectId: string, visitId: string, formData: FormData) {
@@ -47,19 +58,19 @@ export async function editVisit(projectId: string, visitId: string, formData: Fo
     p_note: txt(formData.get("note")),
     p_file_ids: files.length > 0 ? files : null,
   });
-  revalidatePath(`/project/${projectId}`);
-  if (error) redirect(here(projectId, { panel: "visits", error: friendly(error.message, "That change did not save.") }));
-  if (!data?.ok) redirect(here(projectId, { panel: "visits", error: data?.reason ?? "That change did not save." }));
-  redirect(here(projectId, { panel: "visits", ok: "visit-edit" }));
+  revalidatePath(`/project/${projectId}`, "layout");
+  if (error) redirect(visitBack(projectId, formData, { error: friendly(error.message, "That change did not save.") }));
+  if (!data?.ok) redirect(visitBack(projectId, formData, { error: data?.reason ?? "That change did not save." }));
+  redirect(visitBack(projectId, formData, { ok: "visit-edit" }));
 }
 
-export async function deleteVisit(projectId: string, visitId: string) {
+export async function deleteVisit(projectId: string, visitId: string, formData?: FormData) {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_site_visit_delete", { p_id: visitId });
-  revalidatePath(`/project/${projectId}`);
-  if (error) redirect(here(projectId, { panel: "visits", error: friendly(error.message, "That visit was not removed.") }));
-  if (!data?.ok) redirect(here(projectId, { panel: "visits", error: data?.reason ?? "That visit was not removed." }));
-  redirect(here(projectId, { panel: "visits", ok: "visit-gone" }));
+  revalidatePath(`/project/${projectId}`, "layout");
+  if (error) redirect(visitBack(projectId, formData, { error: friendly(error.message, "That visit was not removed.") }));
+  if (!data?.ok) redirect(visitBack(projectId, formData, { error: data?.reason ?? "That visit was not removed." }));
+  redirect(visitBack(projectId, formData, { ok: "visit-gone" }));
 }
 
 // FINISH THE JOB (migration 069). Shahar, on a job with nothing left open:
