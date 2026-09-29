@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { AppBar, Notice, Screen } from "@shared/ui";
 import { getBoard, runs } from "@/lib/board";
-import { LibraryView, type Folder, type LibFile } from "./LibraryView";
+import { LibraryView, type BinFile, type Folder, type LibFile } from "./LibraryView";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Library" };
@@ -11,6 +11,7 @@ type Lib = {
   ok: boolean; reason?: string;
   folders: Folder[]; loose: LibFile[]; trades: string[] | null;
 };
+type Bin = { ok: boolean; days: number | null; items: BinFile[] };
 
 // THE PROJECT LIBRARY (Shahar, 2026-09-24): "project library will hold
 // deliveries by trades by order... enable a folder like view, where I can
@@ -48,9 +49,22 @@ export default async function LibraryPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  // THE RECYCLE BIN (migration 244). Whatever has sat there past the
+  // retention is purged on the way in: the database lets go of the snapshot
+  // and hands back the paths, and the bytes go here - storage cannot be
+  // emptied from SQL. Then what is still in the bin, for the panel.
+  const { data: swept } = await supabase.rpc("portal_file_bin_purge", { p_project: id, p_all: false });
+  const removed = ((swept as { removed?: { bucket: string; path: string }[] } | null)?.removed ?? []);
+  for (const bucket of new Set(removed.map((r) => r.bucket))) {
+    await supabase.storage.from(bucket).remove(removed.filter((r) => r.bucket === bucket).map((r) => r.path));
+  }
+  const { data: binData } = await supabase.rpc("portal_file_bin", { p_project: id });
+  const bin = (binData ?? { ok: true, days: null, items: [] }) as Bin;
+
   // One signed URL per stored file, per bucket, so a row is a click and not
-  // a fetch. An hour is plenty - the page re-signs on every load.
-  const all = [...(lib.folders ?? []).flatMap((f) => f.files), ...(lib.loose ?? [])];
+  // a fetch. An hour is plenty - the page re-signs on every load. A binned
+  // file still has its bytes, so it opens too.
+  const all = [...(lib.folders ?? []).flatMap((f) => f.files), ...(lib.loose ?? []), ...(bin.items ?? [])];
   const byBucket = new Map<string, string[]>();
   for (const f of all) {
     if (!byBucket.has(f.bucket)) byBucket.set(f.bucket, []);
@@ -68,7 +82,7 @@ export default async function LibraryPage({ params }: { params: Promise<{ id: st
       <AppBar back={`/project/${id}`} title="Library" sub={seat.project_name ?? undefined} />
       <div className="body">
         <LibraryView projectId={id} folders={lib.folders ?? []} loose={lib.loose ?? []}
-          trades={lib.trades ?? []} urls={urls} />
+          trades={lib.trades ?? []} urls={urls} bin={bin.items ?? []} binDays={bin.days} />
       </div>
     </Screen>
   );
