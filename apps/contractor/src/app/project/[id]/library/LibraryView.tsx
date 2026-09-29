@@ -23,6 +23,14 @@ export type LibFile = {
   size_bytes: number | null; caption: string | null; created_at: string;
   bucket: string; path: string; via: string; detail: string | null;
 };
+// A file in the recycle bin (migration 244): the snapshot's face, when it
+// goes for good, and which shelf it was on.
+export type BinFile = {
+  id: string; file_name: string | null; kind: string | null; mime_type: string | null;
+  size_bytes: number | null; caption: string | null; bucket: string; path: string;
+  created_at: string | null; deleted_at: string; deleted_by: string | null;
+  purge_on: string; was_on: string | null; links: number;
+};
 export type Folder = {
   id: string; name: string; trade: string | null; auto: string | null;
   sort_order: number; files: LibFile[];
@@ -39,6 +47,9 @@ const sz = (n: number | null) => {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 };
 const day = (iso: string) => iso.slice(0, 10);
+const nice = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso)
+  .toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const daysUntil = (d: string) => Math.max(0, Math.ceil((new Date(`${d}T00:00:00`).getTime() - Date.now()) / 86_400_000));
 
 // Minted outside the component: the strict-purity lint is right that render
 // must not roll dice, and this only ever runs from an event.
@@ -67,13 +78,28 @@ const g = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWi
 const FolderGlyph = () => <svg {...g}><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>;
 const PenGlyph = () => <svg {...g}><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" /></svg>;
 const TrashGlyph = () => <svg {...g}><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>;
+const UndoGlyph = () => <svg {...g}><path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" /></svg>;
 
-export function LibraryView({ projectId, folders, loose, trades, urls }: {
+// The face of a row: the photo itself when there is one to show, else a
+// quiet tile with the file's kind on it.
+function Thumb({ kind, mime, url, name }: { kind: string | null; mime?: string | null; url?: string; name: string }) {
+  const box: React.CSSProperties = { width: 40, height: 40, borderRadius: 8, flex: "none",
+    background: "var(--color-divider)", display: "grid", placeItems: "center", overflow: "hidden", fontSize: 18 };
+  if (url && (kind === "photo" || mime?.startsWith("image/"))) {
+    // eslint-disable-next-line @next/next/no-img-element -- a signed, one-hour storage URL; nothing to optimise
+    return <img src={url} alt={name} loading="lazy" style={{ ...box, objectFit: "cover" }} />;
+  }
+  return <span aria-hidden style={box}>{ICON[kind ?? "other"] ?? "📎"}</span>;
+}
+
+export function LibraryView({ projectId, folders, loose, trades, urls, bin, binDays }: {
   projectId: string;
   folders: Folder[];
   loose: LibFile[];
   trades: string[];
   urls: Record<string, string>;
+  bin: BinFile[];
+  binDays: number | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
@@ -83,6 +109,8 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
   const [adding, setAdding] = useState(false);
   const [tray, setTray] = useState<Tray | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [undo, setUndo] = useState<{ id: string; name: string } | null>(null);
+  const [binOpen, setBinOpen] = useState(true);
   const [, start] = useTransition();
 
   const openFolder = folders.find((f) => f.id === open) ?? null;
@@ -205,18 +233,51 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
     start(() => router.refresh());
   }
 
-  // Delete for good (Shahar, 2026-09-25): the row and its links go in one
-  // call (portal_project_file_delete), then the bytes - same as the portal's
-  // scope files. Unfile stays the gentle option beside it.
+  // Delete goes to the bin (Shahar, 2026-09-29: "a file deleted will still
+  // show as deleted file until the recycle bin clears it out"). Nothing is
+  // lost, so no confirm - an Undo instead. The row, its links and whatever
+  // pointed at it wait in file_trash (portal_file_trash, 244); the bytes stay.
   async function deleteFile(f: LibFile) {
-    const on = f.via !== "filed" && f.via !== "loose" && f.detail ? ` It is attached to ${f.detail} and comes off that too.` : " It also comes off anything it is attached to.";
-    if (!window.confirm(`Delete ${f.file_name ?? "this file"} for good?${on} This cannot be undone.`)) return;
     setErr("");
     const supabase = createClient();
-    const { data, error } = await supabase.rpc("portal_project_file_delete", { p_file_id: f.id });
-    if (error) { setErr(friendly(error.message)); return; }
-    const gone = data as { bucket: string | null; path: string | null } | null;
-    if (gone?.bucket && gone.path) await supabase.storage.from(gone.bucket).remove([gone.path]);
+    const { data, error } = await supabase.rpc("portal_file_trash", { p_file_id: f.id });
+    if (error || data?.ok === false) { setErr(data?.reason ?? friendly(error?.message ?? "That did not delete.")); return; }
+    setUndo({ id: f.id, name: f.file_name ?? "The file" });
+    start(() => router.refresh());
+  }
+
+  async function restore(id: string) {
+    setErr("");
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_file_restore", { p_file_id: id });
+    if (error || data?.ok === false) { setErr(data?.reason ?? friendly(error?.message ?? "That did not come back.")); return; }
+    if (data?.links_lost > 0) setErr(`${data.file_name ?? "The file"} is back, but ${data.links_lost} of the things it was attached to no longer exist.`);
+    setUndo(null);
+    start(() => router.refresh());
+  }
+
+  // Force purge: the snapshot goes, then the bytes. For good.
+  async function purge(f: BinFile) {
+    if (!window.confirm(`Purge ${f.file_name ?? "this file"} now? It cannot be restored after this.`)) return;
+    setErr("");
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_file_purge", { p_file_id: f.id });
+    if (error || data?.ok === false) { setErr(data?.reason ?? friendly(error?.message ?? "That did not purge.")); return; }
+    if (data?.bucket && data.path) await supabase.storage.from(data.bucket).remove([data.path]);
+    start(() => router.refresh());
+  }
+
+  async function emptyBin() {
+    if (!window.confirm(`Purge all ${bin.length} file${bin.length === 1 ? "" : "s"} in the bin now? None can be restored after this.`)) return;
+    setErr("");
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc("portal_file_bin_purge", { p_project: projectId, p_all: true });
+    if (error || data?.ok === false) { setErr(data?.reason ?? friendly(error?.message ?? "The bin did not empty.")); return; }
+    const gone = (data?.removed ?? []) as { bucket: string; path: string }[];
+    for (const b of new Set(gone.map((r) => r.bucket))) {
+      await supabase.storage.from(b).remove(gone.filter((r) => r.bucket === b).map((r) => r.path));
+    }
+    setUndo(null);
     start(() => router.refresh());
   }
 
@@ -252,20 +313,28 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
     },
   });
 
+  const iconBtn: React.CSSProperties = { padding: 6, lineHeight: 0, borderRadius: 8 };
+
+  // One row per file: its face, its name on one line, what it is beneath,
+  // and the verbs at the right - filing, the note, the bin.
   const fileRow = (f: LibFile, inFolder: Folder | null) => {
     const url = urls[`${f.bucket}/${f.path}`];
     const via = VIA[f.via] ?? f.via;
+    const name = f.file_name ?? f.path.split("/").pop() ?? "file";
+    const meta = [f.caption, via, f.detail].filter(Boolean).join(" · ");
     return (
-      <div key={`${inFolder?.id ?? "loose"}-${f.id}`} className="small"
-        style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "5px 0",
-          borderTop: "1px solid var(--color-divider)" }}>
-        <span aria-hidden>{ICON[f.kind ?? "other"] ?? "📎"}</span>
-        <span style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
+      <div key={`${inFolder?.id ?? "loose"}-${f.id}`}
+        style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0",
+          borderTop: "1px solid var(--color-divider)", flexWrap: "wrap" }}>
+        <Thumb kind={f.kind} mime={f.mime_type} url={url} name={name} />
+        <span style={{ minWidth: 0, flex: "1 1 200px", display: "grid", gap: 2 }}>
           {url
-            ? <a href={url} target="_blank" rel="noreferrer">{f.file_name ?? f.path.split("/").pop()}</a>
-            : <span>{f.file_name ?? f.path.split("/").pop()}</span>}
+            ? <a href={url} target="_blank" rel="noreferrer" className="small"
+                style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                title={name}>{name}</a>
+            : <span className="small" style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>}
           {editing?.id === f.id ? (
-            <form style={{ display: "flex", gap: 6, marginTop: 4 }}
+            <form style={{ display: "flex", gap: 6 }}
               onSubmit={(e) => { e.preventDefault(); void saveNote(f.id, editing.text); }}>
               <input className="input small" autoFocus value={editing.text} maxLength={500}
                 placeholder="What is this file?" style={{ flex: 1, padding: "3px 6px" }}
@@ -274,40 +343,77 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
               <button className="btn btn-secondary small">Save</button>
               <button type="button" className="btn btn-ghost small" onClick={() => setEditing(null)}>Cancel</button>
             </form>
-          ) : (f.caption || f.detail || via) && (
-            <span className="tiny text-muted" style={{ display: "block", overflow: "hidden",
-              textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {[f.caption, via, f.detail].filter(Boolean).join(" · ")}
+          ) : (
+            <span className="tiny text-muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {[meta, nice(f.created_at), sz(f.size_bytes)].filter(Boolean).join(" · ")}
             </span>
           )}
         </span>
-        <span className="tiny text-muted" style={{ whiteSpace: "nowrap" }}>{day(f.created_at)}{f.size_bytes ? ` · ${sz(f.size_bytes)}` : ""}</span>
-        {inFolder && f.via === "filed" && (
-          <button type="button" className="btn btn-ghost small" onClick={() => void fileInto(f.id, inFolder.id, true)}>
-            Unfile
+        <span style={{ display: "flex", gap: 2, alignItems: "center", marginLeft: "auto" }}>
+          {inFolder && f.via === "filed" && (
+            <button type="button" className="btn btn-ghost small" onClick={() => void fileInto(f.id, inFolder.id, true)}>
+              Unfile
+            </button>
+          )}
+          {!inFolder && folders.length > 0 && (
+            <select className="input" defaultValue="" aria-label={`File ${name} into a folder`}
+              style={{ width: 118, height: 30, padding: "0 6px", fontSize: 12, borderRadius: 8 }}
+              onChange={(e) => { if (e.target.value) void fileInto(f.id, e.target.value); }}>
+              <option value="" disabled>File into…</option>
+              {folders.filter((fo) => !fo.auto).map((fo) => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
+            </select>
+          )}
+          <button type="button" className="btn btn-ghost small" title={f.caption ? "Edit note" : "Add a note"}
+            aria-label={`${f.caption ? "Edit the note on" : "Add a note to"} ${name}`} style={iconBtn}
+            onClick={() => setEditing({ id: f.id, text: f.caption ?? "" })}>
+            <PenGlyph />
           </button>
-        )}
-        {!inFolder && folders.length > 0 && (
-          <select className="input small" defaultValue="" aria-label={`File ${f.file_name ?? "this"} into a folder`}
-            style={{ maxWidth: 130, padding: "3px 6px" }}
-            onChange={(e) => { if (e.target.value) void fileInto(f.id, e.target.value); }}>
-            <option value="" disabled>File into…</option>
-            {folders.filter((fo) => !fo.auto).map((fo) => <option key={fo.id} value={fo.id}>{fo.name}</option>)}
-          </select>
-        )}
-        <button type="button" className="btn btn-ghost small" title={f.caption ? "Edit note" : "Add a note"}
-          aria-label={`${f.caption ? "Edit the note on" : "Add a note to"} ${f.file_name ?? "this file"}`}
-          style={{ padding: "4px 6px", alignSelf: "center" }}
-          onClick={() => setEditing({ id: f.id, text: f.caption ?? "" })}>
-          <PenGlyph />
-        </button>
-        {/* Every row can go, whichever way it reached the shelf (Shahar,
-            2026-09-25: "some file get a trash and some don't"). */}
-        <button type="button" className="btn btn-ghost small" title="Delete" aria-label={`Delete ${f.file_name ?? "this file"}`}
-          style={{ color: "var(--color-danger)", padding: "4px 6px", alignSelf: "center" }}
-          onClick={() => void deleteFile(f)}>
-          <TrashGlyph />
-        </button>
+          {/* Every row can go, whichever way it reached the shelf (Shahar,
+              2026-09-25) - into the bin, where it can be restored. */}
+          <button type="button" className="btn btn-ghost small" title="Move to the bin" aria-label={`Delete ${name}`}
+            style={{ ...iconBtn, color: "var(--color-danger)" }}
+            onClick={() => void deleteFile(f)}>
+            <TrashGlyph />
+          </button>
+        </span>
+      </div>
+    );
+  };
+
+  // A binned file: struck through but still opens, when it goes for good,
+  // and the two ways out - back, or gone now.
+  const binRow = (f: BinFile) => {
+    const url = urls[`${f.bucket}/${f.path}`];
+    const name = f.file_name ?? f.path.split("/").pop() ?? "file";
+    const left = daysUntil(f.purge_on);
+    return (
+      <div key={f.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0",
+        borderTop: "1px solid var(--color-divider)", flexWrap: "wrap" }}>
+        <span style={{ opacity: 0.5 }}><Thumb kind={f.kind} mime={f.mime_type} url={url} name={name} /></span>
+        <span style={{ minWidth: 0, flex: "1 1 200px", display: "grid", gap: 2 }}>
+          {url
+            ? <a href={url} target="_blank" rel="noreferrer" className="small text-muted"
+                style={{ textDecoration: "line-through", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                title={`${name} (deleted) - opens until it is purged`}>{name}</a>
+            : <span className="small text-muted" style={{ textDecoration: "line-through" }}>{name}</span>}
+          <span className="tiny text-muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {[`Deleted ${nice(f.deleted_at)}${f.deleted_by ? ` by ${f.deleted_by}` : ""}`,
+              f.was_on ? `was on ${f.was_on}` : null, sz(f.size_bytes)].filter(Boolean).join(" · ")}
+          </span>
+          <span className="tiny" style={{ color: left <= 2 ? "var(--color-danger)" : "var(--color-muted)" }}>
+            Purged {left === 0 ? "today" : `${nice(f.purge_on)} · in ${left} day${left === 1 ? "" : "s"}`}
+          </span>
+        </span>
+        <span style={{ display: "flex", gap: 4, alignItems: "center", marginLeft: "auto" }}>
+          <button type="button" className="btn btn-secondary small" onClick={() => void restore(f.id)}
+            style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+            <UndoGlyph /> Restore
+          </button>
+          <button type="button" className="btn btn-ghost small" style={{ color: "var(--color-danger)" }}
+            onClick={() => void purge(f)}>
+            Purge now
+          </button>
+        </span>
       </div>
     );
   };
@@ -315,6 +421,15 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
   return (
     <div className="stack" style={{ gap: 12 }}>
       {err && <p className="small" style={{ color: "var(--color-danger)", margin: 0 }}>{err}</p>}
+      {undo && (
+        <div className="card small" role="status" style={{ padding: "8px 12px", display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <strong>{undo.name}</strong> moved to the bin.
+          </span>
+          <button type="button" className="btn btn-secondary small" onClick={() => void restore(undo.id)}>Undo</button>
+          <button type="button" className="btn btn-ghost small" aria-label="Dismiss" onClick={() => setUndo(null)}>✕</button>
+        </div>
+      )}
       {busy && <p className="small text-muted" style={{ margin: 0 }}>{busy}</p>}
 
       {/* THE SHELVES, in his order. A tile is also a drop target: let go of a
@@ -471,6 +586,32 @@ export function LibraryView({ projectId, folders, loose, trades, urls }: {
           <div>{loose.map((f) => fileRow(f, null))}</div>
         </div>
       )}
+
+      {/* THE RECYCLE BIN (244): what was deleted, still openable, until the
+          retention runs out - then purged on the next open. Restore puts it
+          back where it was; Purge now and Empty bin do not wait. */}
+      <div className="card" style={{ padding: "12px 14px", display: "grid", gap: 6 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button type="button" onClick={() => setBinOpen((o) => !o)} aria-expanded={binOpen}
+            style={{ all: "unset", cursor: "pointer", display: "flex", gap: 8, alignItems: "baseline", flex: 1 }}>
+            <span style={{ display: "inline-flex", gap: 6, alignItems: "center", fontWeight: 700 }}>
+              <TrashGlyph /> Recycle bin
+            </span>
+            <span className="tiny text-muted">
+              {bin.length === 0 ? "empty" : `${bin.length} file${bin.length === 1 ? "" : "s"}`}
+              {binDays ? ` · purged ${binDays} days after deleting` : ""}
+            </span>
+            {bin.length > 0 && <span className="tiny text-muted" aria-hidden>{binOpen ? "▾" : "▸"}</span>}
+          </button>
+          {bin.length > 0 && binOpen && (
+            <button type="button" className="btn btn-ghost small" style={{ color: "var(--color-danger)" }}
+              onClick={() => void emptyBin()}>
+              Empty bin
+            </button>
+          )}
+        </div>
+        {binOpen && bin.length > 0 && <div>{bin.map(binRow)}</div>}
+      </div>
     </div>
   );
 }

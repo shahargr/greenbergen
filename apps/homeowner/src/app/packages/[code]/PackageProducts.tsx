@@ -22,8 +22,10 @@ export function PackageProducts({ products }: { products: PackageProduct[] }) {
       <div>
         <h6>What you buy yourself</h6>
         <p className="small text-muted" style={{ margin: "2px 0 0" }}>
-          Optional, and not part of the price. Any Level 2 unit works — these are the ones we see
-          most often. You buy it direct; we install whatever turns up.
+          {/* Shared by every package now (the generator's battery joined the
+              EV chargers, 2026-09-29), so the words cannot name one product. */}
+          Optional, and not part of the price — these are the ones we recommend. You buy it
+          direct; we install whatever turns up.
         </p>
       </div>
       {products.map((p) => (
