@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { priceFor, type GasKind, type Lever, type Package, type Selections } from "@shared/catalogue";
+import { priceFor, type GasKind, type Lever, type Package, type Selections } from "@shared/catalogue.shared";
 import { dollars } from "@shared/format";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { ChoiceLever, Delta, ProposalView, WalkProgress } from "./SurveyParts";

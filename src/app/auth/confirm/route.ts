@@ -8,8 +8,11 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type") as EmailOtpType | null;
   const code = searchParams.get("code");
   // The default lands on /after-login, which sends people to their own
-  // app; an explicit ?next= still wins, so deep links keep working.
-  const next = searchParams.get("next") ?? "/after-login";
+  // app; an explicit ?next= still wins, so deep links keep working. Only a
+  // path on this host is honoured: an absolute URL or a protocol-relative
+  // "//host" would turn a real sign-in link into an open redirect.
+  const rawNext = searchParams.get("next") ?? "/after-login";
+  const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/after-login";
 
   const supabase = await createClient();
 

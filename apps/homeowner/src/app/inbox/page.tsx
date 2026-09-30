@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { isSignedIn } from "@shared/supabase/session";
 import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { getMe } from "@/lib/me";
@@ -34,9 +35,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const { error, ok } = await searchParams;
   const w = stopwatch("/inbox");
   const supabase = await createClient();
-  // All three reads leave together - the invitations and tasks do not depend
+  // A stranger is turned away BEFORE the fan-out - the claims are verified in
+  // process, so this costs nothing - rather than after five reads came back
+  // for nobody.
+  if (!(await isSignedIn(supabase))) redirect("/login?next=/inbox");
+  // All the reads leave together - the invitations and tasks do not depend
   // on the profile, so waiting for it first only added its latency to theirs.
-  const [me, { data: inv }, { data: tasks }, portal, questions] = await Promise.all([
+  const [me, { data: inv }, { data: tasks }, portal, questions, unread] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("invites", () => rpc<{ incoming: Invite[]; outcomes: Outcome[] }>(supabase, "portal_my_invites")),
     w.step("tasks", () => rpc<Task[]>(supabase, "homeowner_tasks", { p_limit: 25 })),
@@ -47,6 +52,10 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
     // A contractor asking before they accept is a job standing still, so it
     // travels with the rest rather than waiting on any of them.
     w.step("questions", () => loadQuestions()),
+    // Everything waiting on you, not just the booking conversations: the old
+    // count missed offers, questions and anything else addressed to you.
+    // my_unread_count() is the same predicate the inbox list calls `pending`.
+    w.step("unread", () => unreadForShell()),
   ]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/inbox");
@@ -54,10 +63,6 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const outcomes = inv?.outcomes ?? [];
   const open = tasks ?? []; // homeowner_tasks returns the open ones only
   const threads = me.bookings.filter((b) => b.last_message || b.unread > 0).sort((a, b) => (b.unread > 0 ? 1 : 0) - (a.unread > 0 ? 1 : 0) || (b.last_message?.sent_at ?? "").localeCompare(a.last_message?.sent_at ?? ""));
-  // Everything waiting on you, not just the booking conversations: the old
-  // count missed offers, questions and anything else addressed to you.
-  // my_unread_count() is the same predicate the inbox list calls `pending`.
-  const unread = await unreadForShell();
   const empty = incoming.length === 0 && outcomes.length === 0 && threads.length === 0 && open.length === 0;
 
   return (

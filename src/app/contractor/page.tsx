@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { TasksTable, type TableTask } from "../my/TasksTable";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export default async function WorkHome({
   const showAll = all === "1";
   const supabase = await createClient();
   const jar = await cookies();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   const isAdmin: boolean = me?.is_superadmin ?? false;
   const picked = isAdmin ? jar.get("gb_view")?.value : undefined;
   const hat = picked === "PM" || picked === "GC" ? picked : "Contractor";

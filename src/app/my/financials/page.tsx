@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ type Membership = {
 // across everything you manage. Money visibility stays with RLS.
 export default async function FinancialsPage() {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
 
   const { data: membershipRows } = me?.app_user_id
     ? await supabase

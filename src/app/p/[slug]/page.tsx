@@ -85,9 +85,11 @@ export default async function ProjectPage({
 }) {
   const { slug } = await params;
   const supabase = await createClient();
-  const [{ data }, { data: houseData }] = await Promise.all([
+  // The gallery listing only needs the slug, so it rides with the two RPCs.
+  const [{ data }, { data: houseData }, { data: galleryFiles }] = await Promise.all([
     supabase.rpc("public_showcase", { p_slug: slug }),
     supabase.rpc("house_page", { p_slug: slug }),
+    supabase.storage.from("public-media").list(`gallery/${slug}`, { limit: 60 }),
   ]);
 
   // A HOUSE ON THE MARKET IS A DIFFERENT PAGE (Shahar, 2026-09-17, choosing
@@ -112,9 +114,6 @@ export default async function ProjectPage({
   const garageText =
     about.garage_note ?? (scope.garages > 0 ? `${scope.garages} garage${scope.garages > 1 ? "s" : ""}` : null);
 
-  const { data: galleryFiles } = await supabase.storage
-    .from("public-media")
-    .list(`gallery/${slug}`, { limit: 60 });
   const files = (galleryFiles ?? []).filter((f) => f.name && !f.name.startsWith("."));
   const gallery = files.map((f) => ({
     name: f.name,

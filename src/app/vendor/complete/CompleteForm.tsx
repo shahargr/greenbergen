@@ -141,7 +141,7 @@ export function CompleteForm() {
         <p style={{ margin: 0 }}>Enter the verification code (valid 5 minutes).</p>
         <div className="field" style={{ marginBottom: 0 }}>
           <label htmlFor="vc-code">Code</label>
-          <input id="vc-code" className="input" inputMode="numeric" required autoFocus value={code}
+          <input id="vc-code" className="input" inputMode="numeric" autoComplete="one-time-code" required autoFocus value={code}
             onChange={(e) => setCode(e.target.value)}
             style={{ letterSpacing: "0.4em", fontSize: 18, textAlign: "center" }} />
         </div>

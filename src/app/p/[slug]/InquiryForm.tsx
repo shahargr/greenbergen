@@ -34,6 +34,8 @@ export function InquiryForm({ projectId, kinds }: { projectId: string; kinds?: s
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  // Honeypot: hidden from people, filled by bots, checked server-side.
+  const [website2, setWebsite2] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +53,7 @@ export function InquiryForm({ projectId, kinds }: { projectId: string; kinds?: s
       kind,
       message: message.trim() || null,
       preferredDate: DATED.includes(kind) && date ? date : null,
+      website2: website2 || null,
     });
     setBusy(false);
     if (res?.error) {
@@ -66,6 +69,11 @@ export function InquiryForm({ projectId, kinds }: { projectId: string; kinds?: s
 
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 10 }}>
+      <div style={{ position: "absolute", left: -10000, top: "auto", width: 1, height: 1, overflow: "hidden" }} aria-hidden="true">
+        <label htmlFor="inq-website2">Website</label>
+        <input id="inq-website2" name="website2" type="text" tabIndex={-1} autoComplete="off"
+          value={website2} onChange={(e) => setWebsite2(e.target.value)} />
+      </div>
       <div className="field" style={{ marginBottom: 0 }}>
         <label htmlFor="inq-name">Name</label>
         <input id="inq-name" className="input" required value={name}

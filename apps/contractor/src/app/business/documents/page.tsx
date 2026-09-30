@@ -7,6 +7,15 @@ import { PaperUpload, type PaperKey } from "./PaperUpload";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Documents" };
 
+// Which box an expiring certificate belongs to, by the same test
+// contractor_readiness applies to coverage_type (liability, then comp).
+function paperFor(coverage: string | null): PaperKey | null {
+  const c = (coverage ?? "").toLowerCase();
+  if (c.includes("liability")) return "liability";
+  if (c.includes("comp")) return "workers_comp";
+  return null;
+}
+
 // WHAT WE NEED ON FILE - and, since 2026-09-14, where you actually put it.
 //
 // The screen told the truth about each document and then asked people to
@@ -36,6 +45,9 @@ export default async function DocumentsPage() {
   ];
   const wanted = rows.filter((r) => r.state.needed);
   const left = wanted.filter((r) => !r.state.on_file).length;
+  // A certificate that is running out gets its upload box too, or the
+  // "upload the new one above" line under Expiring soon points at nothing.
+  const expiringKeys = new Set<PaperKey>(d.expiring.map((e) => paperFor(e.coverage)).filter((k): k is PaperKey => !!k));
 
   return (
     <Screen>
@@ -68,7 +80,7 @@ export default async function DocumentsPage() {
                   {r.state.on_file ? "On file" : "Missing"}
                 </span>
               </div>
-              {!r.state.on_file && contactId && (
+              {(!r.state.on_file || expiringKeys.has(r.key)) && contactId && (
                 <PaperUpload contactId={contactId} paper={r.key}
                   wantsExpiry={r.wantsExpiry} wantsNumber={r.wantsNumber} />
               )}

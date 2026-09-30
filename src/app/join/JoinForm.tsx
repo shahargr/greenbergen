@@ -280,7 +280,7 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
           </p>
           <div className="field" style={{ marginBottom: 0 }}>
             <label htmlFor="join-code">Code</label>
-            <input id="join-code" className="input" inputMode="numeric" required autoFocus value={code}
+            <input id="join-code" className="input" inputMode="numeric" autoComplete="one-time-code" required autoFocus value={code}
               onChange={(e) => setCode(e.target.value)}
               style={{ letterSpacing: "0.4em", fontSize: 18, textAlign: "center" }} />
           </div>
@@ -305,11 +305,16 @@ export function JoinForm({ inviteToken, prefill }: { inviteToken: string | null;
 
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
-      {inviteToken && (
+      {inviteToken && prefill && (
         <p className="card small" style={{ padding: "10px 14px", margin: 0 }}>
-          {prefill?.invited_by ? <>Invited by <strong>{prefill.invited_by}</strong></> : "You were invited"}
-          {prefill?.comment && <> — &ldquo;{prefill.comment}&rdquo;</>}
+          {prefill.invited_by ? <>Invited by <strong>{prefill.invited_by}</strong></> : "You were invited"}
+          {prefill.comment && <> — &ldquo;{prefill.comment}&rdquo;</>}
           . Finishing signup will apply your invitation.
+        </p>
+      )}
+      {inviteToken && !prefill && (
+        <p className="card small" style={{ padding: "10px 14px", margin: 0 }}>
+          This invitation link is no longer valid. You can still sign up below.
         </p>
       )}
 

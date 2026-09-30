@@ -43,7 +43,12 @@ export default async function CategoryPayPage({
 
   const w = stopwatch("/project/[id]/pay");
   const supabase = await createClient();
-  const [board, { data: moneyData }, { data: targetData }, { data: acctData }, { data: defaultData }, { data: lineData }, { data: methodData }, { data: tradeData }] = await Promise.all([
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=/project/${id}/pay`);
+  const [board, { data: moneyData }, { data: targetData }, { data: acctData }, { data: defaultData }, { data: methodData }, { data: tradeData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("money", () => rpc<TaskMoney>(supabase, "portal_task_money", { p_project: id })),
     w.step("people", () => rpc<Target[]>(supabase, "portal_compose_targets")),
@@ -56,10 +61,6 @@ export default async function CategoryPayPage({
     // gets from portal_task_detail: active, and settled by hand.
     // await, not the builder itself: a PostgREST builder is thenable but not
     // a Promise, and Promise.all types it as unknown.
-    // The budget lines on this family of jobs, so a payment can name one.
-    w.step("lines", async () => await supabase.from("budget_categories")
-      .select("id, project_id, category, phase")
-      .order("phase", { ascending: true, nullsFirst: false }).order("category")),
     w.step("methods", async () => await supabase.from("payment_methods")
       .select("id, name, requires_reference")
       .eq("is_active", true).eq("settlement_type", "manual")
@@ -99,6 +100,14 @@ export default async function CategoryPayPage({
       }
     }
   }
+
+  // The budget lines on this family of jobs, so a payment can name one. It
+  // waits for the family because it is scoped to it: unfiltered, this read
+  // offered every line the session could see, including other sites'.
+  const { data: lineData } = await w.step("lines", async () => await supabase.from("budget_categories")
+    .select("id, project_id, category, phase")
+    .in("project_id", [...family])
+    .order("phase", { ascending: true, nullsFirst: false }).order("category"));
 
   // WHICH CATEGORY. Untagged is a category too - on 55 Walnut it holds most
   // of the receipts, so hiding it would hide the work (see groupWork).

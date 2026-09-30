@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { FileDrop } from "@/components/FileDrop";
 import { submitReply, attachBidDocs } from "../../project/[id]/bids/actions";
 
@@ -52,15 +53,17 @@ export default async function BidReplyPage({
     return <main className="wrap" style={{ paddingTop: 32, maxWidth: 640 }}><p className="muted">This bid is not yours to see.</p><p><Link href="/my">← Home</Link></p></main>;
   }
   const pk = b.package;
-  const sign = async (docs: Doc[]) => {
+  // Both document lists signed in one batch per bucket.
+  const signed = await signedUrlMap(supabase, [...pk.docs, ...b.docs]);
+  const sign = (docs: Doc[]) => {
     const m = new Map<string, string>();
-    await Promise.all(docs.map(async (d) => {
-      const { data: s } = await supabase.storage.from(d.bucket).createSignedUrl(d.path, 3600);
-      if (s?.signedUrl) m.set(d.id, s.signedUrl);
-    }));
+    for (const d of docs) {
+      const u = signed.get(signedKey(d.bucket, d.path));
+      if (u) m.set(d.id, u);
+    }
     return m;
   };
-  const [pkgUrls, replyUrls] = await Promise.all([sign(pk.docs), sign(b.docs)]);
+  const [pkgUrls, replyUrls] = [sign(pk.docs), sign(b.docs)];
   const back = `/my/bid/${bidId}`;
   const prior = new Map((b.line_items ?? []).map((li) => [li.scope_item_id, li]));
   const docList = (docs: Doc[], urls: Map<string, string>) => (

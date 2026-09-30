@@ -55,6 +55,11 @@ export default async function BidBoardPage({
 
   const w = stopwatch("/project/[id]/bids");
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/bids`)}`);
   const [board, { data }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("bids", () => rpc<{ trades: Row[] }>(supabase, "portal_bid_board", { p_project: id })),

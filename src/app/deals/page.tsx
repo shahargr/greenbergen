@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/SiteHeader";
-import { FootBar } from "@/components/FootBar";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeHttpUrl } from "@/lib/safeUrl";
 import { bookDeal, cancelBooking } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -44,14 +44,18 @@ export default async function DealsPage({
 }) {
   const { error, booked } = await searchParams;
   const supabase = await createClient();
-  const [{ data: dealsData }, { data: auth }, { data: bannerData }] = await Promise.all([
+  const [{ data: dealsData }, { data: claimsData }, { data: bannerData }] = await Promise.all([
     supabase.rpc("public_deals"),
-    supabase.auth.getUser(),
+    supabase.auth.getClaims(),
     supabase.rpc("public_banner"),
   ]);
   const deals = ((dealsData ?? []) as Deal[]);
-  const signedIn = !!auth.user;
-  const banner = (bannerData ?? null) as { text: string; url: string | null } | null;
+  const signedIn = !!claimsData?.claims?.sub;
+  const banner0 = (bannerData ?? null) as { text: string; url: string | null } | null;
+  // Only an http(s) link becomes the anchor; anything else is dropped.
+  const banner = banner0 ? { ...banner0, url: safeHttpUrl(banner0.url) } : null;
+  // The query string is anybody's to type; only a real date reaches prettyDate.
+  const bookedOn = booked && /^\d{4}-\d{2}-\d{2}$/.test(booked) ? booked : null;
 
   // Every render counts one view per listed deal - after the response is
   // sent, so tracking never delays the page.
@@ -89,9 +93,9 @@ export default async function DealsPage({
           </p>
         )}
 
-        {booked && (
+        {bookedOn && (
           <p className="banner" style={{ background: "var(--ok)" }}>
-            Booked for {prettyDate(booked)} ✓ — your spot is held. Online payment
+            Booked for {prettyDate(bookedOn)} ✓ — your spot is held. Online payment
             is coming; we&apos;ll send a payment link before the visit.
           </p>
         )}
@@ -166,7 +170,6 @@ export default async function DealsPage({
           })}
         </div>
       </main>
-      <FootBar />
     </div>
   );
 }

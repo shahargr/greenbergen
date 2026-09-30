@@ -13,7 +13,7 @@ column, centred on desktop.
 ```bash
 npm install                     # once, at the repo root (one npm workspace)
 cd apps/homeowner
-cp .env.example .env.local      # anon key; NEXT_PUBLIC_APP_URL for share links (optional on Vercel)
+cp .env.example .env.local      # anon key
 npm run dev                     # http://localhost:3001
 ```
 
@@ -31,7 +31,7 @@ Create a **second** Vercel project from the same GitHub repo:
 | Root Directory   | `apps/homeowner`                        |
 | Framework        | Next.js (detected)                      |
 | Production branch| `main`                                  |
-| Env              | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL` (the app's own https URL) |
+| Env              | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (share links use the one host in `apps/shared/src/site.ts`) |
 
 Live as project `greenbergen-homeowner` at https://greenbergen-homeowner.vercel.app.
 Vercel installs at the repo root (it detects the npm workspace) and builds

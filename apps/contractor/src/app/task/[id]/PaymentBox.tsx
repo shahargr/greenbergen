@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Evidence, type Attached } from "@shared/Evidence";
+import { todayET } from "@/lib/today";
 
 export type Method = { id: string; name: string; requires_reference: boolean };
 
@@ -214,7 +215,7 @@ export function PaymentBox({ projectId, methods, people, accounts = [], defaults
         </label>
         <label className="field grow">
           <span className="field-label">{credit ? "Came back on" : "Paid on"}</span>
-          <input className="input" name="paid_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
+          <input className="input" name="paid_on" type="date" defaultValue={todayET()} />
         </label>
       </div>
 

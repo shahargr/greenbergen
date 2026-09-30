@@ -14,15 +14,29 @@ export async function submitInquiry(input: {
   kind: string;
   message: string | null;
   preferredDate: string | null;
+  // Honeypot: a field no person sees or fills. Bots fill everything.
+  website2?: string | null;
 }) {
+  if (input.website2) return { ok: true };
+  // The form caps these client-side; the same caps hold here for anyone
+  // who skips the form.
+  const cap = (v: string | null | undefined, n: number) => {
+    const t = (v ?? "").trim().slice(0, n);
+    return t || null;
+  };
+  const name = cap(input.name, 120) ?? "";
+  const email = cap(input.email, 200);
+  const phone = cap(input.phone, 40);
+  const message = cap(input.message, 2000);
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("about_inquire", {
     p_project_id: input.projectId,
-    p_name: input.name,
-    p_phone: input.phone,
-    p_email: input.email,
+    p_name: name,
+    p_phone: phone,
+    p_email: email,
     p_kind: input.kind,
-    p_message: input.message,
+    p_message: message,
     p_preferred_date: input.preferredDate,
   });
 
@@ -31,7 +45,11 @@ export async function submitInquiry(input: {
     return { error: raw ?? "Could not send — please try again." };
   }
 
-  const admin = process.env.MAIL_ADMIN ?? "shahar.greenberg@gmail.com";
+  // No admin address configured means no notification; the lead is in the
+  // task list either way.
+  const admin = process.env.MAIL_ADMIN?.trim();
+  if (!admin) return { ok: true };
+  const origin = (process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim() || "https://greenbergen.vercel.app").replace(/\/$/, "");
   // A buyer and a renter are not "a question", and the subject line is the
   // only part of this that reaches a phone on a Saturday.
   const said: Record<string, string> = {
@@ -39,14 +57,14 @@ export async function submitInquiry(input: {
   };
   await sendMail(
     admin,
-    `New lead: ${said[input.kind] ?? "question"} from ${input.name}`,
+    `New lead: ${said[input.kind] ?? "question"} from ${name}`,
     `A new inquiry just arrived and is waiting in your task list.\n\n` +
-      `Name: ${input.name}\n` +
-      (input.phone ? `Phone: ${input.phone}\n` : "") +
-      (input.email ? `Email: ${input.email}\n` : "") +
+      `Name: ${name}\n` +
+      (phone ? `Phone: ${phone}\n` : "") +
+      (email ? `Email: ${email}\n` : "") +
       (input.preferredDate ? `Preferred date: ${input.preferredDate}\n` : "") +
-      (input.message ? `Message: ${input.message}\n` : "") +
-      `\nOpen your dashboard: https://greenbergen.vercel.app/my?panel=tasks`,
+      (message ? `Message: ${message}\n` : "") +
+      `\nOpen your dashboard: ${origin}/my?panel=tasks`,
   );
 
   return { ok: true };

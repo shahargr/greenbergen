@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
+import { getMe } from "@/lib/serverMe";
 import { saveProfile, emptyRecycleBin } from "./actions";
 import { createHome } from "../actions";
 import { restoreProject, deleteProjectNow } from "../project/[id]/actions";
@@ -24,8 +26,8 @@ export default async function SettingsPage({
 }) {
   const { saved, error, verified } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: trashData }, { data: contactsData }] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data: trashData }, { data: contactsData }] = await Promise.all([
+    getMe(),
     supabase.rpc("my_trash"),
     supabase.rpc("portal_my_contacts"),
   ]);
@@ -97,11 +99,12 @@ export default async function SettingsPage({
     : { data: [] };
   type MediaRow = { id: string; file_name: string; kind: string | null; mime_type: string | null; bucket: string; path: string; created_at: string; project_id: string; caption: string | null };
   const media = ((mediaRows ?? []) as MediaRow[]);
+  const mediaSigned = await signedUrlMap(supabase, media);
   const mediaUrls = new Map<string, string>();
-  await Promise.all(media.map(async (m) => {
-    const { data: s } = await supabase.storage.from(m.bucket).createSignedUrl(m.path, 3600);
-    if (s?.signedUrl) mediaUrls.set(m.id, s.signedUrl);
-  }));
+  for (const m of media) {
+    const u = mediaSigned.get(signedKey(m.bucket, m.path));
+    if (u) mediaUrls.set(m.id, u);
+  }
   const trashDays: number = trashData?.days ?? 14;
   const trashItems = ((trashData?.items ?? []) as { id: string; name: string; trashed_at: string; expires_on: string }[]);
 

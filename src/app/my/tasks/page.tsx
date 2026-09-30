@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { TasksTable, type TableTask } from "../TasksTable";
 import { AddTaskForm } from "../AddTaskForm";
 
@@ -37,7 +38,7 @@ export default async function TasksPage({
   const domain = qDomain ?? "construction";
   const state = (qState === "closed" || qState === "all" ? qState : "open") as "open" | "closed" | "all";
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   const myContact: string | null = me?.contact_id ?? null;
   const isAdmin: boolean = me?.is_superadmin ?? false;
 

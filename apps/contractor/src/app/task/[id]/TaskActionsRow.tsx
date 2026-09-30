@@ -83,10 +83,17 @@ export function TaskActionsRow({
         </div>
       </div>
 
-      {canLogPayment && pay && (
-        <div className="drawer stack" style={{ gap: 10, padding: "12px 0 4px" }}>
+      {/* THE DRAWER STAYS MOUNTED. Unmounting it on "Close payment" threw
+          away everything typed in it, with no warning. Closed, it is hidden
+          AND disabled: a disabled fieldset's controls neither post nor take
+          part in validation, so a half-filled payment behind a closed drawer
+          cannot block Update or slip into it - and what was typed is still
+          there when it opens again. */}
+      {canLogPayment && (
+        <fieldset className="drawer stack" hidden={!pay} disabled={!pay}
+          style={{ gap: 10, padding: "12px 0 4px", margin: 0, border: 0, minWidth: 0 }}>
           {payment}
-        </div>
+        </fieldset>
       )}
     </>
   );

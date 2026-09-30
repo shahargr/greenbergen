@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { marked, configLabel, payPlanLine, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
+import { marked, configLabel, payPlanLine, type Package, type PhotoReq, type Selections } from "@shared/catalogue.shared";
 import { dollars } from "@shared/format";
 import { AppBar, Notice, Screen } from "@shared/ui";
 import {

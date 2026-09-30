@@ -123,13 +123,13 @@ export function PhotoManager({ rows }: { rows: AdminRow[] }) {
             </div>
 
             <div className="field">
-              <label>Hero photo</label>
-              <input type="file" accept="image/*" className="small"
+              <label htmlFor={`hero-${r.public_slug}`}>Hero photo</label>
+              <input id={`hero-${r.public_slug}`} type="file" accept="image/*" className="small"
                 onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadHero(r.public_slug, file); }} />
             </div>
 
             <div className="field">
-              <label>Add plan / photo to the gallery</label>
+              <label htmlFor={`kind-${r.public_slug}`}>Add plan / photo to the gallery</label>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <select className="input" style={{ width: 140 }} id={`kind-${r.public_slug}`} defaultValue="photo">
                   <option value="elevation">Elevation</option>

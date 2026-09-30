@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { transcribeAudio } from "@/lib/transcribe";
 
 // Where a task action returns to: the task page by default, or the homepage
@@ -45,7 +46,7 @@ export type TaskPerms = {
 
 export async function taskPerms(projectId: string | null, assignedToContact: string | null): Promise<TaskPerms> {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   const admin: boolean = me?.is_superadmin ?? false;
   let rank = 0;
   if (projectId) {
@@ -255,7 +256,7 @@ export async function setTaskStatus(taskId: string, formData: FormData) {
     // box leads it so the line reads the way anyone would say it out loud.
     const who = String(formData.get("status_note") ?? "").trim();
     updates.status_note = who && !comment.toLowerCase().includes(who.toLowerCase())
-      ? `Waiting on  — `
+      ? `Waiting on ${who} — ${comment}`
       : comment;
   }
   const { error } = await supabase.from("actions").update(updates).eq("id", taskId);

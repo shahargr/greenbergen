@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { FileDrop } from "@/components/FileDrop";
 import { addScopeEvidence } from "./actions";
 import { acceptFor, type Caps } from "@/lib/caps";
@@ -24,11 +25,13 @@ export async function ScopeEvidence({ projectId, caps, canAdd, openLine }: {
   const lines = ((data ?? []) as Line[]);
   if (lines.length === 0) return null;
 
+  const evidence = lines.flatMap((l) => l.evidence);
+  const signed = await signedUrlMap(supabase, evidence);
   const urls = new Map<string, string>();
-  await Promise.all(lines.flatMap((l) => l.evidence).map(async (e) => {
-    const { data: s } = await supabase.storage.from(e.bucket).createSignedUrl(e.path, 3600);
-    if (s?.signedUrl) urls.set(e.file_id, s.signedUrl);
-  }));
+  for (const e of evidence) {
+    const u = signed.get(signedKey(e.bucket, e.path));
+    if (u) urls.set(e.file_id, u);
+  }
 
   const withProof = lines.filter((l) => l.evidence.length > 0).length;
   const byTrade = new Map<string, Line[]>();

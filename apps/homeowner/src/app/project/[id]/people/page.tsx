@@ -6,6 +6,7 @@ import { getMe } from "@/lib/me";
 import { getBooking } from "@/lib/booking";
 import { shortDate } from "@shared/format";
 import { AppBar, Avatar, Card, Notice, Screen } from "@shared/ui";
+import { SITE_ORIGIN } from "@shared/site";
 import { inviteContractor, inviteToProject } from "../actions";
 import { CopyLink } from "./CopyLink";
 
@@ -22,22 +23,26 @@ type People = {
   pending: { id: string; email: string | null; role: string; project_role: string | null; expires_at: string }[];
 };
 
-const PORTAL = process.env.NEXT_PUBLIC_PORTAL_URL ?? "https://greenbergen.vercel.app";
-
 export default async function PeoplePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; ok?: string; token?: string; who?: string }> }) {
   const { id } = await params;
   const { error, ok, token, who } = await searchParams;
-  const me = await getMe();
+  // Three independent reads, one wave; the checks keep their order below.
+  // project_people answers nothing for somebody with no seat, so asking it
+  // beside the job costs a stranger nothing they could read.
+  const supabase = await createClient();
+  const [me, { booking: b, missing }, { data: people }] = await Promise.all([
+    getMe(),
+    getBooking(id),
+    rpc<People>(supabase, "project_people", { p_project_id: id }),
+  ]);
   if (!me.signed_in) redirect(`/login?next=/project/${id}/people`);
-  const { booking: b, missing } = await getBooking(id);
   if (missing) redirect("/project");
   if (!b) notFound();
-  const supabase = await createClient();
-  const { data: people } = await rpc<People>(supabase, "project_people", { p_project_id: id });
   const members = people?.members ?? [];
   const pending = people?.pending ?? [];
   const canInvite = b.is_owner;
-  const inviteLink = token ? `${PORTAL}/join?invite=${encodeURIComponent(token)}` : null;
+  // The portal's join page, on the one host every app shares (site.ts).
+  const inviteLink = token ? `${SITE_ORIGIN}/join?invite=${encodeURIComponent(token)}` : null;
 
   return (
     <Screen>

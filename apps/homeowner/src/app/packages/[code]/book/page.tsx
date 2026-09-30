@@ -3,7 +3,7 @@ import { decodeSelections, loadPackage } from "@shared/catalogue";
 import { getMe, type TargetWindow } from "@/lib/me";
 import { getBooking } from "@/lib/booking";
 import { BookingWizard, type WizardMode } from "./BookingWizard";
-import { priced } from "@/lib/markup";
+import { priced, viewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Book" };
@@ -20,7 +20,12 @@ export const metadata = { title: "Book" };
 export default async function BookPage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string; mode?: string; from?: string; resume?: string }> }) {
   const { code } = await params;
   const { sel, mode: modeParam, from, resume } = await searchParams;
-  const [{ pkg: raw }, me] = await Promise.all([loadPackage(code), getMe()]);
+  // One wave: the package, the shell, the mark-up (priced() finds it
+  // answered) and - when a plan is being posted - the plan itself, which is
+  // keyed by its id alone and reads as nothing for anyone who is not on it.
+  const [{ pkg: raw }, me, fromPlan] = await Promise.all([
+    loadPackage(code), getMe(), from ? getBooking(from) : null, viewerMarkup(),
+  ]);
   const pkg = raw ? await priced(raw) : null;
   if (!pkg || pkg.availability !== "priced") notFound();
   const here = `/packages/${code}/book?${new URLSearchParams({ ...(sel ? { sel } : {}), ...(modeParam ? { mode: modeParam } : {}), ...(from ? { from } : {}) }).toString()}`;
@@ -32,7 +37,7 @@ export default async function BookPage({ params, searchParams }: { params: Promi
   let selections = decodeSelections(pkg, sel);
   let knownFacts = (me.signed_in ? (me.home?.facts as Record<string, string | number> | null) : null) ?? null;
   if (from && me.signed_in) {
-    const { booking } = await getBooking(from);
+    const booking = fromPlan?.booking ?? null;
     if (!booking || booking.state !== "planned" || booking.package_code !== pkg.code) redirect(`/project/${from}`);
     mode = "post";
     planned = { project_id: booking.project_id, address: booking.address, target_window: booking.target_window };

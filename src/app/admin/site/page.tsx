@@ -145,8 +145,8 @@ export default async function AdminSitePage() {
         <form action={saveTips} style={{ display: "grid", gap: 8 }}>
           {MONTHS.map((name, i) => (
             <div key={name} className="field" style={{ marginBottom: 0 }}>
-              <label>{name}</label>
-              <textarea name={`tip_${i + 1}`} className="input" rows={2}
+              <label htmlFor={`tip-${i + 1}`}>{name}</label>
+              <textarea id={`tip-${i + 1}`} name={`tip_${i + 1}`} className="input" rows={2}
                 defaultValue={(tipRows ?? []).find((t) => t.month === i + 1)?.tip ?? ""} />
             </div>
           ))}

@@ -8,6 +8,7 @@ import { replyInThread } from "@shared/offer/actions";
 import { dollars, shortDate } from "@shared/format";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
 import { acceptOffer, askAboutOffer, passOffer } from "./actions";
+import { ConfirmForm } from "./ConfirmForm";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "An offer" };
@@ -83,7 +84,7 @@ export default async function OfferPage({
         {offer.first_refusal_until && (
           <Notice title="You have first refusal on this one.">
             You called the lowest price for this package&apos;s basic setup, so it is yours alone until{" "}
-            {new Date(offer.first_refusal_until).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" })}.
+            {new Date(offer.first_refusal_until).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long", hour: "numeric", minute: "2-digit" })}.
             After that it opens to every {offer.trade ?? ""} contractor in the community. The job is still at the community price.
           </Notice>
         )}
@@ -133,8 +134,8 @@ export default async function OfferPage({
         )}
 
         {/* ACCEPT AS IS. The only one of the three that commits you. */}
-        <form action={acceptOffer.bind(null, id, me.profile.contact_id ?? "")}>
-          <button className="btn btn-primary btn-block" disabled={!me.can_accept || !me.profile.contact_id}>
+        <form action={acceptOffer.bind(null, id)}>
+          <button className="btn btn-primary btn-block" disabled={!me.can_accept}>
             Accept at {dollars(offer.price_cents)}
           </button>
         </form>
@@ -217,9 +218,10 @@ export default async function OfferPage({
         )}
 
         {/* PASS. Last, quiet, and honest about being one-way. */}
-        <form action={passOffer.bind(null, id)} style={{ marginTop: 4 }}>
+        <ConfirmForm action={passOffer.bind(null, id)} style={{ marginTop: 4 }}
+                     message="Pass on this offer? It leaves your list and only we can put it back.">
           <button className="btn btn-ghost btn-block">Not interested</button>
-        </form>
+        </ConfirmForm>
         <p className="tiny text-muted" style={{ margin: "-4px 0 12px" }}>
           It leaves your list and stays open for everyone else. Nothing is held against you.
         </p>

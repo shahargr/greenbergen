@@ -13,6 +13,7 @@ import { PaymentBox, type Method } from "./PaymentBox";
 import { ReceiptBox, type ReceiptFile } from "./ReceiptBox";
 import { ChevronIcon } from "@shared/ui";
 import type { Target } from "@shared/inbox/data";
+import { todayET } from "@/lib/today";
 
 export const dynamic = "force-dynamic";
 
@@ -128,7 +129,7 @@ type Note = {
 };
 
 const CLOSED = ["Completed", "Cancelled", "Force Cancelled", "Superseded"];
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => todayET();
 
 // THE VOCABULARY IS THE DATABASE'S (rulebook 15) - the open stages of
 // actions_status_check, plus Completed.
@@ -509,11 +510,18 @@ export default async function TaskPage({
                       </a>
                     ) : f.kind === "audio" && url ? (
                       <audio src={url} controls preload="metadata" style={{ width: "100%", height: 34 }} />
-                    ) : (
-                      <a href={url ?? "#"} target="_blank" rel="noreferrer" className="file-link">
+                    ) : url ? (
+                      <a href={url} target="_blank" rel="noreferrer" className="file-link">
                         <span aria-hidden>{f.kind === "video" ? "🎬" : f.kind === "document" ? "📄" : "📎"}</span>
                         <span className="grow" style={{ minWidth: 0 }}>{f.file_name ?? "File"}</span>
                       </a>
+                    ) : (
+                      // No signed URL came back for it: name it, but a link
+                      // to "#" that opens a blank tab is worse than none.
+                      <span className="file-link">
+                        <span aria-hidden>{f.kind === "video" ? "🎬" : f.kind === "document" ? "📄" : "📎"}</span>
+                        <span className="grow" style={{ minWidth: 0 }}>{f.file_name ?? "File"}</span>
+                      </span>
                     )}
                     <figcaption>
                       {f.caption?.trim()

@@ -11,7 +11,7 @@ import { loadCompany, type House } from "@/lib/showcase";
 import { HomeHero } from "@/components/HomeHero";
 import { Scene, SceneMore } from "@/components/Scene";
 import { BuildWithUs } from "./BuildWithUs";
-import { pricedAll } from "@/lib/markup";
+import { pricedAll, viewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 
@@ -36,18 +36,26 @@ type RefPreview = { ok: boolean; first?: string; name?: string; line?: string };
 export default async function Landing({ searchParams }: { searchParams: Promise<{ ref?: string; name?: string }> }) {
   const { ref, name } = await searchParams;
   const supabase = await createClient();
-  const [signedIn, settings, { tiles: raw }, company] = await Promise.all([isSignedIn(supabase), loadPublicSettings(), loadTiles(), loadCompany()]);
-  const tiles = await pricedAll(raw);
   // A member does not need the shop window: signed in, this front page is
   // their own home screen instead. Deciding which door a person belongs in
-  // happens ONCE, at sign-in, in landing() on the portal.
+  // happens ONCE, at sign-in, in landing() on the portal. The claims are
+  // verified in process, so this is decided before anything is loaded.
+  const signedIn = await isSignedIn(supabase);
   if (signedIn && !ref) redirect("/project");
 
-  let inviter: RefPreview | null = null;
-  if (ref && /^[0-9a-f-]{36}$/i.test(ref)) {
-    const { data } = await rpc<RefPreview>(supabase, "homeowner_ref_preview", { p_ref: ref });
-    if (data?.ok) inviter = data;
-  }
+  // Everything the page draws, in one wave: the invite preview only when
+  // there is a well-formed ref to preview, and the mark-up so pricedAll()
+  // finds it answered (cache).
+  const [settings, { tiles: raw }, company, refPreview] = await Promise.all([
+    loadPublicSettings(),
+    loadTiles(),
+    loadCompany(),
+    ref && /^[0-9a-f-]{36}$/i.test(ref) ? rpc<RefPreview>(supabase, "homeowner_ref_preview", { p_ref: ref }) : null,
+    viewerMarkup(),
+  ]);
+  const tiles = await pricedAll(raw);
+
+  const inviter: RefPreview | null = refPreview?.data?.ok ? refPreview.data : null;
   const joinHref = `/join${ref ? `?ref=${encodeURIComponent(ref)}${name ? `&name=${encodeURIComponent(name)}` : ""}` : ""}`;
 
   const scenes = featured(tiles);

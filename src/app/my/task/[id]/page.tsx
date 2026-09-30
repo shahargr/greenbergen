@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { TaskEditor, type TaskView, type MemberOption, type CommentView } from "./TaskEditor";
 import { TaskTransactions, type TaskTx, type PayMethod } from "./TaskTransactions";
 import { SubtaskRow, type Subtask } from "./SubtaskRow";
@@ -36,18 +38,22 @@ export default async function TaskPage({
   const { id } = await params;
   const { saved, error, do: quickDo } = await searchParams;
   const supabase = await createClient();
-  const caps = await getCaps();
 
-  const { data: rawTask } = await supabase
-    .from("actions")
-    .select(
-      "id, action, status, priority, target_date, desired_outcome, notes, dependencies, learnings, " +
-      "status_note, requires_photo_evidence, is_gate, cadence, created_at, created_by, " +
-      "source, project_id, assigned_to_contact_id, assigned_to_persona_id, assigned_by, inquiry_id, follows_action_id, parent_action_id, " +
-      "projects(project_name)",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  // What you may upload does not depend on the task, so it rides with the
+  // task row rather than ahead of it.
+  const [caps, { data: rawTask }] = await Promise.all([
+    getCaps(),
+    supabase
+      .from("actions")
+      .select(
+        "id, action, status, priority, target_date, desired_outcome, notes, dependencies, learnings, " +
+        "status_note, requires_photo_evidence, is_gate, cadence, created_at, created_by, " +
+        "source, project_id, assigned_to_contact_id, assigned_to_persona_id, assigned_by, inquiry_id, follows_action_id, parent_action_id, " +
+        "projects(project_name)",
+      )
+      .eq("id", id)
+      .maybeSingle(),
+  ]);
   if (!rawTask) notFound();
   const t = rawTask as unknown as TaskFull;
   // A deletion-approval gate: the owner (or a superadmin) decides here.
@@ -55,10 +61,17 @@ export default async function TaskPage({
   const { data: gateProject } = isDeletionGate && t.project_id
     ? await supabase.from("projects").select("owner_user_id, project_name").eq("id", t.project_id).maybeSingle()
     : { data: null as { owner_user_id: string | null; project_name: string } | null };
-  const { data: meForGate } = isDeletionGate ? await supabase.rpc("me") : { data: null };
+  const meForGate = isDeletionGate ? await getMe() : null;
   const canDecideDeletion = !!isDeletionGate && !!meForGate && (meForGate.app_user_id === gateProject?.owner_user_id || !!meForGate.is_superadmin);
 
-  const [perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }, { data: tradeRows }, { data: childRows }] =
+  // Everything that only needs the task id rides in this one wave: the
+  // chain after it, the evidence links, its transactions, the pay methods.
+  const TX_COLS = "id, description, amount, paid_on, status, paid_from_account";
+  type EvidenceRow = { id: string; role: string; created_at: string; files: { id: string; bucket: string; path: string; file_name: string; kind: string | null; mime_type: string | null } | null };
+  const [
+    perms, { data: commentRows }, { count: evidenceCount }, { data: assigneeContact }, { data: assigneePersona }, { data: memberRows }, { data: tradeRows }, { data: childRows },
+    { data: nextRows }, { data: evidenceRows }, { data: attachedTxRows }, { data: candidateTxRows }, { data: methodRows },
+  ] =
     await Promise.all([
       taskPerms(t.project_id, t.assigned_to_contact_id),
       supabase
@@ -96,16 +109,33 @@ export default async function TaskPage({
         .eq("parent_action_id", id)
         .not("status", "in", '("Completed","Cancelled","Force Cancelled","Superseded")')
         .order("target_date", { ascending: true, nullsFirst: false }),
+      supabase.from("actions").select("id, action, status").eq("follows_action_id", id).order("created_at"),
+      // Evidence on this task - shown, not just counted.
+      supabase
+        .from("file_links")
+        .select("id, role, created_at, files(id, bucket, path, file_name, kind, mime_type)")
+        .eq("action_id", t.id)
+        .order("created_at", { ascending: false }),
+      // Transactions clubbed under this task, plus the project's unattached
+      // ones to search/attach from. A transaction carries one action_id
+      // (many per task).
+      supabase.from("transactions").select(TX_COLS)
+        .eq("action_id", t.id).not("source_account_id", "is", null)
+        .order("paid_on", { ascending: false, nullsFirst: false }),
+      t.project_id
+        ? supabase.from("transactions").select(TX_COLS)
+            .eq("project_id", t.project_id).not("source_account_id", "is", null).is("action_id", null)
+            .order("created_at", { ascending: false }).limit(200)
+        : Promise.resolve({ data: [] }),
+      supabase.from("payment_methods").select("id, name").eq("is_active", true)
+        .order("display_order", { ascending: true, nullsFirst: false }),
     ]);
   const openChildren = ((childRows ?? []) as Subtask[]);
   // The chain this task sits in: what it follows, and what follows it.
   type ChainLink = { id: string; action: string | null; status: string };
-  const [{ data: prevRow }, { data: nextRows }] = await Promise.all([
-    t.follows_action_id
-      ? supabase.from("actions").select("id, action, status").eq("id", t.follows_action_id).maybeSingle()
-      : Promise.resolve({ data: null as ChainLink | null }),
-    supabase.from("actions").select("id, action, status").eq("follows_action_id", id).order("created_at"),
-  ]);
+  const { data: prevRow } = t.follows_action_id
+    ? await supabase.from("actions").select("id, action, status").eq("id", t.follows_action_id).maybeSingle()
+    : { data: null as ChainLink | null };
   const chainPrev = (prevRow ?? null) as ChainLink | null;
   const chainNext = ((nextRows ?? []) as ChainLink[]);
 
@@ -187,37 +217,17 @@ export default async function TaskPage({
 
   const isOpen = !CLOSED.includes(view.status);
 
-  // Transactions clubbed under this task, plus the project's unattached ones
-  // to search/attach from. A transaction carries one action_id (many per task).
-  const TX_COLS = "id, description, amount, paid_on, status, paid_from_account";
-  const [{ data: attachedTxRows }, { data: candidateTxRows }, { data: methodRows }] = await Promise.all([
-    supabase.from("transactions").select(TX_COLS)
-      .eq("action_id", t.id).not("source_account_id", "is", null)
-      .order("paid_on", { ascending: false, nullsFirst: false }),
-    t.project_id
-      ? supabase.from("transactions").select(TX_COLS)
-          .eq("project_id", t.project_id).not("source_account_id", "is", null).is("action_id", null)
-          .order("created_at", { ascending: false }).limit(200)
-      : Promise.resolve({ data: [] }),
-    supabase.from("payment_methods").select("id, name").eq("is_active", true)
-      .order("display_order", { ascending: true, nullsFirst: false }),
-  ]);
   const attachedTx = (attachedTxRows ?? []) as TaskTx[];
   const candidateTx = (candidateTxRows ?? []) as TaskTx[];
 
-  // Evidence on this task - shown, not just counted. Signed URLs, one hour.
-  type EvidenceRow = { id: string; role: string; created_at: string; files: { id: string; bucket: string; path: string; file_name: string; kind: string | null; mime_type: string | null } | null };
-  const { data: evidenceRows } = await supabase
-    .from("file_links")
-    .select("id, role, created_at, files(id, bucket, path, file_name, kind, mime_type)")
-    .eq("action_id", t.id)
-    .order("created_at", { ascending: false });
+  // Signed URLs for the evidence, one hour, one storage call per bucket.
   const evidence = ((evidenceRows ?? []) as unknown as EvidenceRow[]).filter((e) => e.files);
+  const evidenceSigned = await signedUrlMap(supabase, evidence.map((e) => e.files!));
   const evidenceUrls = new Map<string, string>();
-  await Promise.all(evidence.map(async (e) => {
-    const { data: s } = await supabase.storage.from(e.files!.bucket).createSignedUrl(e.files!.path, 3600);
-    if (s?.signedUrl) evidenceUrls.set(e.id, s.signedUrl);
-  }));
+  for (const e of evidence) {
+    const u = evidenceSigned.get(signedKey(e.files!.bucket, e.files!.path));
+    if (u) evidenceUrls.set(e.id, u);
+  }
   // Rendered inside the editor, directly under the comment / photo card.
   const evidencePanel = evidence.length > 0 ? (
     <div className="card" style={{ display: "grid", gap: 8 }}>

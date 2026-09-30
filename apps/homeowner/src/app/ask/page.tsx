@@ -5,7 +5,7 @@ import { AppBar, Card, Screen } from "@shared/ui";
 import { VoiceAsk } from "@/components/VoiceAsk";
 import { AskBob } from "@/components/AskBob";
 import type { BobTile } from "@/lib/bob";
-import { pricedAll } from "@/lib/markup";
+import { pricedAll, viewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Ask Bob" };
@@ -33,7 +33,8 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
   // where Bob actually reads it.
   const { voice, q } = await searchParams;
   const supabase = await createClient();
-  const [signedIn, { tiles: raw }] = await Promise.all([isSignedIn(supabase), loadTiles()]);
+  // The mark-up leaves with the tiles; pricedAll() finds it answered (cache).
+  const [signedIn, { tiles: raw }] = await Promise.all([isSignedIn(supabase), loadTiles(), viewerMarkup()]);
   const tiles = await pricedAll(raw);
   // Only what Bob needs to point somewhere real, and only what is actually
   // offered - he must never hand somebody a tile that is not open yet.

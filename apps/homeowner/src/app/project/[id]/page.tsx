@@ -17,6 +17,11 @@ import { MarkOpened } from "@shared/MarkOpened";
 
 export const dynamic = "force-dynamic";
 
+// A phone number as something a phone can dial, whatever punctuation it was
+// typed with - the same one-liner the Notebook uses. It came from the
+// database as text, so it goes into the href as digits, not as markup.
+const dial = (p: string) => p.replace(/[^\d+]/g, "");
+
 // Screens 11 and 12: waiting (matching), no taker, closed, and the
 // project view itself - one horizontal line, the contractor, what's next.
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; ok?: string }> }) {
@@ -57,14 +62,14 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   ) : null;
 
   const switcher = me.bookings.length > 1 && me.homes.length <= 1 && (
-    <div className="seg" role="tablist" aria-label="Your projects" style={{ marginBottom: 4 }}>
+    <nav className="seg" aria-label="Your projects" style={{ marginBottom: 4 }}>
       {me.bookings.filter((x) => x.state !== "closed" || x.project_id === id).slice(0, 3).map((x) => (
-        <Link key={x.project_id} href={`/project/${x.project_id}`} className="seg-opt" role="tab" aria-selected={x.project_id === id}
+        <Link key={x.project_id} href={`/project/${x.project_id}`} className="seg-opt" aria-current={x.project_id === id ? "page" : undefined}
           style={x.project_id === id ? { background: "var(--color-accent)", color: "var(--color-bg)", textDecoration: "none" } : { textDecoration: "none", color: "inherit" }}>
           {x.tile_title} · {x.state === "done" ? "done" : x.state === "planned" ? "DIY" : x.state === "posted" ? "matching" : pkg?.requires_permit ? "permit" : "booked"}
         </Link>
       ))}
-    </div>
+    </nav>
   );
 
 
@@ -301,7 +306,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                 <div className="name">{c.name}</div>
                 <div className="meta">Accepted {dayClock(b.accepted_at)}{c.license ? ` · Lic. #${c.license}` : ""}{c.insured ? " · Insured" : ""}</div>
               </div>
-              {c.phone && <a className="btn btn-secondary btn-icon" href={`tel:${c.phone}`} aria-label={`Call ${first}`}>
+              {c.phone && <a className="btn btn-secondary btn-icon" href={`tel:${dial(c.phone)}`} aria-label={`Call ${first}`}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg>
               </a>}
             </div>

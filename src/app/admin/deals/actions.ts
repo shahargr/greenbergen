@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/serverMe";
 
 // Admin-only by RLS (promotions_admin policy). Dates arrive as a
 // comma/space separated list of YYYY-MM-DD; price in dollars.
@@ -56,6 +57,7 @@ async function saveLadder(supabase: Awaited<ReturnType<typeof createClient>>, de
 }
 
 export async function createDeal(formData: FormData) {
+  await requireAdmin();
   const supabase = await createClient();
   const d = parseDeal(formData);
   if (!d.title) redirect("/admin/deals?error=" + encodeURIComponent("The deal needs a title."));
@@ -79,6 +81,7 @@ export async function createDeal(formData: FormData) {
 }
 
 export async function updateDeal(dealId: string, formData: FormData) {
+  await requireAdmin();
   const supabase = await createClient();
   const d = parseDeal(formData);
   if (!d.title) redirect("/admin/deals?error=" + encodeURIComponent("The deal needs a title."));
@@ -94,6 +97,7 @@ export async function updateDeal(dealId: string, formData: FormData) {
 // Lock a forming cluster: tier fixed, run order and start set, members
 // confirmed at that price. From here the run is a commitment to the vendor.
 export async function lockCluster(clusterId: string) {
+  await requireAdmin();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("deal_cluster_lock", { p_cluster: clusterId });
   revalidatePath("/admin/deals");
@@ -104,6 +108,7 @@ export async function lockCluster(clusterId: string) {
 }
 
 export async function markBookingPaid(bookingId: string) {
+  await requireAdmin();
   const supabase = await createClient();
   const { error } = await supabase
     .from("promotion_signups")

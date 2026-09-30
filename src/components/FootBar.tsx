@@ -5,10 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 // signed-in user is past the marketing shell, so it renders nothing for them.
 export async function FootBar() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) return null;
+  const { data } = await supabase.auth.getClaims();
+  if (data?.claims?.sub) return null;
 
   return (
     <footer className="footbar">

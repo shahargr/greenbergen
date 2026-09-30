@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { ActAsTable } from "@/components/ActAsTable";
 import { beginViewAs } from "@/components/viewas";
 import {
@@ -33,7 +34,7 @@ export default async function AdminUsersPage({
 }) {
   const { q, saved, error } = await searchParams;
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
 
   if (!me?.is_superadmin) {
     return (

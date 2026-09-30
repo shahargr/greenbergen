@@ -28,6 +28,11 @@ type Bin = { ok: boolean; days: number | null; items: BinFile[] };
 export default async function LibraryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/library`)}`);
   const [board, { data, error }] = await Promise.all([
     getBoard(),
     supabase.rpc("portal_library", { p_project: id }),

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppBar, Card, Notice, Screen, ShellIcons } from "@shared/ui";
 import { stopwatch } from "@shared/perf";
 import { unreadForShell } from "@shared/unread";
+import { todayET } from "@/lib/today";
 import { getBoard, nest, priorityRank, topLevels, type Task } from "@/lib/board";
 import { TradeIllustration } from "@shared/Illustrations";
 import { SearchBox } from "@/components/SearchBox";
@@ -20,7 +21,7 @@ export const metadata = { title: "Tasks" };
 // A GC's question is never "what tasks exist" - it is "what is late, whose
 // is it, and which job is it on". portal_tasks already returns the assignee,
 // the trade, the priority and the project, so all three answers are free.
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayET();
 
 type Sub = { key: string; label: string; rows: Task[]; late: number };
 // A trade on the board, as a door rather than a heading (Shahar, 2026-09-15:

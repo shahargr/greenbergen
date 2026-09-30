@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { friendly } from "@shared/rpc";
 
 // Project finance, inside the project (Shahar, 2026-09-23: "admin has
 // nothing to do with the build project - its a layer on top. any financial
@@ -42,7 +43,7 @@ export async function saveBudgetLine(projectId: string, formData: FormData) {
   // against it either way.
   if (formData.has("disabled")) p.disabled = formData.get("disabled") === "1";
   const { data, error } = await supabase.rpc("portal_budget_line_save", { p });
-  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? error?.message ?? "Could not save the line.");
+  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? friendly(error?.message, "Could not save the line."));
   revalidatePath(`/project/${projectId}/finance`);
   redirect(back(projectId, q, "ok=1"));
 }
@@ -51,7 +52,7 @@ export async function deleteBudgetLine(projectId: string, lineId: string, formDa
   const supabase = await createClient();
   const q = txt(formData.get("q"));
   const { data, error } = await supabase.rpc("portal_budget_line_delete", { p_id: lineId });
-  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? error?.message ?? "Could not delete the line.");
+  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? friendly(error?.message, "Could not delete the line."));
   revalidatePath(`/project/${projectId}/finance`);
   redirect(back(projectId, q, "ok=1"));
 }
@@ -62,7 +63,7 @@ export async function seedBudget(projectId: string, formData: FormData) {
   const from = txt(formData.get("from"));
   if (!from) bounce(projectId, null, "Pick a project to copy the line list from.");
   const { data, error } = await supabase.rpc("portal_budget_seed", { p_project: projectId, p_from: from });
-  if (error || !data?.ok) bounce(projectId, null, data?.reason ?? error?.message ?? "Could not seed the budget.");
+  if (error || !data?.ok) bounce(projectId, null, data?.reason ?? friendly(error?.message, "Could not seed the budget."));
   revalidatePath(`/project/${projectId}/finance`);
   redirect(back(projectId, null, `ok=${encodeURIComponent(`${data.copied} lines copied`)}`));
 }
@@ -74,7 +75,7 @@ export async function startBid(projectId: string, lineId: string, trade: string 
   const { data, error } = await supabase.rpc("portal_bid_package_save", {
     p_project: projectId, p_budget_category_id: lineId, p_trade: trade,
   });
-  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? error?.message ?? "Could not start the bid.");
+  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? friendly(error?.message, "Could not start the bid."));
   revalidatePath(`/project/${projectId}`);
   redirect(`/project/${projectId}/bids/${data.id}?saved=1`);
 }
@@ -84,7 +85,7 @@ export async function startBid(projectId: string, lineId: string, trade: string 
 export async function deleteTransaction(projectId: string, txId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_transaction_delete", { p_id: txId });
-  if (error || !data?.ok) bounce(projectId, null, data?.reason ?? error?.message ?? "That payment was not removed.");
+  if (error || !data?.ok) bounce(projectId, null, data?.reason ?? friendly(error?.message, "That payment was not removed."));
   revalidatePath(`/project/${projectId}/finance`);
   redirect(back(projectId, null, "ok=1"));
 }
@@ -95,7 +96,7 @@ export async function linkContract(projectId: string, lineId: string, formData: 
   const contract = txt(formData.get("contract"));
   if (!contract) bounce(projectId, q, "Pick the contract to file against this line.");
   const { data, error } = await supabase.rpc("portal_budget_link_contract", { p_line: lineId, p_contract: contract });
-  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? error?.message ?? "Could not link the contract.");
+  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? friendly(error?.message, "Could not link the contract."));
   revalidatePath(`/project/${projectId}/finance`);
   redirect(back(projectId, q, "ok=1"));
 }
@@ -106,7 +107,7 @@ export async function unlinkContract(projectId: string, lineId: string, contract
   const { data, error } = await supabase.rpc("portal_budget_link_contract", {
     p_line: lineId, p_contract: contractId, p_unlink: true,
   });
-  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? error?.message ?? "Could not unlink the contract.");
+  if (error || !data?.ok) bounce(projectId, q, data?.reason ?? friendly(error?.message, "Could not unlink the contract."));
   revalidatePath(`/project/${projectId}/finance`);
   redirect(back(projectId, q, "ok=1"));
 }

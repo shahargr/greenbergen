@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { StartProjectForm } from "../StartProjectForm";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export default async function NewProjectPage({
 }) {
   const { error, parent: parentParam } = await searchParams;
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
 
   const { data: rows } = me?.app_user_id
     ? await supabase

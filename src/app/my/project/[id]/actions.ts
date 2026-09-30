@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { PROJECT_STAGES } from "@/lib/stages";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 
 // Edit a person's contact record (name / phone / email / trade / notes) from
 // the People table or Settings → Contacts. The permission gate lives in the
@@ -52,7 +53,7 @@ export type ProjectPerms = {
 
 export async function projectPerms(projectId: string): Promise<ProjectPerms> {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   const admin: boolean = me?.is_superadmin ?? false;
   let rank = 0;
   const { data } = await supabase.rpc("my_authority_rank", { p_project_id: projectId });
@@ -393,7 +394,11 @@ export async function setSiteRoster(formData: FormData) {
   const projectId = String(formData.get("project") ?? "");
   const date = String(formData.get("date") ?? "").trim() || new Date().toISOString().slice(0, 10);
   const contacts = formData.getAll("contact").map(String).filter(Boolean);
-  const back = `/my/project/${projectId}?tab=visit&date=${date}`;
+  // The date rides in the redirect query and into SQL; only YYYY-MM-DD passes.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    redirect(`/my/project/${projectId}?tab=visit&error=${encodeURIComponent("That is not a date.")}`);
+  }
+  const back = `/my/project/${projectId}?tab=visit&date=${encodeURIComponent(date)}`;
   const { data, error } = await supabase.rpc("portal_site_roster_set", { p_project: projectId, p_date: date, p_contacts: contacts });
   revalidatePath(`/my/project/${projectId}`);
   redirect(error || !data?.ok
@@ -412,6 +417,7 @@ export async function logSiteVisit(formData: FormData) {
   const note = String(formData.get("note") ?? "").trim();
   const back = `/my/project/${projectId}?tab=visit`;
   if (!projectId) redirect("/my");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) redirect(`${back}&error=${encodeURIComponent("That is not a date.")}`);
   if (!headline && !note) redirect(`${back}&error=${encodeURIComponent("Write what you saw - a headline or a note.")}`);
   const dow = new Date(date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
   const { data: me } = await supabase.rpc("me");

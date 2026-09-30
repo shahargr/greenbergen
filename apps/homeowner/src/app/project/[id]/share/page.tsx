@@ -24,7 +24,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
   // Where this app is served - the one public host plus this app's path
   // (site.ts). Not the project's own vercel.app URL: a share link must open
   // on the host people actually use, or it opens without their session.
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? appUrl();
+  const base = appUrl();
   const shareSlug = slug ?? b.share.slug;
   const done = b.state === "done";
 
@@ -41,7 +41,7 @@ export default async function SharePage({ params, searchParams }: { params: Prom
         {shareSlug && b.share.shared_at && (
           <Card pad>
             <div className="kicker">Your card is live</div>
-            <ShareLink url={`${base}/s/${shareSlug}?ref=${encodeURIComponent(b.owner ? "" : "")}`.replace(/\?ref=$/, "")} />
+            <ShareLink url={`${base}/s/${shareSlug}`} />
             <p className="tiny text-muted" style={{ margin: "6px 0 0" }}>Neighbors who join from it are counted as yours.</p>
           </Card>
         )}

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
+import { getMe } from "@/lib/serverMe";
 import { LogPaymentForm, ORG_ACCOUNTS, GENERIC_ACCOUNTS } from "../LogPaymentForm";
 import { PaymentsList } from "../PaymentsList";
 import { FinanceRollup, type Rollup } from "../FinanceRollup";
@@ -34,7 +36,7 @@ export default async function PaymentsPage({
   const { error, ok, q, all } = await searchParams;
   const showAll = all === "1";
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
 
   const { data: membershipRows } = me?.app_user_id
     ? await supabase
@@ -165,20 +167,20 @@ export default async function PaymentsPage({
     }
     return null;
   };
-  await Promise.all(
-    (((payFileRows ?? []) as PayFileRow[])).map(async (f) => {
-      const m = f.path.match(/\/payments\/([0-9a-f-]{36})\//);
-      const txId = m ? m[1] : legacyTxFor(f.caption);
-      if (!txId) return;
-      const { data } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
-      if (!data?.signedUrl) return;
-      const kind = f.kind === "photo" || (f.mime_type ?? "").startsWith("image/") ? "photo"
-        : f.kind === "video" || (f.mime_type ?? "").startsWith("video/") ? "video" : "audio";
-      const list = attachmentsByTx.get(txId) ?? [];
-      list.push({ url: data.signedUrl, kind, name: f.file_name });
-      attachmentsByTx.set(txId, list);
-    })
-  );
+  const payFiles = ((payFileRows ?? []) as PayFileRow[]);
+  const paySigned = await signedUrlMap(supabase, payFiles);
+  for (const f of payFiles) {
+    const m = f.path.match(/\/payments\/([0-9a-f-]{36})\//);
+    const txId = m ? m[1] : legacyTxFor(f.caption);
+    if (!txId) continue;
+    const url = paySigned.get(signedKey(f.bucket, f.path));
+    if (!url) continue;
+    const kind = f.kind === "photo" || (f.mime_type ?? "").startsWith("image/") ? "photo"
+      : f.kind === "video" || (f.mime_type ?? "").startsWith("video/") ? "video" : "audio";
+    const list = attachmentsByTx.get(txId) ?? [];
+    list.push({ url, kind, name: f.file_name });
+    attachmentsByTx.set(txId, list);
+  }
   const payPayees = [
     ...payMembers.map((m) => ({ projectId: m.projectId, name: m.name })),
     ...(((companyRows ?? []) as unknown as CompanyMemberRow[]))

@@ -62,6 +62,11 @@ export default async function ScopePage({
 
   const w = stopwatch("/project/[id]/scope");
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/scope`)}`);
   const [board, { data: tradeData }, { data: candData }, { data: lineData }, { data: mayEdit }, { data: gasData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("trades", () => rpc<TradeRow[]>(supabase, "portal_scope_trades", { p_project: id })),

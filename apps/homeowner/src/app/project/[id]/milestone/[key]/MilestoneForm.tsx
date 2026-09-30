@@ -23,10 +23,13 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
   const [reference, setReference] = useState("");
   const [capture, setCapture] = useState(false);
   const [photo, setPhoto] = useState<{ file: File; preview: string } | null>(null);
-  const [fileId, setFileId] = useState<string>("");
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
+  // The uploaded photo's file id goes straight into the hidden input, not
+  // through state: requestSubmit() reads the DOM as it is at that moment, and
+  // a setState would not have reached it yet.
+  const fileIdRef = useRef<HTMLInputElement>(null);
   const cam = useRef<HTMLInputElement>(null);
   const lib = useRef<HTMLInputElement>(null);
 
@@ -45,8 +48,7 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
         p_caption: how === "cash" ? "Cash receipt" : "Check", p_kind: "photo",
       });
       if (error) { setBusy(""); setErr(friendly(error.message)); return; }
-      setFileId(data as string);
-      await new Promise((r) => setTimeout(r, 0));
+      if (fileIdRef.current) fileIdRef.current.value = String(data ?? "");
     }
     setBusy("Marking…");
     formRef.current?.requestSubmit();
@@ -89,7 +91,7 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
       <input type="hidden" name="key" value={nodeKey} />
       <input type="hidden" name="how" value={kind === "payment" ? how : "later"} />
       <input type="hidden" name="reference" value={reference} />
-      <input type="hidden" name="file_id" value={fileId} />
+      <input ref={fileIdRef} type="hidden" name="file_id" defaultValue="" />
 
       {kind === "payment" && (
         <Card pad>
@@ -102,7 +104,9 @@ export function MilestoneForm({ projectId, nodeKey, kind, amountCents, totalCent
             </div>
           </div>
           <div className="stack" style={{ gap: 8, marginTop: 12 }}>
-            <label className="radio choice"><input type="radio" name="how_ui" checked={how === "card"} onChange={() => setHow("card")} /><span className="dot" /><span className="txt">Pay by card now<small>{viaUs ? "Charged by Green Bergen" : <>Charged directly by {contractor}&apos;s business</>} — not switched on yet</small></span></label>
+            {/* Not switched on yet, so it cannot be picked: a disabled radio
+                never submits how=card. */}
+            <label className="radio choice"><input type="radio" name="how_ui" checked={how === "card"} onChange={() => setHow("card")} disabled /><span className="dot" /><span className="txt">Pay by card now<small>{viaUs ? "Charged by Green Bergen" : <>Charged directly by {contractor}&apos;s business</>} — not switched on yet</small></span></label>
             <label className="radio choice"><input type="radio" name="how_ui" checked={how === "check" || how === "cash"} onChange={() => setHow("check")} /><span className="dot" /><span className="txt">I paid by check or cash<small>We&apos;ll ask you to photograph the check or receipt</small></span></label>
             {!viaUs && <label className="radio choice"><input type="radio" name="how_ui" checked={how === "later"} onChange={() => setHow("later")} /><span className="dot" /><span className="txt">We met, but haven&apos;t settled up yet<small>We&apos;ll remind you tomorrow</small></span></label>}
           </div>

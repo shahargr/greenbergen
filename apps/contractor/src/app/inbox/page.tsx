@@ -28,9 +28,11 @@ export default async function InboxPage({
   const { ok, error, door } = await searchParams;
   // The paperwork messages are opened and closed BEFORE the inbox is read
   // here, because this is the screen they live on - a gap that closed an hour
-  // ago must not still be sitting in Waiting on you (migration 104).
-  await syncPaperwork();
-  const [me, data, doors, board] = await Promise.all([getMe(), loadInbox(), loadDoors(), getBoard()]);
+  // ago must not still be sitting in Waiting on you (migration 104). Only the
+  // inbox read waits for it; the shell's other reads leave at the same time.
+  const [me, data, doors, board] = await Promise.all([
+    getMe(), syncPaperwork().then(() => loadInbox()), loadDoors(), getBoard(),
+  ]);
   // Already loaded: no reason to ask the database for a number we have.
   const unread = unreadCount(data.messages);
   if (!me.signed_in) redirect("/login?next=/inbox");

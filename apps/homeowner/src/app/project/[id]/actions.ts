@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
 import { friendly } from "@shared/rpc";
+import { safePath } from "@shared/site";
 
 // Server actions for the project view. Each is one RPC; the database holds
 // the rules and answers {ok, reason}.
@@ -36,7 +37,7 @@ export async function updatePlan(formData: FormData) {
 export async function addHome(formData: FormData) {
   const address = String(formData.get("address") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim() || null;
-  const next = String(formData.get("next") ?? "/project");
+  const next = safePath(String(formData.get("next") ?? ""), "/project");
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("homeowner_home_add", { p_address: address, p_name: name });
   revalidatePath("/project");
@@ -80,7 +81,7 @@ export async function publishShare(formData: FormData) {
 export async function closeTask(formData: FormData) {
   const projectId = String(formData.get("project") ?? "");
   const actionId = String(formData.get("action_id") ?? "");
-  const back = String(formData.get("back") ?? `/project/${projectId}`);
+  const back = safePath(String(formData.get("back") ?? ""), `/project/${projectId}`);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("homeowner_task_close", { p_project: projectId, p_action_id: actionId });
   revalidatePath(`/project/${projectId}`);

@@ -228,9 +228,7 @@ export function PayForm({
       {/* WHERE IT LANDS, under the trade that chose it. */}
       {picked && (
         <label className="field">
-          <span className="field-label">
-            Budget line{matching.length === 1 ? "" : <> <span className="req">required</span></>}
-          </span>
+          <span className="field-label">Budget line</span>
           <select className="input" value={line}
             onChange={(e) => { setLineTouched(true); setLinePick(e.target.value); }}>
             <option value="">Choose a budget line…</option>

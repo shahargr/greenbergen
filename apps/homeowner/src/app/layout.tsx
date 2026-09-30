@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   description: "The first home builder that runs like a software company. We build single-family homes in Bergen County on our own platform, so you see every decision, every cost and every deadline while there is still time to change them.",
   applicationName: "Green Bergen",
   appleWebApp: { capable: true, title: "Green Bergen", statusBarStyle: "default" },
+  // The basePath is not applied to metadata URLs, so this is the full path
+  // the app is served under; the manifest's own URLs are spelled the same way.
+  manifest: "/home/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {

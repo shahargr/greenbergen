@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { PhotoManager, type AdminRow } from "./PhotoManager";
 
 // Superadmin-only: everything a project shows publicly - hero photo, gallery
@@ -7,7 +8,7 @@ import { PhotoManager, type AdminRow } from "./PhotoManager";
 // text fields fall back to the Master Template per field.
 export default async function AdminPhotosPage() {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
 
   if (!me?.is_superadmin) {
     return (

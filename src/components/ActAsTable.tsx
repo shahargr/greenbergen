@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { beginViewAs, endViewAs } from "@/components/viewas";
 
 // WHOSE ACCOUNT YOU ARE LOOKING THROUGH - ON THE PEOPLE SCREEN.
@@ -25,9 +26,9 @@ type Target = {
 
 export async function ActAsTable({ here }: { here: string }) {
   const supabase = await createClient();
-  const [{ data: me }, { data: targetData }, { data: borrowed }, { data: canActData }, { data: realIdData }] =
+  const [me, { data: targetData }, { data: borrowed }, { data: canActData }, { data: realIdData }] =
     await Promise.all([
-      supabase.rpc("me"),
+      getMe(),
       supabase.rpc("admin_view_targets"),
       supabase.rpc("borrowed_seat"),
       supabase.rpc("borrowed_can_act"),

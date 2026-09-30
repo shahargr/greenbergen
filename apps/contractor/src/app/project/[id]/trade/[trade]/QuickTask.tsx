@@ -53,11 +53,16 @@ export type TradePayDefaults = {
 // deliberate choice rather than a typo.
 const NEW = "__new__";
 
-export function QuickTask({ projectId, projectName, trade, elsewhere, methods = [], accounts = [], people = [], payDefaults = null }: {
+export function QuickTask({ projectId, projectName, trade, back, elsewhere, methods = [], accounts = [], people = [], payDefaults = null }: {
   /** The job the task lands on - a property holds no work, its jobs do. */
   projectId: string;
   projectName: string | null;
   trade: string;
+  /** Where "needs steps" returns to: the trade screen this box sits on,
+   *  handed down by the server so the link is the same on both renders
+   *  (reading window.location during render mismatched on hydration and
+   *  carried the /pro prefix into a path Link then prefixed again). */
+  back: string;
   /** Said only when the job is not the one whose screen this is. */
   elsewhere: boolean;
   /** THE RAILS MONEY CAN BE LOGGED ON (189). Active and settled by hand -
@@ -396,7 +401,7 @@ export function QuickTask({ projectId, projectName, trade, elsewhere, methods = 
           . A simple task: one line, no steps under it.{" "}
           {/* THE OTHER KIND, named so the choice is visible rather than hidden
               behind knowing which button is which. */}
-          <Link href={`/project/${projectId}/task/new?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(typeof window === "undefined" ? "/" : window.location.pathname + window.location.search)}`}
+          <Link href={`/project/${projectId}/task/new?trade=${encodeURIComponent(trade)}&back=${encodeURIComponent(back)}`}
             style={{ fontWeight: 700 }}>
             Needs steps?
           </Link>{" "}

@@ -9,7 +9,7 @@ import { money } from "@/lib/board";
 import { recordReply, negotiate, award, invite, addToRoom, setScope, markLost, markLinkSent, showPhoto, hidePhoto,
   attachUploads, attachExisting, detachDoc, shareDoc,
   removeBidder, editBidder, addKnownToRoom, setTemplate, setMeasures, refineLines,
-  stepOut, unaward } from "./actions";
+  stepOut, unaward, textLink } from "./actions";
 import { BidPapers } from "@/components/BidPapers";
 import { BidLink } from "@/components/BidLink";
 import { BidRowMenu } from "@/components/BidRowMenu";
@@ -81,6 +81,12 @@ type CmpBid = {
 };
 type CmpOpt = { scope_item_id: string; item: string; cells: { bid_id: string; price: number | null }[] | null };
 type Cmp = { items: CmpItem[]; options: CmpOpt[]; bids: CmpBid[] };
+// THE TEXTING SERVICE (migration 247). enabled is the admin's switch and is
+// what decides whether the room offers to send at all; test_mode logs a text
+// instead of sending it, and the buttons say so; configured is whether the
+// Twilio secrets exist in Vault, which the admin screen shows and this one
+// only reads along.
+type Sms = { enabled: boolean; test_mode: boolean; configured: boolean };
 type Pkg = {
   id: string; project_id: string; project_name: string | null;
   phase: string | null; category: string | null; trade: string | null; scope_summary: string | null;
@@ -120,12 +126,18 @@ export default async function BidPackagePage({
   const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
   if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/bids/${pkgId}`)}`);
 
-  const [{ data }, { data: cmpData }, { data: docData }] = await Promise.all([
+  const [{ data }, { data: cmpData }, { data: docData }, { data: smsData, error: smsError }] = await Promise.all([
     w.step("package", () => rpc<Pkg>(supabase, "portal_bid_package", { p_pkg: pkgId })),
     w.step("compare", () => rpc<Cmp>(supabase, "portal_bid_compare", { p_pkg: pkgId })),
     w.step("papers", () => rpc<Papers>(supabase, "portal_bid_docs", { p_package: pkgId, p_q: docq ?? null })),
+    w.step("sms", () => rpc<Sms>(supabase, "sms_status")),
   ]);
   const p = (data ?? null) as Pkg | null;
+  // Texting off until the database says otherwise: a room that offers to send
+  // before migration 247 is applied would offer a button that cannot work.
+  const sms: Sms = smsError || !smsData
+    ? { enabled: false, test_mode: true, configured: false }
+    : smsData;
   // A ROOM IS OPENED FROM WHEREVER YOU ARE STANDING. This used to demand
   // p.project_id === id and 404ed on the true case: the bid board opened on
   // 55 Walnut Drive (the house) lists the rooms of the New build beneath it,
@@ -239,6 +251,17 @@ export default async function BidPackagePage({
         )}
         {ok === "invited" && <div className="banner-ok">Invited.</div>}
         {ok === "added" && <div className="banner-ok">In the room. Write his number down when it comes in.</div>}
+        {/* THE TEXT WENT OUT FROM THE PLATFORM (247), or would have: test
+            mode says what it did not send and where to switch it off. */}
+        {ok === "texted" && (
+          <div className="banner-ok">Texted. {who || "He"} has his link; the room will show when he opens it.</div>
+        )}
+        {ok === "texttest" && (
+          <div className="banner-ok">
+            Test mode is on, so nothing was actually sent to {n}. Switch test mode off under Admin &gt; Texts once
+            Twilio is set up.
+          </div>
+        )}
         {ok === "already" && <div className="banner-ok">That firm was already in this room — nothing doubled up.</div>}
         {ok === "opened" && <div className="banner-ok">Room opened. Put somebody in it.</div>}
         {ok === "existed" && <div className="banner-ok">This room was already open.</div>}
@@ -811,8 +834,6 @@ export default async function BidPackagePage({
                 {canWrite && !d.shared && (
                   <form action={shareDoc.bind(null, id, pkgId)}>
                     <input type="hidden" name="file_id" value={d.file_id} />
-                    <input type="hidden" name="bucket" value={d.bucket} />
-                    <input type="hidden" name="path" value={d.path} />
                     <input type="hidden" name="name" value={d.name ?? ""} />
                     <button className="btn btn-ghost small">Show bidders</button>
                   </form>
@@ -962,8 +983,6 @@ export default async function BidPackagePage({
                   {pickable.filter((f) => !p.photos.some((ph) => ph.file_id === f.id)).map((f) => (
                     <form key={f.id} action={showPhoto.bind(null, id, pkgId)} className="bp-cell">
                       <input type="hidden" name="file_id" value={f.id} />
-                      <input type="hidden" name="bucket" value={f.bucket} />
-                      <input type="hidden" name="path" value={f.path} />
                       {thumbs.get(f.path)
                         // eslint-disable-next-line @next/next/no-img-element
                         ? <img src={thumbs.get(f.path)} alt={f.file_name ?? "Photograph"} />
@@ -998,7 +1017,7 @@ export default async function BidPackagePage({
             const canAward = canWrite && REPLIED.includes(b.status) && !OUT.includes(b.status);
             const sheet = open === b.id;
             return (
-              <Card pad key={b.id}>
+              <Card pad key={b.id} id={b.id}>
                 <div className="between" style={{ alignItems: "flex-start" }}>
                   <div className="grow" style={{ minWidth: 0 }}>
                     <div className="card-title" style={{ fontSize: 15 }}>{b.bidder ?? "—"}</div>
@@ -1062,7 +1081,9 @@ export default async function BidPackagePage({
                   <BidLink token={b.link_token} who={b.bidder} phone={b.link_phone} email={b.link_email}
                     message={b.link_message ?? "Here is the scope. You can put your price straight in, no login needed."}
                     sentAt={b.link_sent_at} openedAt={b.link_opened_at}
-                    onSent={markLinkSent.bind(null, id, pkgId, b.id)} />
+                    onSent={markLinkSent.bind(null, id, pkgId, b.id)}
+                    sendNow={sms.enabled ? textLink.bind(null, id, pkgId, b.id) : undefined}
+                    testMode={sms.test_mode} />
                 )}
 
                 {/* HIS PROPOSAL, filed against his bid - and once he wins, it
@@ -1091,7 +1112,7 @@ export default async function BidPackagePage({
                 {/* Taking the number down, and running a round - both open in
                     place so a thumb never leaves the card. */}
                 {canWrite && sheet && (
-                  <div id={b.id} className="stack" style={{ gap: 14, marginTop: 12 }}>
+                  <div className="stack" style={{ gap: 14, marginTop: 12 }}>
                     <form action={recordReply.bind(null, id, pkgId, b.id)} className="stack" style={{ gap: 8 }}>
                       <input type="hidden" name="items" value={itemIds} />
                       <input type="hidden" name="options" value={optionIds} />
@@ -1225,7 +1246,7 @@ export default async function BidPackagePage({
                         refuses "withdrew" on a bid that never carried a
                         number, so the two cannot be crossed by a mis-tap. */}
                     {!OUT.includes(b.status) && !isAwarded && (
-                      <form className="stack" style={{ gap: 8 }}>
+                      <form action={markLost.bind(null, id, pkgId, b.id)} className="stack" style={{ gap: 8 }}>
                         <div className="small" style={{ fontWeight: 700 }}>Or take {b.bidder ?? "him"} out of the room</div>
                         <div className="field" style={{ marginBottom: 0 }}>
                           <label htmlFor={`lost-${b.id}`}>Why he is out</label>
@@ -1299,6 +1320,21 @@ export default async function BidPackagePage({
                     <input id="em" name="email" className="input" inputMode="email" placeholder="Optional" />
                   </div>
                 </div>
+                {/* TEXT THEM ON THE WAY IN (247). Ticked by default because a
+                    number typed here was typed to be used; untick it when the
+                    link should wait. The database composes and sends, and
+                    refuses on its own terms without undoing the add. */}
+                {sms.enabled && (
+                  <>
+                    <label className="row" style={{ gap: 8, alignItems: "center" }}>
+                      <input type="checkbox" name="text_now" value="1" defaultChecked />
+                      <span className="small">Text them their link as soon as they are in</span>
+                    </label>
+                    {sms.test_mode && (
+                      <p className="tiny text-muted" style={{ margin: 0 }}>Test mode: the text is logged, not sent.</p>
+                    )}
+                  </>
+                )}
                 <button className="btn btn-primary btn-block">Put them in the room</button>
                 <p className="tiny text-muted" style={{ margin: 0 }}>
                   Either half will do — a firm on its own, or a name and a number. A second man from a firm

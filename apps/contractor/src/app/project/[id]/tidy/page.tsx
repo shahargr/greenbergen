@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppBar, Screen } from "@shared/ui";
+import { AppBar, Card, Screen } from "@shared/ui";
 import { getBoard, runs } from "@/lib/board";
 import { Tidy } from "./Tidy";
 
@@ -22,7 +22,23 @@ export default async function TidyPage({
   if (!board.signed_in) redirect(`/login?next=/project/${id}/tidy`);
   const seat = board.seats.find((s) => s.project_id === id);
   if (!seat) notFound();
-  if (!runs(seat)) redirect(to);
+  // Somebody who does not run the job has nothing to tidy. Say so, the way
+  // Set up does, rather than bouncing them back with no word of why.
+  if (!runs(seat)) {
+    return (
+      <Screen>
+        <AppBar back={to} title="Tidy up" sub={seat.project_name} />
+        <div className="body">
+          <Card soft pad>
+            <div className="small">
+              Tidying this project&apos;s tasks — filing them under a trade and a holder — belongs to whoever
+              runs it. You can see everything on the job itself.
+            </div>
+          </Card>
+        </div>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>

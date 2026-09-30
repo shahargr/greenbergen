@@ -3,7 +3,7 @@ import { updateSession } from "@shared/supabase/proxy";
 
 // Next 16: middleware is called proxy. Same job as in the homeowner app -
 // session refresh and the signed-out redirect - but a shorter public list.
-// There is no catalogue to browse here: everything a home expert does needs
+// There is no catalogue to browse here: everything a professional does needs
 // a login, so only the landing, the join and sign-in flows and the auth
 // callback are open. The board paths (/projects, /tasks, /money) inherit it.
 const PUBLIC = ["/login", "/auth", "/join"];

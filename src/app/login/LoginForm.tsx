@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Wordmark } from "@/components/SiteHeader";
 
@@ -55,6 +55,8 @@ export function LoginForm() {
   const [step, setStep] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  // /auth/confirm sends a dead magic link back here with ?error=link.
+  const linkExpired = useSearchParams().get("error") === "link";
   const router = useRouter();
 
   async function sendCode(e: React.FormEvent) {
@@ -116,6 +118,9 @@ export function LoginForm() {
       <div className="card auth-card">
         <Wordmark small />
         <h1 className="auth-title">Sign in</h1>
+        {linkExpired && step === "email" && (
+          <p className="error small">That sign-in link has expired or was already used. Request a new code below.</p>
+        )}
 
         {step === "email" ? (
           <>
@@ -164,6 +169,7 @@ export function LoginForm() {
                   id="code"
                   className="input"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   required
                   autoFocus
                   value={code}

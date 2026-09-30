@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { friendly } from "@shared/rpc";
 import { JoinForm } from "./JoinForm";
 
 export const metadata = { title: "Join as a contractor" };
@@ -29,11 +30,14 @@ export default async function JoinPage() {
   if (claims?.sub) {
     // The name is all we can know here; the company, phone and documents are
     // asked for on /business, which is where they belong anyway.
-    await supabase.rpc("contractor_register", {
+    const { data: reg, error } = await supabase.rpc("contractor_register", {
       p_full_name: claims.user_metadata?.full_name ?? claims.user_metadata?.name ?? null,
       p_company_name: null,
       p_phone: null,
     });
+    if (error || reg?.ok === false) {
+      redirect(`/business?error=${encodeURIComponent(reg?.reason ?? friendly(error?.message, "We could not set up your contractor record."))}`);
+    }
     redirect("/business?ok=registered");
   }
 

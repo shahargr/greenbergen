@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ const KINDS: { key: Kind | "closed" | "all"; label: string; note: string }[] = [
 export default async function AdminProjectsPage({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
   const { kind: kindParam } = await searchParams;
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   if (!me?.is_superadmin) {
     return <p className="muted">Project management is for administrators.</p>;
   }

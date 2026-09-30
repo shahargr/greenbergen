@@ -4,7 +4,7 @@ import { asksFirst, decodeSelections, encodeSelections, loadCovered, loadDiyList
 import { dollars } from "@shared/format";
 import { AppBar, Card, Screen } from "@shared/ui";
 import { usesEvFlow } from "@/lib/ev";
-import { priced as withViewerMarkup } from "@/lib/markup";
+import { priced as withViewerMarkup, viewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "How do you want to take it on?" };
@@ -30,7 +30,9 @@ export const metadata = { title: "How do you want to take it on?" };
 export default async function TakePage({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ sel?: string }> }) {
   const { code } = await params;
   const { sel } = await searchParams;
-  const [{ pkg: raw }, diy] = await Promise.all([loadPackage(code), loadDiyList(code)]);
+  // The mark-up leaves with the package; withViewerMarkup() finds it
+  // answered (cache). Coverage needs the trade, so it waits, below.
+  const [{ pkg: raw }, diy] = await Promise.all([loadPackage(code), loadDiyList(code), viewerMarkup()]);
   const pkg = raw ? await withViewerMarkup(raw) : null;
   if (!pkg) notFound();
 

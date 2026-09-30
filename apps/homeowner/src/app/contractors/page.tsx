@@ -20,12 +20,13 @@ export const metadata = { title: "The contractors" };
 // package; the first approved contractor in the trade to accept gets it.
 export default async function ContractorsPage({ searchParams }: { searchParams: Promise<{ trade?: string }> }) {
   const { trade } = await searchParams;
-  const [me, pros] = await Promise.all([getMe(), loadContractors()]);
-  if (!me.signed_in) redirect("/login?next=/contractors");
   // Everything waiting on you, not just the booking conversations: the old
   // count missed offers, questions and anything else addressed to you.
   // my_unread_count() is the same predicate the inbox list calls `pending`.
-  const unread = await unreadForShell();
+  // The three reads are independent, and the proxy has already turned a
+  // stranger away, so they leave together.
+  const [me, pros, unread] = await Promise.all([getMe(), loadContractors(), unreadForShell()]);
+  if (!me.signed_in) redirect("/login?next=/contractors");
 
   const trades = [...new Set(pros.flatMap((p) => p.trades.map((t) => t.trade)))].sort();
   const pick = trade && trades.includes(trade) ? trade : null;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { setView, beginViewAs, endViewAs } from "@/components/viewas";
 import { VIEW_HOME } from "@/components/viewmap";
 import { DOOR_ENTRY, DOOR_LABEL, DOOR_ORDER, type DoorKey } from "@/lib/doors";
@@ -34,8 +35,8 @@ export default async function AdminConsolePage({
   const { error } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: me }, { data: borrowed }, { data: canActData }, doors, jar] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data: borrowed }, { data: canActData }, doors, jar] = await Promise.all([
+    getMe(),
     supabase.rpc("borrowed_seat"),
     supabase.rpc("borrowed_can_act"),
     loadDoors(),

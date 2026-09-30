@@ -86,6 +86,11 @@ export default async function ProjectPage({
   const wantDone = (show === "done" || show === "all") && (!panelRaw || panelRaw === "tasks");
   const w = stopwatch("/project/[id]");
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=/project/${id}`);
 
   // The shell and the project's own reads do not depend on each other.
   // portal_scope_trades is one row per worker trade carrying its counts, so
@@ -551,7 +556,7 @@ export default async function ProjectPage({
           panel"). The panel it used to unfold pushed the whole running screen
           down and had to invent a "Done" link to stand in for a back button;
           a screen has one already. */}
-      <AppBar back={parent ? `/project/${parent}` : "/"}
+      <AppBar back={parent ? `/project/${parent}` : "/work"}
         title={
           <span className="row" style={{ gap: 6, alignItems: "center", minWidth: 0 }}>
             <span className="grow" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -1054,8 +1059,6 @@ export default async function ProjectPage({
                   className="btn btn-secondary small" style={{ minHeight: 32 }}>+ New task</Link>
               )}
             </div>
-
-            {here.length > 3 && <SearchBox placeholder="Find a task on this site" count={query ? found.length : null} />}
 
             {/* THREE ROWS OF BUTTONS, FOLDED AWAY. Shahar (2026-09-14): "all
                 filters (3 rows of buttons) to be visible under a filter icon

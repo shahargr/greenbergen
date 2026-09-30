@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@shared/supabase/server";
 import { friendly } from "@shared/rpc";
+import { getMe } from "@/lib/me";
 
 // The three ways an offer ends. All three are database functions that
 // already decide what is allowed; this file relays their answer and never
@@ -16,10 +17,22 @@ import { friendly } from "@shared/rpc";
 // the contract, binds the payment stages, seats the contractor and settles
 // the other bids. This is the moment the address is released, so the screen
 // after it is the address.
-export async function acceptOffer(projectId: string, contactId: string) {
+//
+// Documents gate the first accept (BUILD.md decision 3). The database does
+// not enforce that yet - only the disabled button did, and a disabled button
+// is not a rule - so the action checks contractor_me's can_accept itself
+// before it asks. The contact is not taken from the client either: the RPC
+// falls back to my_contact_id() when p_contact is null, and the session is
+// the only thing that should say who is accepting.
+export async function acceptOffer(projectId: string) {
+  const me = await getMe();
+  if (!me.signed_in || !me.can_accept) {
+    redirect(`/offer/${projectId}?error=${encodeURIComponent(
+      "Your documents need to be on file before you can accept. Upload them under Business > Documents.")}`);
+  }
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("homeowner_offer_accept", {
-    p_project: projectId, p_contact: contactId,
+    p_project: projectId, p_contact: null,
   });
   revalidatePath("/work"); revalidatePath("/jobs"); revalidatePath(`/offer/${projectId}`);
   if (error || !data?.ok) {

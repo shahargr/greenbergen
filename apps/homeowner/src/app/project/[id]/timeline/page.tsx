@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getBooking, signedUrls } from "@/lib/booking";
 import { AppBar, Screen } from "@shared/ui";
 import { Timeline } from "./Timeline";
-import { markSeen } from "../actions";
+import { MarkSeen } from "./MarkSeen";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Timeline" };
@@ -14,13 +14,13 @@ export default async function TimelinePage({ params }: { params: Promise<{ id: s
   const { booking: b, missing, supabase } = await getBooking(id);
   if (missing) redirect("/project");
   if (!b) notFound();
-  if (b.unread > 0) await markSeen(id);
   const urls = await signedUrls(supabase, b.messages.map((m) => m.file?.path ?? "").filter(Boolean));
   const other = b.is_owner ? b.contractor?.person?.split(" ")[0] ?? null : b.owner?.name?.split(" ")[0] ?? "the homeowner";
   return (
     <Screen>
       <AppBar back={`/project/${id}`} title="Timeline" sub={other ? `Permanent record · you and ${other}` : "Permanent record"} />
       <Timeline projectId={id} messages={b.messages} urls={urls} counterpart={other} canSend={!!(b.is_owner ? b.contractor : b.owner)} />
+      {b.unread > 0 && <MarkSeen projectId={id} />}
     </Screen>
   );
 }

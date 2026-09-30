@@ -183,7 +183,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
 function Chip({ k, label, n, on }: { k: string; label: string; n: number; on: boolean }) {
   return (
-    <Link href={k === "all" ? "/" : `/?show=${k}`} aria-current={on ? "page" : undefined}
+    <Link href={k === "all" ? "/projects" : `/projects?show=${k}`} aria-current={on ? "page" : undefined}
       className={`tag ${on ? "" : "tag-neutral"}`}
       style={{ textDecoration: "none", padding: "7px 12px", fontSize: 12 }}>
       {label} · {n}

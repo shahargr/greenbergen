@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { savePackage } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,8 @@ const AVAIL: Record<string, string> = { priced: "Priced", coming_soon: "Coming s
 export default async function AdminPackagesPage({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string }> }) {
   const { error, saved } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data }, { data: trades }] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data }, { data: trades }] = await Promise.all([
+    getMe(),
     supabase.rpc("admin_packages"),
     supabase.from("trades").select("trade").order("sort_order"),
   ]);
