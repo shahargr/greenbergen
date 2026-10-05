@@ -83,7 +83,11 @@ export function Panels({ projectId, trades, prefs, back, manages, fortnight }: {
 
   const visible = panels.filter((p) => all || shown.includes(p.name) || (earns(p) && !hidden.includes(p.name)));
   const also = panels.filter((p) => !visible.includes(p));
-  const showBids = bidding.length > 0 && (all || !hidden.includes(BIDS));
+  // Whoever runs the job always has the way in, even with nothing out - the
+  // card is also where a new bid starts (Shahar, 2026-10-05: "I cannot find a
+  // way to create bid in the system no more").
+  const hasBids = bidding.length > 0 || manages;
+  const showBids = hasBids && (all || !hidden.includes(BIDS));
 
   async function save(nextShown: string[], nextHidden: string[]) {
     setShown(nextShown); setHidden(nextHidden); setBusy(true);
@@ -142,7 +146,10 @@ export function Panels({ projectId, trades, prefs, back, manages, fortnight }: {
           <span className="n">{bidding.length}</span>
           <span className="say">{bidding.length === 1 ? "trade bid out" : "trades bid out"}</span>
         </span>
-        <span className="m">{bidding.slice(0, 3).map((t) => t.trade).join(" · ")}{bidding.length > 3 ? ` · +${bidding.length - 3}` : ""}</span>
+        <span className="m">
+          {bidding.length === 0 ? "Nothing out — start a bid"
+            : `${bidding.slice(0, 3).map((t) => t.trade).join(" · ")}${bidding.length > 3 ? ` · +${bidding.length - 3}` : ""}`}
+        </span>
       </Link>
       {!all && (
         <button type="button" className="sp-x" aria-label="Fold Bids away" title="Fold it away"
@@ -152,7 +159,7 @@ export function Panels({ projectId, trades, prefs, back, manages, fortnight }: {
   );
 
   const alsoChips = [
-    ...(bidding.length > 0 && !showBids ? [{ name: BIDS, open: bidding.length, late: 0 }] : []),
+    ...(hasBids && !showBids ? [{ name: BIDS, open: bidding.length, late: 0 }] : []),
     ...also.map((p) => ({
       name: p.name,
       open: p.trades.reduce((n, t) => n + t.open, 0),
