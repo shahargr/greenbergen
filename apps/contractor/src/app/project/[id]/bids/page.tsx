@@ -48,16 +48,18 @@ export default async function BidBoardPage({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ok?: string; error?: string; add?: string; drop?: string; who?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; add?: string; drop?: string; who?: string; start?: string }>;
 }) {
   const { id } = await params;
-  const { ok, error, add, drop, who } = await searchParams;
+  const { ok, error, add, drop, who, start } = await searchParams;
 
   const w = stopwatch("/project/[id]/bids");
   const supabase = await createClient();
-  const [board, { data }] = await Promise.all([
+  const [board, { data }, { data: catalogue }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("bids", () => rpc<{ trades: Row[] }>(supabase, "portal_bid_board", { p_project: id })),
+    // The whole catalogue, for a bid on a trade the job does not list yet.
+    w.step("trades", async () => await supabase.from("trades").select("trade").order("trade")),
   ]);
   w.done();
   if (!board.signed_in) redirect(`/login?next=${encodeURIComponent(`/project/${id}/bids`)}`);
@@ -73,6 +75,9 @@ export default async function BidBoardPage({
   const none = rows.filter((r) => r.state === "none");
   const won = rows.filter((r) => r.state === "won");
   const waiting = open.reduce((n, r) => n + (r.invited - r.replied), 0);
+  const listed = new Set(rows.map((r) => r.trade.toLowerCase()));
+  const others = ((catalogue ?? []) as { trade: string }[])
+    .map((t) => t.trade).filter((t) => t !== "ALL" && t !== "Meta" && !listed.has(t.toLowerCase()));
 
   return (
     <Screen>
@@ -87,6 +92,50 @@ export default async function BidBoardPage({
         {error && <Notice kind="error">{error}</Notice>}
         {ok === "opened" && <div className="banner-ok">Room opened. Put somebody in it.</div>}
         {ok === "dropped" && <div className="banner-ok">{who || "That trade"} is off this job&apos;s board.</div>}
+
+        {/* START A BID ON ANY TRADE (Shahar, 2026-10-05: "I cannot find a way
+            to create bid in the system no more"). The rows below only open a
+            room for a trade the job already lists; a new one - a fireplace
+            nobody had named - had no door. portal_bid_room_open takes any
+            catalogue trade and adds it to the job's list. */}
+        {manages && (start === "1" ? (
+          <form action={openRoom.bind(null, id)} className="card pad stack" style={{ gap: 8 }}>
+            <div className="small" style={{ fontWeight: 800 }}>Start a bid</div>
+            <label className="nb-fld">
+              <span>Trade</span>
+              <select className="input" name="trade" required defaultValue="">
+                <option value="" disabled>Pick a trade…</option>
+                {none.length > 0 && (
+                  <optgroup label="On this job, not started">
+                    {none.map((r) => <option key={r.trade} value={r.trade}>{r.trade}</option>)}
+                  </optgroup>
+                )}
+                <optgroup label="Every other trade">
+                  {others.map((t) => <option key={t} value={t}>{t}</option>)}
+                </optgroup>
+              </select>
+            </label>
+            <div className="nb-two">
+              <label className="nb-fld">
+                <span>Reply by</span>
+                <input className="input" type="date" name="reply_by" />
+              </label>
+              <label className="nb-fld">
+                <span>What it is for</span>
+                <input className="input" name="summary" placeholder="Optional — one line" />
+              </label>
+            </div>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              <button className="btn btn-primary" style={{ flex: "1 1 auto" }}>Open the room</button>
+              <Link href={`/project/${id}/bids`} className="btn btn-ghost" scroll={false}>Cancel</Link>
+            </div>
+          </form>
+        ) : (
+          <Link href={`/project/${id}/bids?start=1`} className="btn btn-primary" scroll={false}
+            style={{ alignSelf: "flex-start" }}>
+            + Start a bid
+          </Link>
+        ))}
 
         <div className="tiles quad" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
           <Stat n={String(open.length)} label="out to bid" tone={open.length > 0 ? "bid" : undefined} />
