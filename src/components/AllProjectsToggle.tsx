@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { setGodMode } from "@/app/admin/actions";
 
 // EVERY PROJECT, OR ONLY MINE - ON THE PROJECTS PAGE, WHERE PROJECTS ARE.
@@ -18,8 +18,7 @@ import { setGodMode } from "@/app/admin/actions";
 // wherever it is dropped it is correct: nothing for a non-superadmin, and the
 // cookie is only honoured for one anyway (setGodMode re-checks).
 export async function AllProjectsToggle({ back }: { back: string }) {
-  const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   if (!me?.is_superadmin) return null;
 
   const godOn = (await cookies()).get("gb_god")?.value === "1";

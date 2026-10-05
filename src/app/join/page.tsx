@@ -11,17 +11,23 @@ export default async function JoinPage({
 }) {
   const { invite } = await searchParams;
 
+  const supabase = await createClient();
+  // Already signed in - someone who followed an invitation from a device
+  // they use anyway. Signing up again is the wrong ask: redeem the token
+  // against the session they already have and send them on. Without a
+  // token there is nothing to join; their doors know where they belong.
+  const { data: auth } = await supabase.auth.getClaims();
+  if (auth?.claims?.sub) {
+    redirect(invite
+      ? `/join/finish?invite=${encodeURIComponent(invite)}&next=${encodeURIComponent("/after-login")}`
+      : "/after-login");
+  }
+
   // The link is the credential: preview the invitation and pre-populate.
+  // A token that no longer previews stays in the URL so the form can say
+  // the link is dead instead of pretending an invitation exists.
   let prefill: InvitePrefill | null = null;
   if (invite) {
-    const supabase = await createClient();
-    // Already signed in - someone who followed an invitation from a device
-    // they use anyway. Signing up again is the wrong ask: redeem the token
-    // against the session they already have and send them on.
-    const { data: auth } = await supabase.auth.getClaims();
-    if (auth?.claims?.sub) {
-      redirect(`/join/finish?invite=${encodeURIComponent(invite)}&next=${encodeURIComponent("/after-login")}`);
-    }
     const { data } = await supabase.rpc("invitation_preview", { p_token: invite });
     if (data?.ok) prefill = data as InvitePrefill;
   }

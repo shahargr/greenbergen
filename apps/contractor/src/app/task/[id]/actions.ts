@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { friendly } from "@shared/rpc";
 
 // Post a note on a task, close it, or both - then go back to the list the
 // person came from. Every rule lives in the database: add_task_comment
@@ -120,7 +121,7 @@ export async function saveTask(formData: FormData) {
     // "when i get an error, the system returns the form to its original
     // state, and cleans out Stage."
     const keep = { stage: s("status"), prio: s("priority") };
-    if (error) redirect(here({ error: error.message, ...keep }));
+    if (error) redirect(here({ error: friendly(error.message, "That change did not save."), ...keep }));
     if (data?.ok === false) redirect(here({ error: data.reason ?? "That change did not save.", ...keep }));
     const changed: string[] = Array.isArray(data?.changed) ? data.changed : [];
     if (changed.length) said.push(`Saved: ${changed.join(", ")}`);
@@ -132,7 +133,7 @@ export async function saveTask(formData: FormData) {
       p_action_id: id, p_body: note || null, p_file_ids: fileIds.length > 0 ? fileIds : null,
     });
     if (error || data?.ok === false) {
-      redirect(here({ error: data?.reason ?? error?.message ?? "That update did not save." }));
+      redirect(here({ error: data?.reason ?? friendly(error?.message, "That update did not save.") }));
     }
     if (typeof data?.id === "string") noteId = data.id;
     said.push(fileIds.length > 0 && !note
@@ -199,7 +200,7 @@ export async function saveTask(formData: FormData) {
     // The fields and the comment above are already saved; say so with the
     // refusal, and reopen the drawer so the payment is where they left it.
     const kept = said.length ? `${said.join(" · ")} — but ` : "";
-    if (error) redirect(here({ error: kept + error.message, money: "1" }));
+    if (error) redirect(here({ error: kept + friendly(error.message, "that payment did not save."), money: "1" }));
     if (data?.ok === false) redirect(here({ error: kept + (data.reason ?? "that payment did not save."), money: "1" }));
     revalidatePath("/money");
     said.push(data?.credit
@@ -217,7 +218,7 @@ export async function saveTask(formData: FormData) {
     const { data, error } = await supabase.rpc("portal_close_task", {
       p_action_id: id, p_unlock_reason: reason || null,
     });
-    if (error) redirect(here({ error: error.message }));
+    if (error) redirect(here({ error: friendly(error.message, "That task did not close.") }));
     if (data?.ok === false) {
       // These are not failures, they are the database asking for the one
       // thing it needs - and whatever else was saved above is already saved,
@@ -261,7 +262,7 @@ export async function undoNote(formData: FormData) {
   if (!id || !noteId) redirect(back);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_task_note_delete", { p_id: noteId });
-  if (error) redirect(here({ error: error.message }));
+  if (error) redirect(here({ error: friendly(error.message, "That entry was not removed.") }));
   if (data?.ok === false) redirect(here({ error: data.reason ?? "That entry was not removed." }));
   revalidatePath(`/task/${id}`);
   revalidatePath("/inbox");
@@ -310,7 +311,7 @@ export async function editPayment(formData: FormData) {
       from_account: s("from_account"), payee: s("payee"), status: s("status"),
     },
   });
-  if (error) redirect(here({ error: error.message, money: "1" }));
+  if (error) redirect(here({ error: friendly(error.message, "That payment did not change."), money: "1" }));
   if (data?.ok === false) redirect(here({ error: data.reason ?? "That payment did not change.", money: "1" }));
   revalidatePath(`/task/${id}`);
   revalidatePath("/money");
@@ -343,7 +344,7 @@ export async function cancelTask(formData: FormData) {
   if (!id) redirect(back);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_task_cancel", { p_action_id: id, p_reason: reason || null });
-  if (error) redirect(here({ error: error.message }));
+  if (error) redirect(here({ error: friendly(error.message, "That task did not cancel.") }));
   if (data?.ok === false) redirect(here({ error: data.reason ?? "That task did not cancel." }));
   revalidatePath("/tasks");
   revalidatePath("/");
@@ -368,7 +369,7 @@ export async function deleteTask(formData: FormData) {
   }
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_task_delete", { p_action_id: id });
-  if (error) redirect(here({ error: error.message }));
+  if (error) redirect(here({ error: friendly(error.message, "That task was not deleted.") }));
   if (data?.ok === false) redirect(here({ error: data.reason ?? "That task was not deleted." }));
   revalidatePath("/tasks");
   revalidatePath("/");
@@ -398,7 +399,7 @@ export async function linkTask(formData: FormData) {
   const { data, error } = await supabase.rpc("portal_task_link", {
     p_action: id, p_rel: rel, p_other: other,
   });
-  if (error) redirect(here({ error: error.message }));
+  if (error) redirect(here({ error: friendly(error.message, "That link was not made.") }));
   if (data?.ok === false) redirect(here({ error: data.reason ?? "That link was not made." }));
   revalidatePath(`/task/${id}`);
   revalidatePath("/tasks");

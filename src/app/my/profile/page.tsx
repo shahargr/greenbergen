@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { PhotoPick } from "@/components/PhotoPick";
 import { saveProfile } from "../settings/actions";
 import { saveFullProfile, saveMyTrades, saveCredential, deleteCredential } from "./actions";
@@ -50,11 +51,12 @@ export default async function ProfilePage({
   const missing = p.trades.filter((t) => t.license_label
     && !p.credentials.some((k) => k.trade === t.trade && k.path));
   // Signed links for the documents, an hour each.
+  const signed = await signedUrlMap(supabase, p.credentials);
   const links = new Map<string, string>();
-  await Promise.all(p.credentials.filter((k) => k.bucket && k.path).map(async (k) => {
-    const { data: s } = await supabase.storage.from(k.bucket!).createSignedUrl(k.path!, 3600);
-    if (s?.signedUrl) links.set(k.id, s.signedUrl);
-  }));
+  for (const k of p.credentials) {
+    const u = k.bucket && k.path ? signed.get(signedKey(k.bucket, k.path)) : undefined;
+    if (u) links.set(k.id, u);
+  }
   const byStage = new Map<string, AllTrade[]>();
   for (const t of p.all_trades) {
     const key = t.stage ?? "Other";

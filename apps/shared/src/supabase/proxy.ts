@@ -10,7 +10,7 @@ import { stopwatch } from "../perf";
 // the homeowner app lets a stranger browse the whole catalogue before
 // joining, the contractor app does not have one to browse. The landing
 // page ("/") is public everywhere.
-const DEFAULT_PUBLIC = ["/login", "/auth", "/join", "/packages", "/services", "/s/", "/welcome"];
+export const DEFAULT_PUBLIC = ["/login", "/auth", "/join", "/packages", "/services", "/s/", "/welcome"];
 
 export async function updateSession(request: NextRequest, publicPrefixes: string[] = DEFAULT_PUBLIC) {
   const w = stopwatch(`proxy ${request.nextUrl.pathname}`);

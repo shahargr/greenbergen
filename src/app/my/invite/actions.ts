@@ -15,6 +15,8 @@ export async function emailInvitation(to: string, messageText: string) {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Please sign in first." };
   if (!to.trim()) return { error: "No recipient email on this invitation." };
+  // One address, no separators: the mail goes to the invitee and nobody else.
+  if (!/^[^\s,;<>]+@[^\s,;<>]+\.[^\s,;<>]+$/.test(to.trim())) return { error: "That does not look like one email address." };
 
   const res = await sendMail(
     to.trim(),

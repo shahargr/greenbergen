@@ -5,7 +5,7 @@ import { isSignedIn } from "@shared/supabase/session";
 import { AppBar, ChevronIcon, Screen, ShellIcons, StepKicker } from "@shared/ui";
 import { dollars } from "@shared/format";
 import { Scene } from "@/components/Scene";
-import { pricedAll } from "@/lib/markup";
+import { pricedAll, viewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Packages" };
@@ -16,7 +16,8 @@ export const metadata = { title: "Packages" };
 // re-learn the shelf.
 export default async function PackagesPage() {
   const supabase = await createClient();
-  const [{ tiles: raw }, signedIn] = await Promise.all([loadTiles(), isSignedIn(supabase)]);
+  // The mark-up leaves with the grid; pricedAll() finds it answered (cache).
+  const [{ tiles: raw }, signedIn] = await Promise.all([loadTiles(), isSignedIn(supabase), viewerMarkup()]);
   const tiles = await pricedAll(raw);
   // THE ENABLED ONES FIRST (Shahar): within the headline row, what you can
   // act on today before what is coming soon, each group in its own order.
@@ -31,7 +32,7 @@ export default async function PackagesPage() {
     <Screen>
       <AppBar brand back={{ fallback: "/project" }} right={signedIn ? <ShellIcons /> : <Link href="/login" className="btn btn-ghost">Sign in</Link>} />
       <div className="body">
-        <StepKicker>Step 1 of 3</StepKicker>
+        <StepKicker>First step</StepKicker>
         <div className="hero">
           <h1>What would you like to get done?</h1>
           <p className="lead">We negotiate and price these services on behalf of our community.</p>

@@ -13,8 +13,8 @@ export const dynamic = "force-dynamic";
 // sends you on. The form only renders for someone who actually needs it.
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
+  const { data: claimsData } = await supabase.auth.getClaims();
+  if (claimsData?.claims?.sub) {
     const { next } = await searchParams;
     const safe = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
     redirect(safe ?? "/after-login");

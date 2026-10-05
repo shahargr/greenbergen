@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { transcribeAudio } from "@/lib/transcribe";
 import { geocodeUsAddress } from "@/lib/geocode";
 
@@ -493,12 +494,24 @@ export async function createTask(formData: FormData): Promise<TaskCreated> {
   const projectId = String(formData.get("project") ?? "");
   const title = String(formData.get("title") ?? "").trim();
   if (!projectId || !title) return { ok: false, error: "Project and task title are both needed." };
-  const assignee = String(formData.get("assigned_to") ?? "").trim() || null;
+  const requestedAssignee = String(formData.get("assigned_to") ?? "").trim() || null;
   const priority = String(formData.get("priority") ?? "Medium");
   // Retroactive logging: a task can be created straight into a completed
   // state (a project opened late, where the work is already done).
   const done = formData.get("done") != null;
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
+  // Only a member contact of THIS project is assignable (same rule as
+  // saveTask); an id that is not on the roster is dropped, not written.
+  let assignee: string | null = null;
+  if (requestedAssignee) {
+    const { data: member } = await supabase
+      .from("project_members")
+      .select("contact_id")
+      .eq("project_id", projectId)
+      .eq("contact_id", requestedAssignee)
+      .maybeSingle();
+    if (member) assignee = requestedAssignee;
+  }
 
   // Since v104 the assigned_to / assigned_by NAME columns hold personas
   // only - real people are recorded through the *_contact_id columns.

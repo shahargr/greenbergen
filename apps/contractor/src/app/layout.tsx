@@ -13,9 +13,9 @@ import { Analytics } from "@vercel/analytics/next";
 // homeowner are two sides of one community, not two products, and they
 // share one login - so they should recognise the place.
 export const metadata: Metadata = {
-  title: { default: "Green Bergen for contractors", template: "%s · Green Bergen" },
+  title: { default: "Green Bergen Professionals", template: "%s · Green Bergen" },
   description: "Community price, no bidding, no lead fees. Work in Bergen County from the people who live there.",
-  applicationName: "Green Bergen for contractors",
+  applicationName: "Green Bergen Professionals",
   appleWebApp: { capable: true, title: "Green Bergen Pro", statusBarStyle: "default" },
 };
 

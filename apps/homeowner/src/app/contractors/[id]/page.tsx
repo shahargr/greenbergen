@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function ContractorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const me = await getMe();
+  // Independent reads, one wave; the checks keep their order below.
+  const [me, [p]] = await Promise.all([getMe(), loadContractors(id)]);
   if (!me.signed_in) redirect(`/login?next=/contractors/${id}`);
-  const [p] = await loadContractors(id);
   if (!p) notFound();
   const town = p.service_zip ? townForZip(p.service_zip) : null;
   const area = areaLine(p, town);

@@ -1,6 +1,7 @@
 import { createClient } from "@shared/supabase/server";
 import { isMissingFunction, rpc } from "@shared/rpc";
 import { timed } from "@shared/perf";
+import { cache } from "react";
 
 // The contractor shell in one call (contractor_me). Signed-in is decided
 // from the session cookie's claims - verified locally, no round trip - the
@@ -37,7 +38,9 @@ export type Me =
 
 const EMPTY_DOC: DocState = { needed: true, on_file: false };
 
-export async function getMe(): Promise<Me> {
+// cache(): a page and its layout, or two helpers on one page, ask for the
+// shell once per request rather than once each.
+export const getMe = cache(async function getMe(): Promise<Me> {
   const supabase = await createClient();
   const { data: claimsData } = await timed("me.claims", () => supabase.auth.getClaims());
   const claims = claimsData?.claims as { sub?: string; email?: string; user_metadata?: { full_name?: string } } | undefined;
@@ -53,11 +56,15 @@ export async function getMe(): Promise<Me> {
   if (error) console.error("contractor_me:", error.message);
 
   // Signed in either way. A read that failed is a degraded screen, never a
-  // redirect back to the login they just came from.
+  // redirect back to the login they just came from. A clean answer of
+  // signed_in: false is not a failure at all: the function found no
+  // contractor record behind this login (a homeowner trying the door), so
+  // the shell below is simply empty and outstanding() sends them to
+  // /business to make one - not "we couldn't load your account".
   return {
     signed_in: true,
     missing: !!error && isMissingFunction(error),
-    degraded: !error || !isMissingFunction(error),
+    degraded: !!error && !isMissingFunction(error),
     profile: {
       app_user_id: claims.sub, full_name: claims.user_metadata?.full_name ?? null,
       email: claims.email ?? null, contact_id: null, is_superadmin: false,
@@ -68,7 +75,7 @@ export async function getMe(): Promise<Me> {
     can_accept: false,
     counts: { open_offers: 0, live_jobs: 0, done_jobs: 0 },
   };
-}
+});
 
 // THE PAPERWORK, AS MESSAGES. Shahar (2026-09-14): "remove the 4 things left
 // from my professional login page into messages i cannot dismiss without

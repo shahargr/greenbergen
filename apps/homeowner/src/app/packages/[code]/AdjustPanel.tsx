@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { basePrice, marked, deltaNotes, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { useEffect, useMemo, useRef } from "react";
+import { basePrice, marked, deltaNotes, priceFor, type Package, type Selections } from "@shared/catalogue.shared";
 import { dollars } from "@shared/format";
 import { CloseIcon } from "@shared/ui";
 
@@ -24,6 +24,7 @@ export function AdjustPanel({ pkg, value, onChange, onClose }: { pkg: Package; v
   const price = priceFor(pkg, value);
   const deltas = useMemo(() => deltaNotes(pkg, value), [pkg, value]);
   const set = (k: string, v: string) => onChange({ ...value, [k]: v });
+  const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -31,10 +32,13 @@ export function AdjustPanel({ pkg, value, onChange, onClose }: { pkg: Package; v
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [onClose]);
+  // Focus moves into the dialog when it opens, so the keyboard is on the
+  // levers and not on the page behind them.
+  useEffect(() => { panel.current?.focus(); }, []);
 
   return (
     <div className="sheet-back" onClick={onClose} role="presentation">
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Customise the package" onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className="sheet" role="dialog" aria-modal="true" aria-label="Customise the package" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head">
           <div className="title">Customise the package</div>
           <button type="button" className="btn btn-ghost btn-icon" aria-label="Close" onClick={onClose}><CloseIcon /></button>

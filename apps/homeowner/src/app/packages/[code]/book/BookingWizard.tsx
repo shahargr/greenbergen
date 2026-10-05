@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@shared/supabase/client";
-import { configLabel, encodeSelections, guidedApplies, payPlan, payPlanLine, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { configLabel, encodeSelections, guidedApplies, payPlan, payPlanLine, priceFor, type Package, type Selections } from "@shared/catalogue.shared";
 import { dollars, shortDate } from "@shared/format";
 import { friendly, isMissingFunction } from "@shared/rpc";
 import { AppBar, Card, CheckIcon, Notice, Screen, StatusHero, StepKicker } from "@shared/ui";
@@ -148,8 +148,9 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
     restored ? (hasHomes ? "home" : restored.pending === "plan" ? "when" : isEv ? "ev_wall" : "budget")
       : mode === "post" ? (knownHouse ? "photos" : "facts") : surveyed ? "survey" : hasHomes ? "home" : "address");
   const [reusedFacts, setReusedFacts] = useState(mode === "post" && knownHouse);
-  // Resumed: the typed address stands, not one of the member's homes.
-  const [homeId, setHomeId] = useState<string | null>(hasHomes ? homes[0]!.project_id : null);
+  // Resumed: the typed address stands, not one of the member's homes - so
+  // "Another address" is the one pre-selected on the home picker.
+  const [homeId, setHomeId] = useState<string | null>(restored?.address ? "new" : hasHomes ? homes[0]!.project_id : null);
   const [address, setAddress] = useState(restored?.address ?? planned?.address ?? knownAddress ?? "");
   const [unit, setUnit] = useState(restored?.unit ?? "");
   const [geo, setGeo] = useState<Geo | null>(restored?.geo ?? null);
@@ -174,7 +175,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
   const afterHome: Step = isEv ? "ev_needs" : mode === "plan" ? "when" : "facts";
   // The walk-through already asked for the photos; its screens are the step.
   const afterFacts: Step = guided ? "budget" : "photos";
-  const stepLabel = isEv ? "Before we start · Your home" : surveyed ? (mode === "plan" ? "DIY-assisted · Your home" : "Booking · Your home") : mode === "plan" ? "DIY project" : "Step 2 of 3 · Your home";
+  const stepLabel = isEv ? "Before we start · Your home" : surveyed ? (mode === "plan" ? "DIY-assisted · Your home" : "Booking · Your home") : mode === "plan" ? "DIY project" : "Your home";
   // Where the first booking step goes back to: the proposal or the survey
   // when there was one, else the package page.
   // (The guided proposal offers DIY too, so both ways back lead to it.)
@@ -754,7 +755,7 @@ function Wizard({ pkg, selections: initialSel, mode: initialMode, planned, homes
     <Screen>
       <AppBar back={() => setStep(guided ? "facts" : "photos")} right={<button type="button" className="btn btn-ghost" onClick={() => { setBudget("skip"); proceed("book"); }} disabled={!!busy}>Skip</button>} />
       <div className="body">
-        <StepKicker>{surveyed ? "Last step · Optional" : "Step 3 of 3 · Optional"}</StepKicker>
+        <StepKicker>Last step · Optional</StepKicker>
         <div className="hero">
           <h1>How much would you like to spend?</h1>
           <p className="lead">Totally optional. If we know, we can suggest a smarter approach — a smaller tank, a different fuel, a phased job.</p>

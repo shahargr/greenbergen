@@ -18,6 +18,8 @@ import { tradeInSeason } from "@/lib/seasons";
 import { HireTilesGrid, HIRE_TILES } from "@/components/HireTiles";
 import { CardTxRow, CardTxHead, type CardTx } from "./CardTxRow";
 import { CardTaskRow } from "./CardTaskRow";
+import { safeHttpUrl } from "@/lib/safeUrl";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 
 export const maxDuration = 60;
 
@@ -131,7 +133,21 @@ export default async function MyPage({
   // God mode cookie (set from Admin → Overview). Only honored for a superadmin.
   const godOn = (await cookies()).get("gb_god")?.value === "1";
   const supabase = await createClient();
-  const { data: boot, error: bootErr } = await rpcRetry(supabase, "portal_home");
+  // WAVE ONE: everything that needs nothing but the session. portal_home
+  // carries who you are; the rest used to queue behind it for no reason.
+  const [
+    { data: boot, error: bootErr },
+    { data: workData },
+    { data: txStatusRows }, { data: txMethodRows }, { data: invitesData }, { data: prefRows },
+  ] = await Promise.all([
+    rpcRetry(supabase, "portal_home"),
+    supabase.rpc("portal_my_work"),
+    supabase.from("transaction_statuses").select("status"),
+    supabase.from("payment_methods").select("id, name").eq("is_active", true)
+      .order("display_order", { ascending: true, nullsFirst: false }),
+    supabase.rpc("portal_my_invites"),
+    supabase.from("user_project_prefs").select("project_id").eq("is_priority", true),
+  ]);
 
   // Middleware only lets authenticated sessions reach /my - so a null
   // identity here is a transient auth-settling moment (first load right
@@ -157,12 +173,55 @@ export default async function MyPage({
   const deals: Deal[] = (home?.promotions as Deal[]) ?? [];
   const projects: HomeProject[] = (home?.projects as HomeProject[]) ?? [];
   const hasHome = projects.length > 0;
-  const banner = banner0;
-  // The welcome video shows by default on first run; a tick under it stops
-  // it from the next visit on.
-  const { data: videoPref } = boot?.me?.app_user_id
-    ? await supabase.from("app_users").select("welcome_video_dismissed_at").eq("id", boot.me.app_user_id).maybeSingle()
-    : { data: null as { welcome_video_dismissed_at: string | null } | null };
+  // Only an http(s) link becomes the button; anything else is dropped.
+  const banner = banner0 ? { ...banner0, url: safeHttpUrl(banner0.url) } : null;
+  const godMode = godOn && !!boot?.me?.is_superadmin;
+
+  // WAVE TWO: everything that only needs what portal_home said - who you
+  // are, whether god mode is on, your town. Each conditional is the same
+  // one it was when these ran one after another.
+  const [
+    { data: videoPref },
+    { data: consoleData },
+    { data: viewTargetData }, { data: realIdData },
+    weather,
+    forecastDays,
+    { data: cardData }, { data: findData },
+    { data: myContact },
+    { data: allRows },
+  ] = await Promise.all([
+    // The welcome video shows by default on first run; a tick under it
+    // stops it from the next visit on.
+    boot?.me?.app_user_id
+      ? supabase.from("app_users").select("welcome_video_dismissed_at").eq("id", boot.me.app_user_id).maybeSingle()
+      : Promise.resolve({ data: null as { welcome_video_dismissed_at: string | null } | null }),
+    // Superadmins only, and admin_console() refuses anyone else in the
+    // database as well (migration 200), so the guard here is about not
+    // making a pointless round trip, not about safety.
+    boot?.me?.is_superadmin ? supabase.rpc("admin_console") : Promise.resolve({ data: null }),
+    // God mode: everyone with a seat and a login, for the become menu.
+    godMode ? supabase.rpc("admin_view_targets") : Promise.resolve({ data: null }),
+    godMode ? supabase.rpc("real_app_user_id") : Promise.resolve({ data: null }),
+    hasHome ? Promise.resolve(null) : getWeather(town),
+    panel === "weather" ? getForecast(town) : Promise.resolve(null),
+    // Per-project dashboard bundle for the cards, and the finder's list.
+    supabase.rpc("portal_project_cards", { p_all: godMode }),
+    supabase.rpc("portal_project_search", { p_all: godMode }),
+    // "Add a profile photo" nudge until one exists (photos show on task panels).
+    boot?.me?.contact_id
+      ? supabase.from("contacts").select("avatar_path").eq("id", boot.me.contact_id).maybeSingle()
+      : Promise.resolve({ data: null as { avatar_path: string | null } | null }),
+    // God mode: every project on the platform, as if invited to all of them.
+    godMode
+      ? supabase
+          .from("projects")
+          .select("id, project_name, address, status, parent_project_id, is_template, domain")
+          .is("trashed_at", null)
+          .is("disabled_at", null)
+          .eq("is_template", false)
+          .order("project_name")
+      : Promise.resolve({ data: null }),
+  ]);
   const welcomeVideo: string | null = videoPref?.welcome_video_dismissed_at ? null : (boot?.welcome_video ?? null);
   const videoBlock = welcomeVideo ? (
     <div style={{ display: "grid", gap: 6 }}>
@@ -176,7 +235,6 @@ export default async function MyPage({
     </div>
   ) : null;
   const canCreate: boolean = home?.can_create ?? false;
-  const godMode = godOn && !!boot?.me?.is_superadmin;
 
   // THE WAY INTO ADMINISTRATION, FROM THE OWNER DASHBOARD.
   //
@@ -193,17 +251,10 @@ export default async function MyPage({
   // leads with so it is worth a glance even when you are not going.
   //
   // Superadmins only, and admin_console() refuses anyone else in the
-  // database as well (migration 200), so the guard here is about not making
-  // a pointless round trip, not about safety.
-  const { data: consoleData } = boot?.me?.is_superadmin
-    ? await supabase.rpc("admin_console")
-    : { data: null };
+  // database as well (migration 200); it was read in wave two.
   const adminN = (consoleData ?? {}) as Record<string, number>;
   // God mode: everyone with a seat and a login, once each, highest seat as the hint.
   type ViewTarget = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
-  const [{ data: viewTargetData }, { data: realIdData }] = godMode
-    ? await Promise.all([supabase.rpc("admin_view_targets"), supabase.rpc("real_app_user_id")])
-    : [{ data: null }, { data: null }];
   const realId = typeof realIdData === "string" ? realIdData : null;
   const becomePeople = (() => {
     const best = new Map<string, { name: string; hint: string; rank: number }>();
@@ -230,7 +281,6 @@ export default async function MyPage({
 
   const membershipRows = boot?.memberships ?? [];
   const bandOverviewData = boot?.overview ?? [];
-  const weather = hasHome ? null : await getWeather(town);
   const onMe: number = boot?.counts?.on_me ?? 0;
   const total: number = boot?.counts?.total ?? 0;
   const myMemberships = ((membershipRows ?? []) as unknown as Membership[])
@@ -263,7 +313,6 @@ export default async function MyPage({
     bid_amount: number | null; latest_bid_id: string | null; owed: number; owed_count: number;
     buckets: string[];
   };
-  const { data: workData } = await supabase.rpc("portal_my_work");
   const work = ((workData ?? []) as WorkRow[]);
   const workById = new Map(work.map((w) => [w.project_id, w]));
   const bucketCounts: Record<string, number> = { all: work.length };
@@ -289,13 +338,6 @@ export default async function MyPage({
   if (godMode) {
     // God mode: every project on the platform, as if invited to all of them.
     // Counts come from the (p_all) cards; the overview rows just shape the tree.
-    const { data: allRows } = await supabase
-      .from("projects")
-      .select("id, project_name, address, status, parent_project_id, is_template, domain")
-      .is("trashed_at", null)
-      .is("disabled_at", null)
-      .eq("is_template", false)
-      .order("project_name");
     bandOverviewAll = (((allRows ?? []) as Omit<ProjectOverviewRow, "open_count" | "last_activity">[]))
       .map((p) => ({ ...p, open_count: 0, last_activity: "" }));
   }
@@ -314,17 +356,33 @@ export default async function MyPage({
   // A home's standing services (taxes, insurance, the mortgage...) are child
   // projects too, but they are not "open projects" - they live on the
   // property's own page.
-  const { data: serviceRows } = bandOverview.length > 0
-    ? await supabase.from("projects").select("id, parent_project_id, home_blueprint_code").in("id", bandOverview.map((p) => p.id)).not("home_blueprint_code", "is", null)
-    : { data: [] as { id: string; parent_project_id: string | null; home_blueprint_code: string | null }[] };
+  // WAVE THREE: the two reads keyed on the projects now on the page - the
+  // standing services among them, and which carry a home photo.
+  const coverIds = bandOverviewAll.map((p) => p.id);
+  const [{ data: serviceRows }, { data: coverRows }] = await Promise.all([
+    bandOverview.length > 0
+      ? supabase.from("projects").select("id, parent_project_id, home_blueprint_code").in("id", bandOverview.map((p) => p.id)).not("home_blueprint_code", "is", null)
+      : Promise.resolve({ data: [] as { id: string; parent_project_id: string | null; home_blueprint_code: string | null }[] }),
+    coverIds.length
+      ? supabase.from("projects").select("id, cover_file_id").in("id", coverIds).not("cover_file_id", "is", null)
+      : Promise.resolve({ data: [] }),
+  ]);
   const serviceList = ((serviceRows ?? []) as { id: string; parent_project_id: string | null; home_blueprint_code: string | null }[]);
   const serviceIds = new Set(serviceList.map((r) => r.id));
+  const covers = ((coverRows ?? []) as { id: string; cover_file_id: string }[]);
   // The insurance line per home, and whether anything at all is on file
   // there - a task or a document. Nothing on file is an alert on the panel.
   const insuranceByHome = new Map(serviceList.filter((r) => r.home_blueprint_code === "insurance" && r.parent_project_id).map((r) => [r.parent_project_id as string, r.id]));
-  const { data: insuranceFileRows } = insuranceByHome.size > 0
-    ? await supabase.from("files").select("project_id").in("project_id", [...insuranceByHome.values()]).limit(200)
-    : { data: [] as { project_id: string | null }[] };
+  // WAVE FOUR: the files behind wave three - the insurance papers, the
+  // photo rows behind the covers.
+  const [{ data: insuranceFileRows }, { data: fileRows }] = await Promise.all([
+    insuranceByHome.size > 0
+      ? supabase.from("files").select("project_id").in("project_id", [...insuranceByHome.values()]).limit(200)
+      : Promise.resolve({ data: [] as { project_id: string | null }[] }),
+    covers.length
+      ? supabase.from("files").select("id, bucket, path").in("id", covers.map((c) => c.cover_file_id))
+      : Promise.resolve({ data: [] }),
+  ]);
   const insuranceHasFile = new Set(((insuranceFileRows ?? []) as { project_id: string | null }[]).map((r) => r.project_id).filter((x): x is string => !!x));
   // The house above a project, whether or not you hold a seat on it. A
   // contractor is invited to the project only; the house is context, and
@@ -351,25 +409,18 @@ export default async function MyPage({
   const reclaimedHouses = bandOverviewAll.filter((p) =>
     p.status !== "In Progress" && openJobUnder.has(p.id) && (view === "active" || inView(p.id)) && !bandOverview.some((q) => q.id === p.id));
   const hiddenClosedProjects = bandOverviewAll.length - bandOverview.length - reclaimedHouses.length;
-  // The home photos: which of these projects carry one, then a signed URL
-  // for each (project-media is private). Bounded by the projects on the page.
+  // The home photos: a signed URL for each cover (project-media is
+  // private), one storage call per bucket. Bounded by the projects on the page.
   const coverUrlById = new Map<string, string>();
   {
-    const ids = bandOverviewAll.map((p) => p.id);
-    const { data: coverRows } = ids.length
-      ? await supabase.from("projects").select("id, cover_file_id").in("id", ids).not("cover_file_id", "is", null)
-      : { data: [] };
-    const covers = ((coverRows ?? []) as { id: string; cover_file_id: string }[]);
-    const { data: fileRows } = covers.length
-      ? await supabase.from("files").select("id, bucket, path").in("id", covers.map((c) => c.cover_file_id))
-      : { data: [] };
     const fileById = new Map(((fileRows ?? []) as { id: string; bucket: string; path: string }[]).map((f) => [f.id, f]));
-    await Promise.all(covers.map(async (c) => {
+    const coverSigned = await signedUrlMap(supabase, [...fileById.values()]);
+    for (const c of covers) {
       const f = fileById.get(c.cover_file_id);
-      if (!f) return;
-      const { data: signed } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
-      if (signed?.signedUrl) coverUrlById.set(c.id, signed.signedUrl);
-    }));
+      if (!f) continue;
+      const url = coverSigned.get(signedKey(f.bucket, f.path));
+      if (url) coverUrlById.set(c.id, url);
+    }
   }
   const bandIds = new Set(bandOverview.map((p) => p.id));
   // Full tree: roots are projects whose parent is absent from the list;
@@ -414,16 +465,8 @@ export default async function MyPage({
     next_week: WeekBlock;
     urgent: { id: string; action: string; priority: string | null; target_date: string | null; status: string }[];
   };
-  // Card bundle plus the status / method lists the inline transaction editor needs.
-  const [{ data: cardData }, { data: findData }, { data: txStatusRows }, { data: txMethodRows }, { data: invitesData }, { data: prefRows }] = await Promise.all([
-    supabase.rpc("portal_project_cards", { p_all: godMode }),
-    supabase.rpc("portal_project_search", { p_all: godMode }),
-    supabase.from("transaction_statuses").select("status"),
-    supabase.from("payment_methods").select("id, name").eq("is_active", true)
-      .order("display_order", { ascending: true, nullsFirst: false }),
-    supabase.rpc("portal_my_invites"),
-    supabase.from("user_project_prefs").select("project_id").eq("is_priority", true),
-  ]);
+  // Card bundle plus the status / method lists the inline transaction editor
+  // needs - all read in the first two waves.
   // Tiles I flagged as priority sort first (RLS returns only my rows).
   const priority = new Set(((prefRows ?? []) as { project_id: string }[]).map((r) => r.project_id));
   const txStatuses = ((txStatusRows ?? []) as { status: string }[]).map((r) => r.status);
@@ -436,9 +479,6 @@ export default async function MyPage({
   };
   const invites: Invites = { incoming: invitesData?.incoming ?? [], outcomes: invitesData?.outcomes ?? [] };
   // "Add a profile photo" nudge until one exists (photos show on task panels).
-  const { data: myContact } = boot?.me?.contact_id
-    ? await supabase.from("contacts").select("avatar_path").eq("id", boot.me.contact_id).maybeSingle()
-    : { data: null as { avatar_path: string | null } | null };
   const needsPhoto = !!boot?.me?.contact_id && !myContact?.avatar_path;
   const cardsById = new Map<string, ProjectCard>();
   for (const c of ((cardData ?? []) as ProjectCard[])) cardsById.set(c.id, c);
@@ -723,7 +763,7 @@ export default async function MyPage({
       </>
     );
   } else if (panel === "weather") {
-    const days = await getForecast(town);
+    const days = forecastDays;
     detail = (
       <>
         <h2 className="section-title">{town ? `Five days · ${town}` : "Five days"}</h2>
@@ -795,8 +835,8 @@ export default async function MyPage({
                   </span>
                   <span className="small">
                     {v.phone && <a href={`tel:${v.phone}`}>{v.phone}</a>}
-                    {v.phone && v.website && " · "}
-                    {v.website && <a href={v.website} target="_blank" rel="noreferrer">site</a>}
+                    {v.phone && safeHttpUrl(v.website) && " · "}
+                    {safeHttpUrl(v.website) && <a href={safeHttpUrl(v.website)!} target="_blank" rel="noreferrer">site</a>}
                   </span>
                 </div>
               ))}
@@ -825,8 +865,8 @@ export default async function MyPage({
                       </span>
                       <span className="small">
                         {v.phone && <a href={`tel:${v.phone}`}>{v.phone}</a>}
-                        {v.phone && v.website && " · "}
-                        {v.website && <a href={v.website} target="_blank" rel="noreferrer">site</a>}
+                        {v.phone && safeHttpUrl(v.website) && " · "}
+                        {safeHttpUrl(v.website) && <a href={safeHttpUrl(v.website)!} target="_blank" rel="noreferrer">site</a>}
                       </span>
                     </div>
                   ))}

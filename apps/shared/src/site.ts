@@ -29,6 +29,13 @@ export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 export const withBase = (path: string) => `${BASE_PATH}${path}`;
 export const appUrl = (path = "") => `${SITE_ORIGIN}${BASE_PATH}${path}`;
 
+// A "go back to" path that came in from a query string or a form field, made
+// safe to redirect to. Only a path on this host is honoured: an absolute URL
+// or a protocol-relative one ("//evil.example") would turn ?next= into an
+// open redirect, so anything else lands on the fallback.
+export const safePath = (v: string | null | undefined, fallback: string) =>
+  v && v.startsWith("/") && !v.startsWith("//") ? v : fallback;
+
 // WHERE A SIGN-IN LANDS WHEN NOTHING ELSE SAID.
 //
 // Shahar (2026-09-13): "per settings i was logged as professional, but landed

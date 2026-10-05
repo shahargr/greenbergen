@@ -47,6 +47,11 @@ export default async function FinancePage({
   const { id } = await params;
   const { q, step, ok, error, tx } = await searchParams;
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await supabase.auth.getClaims();
+  if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/finance`)}`);
   const [board, { data: boardData }, { data: project }, { data: ledgerData }] = await Promise.all([
     getBoard(),
     supabase.rpc("portal_budget_lines", { p_project: id, p_q: q ?? null }),
@@ -77,18 +82,25 @@ export default async function FinancePage({
   // but a parent, sibling or child does, say so and point there.
   let holder: { id: string; project_name: string; n: number } | null = null;
   if (lines.length === 0 && !q) {
-    const filters = [`parent_project_id.eq.${id}`];
-    if (project.parent_project_id) {
-      filters.push(`id.eq.${project.parent_project_id}`, `parent_project_id.eq.${project.parent_project_id}`);
-    }
-    const { data: family } = await supabase
-      .from("projects").select("id, project_name").or(filters.join(",")).neq("id", id).is("trashed_at", null);
-    const ids = (family ?? []).map((p) => p.id);
+    // Children and siblings in one read, the parent row in another - two
+    // builder filters rather than one interpolated .or() string, so a route
+    // id never becomes filter syntax.
+    const parents = project.parent_project_id ? [id, project.parent_project_id] : [id];
+    const [{ data: around }, { data: above }] = await Promise.all([
+      supabase.from("projects").select("id, project_name")
+        .in("parent_project_id", parents).neq("id", id).is("trashed_at", null),
+      project.parent_project_id
+        ? supabase.from("projects").select("id, project_name")
+            .eq("id", project.parent_project_id).is("trashed_at", null)
+        : Promise.resolve({ data: [] as { id: string; project_name: string | null }[] }),
+    ]);
+    const family = [...(above ?? []), ...(around ?? [])];
+    const ids = family.map((p) => p.id);
     if (ids.length > 0) {
       const { data: cats } = await supabase.from("budget_categories").select("project_id").in("project_id", ids);
       const counts = new Map<string, number>();
       for (const c of cats ?? []) counts.set(c.project_id, (counts.get(c.project_id) ?? 0) + 1);
-      const best = (family ?? [])
+      const best = family
         .map((p) => ({ id: p.id, project_name: p.project_name as string, n: counts.get(p.id) ?? 0 }))
         .filter((p) => p.n > 0)
         .sort((a, b) => b.n - a.n)[0];

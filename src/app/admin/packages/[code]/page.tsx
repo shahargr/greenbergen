@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import {deleteRow, savePackage, saveRows, savePackageTrade, removePackageTrade } from "../actions";
 import { PackagePhoto } from "./PackagePhoto";
 import { SaveButton } from "./SaveButton";
@@ -99,8 +100,8 @@ export default async function AdminPackagePage({ params, searchParams }: { param
   const flash = (id: string) => (at === id ? <Flash error={error} saved={saved} /> : null);
   const done = (id: string) => at === id && !!saved && !error;
   const supabase = await createClient();
-  const [{ data: me }, { data }, { data: trades }, { data: cats }, { data: diyRows }] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data }, { data: trades }, { data: cats }, { data: diyRows }] = await Promise.all([
+    getMe(),
     supabase.rpc("admin_package", { p_code: code }),
     supabase.from("trades").select("trade").order("sort_order"),
     supabase.from("blueprint_package_categories").select("key, label").order("sort_order"),

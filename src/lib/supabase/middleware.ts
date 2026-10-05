@@ -47,6 +47,8 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/help") ||
     path.startsWith("/join") ||
     path.startsWith("/deals") ||
+    // /bid/[token]: the login-free price page; the token IS the access.
+    path.startsWith("/bid/") ||
     path.startsWith("/vendor/complete");
 
   if (!user && !isPublic) {

@@ -107,7 +107,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <div className="home-panel" id={`h${h.project_id}`} key={h.project_id}>
                   <div className="home-head">
                     <HomePhoto projectId={h.project_id} url={photoUrls[h.photo?.path ?? ""] ?? null} name={h.name || h.address || "your home"} />
-                    <Link href={`/project?home=${h.project_id}`} className="home-open">
+                    <Link href={`/projects?home=${h.project_id}`} className="home-open">
                       <span className="t">{h.name || h.address?.split(",")[0] || "Your home"}</span>
                       <span className="m" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {h.address ?? "No address yet"}

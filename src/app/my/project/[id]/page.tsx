@@ -2,6 +2,8 @@ import Link from "next/link";
 import { mapsHref } from "@/lib/maps";
 import { CarIcon } from "@/components/CarIcon";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { cookies } from "next/headers";
 import { ProjectEditor, DeleteProjectZone } from "./ProjectEditor";
 import { BidNeeds } from "./BidNeeds";
@@ -76,32 +78,34 @@ export default async function ProjectPage({
     : "today";
   const supabase = await createClient();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, project_name, status, stage, address, notes, parent_project_id, owner_user_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount, asset_id, cover_file_id, home_blueprint_code, disabled_at")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (!project) {
-    return (
-      <main className="wrap" style={{ paddingTop: 32, maxWidth: 640 }}>
-        <p className="muted">This project does not exist — or is not yours to see.</p>
-        <p><Link href="/my?panel=projects">← Back to your projects</Link></p>
-      </main>
-    );
-  }
-
   // ONE TRIP, NOT FOUR (2026-09-19). Shahar: "since it takes time for the
   // page to load..." It did: this screen made twenty-odd round trips one
   // after another, each ~190 ms warm, and four of them - who I am, the bid
   // packages, my own bids, and whether I may edit here - depend on nothing
   // but the project id that arrived in the URL. They were serial for no
-  // reason. They ride with the first group now.
+  // reason. They ride with the first group now - and so do the project row
+  // itself and its children, which only ever needed the id.
   const [
+    { data: project }, { data: childProjectRows },
     perms, { data: memberRows }, { data: taskData }, { data: configRows }, { data: configValueRows },
-    { data: meRow }, { data: bidPkgData }, { data: myBidData }, { data: canEditData },
+    meRow, { data: bidPkgData }, { data: myBidData }, { data: canEditData },
   ] =
     await Promise.all([
+      supabase
+        .from("projects")
+        .select("id, project_name, status, stage, address, notes, parent_project_id, owner_user_id, created_at, purchase_date, purchase_amount, sold_date, sold_amount, asset_id, cover_file_id, home_blueprint_code, disabled_at")
+        .eq("id", id)
+        .maybeSingle(),
+      // Projects under this one: the delete guard refuses while any exist, so
+      // name them with links instead of leaving the user to hunt.
+      supabase
+        .from("projects")
+        .select("id, project_name, status, home_blueprint_code")
+        .eq("parent_project_id", id)
+        .is("trashed_at", null)
+        .is("disabled_at", null)
+        .eq("is_template", false)
+        .order("project_name"),
       projectPerms(id),
       supabase
         .from("project_members")
@@ -119,7 +123,7 @@ export default async function ProjectPage({
         .from("project_config_values")
         .select("key, value")
         .eq("project_id", id),
-      supabase.rpc("me"),
+      getMe(),
       // Bid planner: this project's packages, and any bids the caller was
       // invited to.
       supabase.rpc("portal_bid_packages", { p_project: id }),
@@ -129,6 +133,15 @@ export default async function ProjectPage({
       // would succeed.
       supabase.rpc("can_edit_project", { p_project_id: id }),
     ]);
+
+  if (!project) {
+    return (
+      <main className="wrap" style={{ paddingTop: 32, maxWidth: 640 }}>
+        <p className="muted">This project does not exist — or is not yours to see.</p>
+        <p><Link href="/my?panel=projects">← Back to your projects</Link></p>
+      </main>
+    );
+  }
 
   // Stage (budget-phase) tiles are hidden on this page for now; the task
   // table opens on the 10 most urgent tasks and the late-by-person panels.
@@ -370,14 +383,13 @@ export default async function ProjectPage({
         .in("role", ["reference", "after", "evidence"])
     : { data: [] };
   const cfgPhotos = new Map<string, string[]>();
-  await Promise.all(
-    (((cfgFileRows ?? []) as unknown as { action_id: string; files: { bucket: string; path: string } | null }[]))
-      .filter((r) => r.files)
-      .map(async (r) => {
-        const { data } = await supabase.storage.from(r.files!.bucket).createSignedUrl(r.files!.path, 3600);
-        if (data?.signedUrl) cfgPhotos.set(r.action_id, [...(cfgPhotos.get(r.action_id) ?? []), data.signedUrl]);
-      })
-  );
+  const cfgLinks = (((cfgFileRows ?? []) as unknown as { action_id: string; files: { bucket: string; path: string } | null }[]))
+    .filter((r) => r.files);
+  const cfgSigned = await signedUrlMap(supabase, cfgLinks.map((r) => r.files!));
+  for (const r of cfgLinks) {
+    const url = cfgSigned.get(signedKey(r.files!.bucket, r.files!.path));
+    if (url) cfgPhotos.set(r.action_id, [...(cfgPhotos.get(r.action_id) ?? []), url]);
+  }
   const configItems: ConfigItem[] = config.map((c) => ({
     id: c.id,
     label: c.action,
@@ -385,16 +397,6 @@ export default async function ProjectPage({
     done: c.status === "Completed",
     photos: cfgPhotos.get(c.id) ?? [],
   }));
-  // Projects under this one: the delete guard refuses while any exist, so
-  // name them with links instead of leaving the user to hunt.
-  const { data: childProjectRows } = await supabase
-    .from("projects")
-    .select("id, project_name, status, home_blueprint_code")
-    .eq("parent_project_id", id)
-    .is("trashed_at", null)
-    .is("disabled_at", null)
-    .eq("is_template", false)
-    .order("project_name");
   // home_blueprint_code set = a standing SERVICE the home came with (taxes,
   // insurance, the mortgage); null = a PROJECT the owner opened.
   const childProjects = ((childProjectRows ?? []) as { id: string; project_name: string; status: string; home_blueprint_code: string | null }[]);
@@ -513,11 +515,11 @@ export default async function ProjectPage({
       .order("created_at", { ascending: false })
       .limit(200);
     const rows = ((photoRows ?? []) as { id: string; bucket: string; path: string; file_name: string | null; created_at: string }[]);
-    const signed = await Promise.all(rows.map((r) => supabase.storage.from(r.bucket).createSignedUrl(r.path, 3600)));
-    rows.forEach((r, i) => {
-      const url = signed[i]?.data?.signedUrl;
+    const signed = await signedUrlMap(supabase, rows);
+    for (const r of rows) {
+      const url = signed.get(signedKey(r.bucket, r.path));
       if (url) photos.push({ id: r.id, url, name: r.file_name, takenAt: r.created_at, cover: r.id === coverFileId });
-    });
+    }
   }
 
   // The home's standing workstreams, for the owner's switches on Setup.

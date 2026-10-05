@@ -49,7 +49,7 @@ const ALL_VIEWS = ["Owner", "Contractor", "PM", "GC", "Buyer", "Developer", "Vie
 // put on a different hat.
 export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const supabase = await createClient();
-  const [me, { data: borrowed }, { data: canActData }, { data: realIdData }, jar, hdrs, { data: invites }] = await Promise.all([
+  const [me, { data: borrowed }, { data: canActData }, { data: realIdData }, jar, hdrs, { data: invites }, { data: msgPending }] = await Promise.all([
     getMe(),
     supabase.rpc("borrowed_seat"),
     supabase.rpc("borrowed_can_act"),
@@ -57,6 +57,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
     cookies(),
     headers(),
     supabase.rpc("portal_my_invites"),
+    supabase.rpc("portal_my_messages_pending"),
   ]);
   const canAct = canActData === true;
   const realId = typeof realIdData === "string" ? realIdData : null;
@@ -71,15 +72,27 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
     return rest ? `${path}?${rest}` : path;
   })();
   // Things waiting on you: invitations to answer, and answers to yours.
-  const { data: msgPending } = await supabase.rpc("portal_my_messages_pending");
   const waitingMessages = typeof msgPending === "number" ? msgPending : 0;
   const inbound = ((invites?.incoming ?? []) as unknown[]).length
     + ((invites?.outcomes ?? []) as unknown[]).length
     + waitingMessages;
 
+  // The label under the logo: the picked hat, as long as it lives on this
+  // surface; otherwise the surface's own name.
+  const isAdmin: boolean = me?.is_superadmin ?? false;
+  // While borrowed, me() is the borrowed person - but a borrowed seat can
+  // only exist for a real administrator, so the mask stays available.
+  const realAdmin = isAdmin || !!borrowed;
+  // ON THE ADMIN DOOR the mask lives in the console, not the bar (Shahar,
+  // 2026-09-18: "move the mask with acting as into the gear screen"), so the
+  // admin_view_targets read - the most expensive thing in the header - is
+  // not made at all there.
+  const onAdminDoor = role === "Admin";
+
   // Who you are, under the logo: email, then your highest seat (by the
   // authority ladder) or your trade - with "(N roles)" when you hold more.
-  const [{ data: seatRows }, { data: tradeRows }, { data: rankRows }] = await Promise.all([
+  // Second wave: everything that only needs me() rides together.
+  const [{ data: seatRows }, { data: tradeRows }, { data: rankRows }, { data: targetData }] = await Promise.all([
     me?.app_user_id
       ? supabase.from("project_members").select("role, project_role").eq("app_user_id", me.app_user_id).eq("status", "active")
       : Promise.resolve({ data: [] as { role: string; project_role: string | null }[] }),
@@ -87,6 +100,7 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
       ? supabase.from("contact_trade_roles").select("trade").eq("contact_id", me.contact_id)
       : Promise.resolve({ data: [] as { trade: string }[] }),
     supabase.from("project_roles").select("role, authority_rank"),
+    realAdmin && !onAdminDoor ? supabase.rpc("admin_view_targets") : Promise.resolve({ data: null }),
   ]);
   const rankOf = new Map(((rankRows ?? []) as { role: string; authority_rank: number | null }[]).map((r) => [r.role, r.authority_rank ?? 0]));
   const seatNames = [...new Set(((seatRows ?? []) as { role: string; project_role: string | null }[]).map((s) => s.project_role ?? s.role))];
@@ -96,12 +110,6 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   const whoLabel = (topSeat ?? tradeNames[0] ?? role) + (roleCount > 1 ? ` (${roleCount} roles)` : "");
   const firstName = (me?.full_name?.trim().split(/\s+/)[0]) || (me?.email ? me.email.split("@")[0] : "You");
 
-  // The label under the logo: the picked hat, as long as it lives on this
-  // surface; otherwise the surface's own name.
-  const isAdmin: boolean = me?.is_superadmin ?? false;
-  // While borrowed, me() is the borrowed person - but a borrowed seat can
-  // only exist for a real administrator, so the mask stays available.
-  const realAdmin = isAdmin || !!borrowed;
   const picked = isAdmin ? jar.get("gb_view")?.value : undefined;
   const viewLabel = picked && VIEW_HOME[picked] === ROLE_HOME[role] ? picked : role;
   const views = [...ALL_VIEWS];
@@ -109,11 +117,6 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
   // The people an administrator can become: everyone holding a seat with a
   // login, once each, with their highest seat as the hint.
   type Target = { project_id: string; name: string; seats: { app_user_id: string; name: string; project_role: string | null; role: string; rank: number }[] };
-  // ON THE ADMIN DOOR the mask lives in the console, not the bar (Shahar,
-  // 2026-09-18: "move the mask with acting as into the gear screen"), so this
-  // read - the most expensive thing in the header - is not made at all here.
-  const onAdminDoor = role === "Admin";
-  const { data: targetData } = realAdmin && !onAdminDoor ? await supabase.rpc("admin_view_targets") : { data: null };
   const people: Person[] = [];
   {
     const best = new Map<string, { name: string; rank: number; hint: string }>();
@@ -162,8 +165,9 @@ export async function TopNav({ role = "Owner" }: { role?: NavRole }) {
           {realAdmin && !onAdminDoor && <MaskMenu views={views} current={viewLabel} email={me?.email ?? undefined}
             people={people} borrowed={borrowed ? { id: String(borrowed), canAct } : null} here={here} selfId={realId} />}
           {/* One inbox for the person; ?door=admin keeps this door's chrome
-              on it (name under the logo, wordmark back here). */}
-          <Link href="/pro/inbox?door=admin" className="iconlink"
+              on it (name under the logo, wordmark back here) - only when this
+              IS the admin door. */}
+          <Link href={onAdminDoor ? "/pro/inbox?door=admin" : "/pro/inbox"} className="iconlink"
             title={inbound > 0
               ? `${inbound} waiting on you${waitingMessages > 0 ? ` · ${waitingMessages} message${waitingMessages === 1 ? "" : "s"} to review` : ""}`
               : "Inbox"}

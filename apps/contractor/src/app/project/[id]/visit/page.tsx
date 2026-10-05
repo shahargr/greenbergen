@@ -36,6 +36,11 @@ export default async function SiteVisitPage({ params, searchParams }: {
   const { ok, error } = await searchParams;
   const w = stopwatch("/project/[id]/visit");
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/visit`)}`);
   const [board, { data: deskData, error: deskErr }, { data: spineData }, { data: visitData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("desk", () => rpc<VisitBoard>(supabase, "portal_site_visit_board", { p_project: id })),

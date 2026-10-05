@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ProjectBrief } from "@/components/ProjectBrief";
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { FileDrop } from "@/components/FileDrop";
 import { savePackage, setPackageItems, inviteBidders, attachBidDocs, runAiReview, awardBid } from "../actions";
 
@@ -47,11 +48,12 @@ export default async function BidPackagePage({
   if (!p || p.project_id !== id) {
     return <main className="wrap" style={{ paddingTop: 32, maxWidth: 640 }}><p className="muted">This package is not yours to see.</p></main>;
   }
+  const docSigned = await signedUrlMap(supabase, p.docs);
   const docUrls = new Map<string, string>();
-  await Promise.all(p.docs.map(async (d) => {
-    const { data: s } = await supabase.storage.from(d.bucket).createSignedUrl(d.path, 3600);
-    if (s?.signedUrl) docUrls.set(d.id, s.signedUrl);
-  }));
+  for (const d of p.docs) {
+    const u = docSigned.get(signedKey(d.bucket, d.path));
+    if (u) docUrls.set(d.id, u);
+  }
   // Phase 2: the like-for-like comparison (managers only; null otherwise).
   type CmpCell = { bid_id: string; included: boolean; price: number | null };
   type CmpItem = { scope_item_id: string; item: string; is_required: boolean; cells: CmpCell[] };

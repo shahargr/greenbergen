@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { NewHomeForm, type RoomType } from "./NewHomeForm";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,8 @@ export default async function NewHomePage({
 }) {
   const { error } = await searchParams;
   const supabase = await createClient();
-  const [{ data: me }, { data: allowed }, { data: spaceRows }] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data: allowed }, { data: spaceRows }] = await Promise.all([
+    getMe(),
     supabase.rpc("may_create_project"),
     supabase.from("blueprint_spaces").select("code, label, parent_code, is_wet, bed_count, bath_count, show_on_public").order("label"),
   ]);

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { rpc } from "../rpc";
+import { friendly, rpc } from "../rpc";
 import { timed } from "../perf";
 import type { Financials } from "./types";
 
@@ -7,7 +7,9 @@ import type { Financials } from "./types";
 // shows - the private bucket needs a signed URL per path, asked for together.
 export async function loadFinancials(supabase: SupabaseClient, projectId: string): Promise<{ fin: Financials; urls: Record<string, string> }> {
   const { data, error } = await timed("financials", () => rpc<Financials>(supabase, "project_financials", { p_project: projectId }));
-  if (error || !data) return { fin: { ok: false, reason: error?.message ?? "Could not read the money on this project." }, urls: {} };
+  // A Postgres message is not a sentence for the screen; friendly() turns it
+  // into one and keeps the fallback when there is none.
+  if (error || !data) return { fin: { ok: false, reason: friendly(error?.message, "Could not read the money on this project.") }, urls: {} };
   if (!data.ok) return { fin: data, urls: {} };
 
   const paths = new Set<string>();

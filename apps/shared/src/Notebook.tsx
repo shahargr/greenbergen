@@ -193,6 +193,9 @@ export function Notebook({ payPath = null }: {
   const [phone, setPhone] = useState<Entry[] | null>(null);
   const [find, setFind] = useState("");
   const box = useRef<HTMLTextAreaElement>(null);
+  // The first open has already read the book, the pickers and the crews;
+  // reopening does not read them again.
+  const loaded = useRef(false);
 
   const here = whereFrom(path);
   const hidden = /^\/(login|join|welcome|s)\b/.test(path);
@@ -204,9 +207,14 @@ export function Notebook({ payPath = null }: {
     if (!jobTouched) setJob(here.project ?? "");
   }, [here.project, jobTouched]);
 
-  // One read on arrival: the count the button wears, the jobs the pickers
-  // need before they can ask anything, and who sits on each of them.
+  // One read the first time the sheet opens - never on a screen where the
+  // sheet is hidden (signed out), never while it stays closed: the count the
+  // button wears, the jobs the pickers need before they can ask anything,
+  // and who sits on each of them. The book itself is re-read on the Book tab
+  // (`read`), so this is the one read of the pickers and the kinds.
   useEffect(() => {
+    if (!open || hidden || loaded.current) return;
+    loaded.current = true;
     let live = true;
     void (async () => {
       const c = createClient();
@@ -223,7 +231,7 @@ export function Notebook({ payPath = null }: {
       if (k.data && Array.isArray((k.data as Kinds).kinds)) setKinds(k.data as Kinds);
     })();
     return () => { live = false; };
-  }, []);
+  }, [open, hidden]);
 
   // The owner goes back to "me" with the job: a name from the last job is
   // not a choice on this one. The trade picks go with it.

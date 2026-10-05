@@ -19,12 +19,13 @@ export default async function FolderPage({ params }: { params: Promise<{ id: str
   if (missing) redirect("/project");
   if (!b) notFound();
   const photos = b.files.filter((f) => f.kind === "photo");
-  const urls = await signedUrls(supabase, photos.map((f) => f.path));
   const c = b.contractor;
   const first = c?.person?.split(" ")[0] ?? "the contractor";
   const doneNodes = b.progress.nodes.filter((n) => n.status === "done");
   const evidence = b.stages.flatMap((s) => s.evidence.map((e) => ({ ...e, stage: s.name })));
-  const evUrls = await signedUrls(supabase, evidence.map((e) => e.path));
+  // The photos and the payment evidence live in the same bucket, so one
+  // signing round covers both.
+  const urls = await signedUrls(supabase, [...photos.map((f) => f.path), ...evidence.map((e) => e.path)]);
   const forms = formsFor(b.package?.trade ?? null, b.package_code);
   const paidStages = b.stages.filter((s) => s.status === "Paid" || s.settlement_status === "paid");
 
@@ -37,7 +38,7 @@ export default async function FolderPage({ params }: { params: Promise<{ id: str
           <Row href="#scope" icon={<I d="M6 4h12v16H6zM9 9h6M9 13h6" />} title="Price & scope" meta={`${dollars(b.price_cents)} · ${b.config_label ?? ""} · ${b.scope.length} included items${b.state !== "posted" ? " · locked at acceptance" : ""}`} />
           <Row href="#photos" icon={<I d="M4 8h3l2-3h6l2 3h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />} title="Photos" meta={photos.length ? `${photos.length} · ${photos.filter((p) => p.by_me).length} from you, ${photos.filter((p) => !p.by_me).length} from ${first}` : "None yet — add them from the timeline"} empty={!photos.length} />
           <Row href="#insurance" icon={<I d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />} title="Insurance certificate" meta={c ? (c.insurance ? `${c.name} · ${c.insurance.coverage ?? "GL"}${c.insurance.limit ? ` $${Math.round(c.insurance.limit / 1e6)}M` : ""}${c.insurance.expires ? ` · valid through ${shortDate(c.insurance.expires)}` : ""}` : `${c.name} · certificate on file with Green Bergen`) : "Appears when a contractor accepts"} empty={!c} />
-          {b.package?.requires_permit && <Row href={`/project/${id}/forms`} icon={<I d="M7 3h7l4 4v14H7zM14 3v4h4M9 12h6M9 16h6" />} title="Permit forms" meta={`${forms.length} form${forms.length === 1 ? "" : "s"} to sign at the meeting · NJ UCC`} tag="New" />}
+          {b.package?.requires_permit && <Row href={`/project/${id}/forms`} icon={<I d="M7 3h7l4 4v14H7zM14 3v4h4M9 12h6M9 16h6" />} title="Permit forms" meta={`${forms.length} form${forms.length === 1 ? "" : "s"} to sign at the meeting · NJ UCC`} />}
           <Row href="#log" icon={<I d="M4 6h16M4 12h16M4 18h10" />} title="Milestone log" line={b.progress}
             meta={b.progress.current
               ? `Now: ${b.progress.current.name} · ${doneNodes.length} of ${b.progress.total} done`
@@ -100,7 +101,7 @@ export default async function FolderPage({ params }: { params: Promise<{ id: str
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: 10 }}>
                   {evidence.map((e) => (
                     // eslint-disable-next-line @next/next/no-img-element
-                    evUrls[e.path] ? <img key={e.file_id} src={evUrls[e.path]} alt={e.stage} style={{ width: "100%", aspectRatio: "3/2", objectFit: "cover", border: "1px solid var(--color-divider)" }} /> : null
+                    urls[e.path] ? <img key={e.file_id} src={urls[e.path]} alt={e.stage} style={{ width: "100%", aspectRatio: "3/2", objectFit: "cover", border: "1px solid var(--color-divider)" }} /> : null
                   ))}
                 </div>
               )}

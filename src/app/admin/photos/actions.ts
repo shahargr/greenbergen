@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/serverMe";
 
 // project_about_pages has NO id column - project_id IS the primary key,
 // which makes upsert the natural write.
@@ -19,6 +20,7 @@ async function projectIdFor(slug: string) {
 // signed-in user's session - RLS decides. A row carrying only some fields
 // keeps the Master Template text for the rest: about_page() falls back per field.
 export async function setProjectPhoto(slug: string, publicUrl: string) {
+  await requireAdmin();
   const { supabase, projectId } = await projectIdFor(slug);
   if (!projectId) return { error: "Project not found for that slug." };
 
@@ -50,6 +52,7 @@ export async function savePublicPage(
     built_year: string;
   },
 ) {
+  await requireAdmin();
   const { supabase, projectId } = await projectIdFor(slug);
   if (!projectId) return { error: "Project not found for that slug." };
 

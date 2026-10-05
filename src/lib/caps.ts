@@ -1,4 +1,6 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 
 // What the signed-in person may upload, from their plan (plus overrides).
 // The database enforces this in record_project_file(); the UI reads it so
@@ -6,9 +8,10 @@ import { createClient } from "@/lib/supabase/server";
 // video.
 export type Caps = { image: boolean; video: boolean; voice: boolean; document: boolean; superadmin: boolean };
 
-export async function getCaps(): Promise<Caps> {
+// Once per request: a page and its uploader both ask.
+export const getCaps = cache(async (): Promise<Caps> => {
   const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   if (!me?.app_user_id) return { image: false, video: false, voice: false, document: false, superadmin: false };
   const { data } = await supabase.rpc("user_entitlement", { p_user: me.app_user_id });
   const e = (Array.isArray(data) ? data[0] : data) as { is_super?: boolean; cap_image?: boolean; cap_video?: boolean; cap_voice?: boolean; cap_document?: boolean } | null;
@@ -20,7 +23,7 @@ export async function getCaps(): Promise<Caps> {
     document: sup || !!e?.cap_document,
     superadmin: sup,
   };
-}
+});
 
 // The accept list for a file picker, from the caps.
 export function acceptFor(c: Caps): string {

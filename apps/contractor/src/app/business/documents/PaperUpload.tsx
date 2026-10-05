@@ -20,6 +20,15 @@ import { friendly } from "@shared/rpc";
 // closes itself on the way out.
 export type PaperKey = "licence" | "liability" | "workers_comp" | "w9";
 
+// Refused before a byte goes up. The bucket takes a photo or a PDF, and a
+// 40 MB scan spends a minute uploading only to be turned away at the end.
+const MAX_BYTES = 15 * 1024 * 1024;
+function problemWith(f: File): string {
+  if (f.size > MAX_BYTES) return "That file is over 15 MB. A phone photo or a smaller PDF is fine.";
+  if (!/^image\//.test(f.type) && f.type !== "application/pdf") return "That has to be a photo or a PDF.";
+  return "";
+}
+
 export function PaperUpload({
   contactId, paper, wantsExpiry = false, wantsNumber = false, accept = "image/*,application/pdf",
 }: {
@@ -44,6 +53,8 @@ export function PaperUpload({
     e.preventDefault();
     const f = file.current?.files?.[0];
     if (!f || f.size === 0) { setErr("Pick the document first."); return; }
+    const bad = problemWith(f);
+    if (bad) { setErr(bad); return; }
     if (wantsNumber && !num.trim()) { setErr("Type the number as it appears on the licence."); return; }
     setErr(""); setBusy("Uploading…");
 
@@ -94,7 +105,11 @@ export function PaperUpload({
         </span>
       </div>
       <input ref={file} type="file" accept={accept} hidden
-             onChange={(e) => { setName(e.target.files?.[0]?.name ?? ""); setErr(""); }} />
+             onChange={(e) => {
+               const picked = e.target.files?.[0];
+               setName(picked?.name ?? "");
+               setErr(picked ? problemWith(picked) : "");
+             }} />
 
       <button className="btn btn-primary btn-block" disabled={!!busy || !name}>
         {busy || "Put it on file"}

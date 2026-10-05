@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@shared/supabase/server";
 import { isMissingFunction, rpc } from "@shared/rpc";
 import { timed } from "@shared/perf";
@@ -84,7 +85,10 @@ export type Me =
 // member between them. When homeowner_me() cannot be read the member is
 // still signed in: `missing` when the functions are not in the database,
 // `degraded` for any other failure; screens say so instead of redirecting.
-export async function getMe(): Promise<Me> {
+//
+// Once per request (React cache): a page, its layout pieces and a helper
+// that all ask for the shell share one homeowner_me() round trip.
+export const getMe = cache(async (): Promise<Me> => {
   const supabase = await createClient();
   const { data: claimsData } = await timed("me.claims", () => supabase.auth.getClaims());
   const claims = claimsData?.claims as { sub?: string; email?: string; user_metadata?: { full_name?: string } } | undefined;
@@ -98,4 +102,4 @@ export async function getMe(): Promise<Me> {
     profile: { app_user_id: claims.sub, full_name: claims.user_metadata?.full_name ?? null, email: claims.email ?? null, home_zip: null, home_town: null, contact_id: null, is_superadmin: false },
     home: null, homes: [], home_quota: null, bookings: [], projects: [],
   };
-}
+});

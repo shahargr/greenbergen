@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { marked, type Lever, type LeverOption, type Package, type PhotoReq, type Selections } from "@shared/catalogue";
+import { marked, type Lever, type LeverOption, type Package, type PhotoReq, type Selections } from "@shared/catalogue.shared";
 import { dollars } from "@shared/format";
 import { Illustration } from "@shared/Illustrations";
 import { AppBar, Card, Screen } from "@shared/ui";

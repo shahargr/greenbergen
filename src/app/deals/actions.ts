@@ -32,6 +32,7 @@ export async function bookDeal(formData: FormData) {
 
   // Confirmation to the customer; a failed email never unwinds the booking.
   const email = auth.user.email;
+  const origin = (process.env.NEXT_PUBLIC_SITE_ORIGIN?.trim() || "https://greenbergen.vercel.app").replace(/\/$/, "");
   if (email) {
     const amount = data.amount_cents != null ? `$${(data.amount_cents / 100).toFixed(2)}` : null;
     try {
@@ -45,7 +46,7 @@ export async function bookDeal(formData: FormData) {
           `Date: ${data.date}`,
           amount ? `Amount due: ${amount} (online payment is coming; we'll send a payment link before the visit)` : null,
           ``,
-          `Need to change it? Manage your booking at https://greenbergen.vercel.app/deals`,
+          `Need to change it? Manage your booking at ${origin}/deals`,
           ``,
           `— Green Bergen`,
         ].filter((l) => l != null).join("\n")

@@ -11,7 +11,7 @@ import { QuoteForm } from "./QuoteForm";
 import { PackageVideo } from "./PackageVideo";
 import { Claims, Faq } from "./PackageStory";
 import { PackageProducts } from "./PackageProducts";
-import { priced } from "@/lib/markup";
+import { priced, viewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +79,13 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   const { sel, adjust } = await searchParams;
   // getMe carries signed_in and the homes the quote form's address list is
   // drawn from, so the separate signed-in read is gone.
-  const [{ pkg: raw }, me, products] = await Promise.all([loadPackage(code), getMe(), loadPackageProducts(code)]);
+  // Everything keyed by the code alone leaves in one wave: the package, the
+  // shell, the parts list, the step-by-step (187 - cached with the rest of
+  // the catalogue) and the viewer's mark-up, which priced() then finds
+  // answered (React cache).
+  const [{ pkg: raw }, me, products, process] = await Promise.all([
+    loadPackage(code), getMe(), loadPackageProducts(code), loadPackageProcess(code), viewerMarkup(),
+  ]);
   // Contractor price + this viewer's mark-up, everywhere below (lib/markup.ts).
   const pkg = raw ? await priced(raw) : null;
   const signedIn = me.signed_in;
@@ -92,12 +98,10 @@ export default async function PackagePage({ params, searchParams }: { params: Pr
   // Every tile is a link now, coming-soon ones included, so this page has to
   // answer for all of them. Coverage is a second, cheap cached read rather
   // than a field on the package: it changes when someone is approved, on a
-  // different clock from the package itself.
+  // different clock from the package itself. It needs the trade, so it is
+  // the one read that waits for the package.
   const covered = await loadCovered(pkg.trade);
   const sections = pkg.sections ?? [];
-  // The step-by-step, when one is written (187). Cached with the rest of the
-  // catalogue, so this costs the page nothing on a warm render.
-  const process = await loadPackageProcess(pkg.code);
 
   // Coming soon used to 404 from here, because the tile that led to it was a
   // dead <div>. It is a link now, and a member who taps it deserves to read

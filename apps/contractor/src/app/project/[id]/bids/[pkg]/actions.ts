@@ -119,6 +119,7 @@ export async function addToRoom(projectId: string, pkgId: string, formData: Form
   const company = txt(formData.get("company_name"));
   const person = txt(formData.get("person_name"));
   if (!company && !person) redirect(here(projectId, pkgId, { error: "Say who — a company, or a name and a number." }));
+  const textNow = formData.get("text_now") === "1";
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("portal_bid_room_add", {
@@ -131,7 +132,46 @@ export async function addToRoom(projectId: string, pkgId: string, formData: Form
   if (error || !data?.ok) {
     redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "Could not put them in the room.") }));
   }
-  redirect(here(projectId, pkgId, { ok: data.existed ? "already" : "added" }));
+  if (data.existed) redirect(here(projectId, pkgId, { ok: "already" }));
+
+  // AND THE TEXT, IN THE SAME BREATH (migration 247). Shahar (2026-09-30):
+  // "add them with their phone number, so I can send them a text to the page
+  // created for them." The tick on the form asks for it; the database
+  // composes the message and sends it, so the town and never the address is
+  // what goes out. A refusal (no number, test mode off but Twilio not set
+  // up, a limit hit) does not undo the add: he is in the room either way,
+  // and both banners say so.
+  if (textNow && data.id) {
+    const sent = await supabase.rpc("portal_bid_text", { p_bid: data.id });
+    const t = sent.data;
+    const who = String(t?.who ?? data.who ?? "");
+    if (sent.error || !t?.ok) {
+      redirect(here(projectId, pkgId, {
+        ok: "added", error: t?.reason ?? friendly(sent.error?.message, "Could not text him."),
+      }));
+    }
+    if (t.outcome === "test") redirect(here(projectId, pkgId, { ok: "texttest", who, n: String(t.phone ?? "") }));
+    redirect(here(projectId, pkgId, { ok: "texted", who }));
+  }
+  redirect(here(projectId, pkgId, { ok: "added" }));
+}
+
+// THE PLATFORM TEXTS HIM (migration 247). The second way out for a link,
+// beside the phone's own Messages app: the database composes the words,
+// sends them from Green Bergen's number, and stamps the link as sent only
+// when it really went. In test mode nothing is texted and the answer says
+// what would have gone, which is how the flow is seen before Twilio exists.
+export async function textLink(projectId: string, pkgId: string, bidId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("portal_bid_text", { p_bid: bidId });
+  revalidatePath(here(projectId, pkgId));
+  if (error || !data?.ok) {
+    redirect(here(projectId, pkgId, { error: data?.reason ?? friendly(error?.message, "Could not text him.") }));
+  }
+  if (data.outcome === "test") {
+    redirect(here(projectId, pkgId, { ok: "texttest", who: String(data.who ?? ""), n: String(data.phone ?? "") }));
+  }
+  redirect(here(projectId, pkgId, { ok: "texted", who: String(data.who ?? "") }));
 }
 
 // THE SCOPE, WRITTEN IN THE ROOM. One line per line: these become the
@@ -325,6 +365,22 @@ export async function revokeLink(projectId: string, pkgId: string, bidId: string
   redirect(here(projectId, pkgId, { ok: "revoked" }));
 }
 
+// WHICH FILE, DECIDED HERE AND NOT BY THE FORM. The bucket and path used to
+// ride in hidden inputs, which meant a tampered form could ask this action to
+// copy any object the session could read into the public bucket. The row is
+// looked up by id instead (files is RLS-scoped, so a file this person cannot
+// see comes back as nothing), and it has to belong to the package's own
+// project - a photograph from another job has no business on this wall.
+async function sourceFile(supabase: Awaited<ReturnType<typeof createClient>>, pkgId: string, fileId: string) {
+  const [{ data: file }, { data: pkg }] = await Promise.all([
+    supabase.from("files").select("id, bucket, path, project_id").eq("id", fileId).maybeSingle(),
+    supabase.rpc("portal_bid_package", { p_pkg: pkgId }),
+  ]);
+  const projectId = (pkg as { project_id?: string } | null)?.project_id ?? null;
+  if (!file?.path || !file.bucket || !projectId || file.project_id !== projectId) return null;
+  return { bucket: file.bucket as string, path: file.path as string };
+}
+
 // THE PHOTOGRAPH A BIDDER SEES BEFORE HE PRICES (Shahar, 2026-09-17). The
 // job's photographs are private and he has no session, so a picked one is
 // COPIED into the public bucket - the same wall and the same answer as the
@@ -333,15 +389,15 @@ export async function revokeLink(projectId: string, pkgId: string, bidId: string
 // man you want a price from.
 export async function showPhoto(projectId: string, pkgId: string, formData: FormData) {
   const fileId = txt(formData.get("file_id"));
-  const bucket = txt(formData.get("bucket")) ?? "project-media";
-  const path = txt(formData.get("path"));
-  if (!fileId || !path) redirect(here(projectId, pkgId, { error: "Pick a photograph first." }));
+  if (!fileId) redirect(here(projectId, pkgId, { error: "Pick a photograph first." }));
 
   const supabase = await createClient();
+  const src = await sourceFile(supabase, pkgId, fileId);
+  if (!src) redirect(here(projectId, pkgId, { error: "That photograph is not on this job." }));
   const { data: dest, error: pathErr } = await supabase.rpc("bid_photo_path", { p_package: pkgId, p_file: fileId });
   if (pathErr || !dest) redirect(here(projectId, pkgId, { error: "That photograph has nowhere to go." }));
 
-  const copy = await supabase.storage.from(bucket).copy(path, dest as string, { destinationBucket: "public-media" });
+  const copy = await supabase.storage.from(src.bucket).copy(src.path, dest as string, { destinationBucket: "public-media" });
   if (copy.error && !/exist/i.test(copy.error.message ?? "")) {
     redirect(here(projectId, pkgId, { error: `Could not show that photograph: ${copy.error.message}` }));
   }
@@ -387,16 +443,18 @@ export async function attachUploads(projectId: string, pkgId: string, formData: 
   const bidId = txt(formData.get("bid_id"));
   if (ids.length === 0) redirect(here(projectId, pkgId, { error: "Nothing was uploaded." }));
 
+  // Every upload gets its turn: stopping at the first refusal left the rest
+  // uploaded but unfiled, with a message that named only one of them.
   const supabase = await createClient();
+  const problems: string[] = [];
   for (const fileId of ids) {
     const { data, error } = await supabase.rpc("portal_bid_doc_attach", {
       p_file_id: fileId, p_pkg: bidId ? null : pkgId, p_bid: bidId, p_contract: null, p_detach: false,
     });
-    if (error || !data?.ok) {
-      redirect(here(projectId, pkgId, { error: data?.reason ?? "That did not file." }));
-    }
+    if (error || !data?.ok) problems.push(data?.reason ?? friendly(error?.message, "one did not file"));
   }
   revalidatePath(here(projectId, pkgId));
+  if (problems.length > 0) redirect(here(projectId, pkgId, { error: problems.join(" · ") }));
   redirect(here(projectId, pkgId, { ok: "filed" }));
 }
 
@@ -446,16 +504,16 @@ export async function detachDoc(projectId: string, pkgId: string, fileId: string
 // deliberate press per document rather than a folder being visible.
 export async function shareDoc(projectId: string, pkgId: string, formData: FormData) {
   const fileId = txt(formData.get("file_id"));
-  const bucket = txt(formData.get("bucket")) ?? "project-media";
-  const path = txt(formData.get("path"));
   const name = txt(formData.get("name"));
-  if (!fileId || !path) redirect(here(projectId, pkgId, { error: "Pick a document." }));
+  if (!fileId) redirect(here(projectId, pkgId, { error: "Pick a document." }));
 
   const supabase = await createClient();
+  const src = await sourceFile(supabase, pkgId, fileId);
+  if (!src) redirect(here(projectId, pkgId, { error: "That document is not on this job." }));
   const { data: dest, error: pathErr } = await supabase.rpc("bid_photo_path", { p_package: pkgId, p_file: fileId });
   if (pathErr || !dest) redirect(here(projectId, pkgId, { error: "That document has nowhere to go." }));
 
-  const copy = await supabase.storage.from(bucket).copy(path, dest as string, { destinationBucket: "public-media" });
+  const copy = await supabase.storage.from(src.bucket).copy(src.path, dest as string, { destinationBucket: "public-media" });
   if (copy.error && !/exist/i.test(copy.error.message ?? "")) {
     redirect(here(projectId, pkgId, { error: `Could not share it: ${copy.error.message}` }));
   }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { friendly } from "@shared/rpc";
 
 // LOG A PAYMENT UNDER A CATEGORY.
 //
@@ -82,7 +83,7 @@ export async function logCategoryPayment(formData: FormData) {
     p_contract: txt(formData.get("contract_id")),
     p_budget_category: txt(formData.get("budget_category_id")),
   });
-  if (error) redirect(at({ error: error.message }));
+  if (error) redirect(at({ error: friendly(error.message, "That payment did not save.") }));
   if (data?.ok === false) redirect(at({ error: data.reason ?? "That payment did not save." }));
 
   revalidatePath("/money");

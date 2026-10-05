@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/serverMe";
 
 // God mode toggle (superadmin only). A cookie the portal reads: ON shows
 // EVERY project on the platform as if invited to all, with a banner; OFF is
@@ -30,9 +31,14 @@ export async function setGodMode(formData: FormData) {
 // the newest row wins on the dashboard, so saving updates the latest row or
 // creates the first one. RLS allows this to superadmin only.
 export async function saveBanner(formData: FormData) {
+  await requireAdmin();
   const text = String(formData.get("text") ?? "").trim();
   const url = String(formData.get("url") ?? "").trim();
   const active = formData.get("active") === "on";
+  // The dashboard renders this as a link; only http(s) may go in.
+  if (url && !/^https?:\/\//i.test(url)) {
+    redirect(`/admin?error=${encodeURIComponent("The banner link must start with http:// or https://.")}`);
+  }
 
   const supabase = await createClient();
   const { data: existing } = await supabase
@@ -50,29 +56,31 @@ export async function saveBanner(formData: FormData) {
     last_modified_at: new Date().toISOString(),
   };
 
-  if (existing) {
-    await supabase.from("community_banners").update(values).eq("id", existing.id);
-  } else {
-    await supabase.from("community_banners").insert(values);
-  }
+  const { error } = existing
+    ? await supabase.from("community_banners").update(values).eq("id", existing.id)
+    : await supabase.from("community_banners").insert(values);
 
   revalidatePath("/my");
   revalidatePath("/admin");
+  redirect(error ? `/admin?error=${encodeURIComponent(error.message)}` : `/admin?saved=1`);
 }
 
 // Saves all twelve monthly tips at once.
 export async function saveTips(formData: FormData) {
+  await requireAdmin();
   const supabase = await createClient();
   const rows = [];
   for (let m = 1; m <= 12; m++) {
     const tip = String(formData.get(`tip_${m}`) ?? "").trim();
     if (tip) rows.push({ month: m, tip, last_modified_by: "admin:overview", last_modified_at: new Date().toISOString() });
   }
+  let error: { message: string } | null = null;
   if (rows.length) {
-    await supabase.from("seasonal_tips").upsert(rows, { onConflict: "month" });
+    ({ error } = await supabase.from("seasonal_tips").upsert(rows, { onConflict: "month" }));
   }
   revalidatePath("/my");
   revalidatePath("/admin");
+  redirect(error ? `/admin?error=${encodeURIComponent(error.message)}` : `/admin?saved=1`);
 }
 
 // Recycle-bin policy: how long deleted projects stay restorable.

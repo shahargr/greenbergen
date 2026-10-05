@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 
 type Brief = {
   project_id: string; project_name: string;
@@ -20,11 +21,12 @@ export async function ProjectBrief({ projectId, title = "Project brief", collaps
   const others = b.files.filter((f) => !photos.includes(f));
   if (!b.description && b.specs.length === 0 && b.files.length === 0) return null;
 
+  const signed = await signedUrlMap(supabase, b.files);
   const urls = new Map<string, string>();
-  await Promise.all(b.files.map(async (f) => {
-    const { data: s } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
-    if (s?.signedUrl) urls.set(f.id, s.signedUrl);
-  }));
+  for (const f of b.files) {
+    const u = signed.get(signedKey(f.bucket, f.path));
+    if (u) urls.set(f.id, u);
+  }
   const transcripts = b.files.map((f) => f.transcript).filter((t): t is string => !!t);
 
   const body = (

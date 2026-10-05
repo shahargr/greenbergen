@@ -51,7 +51,7 @@ export async function inviteToHome(projectId: string, formData: FormData) {
   // inbox. A newcomer has no inbox yet, so the link IS the invitation - it
   // comes back to be copied into a text or an email.
   redirect(`/settings?${open}&invited=${encodeURIComponent(data.name ?? "them")}`
-    + (data.token ? `&token=${encodeURIComponent(data.token)}` : ""));
+    + (data.token ? `&ptoken=${encodeURIComponent(data.token)}` : ""));
 }
 
 // The homes list is managed HERE, not on the project page. Rename or fix the

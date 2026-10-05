@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { InviteBuilder } from "./InviteBuilder";
 import { cancelInvitation, clearRevokedInvitations, inviteToProject } from "./actions";
 
@@ -40,8 +41,8 @@ export default async function InvitePage({
   const supabase = await createClient();
   // ?project= (from a project card): show which project this invite is for
   // and seed the note with it — invitations themselves aren't project-scoped.
-  const [{ data: me }, { data: sentData }, { data: forProject }] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data: sentData }, { data: forProject }] = await Promise.all([
+    getMe(),
     supabase.rpc("my_invitation_results"),
     projectId
       ? supabase.from("projects").select("id, project_name").eq("id", projectId).maybeSingle()

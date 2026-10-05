@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { TopNav } from "@/components/TopNav";
 import { AdminNav } from "@/components/AdminNav";
 
@@ -11,8 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const supabase = await createClient();
-  const { data: me } = await supabase.rpc("me");
+  const me = await getMe();
   if (!me?.is_superadmin) redirect("/my");
 
   return (

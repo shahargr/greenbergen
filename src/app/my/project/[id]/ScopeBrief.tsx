@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { FileDrop } from "@/components/FileDrop";
 import { saveScopeDescription, uploadScopeFiles, deleteScopeFile } from "./actions";
 import { acceptFor, type Caps } from "@/lib/caps";
@@ -26,11 +27,12 @@ export async function ScopeBrief({ projectId, description, caps, canEdit }: {
   ]);
   const files = ((data ?? []) as BriefFile[]);
   const specs = ((specRows ?? []) as { key: string; label: string; value: string }[]);
+  const signed = await signedUrlMap(supabase, files);
   const urls = new Map<string, string>();
-  await Promise.all(files.map(async (f) => {
-    const { data: s } = await supabase.storage.from(f.bucket).createSignedUrl(f.path, 3600);
-    if (s?.signedUrl) urls.set(f.id, s.signedUrl);
-  }));
+  for (const f of files) {
+    const u = signed.get(signedKey(f.bucket, f.path));
+    if (u) urls.set(f.id, u);
+  }
 
   return (
     <div id="brief" className="card" style={{ display: "grid", gap: 10, minWidth: 0 }}>

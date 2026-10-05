@@ -4,6 +4,7 @@ import { createClient } from "@shared/supabase/server";
 // is the wrong host; redirectWithin puts the base back and stays on the
 // host the browser is on.
 import { redirectWithin } from "@shared/redirect";
+import { friendly } from "@shared/rpc";
 
 // Where a Google sign-up lands. The email-code path registers from the
 // form; Google skips it, so the name, company and phone ride in the query
@@ -17,10 +18,15 @@ export async function GET(request: NextRequest) {
   if (!claims?.sub) return redirectWithin("/login");
 
   const name = searchParams.get("name")?.trim() || claims.user_metadata?.full_name || claims.user_metadata?.name || null;
-  await supabase.rpc("contractor_register", {
+  const { data: reg, error } = await supabase.rpc("contractor_register", {
     p_full_name: name,
     p_company_name: searchParams.get("company")?.trim() || null,
     p_phone: searchParams.get("phone")?.trim() || null,
   });
+  // A registration that did not take used to land on /work as if it had,
+  // with nothing to say why; /business is where the record gets made.
+  if (error || reg?.ok === false) {
+    return redirectWithin(`/business?error=${encodeURIComponent(reg?.reason ?? friendly(error?.message, "We could not set up your contractor record."))}`);
+  }
   return redirectWithin("/work");
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { basePrice, marked, configLabel, deltaNotes, isHardware, payeeLine, paymentSteps, priceFor, type Lever, type LeverOption, type Package, type Selections } from "@shared/catalogue";
+import { basePrice, marked, configLabel, deltaNotes, isHardware, payeeLine, paymentSteps, priceFor, type Lever, type LeverOption, type Package, type Selections } from "@shared/catalogue.shared";
 import { dollars } from "@shared/format";
 import { PriceBlock } from "@shared/PriceBlock";
 import { AppBar, Card, CheckIcon, Screen, StepKicker } from "@shared/ui";

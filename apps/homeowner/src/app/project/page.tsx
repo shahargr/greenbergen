@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getMe } from "@/lib/me";
+import { createClient } from "@shared/supabase/server";
+import { isSignedIn } from "@shared/supabase/session";
 import { featured, loadPublicSettings, loadTiles } from "@shared/catalogue";
 import { AppBar, Card, ChevronIcon, Notice, Screen, ShellIcons } from "@shared/ui";
 import { unreadForShell } from "@shared/unread";
@@ -7,7 +9,7 @@ import { Scene, SceneMore } from "@/components/Scene";
 import { BobSearch } from "@/components/BobSearch";
 import { rowsFor } from "@/components/ProjectRows";
 import { stopwatch } from "@shared/perf";
-import { pricedAll } from "@/lib/markup";
+import { pricedAll, viewerMarkup } from "@/lib/markup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Green Bergen" };
@@ -39,10 +41,19 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // The catalogue is template data behind a shared cache and it is read with
   // the ANON key, so it answers for a visitor with no session exactly as it
   // does for a member. That is what lets this screen render signed out.
-  const [me, { tiles: rawTiles }, settings] = await Promise.all([
+  //
+  // ONE WAVE. The unread badge only exists for a member, and whether there
+  // is one is the session cookie's claims, verified in process - the same
+  // test getMe() starts from - so it can be decided before anything leaves
+  // rather than after the profile comes back. The mark-up is asked for here
+  // too; pricedAll() below finds it already answered (React cache).
+  const hasSession = await isSignedIn(await createClient());
+  const [me, { tiles: rawTiles }, settings, unread] = await Promise.all([
     w.step("me", () => getMe()),
     w.step("tiles", () => loadTiles()),
     w.step("settings", () => loadPublicSettings()),
+    hasSession ? w.step("unread", () => unreadForShell()) : 0,
+    w.step("markup", () => viewerMarkup()),
   ]);
   w.done();
   const tiles = await pricedAll(rawTiles);
@@ -54,7 +65,6 @@ export default async function ProjectIndex({ searchParams }: { searchParams: Pro
   // to join. Bob and the shelf are the pitch; the sign-in is the ask, and it
   // comes after them.
   const signedIn = me.signed_in;
-  const unread = signedIn ? await unreadForShell() : 0;
   const counts = signedIn ? rowsFor(me).counts : null;
 
   const scenes = featured(tiles);

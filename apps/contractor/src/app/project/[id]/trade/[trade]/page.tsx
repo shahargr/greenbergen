@@ -48,6 +48,11 @@ export default async function TradePage({
 
   const w = stopwatch("/project/[id]/trade/[trade]");
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=/project/${id}/trade/${raw}`);
   const [board, { data: weekData }, { data: spineData }, { data: methodData }, { data: acctData }, { data: gateData },
          { data: targetData }, { data: payDefaultData }] = await Promise.all([
     w.step("board", () => getBoard({ closed: wantDone ? 500 : 0 })),
@@ -339,7 +344,7 @@ export default async function TradePage({
 
           {manages && (
             <QuickTask projectId={landsOn} projectName={nameOf.get(landsOn) ?? null}
-              trade={trade} elsewhere={landsOn !== id}
+              trade={trade} back={`/project/${id}/trade/${raw}`} elsewhere={landsOn !== id}
               methods={methods} accounts={accounts}
               people={people} payDefaults={payDefaults} />
           )}

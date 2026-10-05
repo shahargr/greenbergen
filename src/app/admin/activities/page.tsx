@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getMe } from "@/lib/serverMe";
 import { newActivity } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,8 @@ export default async function ActivitiesPage({
   const { error, ok } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: me }, { data }] = await Promise.all([
-    supabase.rpc("me"),
+  const [me, { data }] = await Promise.all([
+    getMe(),
     supabase.rpc("portal_processes"),
   ]);
   if (!me?.is_superadmin) redirect("/my");

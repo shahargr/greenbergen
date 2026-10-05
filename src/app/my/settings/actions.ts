@@ -16,10 +16,11 @@ export async function saveProfile(formData: FormData) {
   const { data: me } = await supabase.rpc("me");
   if (!me?.app_user_id) redirect("/login");
 
-  await supabase
+  const { error: userErr } = await supabase
     .from("app_users")
     .update({ full_name: fullName || null })
     .eq("id", me.app_user_id);
+  if (userErr) redirect(`/my/settings?error=${encodeURIComponent(userErr.message)}`);
 
   // Verify the address against the Census geocoder; a match saves the
   // standardized form, a miss saves as typed with an honest note.
@@ -54,7 +55,7 @@ export async function saveProfile(formData: FormData) {
   }
 
   if (me.contact_id) {
-    await supabase
+    const { error: contactErr } = await supabase
       .from("contacts")
       .update({
         phone: phone || null,
@@ -63,6 +64,7 @@ export async function saveProfile(formData: FormData) {
         last_modified_by: "portal:settings",
       })
       .eq("id", me.contact_id);
+    if (contactErr) redirect(`/my/settings?error=${encodeURIComponent(contactErr.message)}`);
   }
 
   revalidatePath("/my/settings");

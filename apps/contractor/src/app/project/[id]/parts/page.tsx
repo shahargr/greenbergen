@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { signAll } from "@/lib/sign";
 import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
@@ -68,6 +69,11 @@ export default async function PartsPage({
 
   const w = stopwatch("/project/[id]/parts");
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/parts`)}`);
   const [board, { data }, { data: mayEdit }, { data: targetData }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("register", () => rpc<Register>(supabase, "portal_warranties", { p_project: id })),
@@ -86,14 +92,7 @@ export default async function PartsPage({
     ?? (Array.isArray(targetData) ? targetData : []).flatMap((x) => x.people);
 
   // One signed URL per photograph, asked for together.
-  const urls = new Map<string, string>();
-  await w.step("urls", async () => {
-    const files = reg.parts.flatMap((p) => p.photos ?? []);
-    await Promise.all(files.map(async (p) => {
-      const { data: signed } = await supabase.storage.from(p.bucket).createSignedUrl(p.path, 3600);
-      if (signed?.signedUrl) urls.set(p.file_id, signed.signedUrl);
-    }));
-  });
+  const urls = await w.step("urls", () => signAll(supabase, reg.parts.flatMap((p) => p.photos ?? [])));
   w.done();
 
   // What is missing, counted the way a handover pack is checked: a part with

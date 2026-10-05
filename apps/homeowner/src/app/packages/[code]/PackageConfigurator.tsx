@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { basePrice, asksFirst, configLabel, deltaNotes, encodeSelections, payPlanLine, priceFor, type Package, type Selections } from "@shared/catalogue";
+import { basePrice, asksFirst, configLabel, deltaNotes, encodeSelections, payPlanLine, priceFor, type Package, type Selections } from "@shared/catalogue.shared";
 import { dollars } from "@shared/format";
 import { Card, NumberedNotes } from "@shared/ui";
 import { PriceBlock } from "@shared/PriceBlock";

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { signedUrlMap, signedKey } from "@/lib/signedUrls";
 import { saveCompany, saveTerms, savePriceItem, deletePriceItem, saveBusinessDoc } from "./actions";
 import { deleteCredential } from "../profile/actions";
 
@@ -59,11 +60,12 @@ export default async function BusinessPage({
   const f = b.funnel;
   const winRate = f.submitted + f.won + f.lost > 0
     ? Math.round((f.won / (f.submitted + f.won + f.lost)) * 100) : null;
+  const signed = await signedUrlMap(supabase, b.documents);
   const links = new Map<string, string>();
-  await Promise.all(b.documents.filter((d) => d.bucket && d.path).map(async (d) => {
-    const { data: s } = await supabase.storage.from(d.bucket!).createSignedUrl(d.path!, 3600);
-    if (s?.signedUrl) links.set(d.id, s.signedUrl);
-  }));
+  for (const d of b.documents) {
+    const u = d.bucket && d.path ? signed.get(signedKey(d.bucket, d.path)) : undefined;
+    if (u) links.set(d.id, u);
+  }
   const has = (kind: string) => b.documents.some((d) => d.kind === kind && d.path && !d.expired);
 
   return (

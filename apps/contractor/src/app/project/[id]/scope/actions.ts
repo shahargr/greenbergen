@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { friendly } from "@shared/rpc";
 
 // Scope, relayed. Every rule lives in the database and this file holds none
 // of it: portal_scope_trades_set, portal_scope_copy, portal_scope_packages
@@ -40,7 +41,7 @@ export async function setTrades(projectId: string, formData: FormData) {
   });
   revalidatePath(`/project/${projectId}/scope`);
   redirect(error
-    ? to(projectId, { step: "1", error: error.message, ...k })
+    ? to(projectId, { step: "1", error: friendly(error.message, "That did not save."), ...k })
     : to(projectId, { step: "2", ok: k.trade ? `${k.trade} is on this job.` : `${plural(trades.length, "trade")} on this job.`, ...k }));
 }
 
@@ -66,7 +67,7 @@ export async function copyLines(projectId: string, formData: FormData) {
   // hidden, so the line total is not the trade's - say what was saved, not
   // a number that would mislead.
   redirect(error
-    ? to(projectId, { step: "2", error: error.message, ...k })
+    ? to(projectId, { step: "2", error: friendly(error.message, "That did not save."), ...k })
     : to(projectId, { step: k.trade ? "2" : "3", ok: k.trade ? `${k.trade}'s scope saved.` : `${plural(lines.length, "line")} in scope.`, ...k }));
 }
 
@@ -81,7 +82,7 @@ export async function makePackages(projectId: string) {
   revalidatePath(`/project/${projectId}/scope`);
   revalidatePath(`/project/${projectId}`);
   redirect(error
-    ? to(projectId, { step: "3", error: error.message })
+    ? to(projectId, { step: "3", error: friendly(error.message, "That did not save.") })
     : to(projectId, {
         step: "3",
         ok: made === 0
@@ -108,6 +109,6 @@ export async function addOwnerLine(projectId: string, formData: FormData) {
   });
   revalidatePath(`/project/${projectId}/scope`);
   redirect(error
-    ? to(projectId, { error: error.message })
+    ? to(projectId, { error: friendly(error.message, "That did not save.") })
     : to(projectId, { ok: "Added to the scope." }));
 }

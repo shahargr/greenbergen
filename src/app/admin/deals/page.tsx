@@ -42,73 +42,75 @@ const dollars = (c: number | null) => (c == null ? "—" : `$${(c / 100).toLocal
 
 function DealForm({ deal, trades }: { deal?: Deal; trades: string[] }) {
   const action = deal ? updateDeal.bind(null, deal.id) : createDeal;
+  // Several of these forms share a page, so each label reaches its own control.
+  const id = (field: string) => `deal-${deal?.id ?? "new"}-${field}`;
   return (
     <form action={action} style={{ display: "grid", gap: 10 }}>
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Title</label>
-          <input name="title" className="input" required defaultValue={deal?.title ?? ""} placeholder="Plumber day in Tenafly" />
+          <label htmlFor={id("title")}>Title</label>
+          <input id={id("title")} name="title" className="input" required defaultValue={deal?.title ?? ""} placeholder="Plumber day in Tenafly" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Trade</label>
-          <select name="trade" className="input" defaultValue={deal?.trade ?? ""}>
+          <label htmlFor={id("trade")}>Trade</label>
+          <select id={id("trade")} name="trade" className="input" defaultValue={deal?.trade ?? ""}>
             <option value="">—</option>
             {trades.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
-        <label>Summary — one line shown on the deal card</label>
-        <input name="summary" className="input" defaultValue={deal?.summary ?? ""} placeholder="Up to 2 hours of plumbing work, group rate" />
+        <label htmlFor={id("summary")}>Summary — one line shown on the deal card</label>
+        <input id={id("summary")} name="summary" className="input" defaultValue={deal?.summary ?? ""} placeholder="Up to 2 hours of plumbing work, group rate" />
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
-        <label>Description</label>
-        <textarea name="detail" className="input" rows={3} defaultValue={deal?.detail ?? ""} />
+        <label htmlFor={id("detail")}>Description</label>
+        <textarea id={id("detail")} name="detail" className="input" rows={3} defaultValue={deal?.detail ?? ""} />
       </div>
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Town</label>
-          <input name="town" className="input" defaultValue={deal?.town ?? ""} placeholder="Tenafly" />
+          <label htmlFor={id("town")}>Town</label>
+          <input id={id("town")} name="town" className="input" defaultValue={deal?.town ?? ""} placeholder="Tenafly" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>State</label>
-          <input name="state" className="input" defaultValue={deal?.state_cd ?? "NJ"} maxLength={2} />
+          <label htmlFor={id("state")}>State</label>
+          <input id={id("state")} name="state" className="input" defaultValue={deal?.state_cd ?? "NJ"} maxLength={2} />
         </div>
       </div>
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Price (per booking, $)</label>
-          <input name="price" className="input" inputMode="decimal" defaultValue={deal?.price_cents != null ? String(deal.price_cents / 100) : ""} placeholder="249" />
+          <label htmlFor={id("price")}>Price (per booking, $)</label>
+          <input id={id("price")} name="price" className="input" inputMode="decimal" defaultValue={deal?.price_cents != null ? String(deal.price_cents / 100) : ""} placeholder="249" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Slots per day</label>
-          <input name="slots" className="input" inputMode="numeric" defaultValue={deal?.max_signups != null ? String(deal.max_signups) : ""} placeholder="5" />
+          <label htmlFor={id("slots")}>Slots per day</label>
+          <input id={id("slots")} name="slots" className="input" inputMode="numeric" defaultValue={deal?.max_signups != null ? String(deal.max_signups) : ""} placeholder="5" />
         </div>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
-        <label>Service dates — YYYY-MM-DD, comma separated</label>
-        <input name="dates" className="input" defaultValue={(deal?.service_dates ?? []).join(", ")} placeholder="2026-09-20, 2026-10-18" />
+        <label htmlFor={id("dates")}>Service dates — YYYY-MM-DD, comma separated</label>
+        <input id={id("dates")} name="dates" className="input" defaultValue={(deal?.service_dates ?? []).join(", ")} placeholder="2026-09-20, 2026-10-18" />
       </div>
       {/* Clustered pricing: the contractual ladder, proximity and window. */}
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Pricing</label>
-          <select name="pricing_mode" className="input" defaultValue={deal?.pricing_mode ?? "flat"}>
+          <label htmlFor={id("pricing_mode")}>Pricing</label>
+          <select id={id("pricing_mode")} name="pricing_mode" className="input" defaultValue={deal?.pricing_mode ?? "flat"}>
             <option value="flat">Flat — one price per booking</option>
             <option value="cluster">Clustered — price drops as nearby houses book back-to-back</option>
           </select>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Cluster radius (miles) · run window (days)</label>
+          <label htmlFor={id("radius")}>Cluster radius (miles) · run window (days)</label>
           <div style={{ display: "flex", gap: 8 }}>
-            <input name="radius" className="input" inputMode="decimal" defaultValue={String(deal?.radius_miles ?? 0.5)} style={{ maxWidth: 110 }} />
+            <input id={id("radius")} name="radius" className="input" inputMode="decimal" defaultValue={String(deal?.radius_miles ?? 0.5)} style={{ maxWidth: 110 }} />
             <input name="window_days" className="input" inputMode="numeric" defaultValue={String(deal?.window_days ?? 3)} style={{ maxWidth: 110 }} />
           </div>
         </div>
       </div>
       <div className="field" style={{ marginBottom: 0 }}>
-        <label>Ladder — one tier per line: houses, price per house, label (clustered deals)</label>
-        <textarea name="ladder" className="input" rows={4}
+        <label htmlFor={id("ladder")}>Ladder — one tier per line: houses, price per house, label (clustered deals)</label>
+        <textarea id={id("ladder")} name="ladder" className="input" rows={4}
           defaultValue={(deal?.tiers ?? []).map((t) => `${t.min_houses}, ${(t.price_cents / 100).toFixed(0)}${t.label ? `, ${t.label}` : ""}`).join("\n")}
           placeholder={"1, 249, list\n2, 219, back-to-back\n4, 189, street run"} />
         <p className="muted small" style={{ margin: "4px 0 0" }}>
@@ -117,12 +119,12 @@ function DealForm({ deal, trades }: { deal?: Deal; trades: string[] }) {
       </div>
       <div className="form-2col">
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Terms (optional)</label>
-          <input name="terms" className="input" defaultValue={deal?.offer_terms ?? ""} placeholder="Parts billed separately" />
+          <label htmlFor={id("terms")}>Terms (optional)</label>
+          <input id={id("terms")} name="terms" className="input" defaultValue={deal?.offer_terms ?? ""} placeholder="Parts billed separately" />
         </div>
         <div className="field" style={{ marginBottom: 0 }}>
-          <label>Status</label>
-          <select name="status" className="input" defaultValue={deal?.status ?? "draft"}>
+          <label htmlFor={id("status")}>Status</label>
+          <select id={id("status")} name="status" className="input" defaultValue={deal?.status ?? "draft"}>
             {STATUSES.map((s) => <option key={s}>{s}</option>)}
           </select>
         </div>

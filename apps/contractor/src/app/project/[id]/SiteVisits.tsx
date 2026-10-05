@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Evidence, type Attached } from "@shared/Evidence";
 import { shortDate } from "@shared/format";
 import { MapLink } from "@shared/MapLink";
+import { todayET } from "@/lib/today";
 import { logVisit, editVisit, deleteVisit } from "./actions";
 
 const NavIcon = () => (
@@ -200,8 +201,7 @@ function VisitForm({ projectId, visit, onCancel, back }: {
       {!visit && otherDay && (
         <label className="field" style={{ marginBottom: 0 }}>
           <span className="field-label">Which day</span>
-          <input className="input" name="on_date" type="date" defaultValue={new Date().toISOString().slice(0, 10)}
-            max={new Date().toISOString().slice(0, 10)} />
+          <input className="input" name="on_date" type="date" defaultValue={todayET()} max={todayET()} />
         </label>
       )}
 

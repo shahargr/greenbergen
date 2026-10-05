@@ -1,6 +1,8 @@
 import { createClient } from "@shared/supabase/server";
 import { rpc } from "@shared/rpc";
 import { timed } from "@shared/perf";
+import { cache } from "react";
+import { todayET } from "@/lib/today";
 
 // The board in one place. Two reads, sent together: who you are (me) and
 // every project you hold a seat on with its counts (portal_my_work).
@@ -131,7 +133,9 @@ export type Board = {
 // board and the task list only ever count open work, so they pay nothing for
 // it and ask for none; a project screen that offers "Done" asks for them
 // (Shahar, 2026-09-11: "i need to see completed as well").
-export async function getBoard({ closed = 0 }: { closed?: number } = {}): Promise<Board> {
+// cache(): one request often asks for the board from a page and a layout,
+// or twice from one page; the same arguments now cost one set of reads.
+export const getBoard = cache(async function getBoard({ closed = 0 }: { closed?: number } = {}): Promise<Board> {
   const supabase = await createClient();
   const { data: claimsData } = await timed("me.claims", () => supabase.auth.getClaims());
   const claims = claimsData?.claims as { sub?: string; email?: string } | undefined;
@@ -161,7 +165,7 @@ export async function getBoard({ closed = 0 }: { closed?: number } = {}): Promis
     tasks: kept,
     degraded: !!meErr || !Array.isArray(work),
   };
-}
+});
 
 // ---------------------------------------------------------------------------
 // The hierarchy.
@@ -389,8 +393,8 @@ export function taskBucket(t: Task, today: string, weekEnd: string): TaskBucket 
 // ones. Inside a bucket: soonest first, then by priority - an undated task
 // has nothing else to order it by.
 export function bucketTasks(tasks: Task[], now = new Date()) {
-  const today = now.toISOString().slice(0, 10);
-  const weekEnd = new Date(now.getTime() + 7 * 86400_000).toISOString().slice(0, 10);
+  const today = todayET(now);
+  const weekEnd = todayET(now, 7);
   const out = new Map<TaskBucket, Task[]>();
   for (const t of tasks) {
     const k = taskBucket(t, today, weekEnd);
@@ -526,8 +530,8 @@ const URGENCY_RANK: Record<Urgency, number> = { late: 0, week: 1, waiting: 2, la
 
 export function urgencyOf(t: Task, now = new Date()): Urgency {
   if (t.state === "closed") return "done";
-  const today = now.toISOString().slice(0, 10);
-  const weekEnd = new Date(now.getTime() + 7 * 86400_000).toISOString().slice(0, 10);
+  const today = todayET(now);
+  const weekEnd = todayET(now, 7);
   return taskBucket(t, today, weekEnd);
 }
 

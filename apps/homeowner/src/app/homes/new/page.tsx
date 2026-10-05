@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getMe } from "@/lib/me";
 import { AppBar, Card, Notice, Screen, StepKicker } from "@shared/ui";
+import { safePath } from "@shared/site";
 import { addHome } from "@/app/project/[id]/actions";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ export default async function NewHomePage({ searchParams }: { searchParams: Prom
           <span className="field-label">Call it <span className="text-muted">(optional)</span></span>
           <input className="input" name="name" placeholder="Mom's house" disabled={!canAdd} />
         </label>
-        <input type="hidden" name="next" value={next ?? "/project"} />
+        <input type="hidden" name="next" value={safePath(next, "/project")} />
         {error && <Notice kind="error">{error}</Notice>}
         {me.missing && <Notice title="Preview mode">The database migration has not been applied yet, so homes cannot be added.</Notice>}
         <Card soft pad>

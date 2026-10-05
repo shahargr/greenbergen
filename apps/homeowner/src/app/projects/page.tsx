@@ -25,10 +25,11 @@ export const metadata = { title: "Your projects" };
 export default async function ProjectsIndex({ searchParams }: { searchParams: Promise<{ show?: string; home?: string }> }) {
   const { show, home } = await searchParams;
   const w = stopwatch("/projects");
-  const me = await w.step("me", () => getMe());
+  // The proxy already sent a stranger to /login, so the badge can leave with
+  // the profile rather than wait for it; the redirect below is the belt.
+  const [me, unread] = await Promise.all([w.step("me", () => getMe()), w.step("unread", () => unreadForShell())]);
   w.done();
   if (!me.signed_in) redirect("/login?next=/projects");
-  const unread = await unreadForShell();
 
   const { onlyHome, mine, counts, manyHomes } = rowsFor(me, home);
 

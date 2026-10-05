@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@shared/supabase/server";
+import { signAll } from "@/lib/sign";
 import { rpc } from "@shared/rpc";
 import { stopwatch } from "@shared/perf";
 import { AppBar, Card, Notice, Screen } from "@shared/ui";
@@ -69,6 +70,11 @@ export default async function GasSurveyPage({
 
   const w = stopwatch("/project/[id]/scope/gas");
   const supabase = await createClient();
+  // Signed-out first, from the cookie's claims, before the fan-out below is
+  // paid for: a stranger used to cost the whole set of reads and then be
+  // sent to the login anyway.
+  const { data: claims } = await w.step("claims", () => supabase.auth.getClaims());
+  if (!claims?.claims?.sub) redirect(`/login?next=${encodeURIComponent(`/project/${id}/scope/gas`)}`);
   const [board, { data }, { data: mayEdit }] = await Promise.all([
     w.step("board", () => getBoard()),
     w.step("survey", () => rpc<Survey>(supabase, "portal_gas_survey", { p_project: id })),
@@ -84,14 +90,7 @@ export default async function GasSurveyPage({
 
   // One signed URL per plate photograph, asked for together. Only this screen
   // pays for them; the scope wizard never touches storage.
-  const urls = new Map<string, string>();
-  await w.step("urls", async () => {
-    const files = survey.rows.flatMap((r) => r.photos ?? []);
-    await Promise.all(files.map(async (p) => {
-      const { data: signed } = await supabase.storage.from(p.bucket).createSignedUrl(p.path, 3600);
-      if (signed?.signedUrl) urls.set(p.file_id, signed.signedUrl);
-    }));
-  });
+  const urls = await w.step("urls", () => signAll(supabase, survey.rows.flatMap((r) => r.photos ?? [])));
   w.done();
 
   const left = survey.of - survey.answered;
