@@ -94,6 +94,43 @@ Vercel env settings, entered by Shahar.
 
 Never commit or push without Shahar's say-so. No PRs unless asked.
 
+Never delete a git branch (`git push --delete` or otherwise): the session's
+git proxy refuses it. After a merge, say which branches remain and link
+https://github.com/shahargr/greenbergen/branches so Shahar deletes them.
+
+## Handoff (Shahar 2026-10-05, the MicFit process)
+
+`docs/handoff.md` is the living handoff: what exists, what is live, what is
+in a branch and not merged, what is open and in what order, how the last
+session tested things, and what the session's tools could and could not do.
+A fresh session reads it FIRST, after the Supabase bootstrap above, and before
+touching anything.
+
+Refresh it at the end of every working session, and whenever Shahar says
+"handoff": update in place (one file, newest facts first in each section,
+strike through what is done rather than deleting it), commit it on the
+session branch as a docs-only commit, and say so. Facts that belong to the
+database (a convention, a schema note) go to `help` or the rulebook, and the
+handoff points at them; the handoff never becomes a second task list -
+tasks live in `public.actions`.
+
+## How to ask Shahar for something (Shahar 2026-09-30, from MicFit)
+
+Shahar reads the last message on a phone. Anything he has to do or decide is
+a list at the END of the message, one line per item, each starting with one
+of two labels, in capitals:
+
+- `DECIDE:` a decision only he can make. State the question and the options
+  in one line, with the recommended option first, e.g.
+  `DECIDE: drop stash@{0} now (recommended) or keep it?`
+- `EXECUTE ON [vercel|git|supabase|twilio|...]:` something he must do by hand
+  in that dashboard or tool. Say exactly where and what, one line, e.g.
+  `EXECUTE ON supabase: Project Settings > Vault: add twilio_account_sid.`
+
+Nothing else goes in that list. If there is nothing for him to do, say
+`Nothing for you to do.` Work done by the session is reported above the
+list, in plain past tense, never as a request.
+
 One push per finished piece of work, never per commit: every push to main
 builds three Vercel projects against a 100-a-day cap. Branch pushes build
 nothing (`git.deploymentEnabled` in each `vercel.json`), so check a branch
