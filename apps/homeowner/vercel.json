@@ -3,7 +3,7 @@
   "ignoreCommand": "exit 1",
   "git": {
     "deploymentEnabled": {
-      "main": true,
+      "main": false,
       "**": false
     }
   }

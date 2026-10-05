@@ -1,4 +1,6 @@
 {
+  "model": "sonnet",
+  "effortLevel": "medium",
   "permissions": {
     "allow": [
       "Bash(supabase *)",
