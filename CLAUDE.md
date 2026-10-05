@@ -105,21 +105,17 @@ New chats start on Sonnet 5.5 at medium effort: `.claude/settings.json` sets
 that needs it (a security review, a migration touching money) and say so;
 do not leave a session on a larger model by default.
 
-## Handoff (Shahar 2026-10-05, the MicFit process)
+## Handoff and recovery (Shahar 2026-10-05)
 
-`docs/handoff.md` is the living handoff: what exists, what is live, what is
-in a branch and not merged, what is open and in what order, how the last
-session tested things, and what the session's tools could and could not do.
-A fresh session reads it FIRST, after the Supabase bootstrap above, and before
-touching anything.
-
-Refresh it at the end of every working session, and whenever Shahar says
-"handoff": update in place (one file, newest facts first in each section,
-strike through what is done rather than deleting it), commit it on the
-session branch as a docs-only commit, and say so. Facts that belong to the
-database (a convention, a schema note) go to `help` or the rulebook, and the
-handoff points at them; the handoff never becomes a second task list -
-tasks live in `public.actions`.
+When Shahar says "handoff" or "recovery", follow `docs/handoff-process.md`
+exactly. In short: a handoff is ONE row in `public.actions` (`Session handoff
+...`) plus your own pushed branch, with follow-ups as child rows; recovery is
+one chat that reads every handoff, merges the READY branches into main, lists
+unapplied migrations, ranks all open work and asks what comes first. Both are
+written to cost the fewest tokens and the fewest round trips. The same text is
+in help topic `handoff`. `docs/handoff.md` is frozen history - do not edit it.
+Facts that belong to the database go to `help` or the rulebook; tasks live in
+`public.actions`.
 
 ## How to ask Shahar for something (Shahar 2026-09-30, from MicFit)
 

@@ -1,3 +1,5 @@
+> FROZEN 2026-10-05 - superseded by `docs/handoff-process.md` (handoff = a row in `public.actions`). Kept as history; do not edit.
+
 # Green Bergen handoff (read this first in a fresh session)
 
 Updated 2026-10-05, end of the session that ran the 2026-09-30 system review
