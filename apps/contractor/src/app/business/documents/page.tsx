@@ -34,7 +34,7 @@ export default async function DocumentsPage() {
     key: PaperKey; label: string; state: { needed: boolean; on_file: boolean };
     note: string; wantsExpiry?: boolean; wantsNumber?: boolean;
   }[] = [
-    { key: "licence", label: "Trade licence", state: d.licence, wantsNumber: true,
+    { key: "licence", label: "Trade licence", state: d.licence, wantsNumber: true, wantsExpiry: true,
       note: me.trades.find((t) => t.licence)?.licence ?? "Required for the trades you picked" },
     { key: "liability", label: "General liability", state: d.liability, wantsExpiry: true,
       note: "Certificate of insurance, in your business name" },
@@ -43,6 +43,11 @@ export default async function DocumentsPage() {
     { key: "w9", label: "W-9", state: d.w9,
       note: "So the paperwork is done before the first payment, not after" },
   ];
+  // WHOSE PAPERS. Shahar (2026-11-03): the licence card said Missing and never
+  // said for whom. The papers hang off the person and the business they sign
+  // under, so say both on the page and on every card.
+  const holder = [me.profile.full_name, me.company?.legal_name ?? me.company?.name]
+    .filter((s): s is string => !!s && s.trim() !== "").join(" · ");
   const wanted = rows.filter((r) => r.state.needed);
   const left = wanted.filter((r) => !r.state.on_file).length;
   // A certificate that is running out gets its upload box too, or the
@@ -75,6 +80,7 @@ export default async function DocumentsPage() {
                 <div className="grow">
                   <div className="card-title" style={{ fontSize: 15 }}>{r.label}</div>
                   <div className="small text-muted">{r.note}</div>
+                  {holder && <div className="tiny text-muted">For {holder}</div>}
                 </div>
                 <span className={`tag ${r.state.on_file ? "tag-ok" : "tag-neutral"}`}>
                   {r.state.on_file ? "On file" : "Missing"}

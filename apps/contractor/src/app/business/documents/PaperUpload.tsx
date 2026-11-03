@@ -56,6 +56,12 @@ export function PaperUpload({
     const bad = problemWith(f);
     if (bad) { setErr(bad); return; }
     if (wantsNumber && !num.trim()) { setErr("Type the number as it appears on the licence."); return; }
+    // A licence runs out as a certificate does: the date is printed on it,
+    // and one that has lapsed is not on file.
+    if (wantsExpiry && paper === "licence" && !exp) { setErr("Type the date the licence runs out. It is printed on it."); return; }
+    if (wantsExpiry && exp && exp < new Date().toLocaleDateString("en-CA")) {
+      setErr("That ran out already. We need the current one."); return;
+    }
     setErr(""); setBusy("Uploading…");
 
     const supabase = createClient();
